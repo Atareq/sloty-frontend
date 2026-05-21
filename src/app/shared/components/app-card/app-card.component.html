@@ -1,0 +1,9 @@
+<section
+  class="sloty-card"
+  [class.p-0]="padding() === 'none'"
+  [class.p-4]="padding() === 'sm'"
+  [class.p-5]="padding() === 'md'"
+  [class.p-6]="padding() === 'lg'"
+>
+  <ng-content />
+</section>

@@ -78,3 +78,18 @@ src/app/
     courts/
     transactions/
     settlements/
+```
+
+## 5. Documentation and Commenting Rules
+
+This repo is also used for frontend learning.
+
+Add educational comments for important Angular concepts, especially when introducing routing, standalone components, dependency injection, HTTP interceptors, route guards, and reactive forms.
+
+Prefer JSDoc for services, guards, interceptors, models/interfaces, and reusable components.
+
+Add `README.md` files for major folders so future contributors understand ownership boundaries before changing code.
+
+Avoid noisy comments that repeat obvious code. Comments should explain purpose, responsibility, tradeoffs, or framework concepts that are not obvious to a learner.
+
+Keep documentation updated when architecture or conventions change.

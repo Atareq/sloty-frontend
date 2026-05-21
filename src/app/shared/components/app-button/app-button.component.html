@@ -1,0 +1,11 @@
+<button
+  class="sloty-btn"
+  [class.sloty-btn-primary]="variant() === 'primary'"
+  [class.sloty-btn-secondary]="variant() === 'secondary'"
+  [class.sloty-btn-ghost]="variant() === 'ghost'"
+  [class.w-full]="fullWidth()"
+  [type]="type()"
+  [disabled]="disabled()"
+>
+  <ng-content />
+</button>

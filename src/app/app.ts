@@ -1,12 +1,16 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component } from '@angular/core';
+import { AppShellComponent } from './layout/app-shell.component';
 
+/**
+ * Root Angular component for Sloty.
+ *
+ * Angular 21 components are standalone by default. The `imports` array declares
+ * which components/directives this template can use without creating an NgModule.
+ */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [AppShellComponent],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
-export class App {
-  protected readonly title = signal('sloty-frontend');
-}
+export class App {}
