@@ -33,4 +33,3 @@ After every code change, review whether `AGENTS.md` needs an update.
 If no update is needed, state:
 
 “AGENTS.md reviewed; no update needed.”
-EOF
