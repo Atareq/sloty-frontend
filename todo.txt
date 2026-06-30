@@ -1,3 +1,7 @@
+my comments ...
+when going on mobile mode the buttons of slots all are one under each other and 
+i need to let 4 at least be in one line and have 3 lines 
+
 Sprint 0 — Project foundation
 Sprint 1 — Auth, roles, permissions
 Sprint 2 — Clubs, courts, working hours, pricing

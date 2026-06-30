@@ -115,9 +115,9 @@ export function SchedulePage() {
             <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-3 backdrop-blur-[1px] md:p-4">
               <div>
                 <p className="text-xs font-bold text-white/75">
-                  الفترة المبكرة
+                  الفترة الصباحيه
                 </p>
-                <h3 className="text-lg font-black text-white">بداية اليوم</h3>
+                <h3 className="text-lg font-black text-white">اليوم</h3>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
                 {daySlots.map((booking) => (
@@ -135,7 +135,7 @@ export function SchedulePage() {
                 <p className="text-xs font-bold text-white/75">
                   الفترة المسائية
                 </p>
-                <h3 className="text-lg font-black text-white">آخر اليوم</h3>
+                <h3 className="text-lg font-black text-white">المساء</h3>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
                 {nightSlots.map((booking) => (
