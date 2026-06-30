@@ -1,41 +1,41 @@
 # Sloty Frontend
 
-Arabic-first, RTL-first Angular frontend for the Sloty sports court rental management system.
+Sloty is a React frontend for an Arabic-first, RTL-first, mobile-first sports court management product.
+
+This repository is frontend-only. Do not add backend, Django, database, serializer, model, migration, or API implementation changes here.
+
+## Stack
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- ESLint
+- Vitest
+- Testing Library
+- npm
 
 ## Commands
 
-Use the project Node version:
-
 ```bash
 nvm use
-```
-
-Install dependencies:
-
-```bash
 npm install
-```
-
-Start the local development server:
-
-```bash
-npm start
-```
-
-Build the app:
-
-```bash
+npm run dev
 npm run build
-```
-
-Run unit tests:
-
-```bash
+npm run lint
 npm test
 ```
 
-## Project Notes
+For watch-mode tests:
 
-- This repository is frontend-only.
-- Use Angular standalone components, Angular Router, Reactive Forms, Tailwind CSS, Vitest, and npm.
-- Keep UI Arabic-first, RTL-first, mobile-first, and aligned with the Sloty professional sports operations design direction.
+```bash
+npm run test:watch
+```
+
+## Notes
+
+- Read `AGENTS.md` before changing code.
+- Read the docs in `docs/` when product or UI behavior is relevant.
+- Keep UI Arabic-first, RTL-first, and mobile-first.
+- Do not invent API contracts or production backend URLs in this frontend.
