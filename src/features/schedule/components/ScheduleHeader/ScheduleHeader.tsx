@@ -15,14 +15,10 @@ export interface ScheduleHeaderProps {
   onDateChange?: (key: string) => void
 }
 
-function formatNumber(value: number): string {
-  return value.toLocaleString('ar-EG')
-}
-
 /**
  * Responsive staff schedule header.
  *
- * It combines identity, today's date, fast money/booking summary, and date
+ * It combines identity, today's date, availability summary, and date
  * tabs so staff can understand the day before scanning slot cards. The header
  * starts compact on mobile and expands into a desktop card with a wider top row
  * and four-column summary.
@@ -74,23 +70,24 @@ export function ScheduleHeader({
       </div>
 
       <div className="grid grid-cols-2 divide-x divide-y divide-x-reverse divide-[var(--sloty-border)] border-y border-[var(--sloty-border)] bg-[var(--sloty-bg)] sm:grid-cols-4 sm:divide-y-0 md:mx-5 md:rounded-2xl md:border lg:mx-6">
-        <MoneySummaryCard label="حجوزات" value={summary.bookingCount} />
         <MoneySummaryCard
-          label="انتظار"
-          tone={summary.holdCount > 0 ? 'warning' : 'default'}
-          value={summary.holdCount}
-        />
-        <MoneySummaryCard
-          label="محصل"
-          suffix="ج"
+          label="متاح"
           tone="success"
-          value={formatNumber(summary.collectedAmount)}
+          value={summary.availableCount}
         />
         <MoneySummaryCard
-          label="متبقي"
-          suffix="ج"
-          tone={summary.remainingAmount > 0 ? 'danger' : 'success'}
-          value={formatNumber(summary.remainingAmount)}
+          label="مؤكد"
+          tone="success"
+          value={summary.confirmedCount}
+        />
+        <MoneySummaryCard
+          label="ملغي"
+          tone="default"
+          value={summary.cancelledCount}
+        />
+        <MoneySummaryCard
+          label="إجمالي الفترات"
+          value={summary.totalSlots}
         />
       </div>
 

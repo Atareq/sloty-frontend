@@ -1,6 +1,5 @@
-import type { SlotyStatus } from '../../shared/components/StatusChip/StatusChip'
-
-export type ScheduleBookingStatus = SlotyStatus | 'available'
+export type BookingBoardSlotStatus = 'available' | 'confirmed' | 'cancelled'
+export type BookingBoardPeriod = 'day' | 'night'
 
 export interface ScheduleStaff {
   name: string
@@ -21,24 +20,20 @@ export interface ScheduleDateFilter {
 /**
  * UI-only shape for the staff schedule preview.
  *
- * These fields are intentionally local to the schedule feature. They are not a
- * backend booking model and should be replaced only after API contracts exist.
+ * Booking Board slots intentionally expose only availability state and start
+ * time. Operational lifecycle/payment details belong in future details flows,
+ * not in this board model.
  */
 export interface ScheduleBooking {
   id: string
-  status: ScheduleBookingStatus
-  timeStart: string
-  timeEnd: string
-  totalAmount: number
-  paidAmount: number
-  customerName?: string
-  customerPhone?: string
-  expiresIn?: string
+  status: BookingBoardSlotStatus
+  startTime: string
+  period: BookingBoardPeriod
 }
 
 export interface ScheduleSummary {
-  bookingCount: number
-  holdCount: number
-  collectedAmount: number
-  remainingAmount: number
+  availableCount: number
+  confirmedCount: number
+  cancelledCount: number
+  totalSlots: number
 }

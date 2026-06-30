@@ -40,6 +40,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Use responsive Tailwind classes such as `sm:`, `md:`, `lg:`, and `xl:` intentionally.
 - Do not blindly copy V0/Vercel prototype layout. Convert it into a real responsive web layout.
 - Background images are decorative only. Dynamic booking slots must always be real React components.
+- Booking Board shows only availability-related states: available, confirmed/reserved, and cancelled-but-bookable.
+- Completed, payment, no-show, expired, and lifecycle statuses do not belong on Booking Board.
+- Booking Board slot buttons must remain compact and show only the start time.
 
 ## Architecture Rules
 
@@ -51,6 +54,15 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Prefer JSDoc for services, hooks, API modules, models/types, reusable components, route guards/protected routes, and layout components.
 - Avoid noisy comments that repeat obvious code.
 - Keep documentation updated when architecture changes.
+
+## Auth And API Rules
+
+- API base URL must live in one shared config file; do not hardcode it across components.
+- JWT role claims are used by the frontend for UX, navigation, and route protection.
+- Components must use `useAuth()` instead of decoding tokens directly.
+- Decode access tokens in the auth utility/provider layer only.
+- Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
+- Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 
 ## Change Review
 

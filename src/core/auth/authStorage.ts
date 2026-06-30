@@ -1,36 +1,51 @@
-const PLACEHOLDER_ACCESS_TOKEN_KEY = 'sloty.placeholder.access_token'
+const ACCESS_TOKEN_STORAGE_KEY = 'sloty.auth.access_token'
+const REFRESH_TOKEN_STORAGE_KEY = 'sloty.auth.refresh_token'
 
 /**
- * Reads the placeholder frontend access token from session storage.
+ * Reads the current access token from session storage.
  *
- * This is temporary client-side auth state for routing experiments only. It is
- * not a backend API contract, JWT strategy, refresh-token flow, or security
- * boundary.
+ * Tokens are stored in one helper so components never talk directly to storage
+ * or duplicate token key names.
  */
 export function getAccessToken(): string | null {
-  return sessionStorage.getItem(PLACEHOLDER_ACCESS_TOKEN_KEY)
+  return sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
 }
 
 /**
- * Stores a placeholder access token for the current browser tab session.
- *
- * Future real auth should replace this through a documented API module once
- * backend contracts exist.
+ * Reads the optional refresh token from session storage.
+ */
+export function getRefreshToken(): string | null {
+  return sessionStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+}
+
+/**
+ * Stores the current access token for the browser tab session.
  */
 export function setAccessToken(token: string): void {
-  sessionStorage.setItem(PLACEHOLDER_ACCESS_TOKEN_KEY, token)
+  sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token)
 }
 
 /**
- * Clears the placeholder frontend auth state.
+ * Stores or clears the optional refresh token.
  */
-export function clearAccessToken(): void {
-  sessionStorage.removeItem(PLACEHOLDER_ACCESS_TOKEN_KEY)
+export function setRefreshToken(token?: string): void {
+  if (token) {
+    sessionStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token)
+    return
+  }
+
+  sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
 }
 
 /**
- * Returns whether the current browser tab has placeholder auth state.
+ * Clears all frontend auth token state.
  */
-export function isAuthenticated(): boolean {
-  return Boolean(getAccessToken())
+export function clearAuthTokens(): void {
+  sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
+  sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
 }
+
+/**
+ * Backward-compatible alias for tests and older imports.
+ */
+export const clearAccessToken = clearAuthTokens

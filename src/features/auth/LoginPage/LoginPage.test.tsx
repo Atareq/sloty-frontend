@@ -2,26 +2,29 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
+import { AuthProvider } from '../../../core/auth/AuthProvider'
 import { LoginPage } from './LoginPage'
+
+function renderLoginPage() {
+  render(
+    <AuthProvider>
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    </AuthProvider>,
+  )
+}
 
 describe('LoginPage', () => {
   it('renders the Arabic login heading', () => {
-    render(
-      <MemoryRouter>
-        <LoginPage />
-      </MemoryRouter>,
-    )
+    renderLoginPage()
 
     expect(screen.getByRole('heading', { name: 'تسجيل الدخول' }))
       .toBeInTheDocument()
   })
 
   it('renders the Sloty brand block and login fields', () => {
-    render(
-      <MemoryRouter>
-        <LoginPage />
-      </MemoryRouter>,
-    )
+    renderLoginPage()
 
     expect(screen.getByText('سلوتي')).toBeInTheDocument()
     expect(screen.getByLabelText('رقم الموبايل أو اسم المستخدم'))
@@ -32,11 +35,7 @@ describe('LoginPage', () => {
   it('toggles password visibility locally', async () => {
     const user = userEvent.setup()
 
-    render(
-      <MemoryRouter>
-        <LoginPage />
-      </MemoryRouter>,
-    )
+    renderLoginPage()
 
     const passwordInput = screen.getByLabelText('كلمة المرور')
 

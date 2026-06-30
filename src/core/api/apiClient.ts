@@ -1,4 +1,5 @@
 import { getAccessToken } from '../auth/authStorage'
+import { API_BASE_URL } from '../../shared/config/api'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -18,7 +19,9 @@ export class ApiClientError extends Error {
   }
 }
 
-const apiBaseUrl = import.meta.env.VITE_SLOTY_API_BASE_URL ?? ''
+function getApiUrl(path: string): URL {
+  return new URL(path.replace(/^\/+/, ''), API_BASE_URL)
+}
 
 /**
  * Centralized typed fetch helper for future Sloty API access.
@@ -42,7 +45,7 @@ export async function apiRequest<TResponse>(
     headers.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(getApiUrl(path), {
     method: options.method ?? 'GET',
     headers,
     body:

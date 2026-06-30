@@ -7,28 +7,17 @@ export interface BookingCardProps {
 
 const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
   available:
-    'border-[var(--sloty-primary)] bg-white text-[var(--sloty-primary)] shadow-white/30',
+    'border-[#22C55E] bg-white text-[var(--sloty-primary-dark)] shadow-white/30',
   cancelled:
-    'border-[var(--sloty-primary)] bg-white text-[var(--sloty-primary)] shadow-white/30',
+    'border-[#D1D5DB] bg-[#F3F4F6] text-[var(--sloty-text-muted)] shadow-white/30',
   confirmed:
-    'border-[var(--sloty-success)] bg-[var(--sloty-success)] text-white shadow-emerald-900/20',
-  hold: 'border-[var(--sloty-hold)] bg-[var(--sloty-hold)] text-white shadow-amber-900/20',
-  completed:
-    'border-[var(--sloty-completed)] bg-[var(--sloty-completed)] text-white shadow-blue-900/20',
-  expired:
-    'border-[var(--sloty-expired)] bg-[var(--sloty-expired)] text-white shadow-gray-900/15',
-  noShow:
-    'border-[var(--sloty-no-show)] bg-[var(--sloty-no-show)] text-white shadow-red-950/20',
+    'border-[var(--sloty-primary-dark)] bg-[var(--sloty-primary)] text-white shadow-emerald-900/20',
 }
 
 const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
   available: 'متاح',
   cancelled: 'ملغي',
   confirmed: 'مؤكد',
-  hold: 'انتظار الدفع',
-  completed: 'مكتمل',
-  expired: 'منتهي',
-  noShow: 'لم يحضر',
 }
 
 /**
@@ -40,17 +29,15 @@ const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
 export function BookingCard({ booking, onSelect }: BookingCardProps) {
   return (
     <button
-      aria-label={`${booking.timeStart} - ${booking.timeEnd} ${statusLabelByStatus[booking.status]}`}
+      aria-label={`${booking.startTime} ${statusLabelByStatus[booking.status]}`}
       className={[
-        'min-h-14 rounded-2xl border-2 px-3 py-3 text-center text-sm font-black shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--sloty-primary-dark)] sm:min-h-16 md:min-h-20 md:text-base',
+        'h-12 w-[76px] max-w-[108px] rounded-2xl border-2 px-2 text-center text-sm font-black shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--sloty-primary-dark)] sm:h-14 sm:w-20 md:h-16 md:w-24 md:text-base lg:w-[104px]',
         slotClassesByStatus[booking.status],
       ].join(' ')}
       onClick={() => onSelect?.(booking)}
       type="button"
     >
-      <span dir="ltr">
-        {booking.timeStart} - {booking.timeEnd}
-      </span>
+      <span dir="ltr">{booking.startTime}</span>
     </button>
   )
 }

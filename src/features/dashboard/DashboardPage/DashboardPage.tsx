@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { usePlaceholderAuth } from '../../../core/auth/usePlaceholderAuth'
+import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -13,7 +13,7 @@ import { StatusChip } from '../../../shared/components/StatusChip/StatusChip'
  */
 export function DashboardPage() {
   const navigate = useNavigate()
-  const { logout } = usePlaceholderAuth()
+  const { logout } = useAuth()
 
   function handleLogout(): void {
     logout()

@@ -1,4 +1,5 @@
 import { RouterProvider } from 'react-router'
+import { AuthProvider } from '../core/auth/AuthProvider'
 import { router } from './router'
 
 /**
@@ -8,5 +9,9 @@ import { router } from './router'
  * attach without leaking routing details into `main.tsx`.
  */
 export function App() {
-  return <RouterProvider router={router} />
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  )
 }

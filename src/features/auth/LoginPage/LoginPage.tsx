@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { usePlaceholderAuth } from '../../../core/auth/usePlaceholderAuth'
+import { createDevAccessToken } from '../../../core/auth/devAuth'
+import { getDefaultRouteForRole } from '../../../core/auth/auth.types'
+import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 
@@ -22,7 +24,7 @@ const initialFormState: LoginFormState = {
  */
 export function LoginPage() {
   const navigate = useNavigate()
-  const { login } = usePlaceholderAuth()
+  const { login } = useAuth()
   const [formState, setFormState] = useState<LoginFormState>(initialFormState)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -43,8 +45,9 @@ export function LoginPage() {
     }
 
     setError(null)
-    login('sloty-placeholder-access-token')
-    navigate('/dashboard')
+    const devRole = 'court_staff'
+    login(createDevAccessToken(devRole))
+    navigate(getDefaultRouteForRole(devRole))
   }
 
   return (

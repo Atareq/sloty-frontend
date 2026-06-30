@@ -25,84 +25,157 @@ export const scheduleDateFilters: ScheduleDateFilter[] = [
 
 export const scheduleBookings: ScheduleBooking[] = [
   {
-    id: 'slot-1',
+    id: 'slot-0600',
     status: 'available',
-    timeStart: '06:00 م',
-    timeEnd: '07:00 م',
-    totalAmount: 250,
-    paidAmount: 0,
+    startTime: '06:00',
+    period: 'day',
   },
   {
-    id: 'booking-1',
-    status: 'hold',
-    timeStart: '07:00 م',
-    timeEnd: '08:00 م',
-    totalAmount: 300,
-    paidAmount: 0,
-    customerName: 'محمود حسن',
-    customerPhone: '01012345678',
-    expiresIn: 'ينتهي خلال 10 ساعات',
-  },
-  {
-    id: 'booking-2',
+    id: 'slot-0700',
     status: 'confirmed',
-    timeStart: '08:00 م',
-    timeEnd: '09:00 م',
-    totalAmount: 300,
-    paidAmount: 50,
-    customerName: 'أحمد محمد',
-    customerPhone: '01123456789',
+    startTime: '07:00',
+    period: 'day',
   },
   {
-    id: 'booking-3',
-    status: 'completed',
-    timeStart: '09:00 م',
-    timeEnd: '10:00 م',
-    totalAmount: 300,
-    paidAmount: 300,
-    customerName: 'كريم علي',
-    customerPhone: '01234567890',
-  },
-  {
-    id: 'booking-4',
-    status: 'expired',
-    timeStart: '10:00 م',
-    timeEnd: '11:00 م',
-    totalAmount: 300,
-    paidAmount: 0,
-    customerName: 'حجز منتهي',
-    customerPhone: '01000000000',
-  },
-  {
-    id: 'booking-5',
+    id: 'slot-0800',
     status: 'cancelled',
-    timeStart: '11:00 م',
-    timeEnd: '12:00 ص',
-    totalAmount: 300,
-    paidAmount: 0,
-    customerName: 'حجز ملغي',
-    customerPhone: '01000000001',
+    startTime: '08:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-0900',
+    status: 'available',
+    startTime: '09:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1000',
+    status: 'confirmed',
+    startTime: '10:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1100',
+    status: 'cancelled',
+    startTime: '11:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1200',
+    status: 'available',
+    startTime: '12:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1300',
+    status: 'available',
+    startTime: '13:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1400',
+    status: 'confirmed',
+    startTime: '14:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1500',
+    status: 'available',
+    startTime: '15:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1600',
+    status: 'cancelled',
+    startTime: '16:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1700',
+    status: 'available',
+    startTime: '17:00',
+    period: 'day',
+  },
+  {
+    id: 'slot-1800',
+    status: 'confirmed',
+    startTime: '18:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-1900',
+    status: 'available',
+    startTime: '19:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-2000',
+    status: 'available',
+    startTime: '20:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-2100',
+    status: 'cancelled',
+    startTime: '21:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-2200',
+    status: 'confirmed',
+    startTime: '22:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-2300',
+    status: 'available',
+    startTime: '23:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-0000',
+    status: 'available',
+    startTime: '00:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-0100',
+    status: 'confirmed',
+    startTime: '01:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-0200',
+    status: 'available',
+    startTime: '02:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-0300',
+    status: 'cancelled',
+    startTime: '03:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-0400',
+    status: 'available',
+    startTime: '04:00',
+    period: 'night',
+  },
+  {
+    id: 'slot-0500',
+    status: 'available',
+    startTime: '05:00',
+    period: 'night',
   },
 ]
 
 export const scheduleSummary: ScheduleSummary = {
-  bookingCount: scheduleBookings.filter(
-    (booking) =>
-      booking.status !== 'available' &&
-      booking.status !== 'cancelled' &&
-      booking.status !== 'expired',
-  ).length,
-  holdCount: scheduleBookings.filter((booking) => booking.status === 'hold')
+  availableCount: scheduleBookings.filter((booking) => booking.status === 'available')
     .length,
-  collectedAmount: scheduleBookings.reduce(
-    (total, booking) => total + booking.paidAmount,
-    0,
-  ),
-  remainingAmount: scheduleBookings.reduce(
-    (total, booking) =>
-      booking.status === 'available'
-        ? total
-        : total + Math.max(booking.totalAmount - booking.paidAmount, 0),
-    0,
-  ),
+  confirmedCount: scheduleBookings.filter((booking) => booking.status === 'confirmed')
+    .length,
+  cancelledCount: scheduleBookings.filter((booking) => booking.status === 'cancelled')
+    .length,
+  totalSlots: scheduleBookings.length,
 }

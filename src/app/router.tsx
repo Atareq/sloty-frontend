@@ -2,8 +2,9 @@ import { Navigate, createBrowserRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage/DashboardPage'
 import { SchedulePage } from '../features/schedule/SchedulePage/SchedulePage'
+import { AdminClubsPage } from '../features/admin/AdminClubsPage/AdminClubsPage'
+import { RoleRoute } from '../core/auth/RoleRoute'
 import { AppShell } from '../layout/AppShell/AppShell'
-import { ProtectedRoute } from '../layout/ProtectedRoute/ProtectedRoute'
 
 /**
  * Sloty route map for the React restart foundation.
@@ -26,14 +27,26 @@ export const router = createBrowserRouter([
       {
         path: '/dashboard',
         element: (
-          <ProtectedRoute>
+          <RoleRoute allowedRoles={['club_owner']}>
             <DashboardPage />
-          </ProtectedRoute>
+          </RoleRoute>
         ),
       },
       {
         path: '/schedule',
-        element: <SchedulePage />,
+        element: (
+          <RoleRoute allowedRoles={['club_manager', 'court_staff']}>
+            <SchedulePage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/clubs',
+        element: (
+          <RoleRoute allowedRoles={['platform_super_admin']}>
+            <AdminClubsPage />
+          </RoleRoute>
+        ),
       },
       {
         path: '*',

@@ -6,21 +6,19 @@ import { BookingCard } from './BookingCard'
 const confirmedBooking: ScheduleBooking = {
   id: 'booking-test',
   status: 'confirmed',
-  timeStart: '08:00 م',
-  timeEnd: '09:00 م',
-  totalAmount: 300,
-  paidAmount: 50,
-  customerName: 'أحمد محمد',
-  customerPhone: '01123456789',
+  startTime: '08:00',
+  period: 'day',
 }
 
 describe('BookingCard', () => {
-  it('renders a real slot button with time and accessible status', () => {
+  it('renders a compact real slot button with start time only', () => {
     render(<BookingCard booking={confirmedBooking} />)
 
     expect(
-      screen.getByRole('button', { name: '08:00 م - 09:00 م مؤكد' }),
+      screen.getByRole('button', { name: '08:00 مؤكد' }),
     ).toBeInTheDocument()
-    expect(screen.queryByText('أحمد محمد')).not.toBeInTheDocument()
+    expect(screen.getByText('08:00')).toBeInTheDocument()
+    expect(screen.queryByText('09:00')).not.toBeInTheDocument()
+    expect(screen.queryByText('مؤكد')).not.toBeInTheDocument()
   })
 })

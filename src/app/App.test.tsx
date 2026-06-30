@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, beforeEach } from 'vitest'
-import { clearAccessToken } from '../core/auth/authStorage'
+import { clearAuthTokens } from '../core/auth/authStorage'
 import { App } from './App'
 
 describe('App', () => {
   beforeEach(() => {
-    clearAccessToken()
+    clearAuthTokens()
     window.history.pushState(null, '', '/')
   })
 

@@ -13,39 +13,39 @@ import type { ScheduleBooking } from '../schedule.types'
 
 const statusLegend = [
   {
-    label: 'متاح / ملغي',
-    className: 'border-[var(--sloty-primary)] bg-white',
+    label: 'متاح',
+    className: 'border-[#22C55E] bg-white',
   },
   {
     label: 'مؤكد',
-    className: 'border-[var(--sloty-success)] bg-[var(--sloty-success)]',
+    className: 'border-[var(--sloty-primary-dark)] bg-[var(--sloty-primary)]',
   },
   {
-    label: 'انتظار الدفع',
-    className: 'border-[var(--sloty-hold)] bg-[var(--sloty-hold)]',
-  },
-  {
-    label: 'مكتمل',
-    className: 'border-[var(--sloty-completed)] bg-[var(--sloty-completed)]',
-  },
-  {
-    label: 'منتهي',
-    className: 'border-[var(--sloty-expired)] bg-[var(--sloty-expired)]',
+    label: 'ملغي',
+    className: 'border-[#D1D5DB] bg-[#F3F4F6]',
   },
 ]
 
 function getStatusLabel(status: ScheduleBooking['status']): string {
   const statusLabels: Record<ScheduleBooking['status'], string> = {
-    available: 'متاح',
-    cancelled: 'ملغي',
-    confirmed: 'مؤكد',
-    hold: 'انتظار الدفع',
-    completed: 'مكتمل',
-    expired: 'منتهي',
-    noShow: 'لم يحضر',
+      available: 'متاح',
+      cancelled: 'ملغي',
+      confirmed: 'مؤكد',
   }
 
   return statusLabels[status]
+}
+
+function getDialogTitle(status: ScheduleBooking['status']): string {
+  return status === 'confirmed' ? 'تفاصيل الحجز' : 'إضافة حجز'
+}
+
+function getDialogDescription(status: ScheduleBooking['status']): string {
+  if (status === 'confirmed') {
+    return 'هذه نافذة تفاصيل مؤقتة فقط. عمليات الدفع والإكمال والإلغاء ستأتي في تدفق منفصل لاحقاً.'
+  }
+
+  return 'هذه نافذة إضافة حجز مؤقتة فقط. سيتم تنفيذ نموذج الحجز السريع لاحقاً بدون افتراضات خلفية.'
 }
 
 /**
@@ -58,8 +58,10 @@ export function SchedulePage() {
   const [activeDateKey, setActiveDateKey] = useState('today')
   const [activeNavKey, setActiveNavKey] = useState('schedule')
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
-  const earlySlots = scheduleBookings.slice(0, 3)
-  const nightSlots = scheduleBookings.slice(3)
+  const daySlots = scheduleBookings.filter((booking) => booking.period === 'day')
+  const nightSlots = scheduleBookings.filter(
+    (booking) => booking.period === 'night',
+  )
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
@@ -76,10 +78,10 @@ export function SchedulePage() {
         <section className="flex flex-col gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:flex-row md:items-center md:justify-between md:px-5">
           <div className="space-y-1">
             <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-              لوحة الملعب
+              لوحة الحجز
             </h2>
             <p className="text-sm text-[var(--sloty-text-muted)]">
-              اختر فترة متاحة من اللوحة لبدء حجز جديد لاحقاً
+              اختر فترة متاحة أو ملغية لإضافة حجز، أو فترة مؤكدة لعرض التفاصيل
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -118,7 +120,7 @@ export function SchedulePage() {
                 <h3 className="text-lg font-black text-white">بداية اليوم</h3>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
-                {earlySlots.map((booking) => (
+                {daySlots.map((booking) => (
                   <BookingCard
                     booking={booking}
                     key={booking.id}
@@ -166,14 +168,16 @@ export function SchedulePage() {
                 className="text-xl font-black text-[var(--sloty-text-primary)]"
                 dir="ltr"
               >
-                {selectedSlot.timeStart} - {selectedSlot.timeEnd}
+                {selectedSlot.startTime}
               </h2>
+              <h3 className="text-lg font-black text-[var(--sloty-text-primary)]">
+                {getDialogTitle(selectedSlot.status)}
+              </h3>
               <p className="text-sm text-[var(--sloty-text-muted)]">
                 الحالة: {getStatusLabel(selectedSlot.status)}
               </p>
               <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-                هذه نافذة مؤقتة للمعاينة فقط. إضافة الحجز أو الدفع ستأتي لاحقاً
-                بعد اعتماد التدفق.
+                {getDialogDescription(selectedSlot.status)}
               </p>
             </div>
             <button

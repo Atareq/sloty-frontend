@@ -11,7 +11,7 @@ export interface AppButtonProps
 
 const variantClasses: Record<AppButtonVariant, string> = {
   primary:
-    'border-transparent bg-[var(--sloty-primary)] text-white shadow-sm hover:bg-[var(--sloty-primary-dark)]',
+    "border-transparent bg-[image:linear-gradient(90deg,rgba(6,78,59,0.94),rgba(11,107,58,0.82)),url('/images/sloty-green-surface-bg.png')] bg-cover bg-center text-white shadow-sm hover:bg-[var(--sloty-primary-dark)]",
   secondary:
     'border-[var(--sloty-border)] bg-[var(--sloty-surface)] text-[var(--sloty-text-primary)] hover:border-[var(--sloty-primary)]',
   danger:
