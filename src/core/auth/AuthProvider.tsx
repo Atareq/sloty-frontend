@@ -41,11 +41,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const login = useCallback(
-    (nextAccessToken: string, nextRefreshToken?: string): void => {
+    (nextAccessToken: string, nextRefreshToken?: string): AuthRole | null => {
+      const nextClaims = getClaims(nextAccessToken)
+
+      if (!nextClaims || isJwtExpired(nextClaims)) {
+        return null
+      }
+
       setTokens({
         accessToken: nextAccessToken,
         refreshToken: nextRefreshToken,
       })
+
+      return nextClaims.role
     },
     [setTokens],
   )

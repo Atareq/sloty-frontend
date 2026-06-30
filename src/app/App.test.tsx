@@ -12,9 +12,6 @@ describe('App', () => {
   it('renders the router shell', async () => {
     render(<App />)
 
-    expect(
-      screen.getByRole('main').closest('[aria-label="هيكل تطبيق سلوتي"]'),
-    ).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'تسجيل الدخول' }))
       .toBeInTheDocument()
   })

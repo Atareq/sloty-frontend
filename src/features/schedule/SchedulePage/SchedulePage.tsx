@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { MobileBottomNav } from '../../../shared/components/MobileBottomNav/MobileBottomNav'
 import { BookingCard } from '../components/BookingCard/BookingCard'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
 import {
@@ -56,7 +55,6 @@ function getDialogDescription(status: ScheduleBooking['status']): string {
  */
 export function SchedulePage() {
   const [activeDateKey, setActiveDateKey] = useState('today')
-  const [activeNavKey, setActiveNavKey] = useState('schedule')
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
   const daySlots = scheduleBookings.filter((booking) => booking.period === 'day')
   const nightSlots = scheduleBookings.filter(
@@ -150,8 +148,6 @@ export function SchedulePage() {
           </div>
         </section>
       </div>
-
-      <MobileBottomNav activeKey={activeNavKey} onChange={setActiveNavKey} />
 
       {selectedSlot ? (
         <div

@@ -1,9 +1,22 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../../../core/auth/AuthProvider'
+import { loginWithPassword } from '../../../core/auth/authApi'
+import {
+  clearAuthTokens,
+  getAccessToken,
+  getRefreshToken,
+} from '../../../core/auth/authStorage'
+import { createDevAccessToken } from '../../../core/auth/devAuth'
 import { LoginPage } from './LoginPage'
+
+vi.mock('../../../core/auth/authApi', () => ({
+  loginWithPassword: vi.fn(),
+}))
+
+const mockedLoginWithPassword = vi.mocked(loginWithPassword)
 
 function renderLoginPage() {
   render(
@@ -15,7 +28,25 @@ function renderLoginPage() {
   )
 }
 
+function renderLoginPageWithRoutes() {
+  render(
+    <AuthProvider>
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route element={<LoginPage />} path="/login" />
+          <Route element={<p>صفحة الجدول</p>} path="/schedule" />
+        </Routes>
+      </MemoryRouter>
+    </AuthProvider>,
+  )
+}
+
 describe('LoginPage', () => {
+  beforeEach(() => {
+    clearAuthTokens()
+    vi.clearAllMocks()
+  })
+
   it('renders the Arabic login heading', () => {
     renderLoginPage()
 
@@ -30,6 +61,7 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('رقم الموبايل أو اسم المستخدم'))
       .toBeInTheDocument()
     expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
+    expect(screen.getByLabelText(/كود النادي/)).toBeInTheDocument()
   })
 
   it('toggles password visibility locally', async () => {
@@ -47,5 +79,55 @@ describe('LoginPage', () => {
     expect(
       screen.getByRole('button', { name: 'إخفاء كلمة المرور' }),
     ).toBeInTheDocument()
+  })
+
+  it('calls the auth API and stores tokens on successful login', async () => {
+    const user = userEvent.setup()
+    const accessToken = createDevAccessToken('court_staff')
+
+    mockedLoginWithPassword.mockResolvedValueOnce({
+      access: accessToken,
+      refresh: 'refresh-token',
+    })
+
+    renderLoginPageWithRoutes()
+
+    await user.type(
+      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      'staff-user',
+    )
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
+    await user.type(screen.getByLabelText(/كود النادي/), 'nasr-club')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(mockedLoginWithPassword).toHaveBeenCalledWith({
+      username: 'staff-user',
+      password: 'secret-pass',
+      club_slug: 'nasr-club',
+    })
+    expect(await screen.findByText('صفحة الجدول')).toBeInTheDocument()
+    expect(getAccessToken()).toBe(accessToken)
+    expect(getRefreshToken()).toBe('refresh-token')
+  })
+
+  it('shows an Arabic error when the auth API rejects login', async () => {
+    const user = userEvent.setup()
+
+    mockedLoginWithPassword.mockRejectedValueOnce(new Error('Unauthorized'))
+
+    renderLoginPageWithRoutes()
+
+    await user.type(
+      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      'wrong-user',
+    )
+    await user.type(screen.getByLabelText('كلمة المرور'), 'bad-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(
+      await screen.findByText('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('صفحة الجدول')).not.toBeInTheDocument()
+    expect(getAccessToken()).toBeNull()
   })
 })

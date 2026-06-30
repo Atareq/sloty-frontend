@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { createDevAccessToken } from '../../../core/auth/devAuth'
 import { getDefaultRouteForRole } from '../../../core/auth/auth.types'
+import { loginWithPassword } from '../../../core/auth/authApi'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -9,24 +9,27 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 interface LoginFormState {
   username: string
   password: string
+  clubSlug: string
 }
 
 const initialFormState: LoginFormState = {
   username: '',
   password: '',
+  clubSlug: '',
 }
 
 /**
- * Login skeleton for the frontend foundation.
+ * Login screen for Sloty's JWT auth flow.
  *
- * This page owns local form state and required-field validation only. It does
- * not call a backend or define the final Sloty authentication contract.
+ * The component owns form state and calls the small auth API wrapper. Token
+ * storage and decoding stay inside the auth provider.
  */
 export function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const [formState, setFormState] = useState<LoginFormState>(initialFormState)
   const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
   function updateField(field: keyof LoginFormState, value: string): void {
@@ -36,7 +39,7 @@ export function LoginPage() {
     }))
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
 
     if (!formState.username.trim() || !formState.password.trim()) {
@@ -45,9 +48,29 @@ export function LoginPage() {
     }
 
     setError(null)
-    const devRole = 'court_staff'
-    login(createDevAccessToken(devRole))
-    navigate(getDefaultRouteForRole(devRole))
+    setIsSubmitting(true)
+
+    try {
+      const tokens = await loginWithPassword({
+        username: formState.username.trim(),
+        password: formState.password,
+        ...(formState.clubSlug.trim()
+          ? { club_slug: formState.clubSlug.trim() }
+          : {}),
+      })
+      const role = login(tokens.access, tokens.refresh)
+
+      if (!role) {
+        setError('تم تسجيل الدخول لكن بيانات الصلاحية غير صالحة')
+        return
+      }
+
+      navigate(getDefaultRouteForRole(role))
+    } catch {
+      setError('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -148,14 +171,37 @@ export function LoginPage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <label
+                className="text-sm font-semibold text-[var(--sloty-text-primary)]"
+                htmlFor="clubSlug"
+              >
+                كود النادي
+                <span className="mr-1 text-xs font-medium text-[var(--sloty-text-muted)]">
+                  اختياري
+                </span>
+              </label>
+              <input
+                autoComplete="organization"
+                className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                id="clubSlug"
+                onChange={(event) =>
+                  updateField('clubSlug', event.target.value)
+                }
+                placeholder="مثال: nasr-club"
+                type="text"
+                value={formState.clubSlug}
+              />
+            </div>
+
             {error ? (
               <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-medium text-[var(--sloty-danger)]">
                 {error}
               </p>
             ) : null}
 
-            <AppButton fullWidth type="submit">
-              تسجيل الدخول
+            <AppButton disabled={isSubmitting} fullWidth type="submit">
+              {isSubmitting ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
             </AppButton>
           </form>
         </AppCard>

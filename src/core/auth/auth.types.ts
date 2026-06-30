@@ -23,13 +23,28 @@ export interface AuthTokens {
   refreshToken?: string
 }
 
+export interface TokenPair {
+  access: string
+  refresh: string
+}
+
+export interface LoginRequest {
+  username: string
+  password: string
+  club_slug?: string
+}
+
+export interface RefreshTokenRequest {
+  refresh: string
+}
+
 export interface AuthContextValue {
   accessToken: string | null
   claims: AuthClaims | null
   role: AuthRole | null
   isAuthenticated: boolean
   isTokenExpired: boolean
-  login: (accessToken: string, refreshToken?: string) => void
+  login: (accessToken: string, refreshToken?: string) => AuthRole | null
   logout: () => void
   setTokens: (tokens: AuthTokens) => void
 }

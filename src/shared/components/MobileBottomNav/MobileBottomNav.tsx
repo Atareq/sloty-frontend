@@ -2,6 +2,7 @@ export interface MobileBottomNavItem {
   key: string
   label: string
   marker: string
+  path?: string
 }
 
 export interface MobileBottomNavProps {

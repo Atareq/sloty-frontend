@@ -1,3 +1,6 @@
+import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+
 /**
  * Minimal platform-admin placeholder route.
  *
@@ -6,13 +9,19 @@
  */
 export function AdminClubsPage() {
   return (
-    <div className="rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-5 shadow-[var(--sloty-shadow)]">
-      <h1 className="text-xl font-black text-[var(--sloty-text-primary)]">
-        إدارة الأندية
-      </h1>
-      <p className="mt-2 text-sm text-[var(--sloty-text-muted)]">
-        صفحة مؤقتة لمسار مسؤول المنصة حتى يتم بناء شاشة الأندية لاحقاً.
-      </p>
+    <div className="space-y-5">
+      <PageHeader
+        description="صفحة مؤقتة لمسار مسؤول المنصة حتى يتم بناء شاشة الأندية لاحقاً."
+        title="إدارة الأندية"
+        tone="brand"
+      />
+
+      <AppCard>
+        <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
+          سيتم بناء إدارة الأندية بعد اعتماد تدفق الإنشاء والتعديل والصلاحيات
+          مع الخلفية.
+        </p>
+      </AppCard>
     </div>
   )
 }

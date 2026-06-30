@@ -58,11 +58,13 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 ## Auth And API Rules
 
 - API base URL must live in one shared config file; do not hardcode it across components.
+- API endpoint paths must live in `src/shared/api/apiEndpoints.ts`; do not hardcode API URLs inside components.
 - JWT role claims are used by the frontend for UX, navigation, and route protection.
 - Components must use `useAuth()` instead of decoding tokens directly.
 - Decode access tokens in the auth utility/provider layer only.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
+- Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.
 
 ## Change Review
 
