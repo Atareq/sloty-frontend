@@ -13,7 +13,7 @@ export function NewBookingFAB({ onClick }: NewBookingFABProps) {
   return (
     <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-3 md:hidden">
       <button
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[var(--sloty-primary)] text-[15px] font-black text-white shadow-lg shadow-emerald-900/15 transition hover:bg-[var(--sloty-primary-dark)] active:scale-[0.99]"
+        className="sloty-green-surface-button flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-black text-white shadow-lg shadow-emerald-900/15 transition hover:bg-[var(--sloty-primary-dark)] active:scale-[0.99]"
         onClick={onClick}
         type="button"
       >

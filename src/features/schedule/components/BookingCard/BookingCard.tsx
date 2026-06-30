@@ -11,7 +11,7 @@ const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
   cancelled:
     'border-[#D1D5DB] bg-[#F3F4F6] text-[var(--sloty-text-muted)] shadow-white/30',
   confirmed:
-    'border-[var(--sloty-primary-dark)] bg-[var(--sloty-primary)] text-white shadow-emerald-900/20',
+    'sloty-green-surface-button border-[var(--sloty-primary-dark)] text-white shadow-emerald-900/20',
 }
 
 const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
@@ -31,7 +31,7 @@ export function BookingCard({ booking, onSelect }: BookingCardProps) {
     <button
       aria-label={`${booking.startTime} ${statusLabelByStatus[booking.status]}`}
       className={[
-        'h-12 w-[76px] max-w-[108px] rounded-2xl border-2 px-2 text-center text-sm font-black shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--sloty-primary-dark)] sm:h-14 sm:w-20 md:h-16 md:w-24 md:text-base lg:w-[104px]',
+        'h-11 w-full max-w-[72px] justify-self-center rounded-xl border-2 px-1 text-center text-xs font-black shadow-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--sloty-primary-dark)] sm:h-12 sm:max-w-[76px] sm:text-sm md:h-14 md:max-w-[96px] md:text-base lg:h-16 lg:max-w-[108px]',
         slotClassesByStatus[booking.status],
       ].join(' ')}
       onClick={() => onSelect?.(booking)}

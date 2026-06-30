@@ -39,7 +39,7 @@ export function AppShell() {
       className="min-h-svh bg-[var(--sloty-bg)] text-[var(--sloty-text-primary)]"
     >
       <aside className="fixed bottom-0 right-0 top-0 hidden w-72 flex-col border-l border-[var(--sloty-border)] bg-[var(--sloty-surface)] px-4 py-5 shadow-[var(--sloty-shadow)] lg:flex">
-        <div className="rounded-3xl bg-[image:linear-gradient(135deg,rgba(6,78,59,0.95),rgba(11,107,58,0.84)),url('/images/sloty-green-surface-bg.png')] bg-cover bg-center p-4 text-white">
+        <div className="sloty-green-surface rounded-3xl p-4 text-white">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/16 text-xl font-black">
             س
           </div>

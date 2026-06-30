@@ -72,3 +72,19 @@ select {
   color: #ffffff;
   background: var(--sloty-primary);
 }
+
+.sloty-green-surface {
+  background-image:
+    linear-gradient(135deg, rgb(6 78 59 / 94%), rgb(11 107 58 / 88%)),
+    url('/images/sloty-green-surface-bg.png');
+  background-position: center;
+  background-size: cover;
+}
+
+.sloty-green-surface-button {
+  background-image:
+    linear-gradient(90deg, rgb(6 78 59 / 94%), rgb(11 107 58 / 82%)),
+    url('/images/sloty-green-surface-bg.png');
+  background-position: center;
+  background-size: cover;
+}

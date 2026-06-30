@@ -21,7 +21,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   if (tone === 'brand') {
     return (
-      <header className="relative overflow-hidden rounded-3xl border border-emerald-950/10 bg-[image:linear-gradient(135deg,rgba(6,78,59,0.96),rgba(11,107,58,0.86)),url('/images/sloty-green-surface-bg.png')] bg-cover bg-center p-5 text-white shadow-[var(--sloty-shadow)] sm:flex sm:items-start sm:justify-between sm:gap-6 sm:p-6">
+      <header className="sloty-green-surface relative overflow-hidden rounded-3xl border border-emerald-950/10 p-5 text-white shadow-[var(--sloty-shadow)] sm:flex sm:items-start sm:justify-between sm:gap-6 sm:p-6">
         <div className="space-y-2">
           <h1 className="text-2xl font-black">{title}</h1>
           {description ? (

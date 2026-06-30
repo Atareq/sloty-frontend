@@ -17,7 +17,7 @@ const statusLegend = [
   },
   {
     label: 'مؤكد',
-    className: 'border-[var(--sloty-primary-dark)] bg-[var(--sloty-primary)]',
+    className: 'sloty-green-surface-button border-[var(--sloty-primary-dark)]',
   },
   {
     label: 'ملغي',
@@ -109,15 +109,15 @@ export function SchedulePage() {
           }}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/30 via-emerald-900/10 to-slate-950/35" />
-          <div className="relative z-10 grid min-h-[660px] grid-cols-1 gap-4 p-4 sm:min-h-[560px] md:min-h-[480px] md:grid-cols-2 md:p-5 lg:min-h-[540px] lg:p-6">
-            <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-3 backdrop-blur-[1px] md:p-4">
+          <div className="relative z-10 grid min-h-[560px] grid-cols-1 gap-3 p-2 sm:min-h-[560px] sm:gap-4 sm:p-4 md:min-h-[480px] md:grid-cols-2 md:p-5 lg:min-h-[540px] lg:p-6">
+            <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
               <div>
                 <p className="text-xs font-bold text-white/75">
                   الفترة الصباحيه
                 </p>
                 <h3 className="text-lg font-black text-white">اليوم</h3>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
+              <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                 {daySlots.map((booking) => (
                   <BookingCard
                     booking={booking}
@@ -128,14 +128,14 @@ export function SchedulePage() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-3 backdrop-blur-[1px] md:p-4">
+            <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
               <div>
                 <p className="text-xs font-bold text-white/75">
                   الفترة المسائية
                 </p>
                 <h3 className="text-lg font-black text-white">المساء</h3>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
+              <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                 {nightSlots.map((booking) => (
                   <BookingCard
                     booking={booking}

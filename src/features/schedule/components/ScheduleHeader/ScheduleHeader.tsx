@@ -33,15 +33,7 @@ export function ScheduleHeader({
 }: ScheduleHeaderProps) {
   return (
     <header className="sticky top-0 z-30 overflow-hidden border-b border-[var(--sloty-border)] bg-[var(--sloty-surface)] md:static md:rounded-2xl md:border md:shadow-[var(--sloty-shadow)]">
-      <div
-        className="relative flex items-center justify-between gap-3 overflow-hidden px-4 pb-4 pt-5 text-white md:px-5 md:py-6 lg:px-6"
-        style={{
-          backgroundImage:
-            "linear-gradient(90deg, rgba(6, 78, 59, 0.96), rgba(11, 107, 58, 0.82)), url('/images/sloty-green-surface-bg.png')",
-          backgroundPosition: 'center',
-          backgroundSize: 'cover',
-        }}
-      >
+      <div className="sloty-green-surface relative flex items-center justify-between gap-3 overflow-hidden px-4 pb-4 pt-5 text-white md:px-5 md:py-6 lg:px-6">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-white/80">
             جدول اليوم
@@ -100,7 +92,7 @@ export function ScheduleHeader({
               className={[
                 'h-9 shrink-0 rounded-xl px-4 text-sm font-bold transition',
                 isActive
-                  ? 'bg-[var(--sloty-primary)] text-white'
+                  ? 'sloty-green-surface-button text-white'
                   : 'bg-[var(--sloty-bg)] text-[var(--sloty-text-muted)] hover:text-[var(--sloty-text-primary)]',
               ].join(' ')}
               key={filter.key}
