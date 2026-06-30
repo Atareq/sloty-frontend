@@ -1,95 +1,37 @@
-# Sloty Frontend Agent Instructions
+# Sloty React Frontend Agent Guide
 
-## 1. Purpose
+This is the Sloty React frontend repository. It is frontend-only and must not contain backend, Django, database, serializer, model, migration, or API implementation changes.
 
-This file is the living guide for AI coding agents working in the Sloty Angular frontend repository.
+## Stack
 
-Always read this file before planning commands or code changes.
-
-Also read these files when relevant:
-
-- `docs/business-analysis.txt`
-- `docs/documentation.txt`
-- `docs/sprints.txt`
-
-These docs are shared product and sprint context between backend and frontend.
-
-This repository is frontend-only. Do not make Django, backend, database, migration, serializer, model, or API implementation changes here.
-
-## 2. Project Summary
-
-Sloty is a sports court rental management system.
-
-The frontend must be:
-
-- Arabic-first
-- RTL-first
-- Mobile-first
-- Fast on average Android phones
-- Simple enough for court staff during rush hours
-- Usable as a web application from mobile browsers
-
-The first real users are:
-
-- Court staff
-- Club managers
-- Club owners
-- Platform admins
-
-## 3. Tech Stack
-
-Use:
-
-- Angular
+- React
 - TypeScript
-- Standalone components
-- Angular Router
-- Reactive Forms
-- Angular HTTP client
+- Vite
 - Tailwind CSS
-- Vitest tests
+- React Router
+- Vitest
+- Testing Library
+- ESLint
 - npm
 
-Do not add major UI libraries without explicit approval.
+## Product Direction
 
-## 4. Architecture Rules
+- Build Arabic-first, RTL-first, mobile-first interfaces.
+- Follow `docs/business-analysis.txt`, `docs/documentation.txt`, `docs/sprints.txt`, and `docs/ui-reference.md` when product or UI behavior is relevant.
+- MVP 1 is a court management frontend foundation. Do not implement marketplace, player app, payment gateway, clubs, courts, bookings, transactions, settlements, or dashboard business logic until explicitly requested.
+- Do not invent backend API contracts, endpoint names, payloads, auth refresh behavior, or production backend URLs.
 
-Preferred structure:
+## Architecture Rules
 
-```text
-src/app/
-  core/
-    auth/
-    guards/
-    interceptors/
-    services/
-    models/
-  shared/
-    components/
-    directives/
-    pipes/
-    utils/
-  layout/
-  features/
-    auth/
-    dashboard/
-    bookings/
-    clubs/
-    courts/
-    transactions/
-    settlements/
-```
+- Keep shared components presentational and reusable.
+- Keep feature-specific state and logic inside feature folders.
+- Keep cross-feature primitives in `src/core`, reusable UI/helpers in `src/shared`, and app shell/route protection in `src/layout`.
+- Use typed interfaces/types and avoid `any`.
+- Add educational comments because this project is also used for frontend learning.
+- Prefer JSDoc for services, hooks, API modules, models/types, reusable components, route guards/protected routes, and layout components.
+- Avoid noisy comments that repeat obvious code.
+- Keep documentation updated when architecture changes.
 
-## 5. Documentation and Commenting Rules
+## Change Review
 
-This repo is also used for frontend learning.
-
-Add educational comments for important Angular concepts, especially when introducing routing, standalone components, dependency injection, HTTP interceptors, route guards, and reactive forms.
-
-Prefer JSDoc for services, guards, interceptors, models/interfaces, and reusable components.
-
-Add `README.md` files for major folders so future contributors understand ownership boundaries before changing code.
-
-Avoid noisy comments that repeat obvious code. Comments should explain purpose, responsibility, tradeoffs, or framework concepts that are not obvious to a learner.
-
-Keep documentation updated when architecture or conventions change.
+After every code change, review whether this `AGENTS.md` file needs an update.

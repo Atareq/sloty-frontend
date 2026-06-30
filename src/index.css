@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+:root {
+  --sloty-primary: #0b6b3a;
+  --sloty-primary-dark: #064e3b;
+  --sloty-soft-mint: #ecfdf5;
+  --sloty-bg: #f8fafc;
+  --sloty-surface: #ffffff;
+  --sloty-border: #e5e7eb;
+  --sloty-text-primary: #111827;
+  --sloty-text-muted: #6b7280;
+
+  --sloty-success: #16a34a;
+  --sloty-success-soft: #dcfce7;
+  --sloty-hold: #f59e0b;
+  --sloty-hold-soft: #fef3c7;
+  --sloty-danger: #dc2626;
+  --sloty-danger-soft: #fee2e2;
+  --sloty-no-show: #991b1b;
+  --sloty-no-show-soft: #fee2e2;
+  --sloty-completed: #2563eb;
+  --sloty-completed-soft: #dbeafe;
+  --sloty-expired: #9ca3af;
+  --sloty-expired-soft: #f3f4f6;
+  --sloty-expired-text: #4b5563;
+
+  --sloty-cash: #059669;
+  --sloty-instapay: #4f46e5;
+  --sloty-wallet: #7c3aed;
+  --sloty-shadow: 0 8px 24px rgb(17 24 39 / 6%);
+
+  color: var(--sloty-text-primary);
+  background: var(--sloty-bg);
+  font-family:
+    Cairo, 'IBM Plex Sans Arabic', Tajawal, 'Noto Sans Arabic', system-ui,
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  direction: rtl;
+  background: var(--sloty-bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100svh;
+  margin: 0;
+  direction: rtl;
+  background: var(--sloty-bg);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+::selection {
+  color: #ffffff;
+  background: var(--sloty-primary);
+}
