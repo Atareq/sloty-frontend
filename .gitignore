@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local V0/Vercel UI prototype reference.
+# Used by Codex as visual/component reference only.
+# Do not commit prototype source or exported zip files.
+references/v0-prototype/
+references/*.zip

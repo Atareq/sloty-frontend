@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router'
 import { usePlaceholderAuth } from '../../../core/auth/usePlaceholderAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 
 interface LoginFormState {
   username: string
@@ -26,6 +25,7 @@ export function LoginPage() {
   const { login } = usePlaceholderAuth()
   const [formState, setFormState] = useState<LoginFormState>(initialFormState)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   function updateField(field: keyof LoginFormState, value: string): void {
     setFormState((currentFormState) => ({
@@ -48,14 +48,35 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center py-8">
-      <div className="w-full max-w-md space-y-5">
-        <PageHeader
-          description="واجهة تأسيسية فقط حتى يتم اعتماد عقد تسجيل الدخول الحقيقي."
-          title="تسجيل الدخول"
-        />
+    <div className="flex flex-1 items-center justify-center px-1 py-8">
+      <div className="w-full max-w-sm space-y-7">
+        <section className="flex flex-col items-center gap-3 text-center">
+          <div
+            aria-hidden="true"
+            className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--sloty-primary)] text-3xl font-black text-white shadow-lg shadow-emerald-900/10"
+          >
+            س
+          </div>
+          <div className="space-y-1">
+            <p className="text-2xl font-black text-[var(--sloty-text-primary)]">
+              سلوتي
+            </p>
+            <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
+              إدارة حجوزات الملاعب بسهولة
+            </p>
+          </div>
+        </section>
 
-        <AppCard>
+        <AppCard className="p-6">
+          <div className="mb-5 space-y-1">
+            <h1 className="text-xl font-bold text-[var(--sloty-text-primary)]">
+              تسجيل الدخول
+            </h1>
+            <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
+              أدخل بيانات حسابك للمتابعة
+            </p>
+          </div>
+
           <form className="space-y-5" noValidate onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label
@@ -64,15 +85,26 @@ export function LoginPage() {
               >
                 رقم الموبايل أو اسم المستخدم
               </label>
-              <input
-                autoComplete="username"
-                className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                id="username"
-                inputMode="tel"
-                onChange={(event) => updateField('username', event.target.value)}
-                type="text"
-                value={formState.username}
-              />
+              <div className="relative">
+                <span
+                  aria-hidden="true"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-[var(--sloty-text-muted)]"
+                >
+                  01
+                </span>
+                <input
+                  autoComplete="username"
+                  className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 pl-4 pr-10 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  id="username"
+                  inputMode="tel"
+                  onChange={(event) =>
+                    updateField('username', event.target.value)
+                  }
+                  placeholder="01xxxxxxxxx"
+                  type="text"
+                  value={formState.username}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -82,14 +114,35 @@ export function LoginPage() {
               >
                 كلمة المرور
               </label>
-              <input
-                autoComplete="current-password"
-                className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                id="password"
-                onChange={(event) => updateField('password', event.target.value)}
-                type="password"
-                value={formState.password}
-              />
+              <div className="relative">
+                <span
+                  aria-hidden="true"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-[var(--sloty-text-muted)]"
+                >
+                  ق
+                </span>
+                <input
+                  autoComplete="current-password"
+                  className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 pl-16 pr-10 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  id="password"
+                  onChange={(event) =>
+                    updateField('password', event.target.value)
+                  }
+                  placeholder="كلمة المرور"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formState.password}
+                />
+                <button
+                  aria-label={
+                    showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'
+                  }
+                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg px-1.5 py-1 text-xs font-semibold text-[var(--sloty-text-muted)] transition hover:text-[var(--sloty-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  onClick={() => setShowPassword((current) => !current)}
+                  type="button"
+                >
+                  {showPassword ? 'إخفاء' : 'إظهار'}
+                </button>
+              </div>
             </div>
 
             {error ? (
@@ -99,10 +152,14 @@ export function LoginPage() {
             ) : null}
 
             <AppButton fullWidth type="submit">
-              دخول تجريبي
+              تسجيل الدخول
             </AppButton>
           </form>
         </AppCard>
+
+        <p className="text-center text-xs leading-6 text-[var(--sloty-text-muted)]">
+          نظام مخصص لإدارة الملاعب والحجوزات
+        </p>
       </div>
     </div>
   )

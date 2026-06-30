@@ -21,6 +21,14 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - MVP 1 is a court management frontend foundation. Do not implement marketplace, player app, payment gateway, clubs, courts, bookings, transactions, settlements, or dashboard business logic until explicitly requested.
 - Do not invent backend API contracts, endpoint names, payloads, auth refresh behavior, or production backend URLs.
 
+## Prototype Reference
+
+- `references/v0-prototype/` is a Vercel/V0 prototype for visual and component reference only.
+- Do not copy its Next.js project structure, `app/page.tsx` screen switcher, or full `components/ui` folder.
+- Do not add Next.js files or shadcn/Radix dependencies unless explicitly approved.
+- Port only selected Sloty-specific UI patterns into the existing Vite React architecture.
+- Keep prototype code out of production imports; real app code lives under `src/`.
+
 ## Architecture Rules
 
 - Keep shared components presentational and reusable.
