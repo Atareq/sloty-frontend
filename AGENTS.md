@@ -29,6 +29,18 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Port only selected Sloty-specific UI patterns into the existing Vite React architecture.
 - Keep prototype code out of production imports; real app code lives under `src/`.
 
+## Responsive UI Rules
+
+- Mobile-first means start from mobile and progressively enhance for tablet and desktop.
+- Never ship a desktop page that looks like a centered phone mockup unless explicitly requested.
+- Bottom navigation is mobile-only and should be hidden on desktop/tablet breakpoints.
+- Floating action buttons are mobile-only unless intentionally redesigned.
+- Desktop pages must use available space with max-width containers, grids, sidebars, or toolbars.
+- Every new screen must be tested visually at mobile, tablet, and desktop widths.
+- Use responsive Tailwind classes such as `sm:`, `md:`, `lg:`, and `xl:` intentionally.
+- Do not blindly copy V0/Vercel prototype layout. Convert it into a real responsive web layout.
+- Background images are decorative only. Dynamic booking slots must always be real React components.
+
 ## Architecture Rules
 
 - Keep shared components presentational and reusable.

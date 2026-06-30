@@ -1,6 +1,7 @@
 import { Navigate, createBrowserRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage/DashboardPage'
+import { SchedulePage } from '../features/schedule/SchedulePage/SchedulePage'
 import { AppShell } from '../layout/AppShell/AppShell'
 import { ProtectedRoute } from '../layout/ProtectedRoute/ProtectedRoute'
 
@@ -29,6 +30,10 @@ export const router = createBrowserRouter([
             <DashboardPage />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: '/schedule',
+        element: <SchedulePage />,
       },
       {
         path: '*',

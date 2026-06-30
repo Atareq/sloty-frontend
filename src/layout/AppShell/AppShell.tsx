@@ -12,7 +12,7 @@ export function AppShell() {
       aria-label="هيكل تطبيق سلوتي"
       className="min-h-svh bg-[var(--sloty-bg)] text-[var(--sloty-text-primary)]"
     >
-      <main className="mx-auto flex min-h-svh w-full max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto flex min-h-svh w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <Outlet />
       </main>
     </div>
