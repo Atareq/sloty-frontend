@@ -9,7 +9,11 @@ import { useAuth } from './useAuth'
  * through individual pages.
  */
 export function AuthLandingRedirect() {
-  const { isAuthenticated, role } = useAuth()
+  const { isAuthenticated, isLoadingSession, role } = useAuth()
+
+  if (isLoadingSession) {
+    return <p className="p-4 text-sm font-semibold">جاري تحميل الجلسة...</p>
+  }
 
   if (!isAuthenticated || !role) {
     return <Navigate replace to="/login" />

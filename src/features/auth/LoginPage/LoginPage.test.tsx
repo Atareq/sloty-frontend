@@ -3,7 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../../../core/auth/AuthProvider'
-import { loginWithPassword } from '../../../core/auth/authApi'
+import {
+  fetchCurrentUserProfile,
+  loginWithPassword,
+} from '../../../core/auth/authApi'
 import {
   clearAuthTokens,
   getAccessToken,
@@ -13,10 +16,23 @@ import { createDevAccessToken } from '../../../core/auth/devAuth'
 import { LoginPage } from './LoginPage'
 
 vi.mock('../../../core/auth/authApi', () => ({
+  fetchCurrentUserProfile: vi.fn(),
   loginWithPassword: vi.fn(),
 }))
 
+const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 const mockedLoginWithPassword = vi.mocked(loginWithPassword)
+const currentUserProfile = {
+  id: 1,
+  username: 'staff-user',
+  email: 'staff@example.com',
+  first_name: 'أحمد',
+  last_name: 'علي',
+  phone_number: null,
+  is_active: true,
+  is_platform_admin: false,
+  memberships: 'read-only backend shape',
+}
 
 function renderLoginPage() {
   render(
@@ -45,6 +61,7 @@ describe('LoginPage', () => {
   beforeEach(() => {
     clearAuthTokens()
     vi.clearAllMocks()
+    mockedFetchCurrentUserProfile.mockResolvedValue(currentUserProfile)
   })
 
   it('renders the Arabic login heading', () => {

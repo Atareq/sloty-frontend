@@ -13,7 +13,11 @@ export interface ProtectedRouteProps {
  */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoadingSession } = useAuth()
+
+  if (isLoadingSession) {
+    return <p className="p-4 text-sm font-semibold">جاري تحميل الجلسة...</p>
+  }
 
   if (!isAuthenticated) {
     return <Navigate replace state={{ from: location }} to="/login" />

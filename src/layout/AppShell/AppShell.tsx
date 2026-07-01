@@ -3,6 +3,19 @@ import { useAuth } from '../../core/auth/useAuth'
 import { AppButton } from '../../shared/components/AppButton/AppButton'
 import { MobileBottomNav } from '../../shared/components/MobileBottomNav/MobileBottomNav'
 import { getNavigationItemsForRole } from '../../shared/navigation/navigation.config'
+import type { CurrentUserProfile } from '../../core/auth/auth.types'
+
+function getUserDisplayName(
+  currentUser: CurrentUserProfile | null,
+  claimName: string | undefined,
+): string {
+  const profileName = [currentUser?.first_name, currentUser?.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+
+  return profileName || currentUser?.username || claimName || 'مستخدم سلوتي'
+}
 
 /**
  * Role-aware application shell for authenticated Sloty pages.
@@ -11,10 +24,11 @@ import { getNavigationItemsForRole } from '../../shared/navigation/navigation.co
  * navigation as a bottom bar, keeping navigation rules in one shared config.
  */
 export function AppShell() {
-  const { claims, logout, role } = useAuth()
+  const { claims, currentUser, logout, role } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const desktopItems = role ? getNavigationItemsForRole(role) : []
+  const displayName = getUserDisplayName(currentUser, claims?.name)
   const mobileItems = role
     ? getNavigationItemsForRole(role, { mobileOnly: true }).map((item) => ({
         key: item.path,
@@ -45,7 +59,7 @@ export function AppShell() {
           </div>
           <p className="mt-3 text-lg font-black">Sloty</p>
           <p className="mt-1 text-xs leading-5 text-white/78">
-            {claims?.name ?? 'مستخدم سلوتي'}
+            {displayName}
           </p>
         </div>
 
@@ -83,7 +97,7 @@ export function AppShell() {
               Sloty
             </p>
             <p className="text-xs text-[var(--sloty-text-muted)]">
-              {claims?.name ?? 'مستخدم سلوتي'}
+              {displayName}
             </p>
           </div>
           <AppButton onClick={handleLogout} variant="secondary">

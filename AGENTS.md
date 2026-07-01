@@ -62,6 +62,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - JWT role claims are used by the frontend for UX, navigation, and route protection.
 - Components must use `useAuth()` instead of decoding tokens directly.
 - Decode access tokens in the auth utility/provider layer only.
+- `AuthProvider` owns session hydration and current-user profile loading from `apiEndpoints.auth.me`.
+- Components should use `useAuth().currentUser` for displayed user profile data when available.
+- Do not parse or build feature logic from `/me` memberships until the response shape is confirmed.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 - Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.

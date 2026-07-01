@@ -38,14 +38,30 @@ export interface RefreshTokenRequest {
   refresh: string
 }
 
+export interface CurrentUserProfile {
+  id: number
+  username: string
+  email: string
+  first_name: string
+  last_name: string
+  phone_number: string | null
+  is_active: boolean
+  is_platform_admin: boolean
+  memberships: unknown
+}
+
 export interface AuthContextValue {
   accessToken: string | null
   claims: AuthClaims | null
+  currentUser: CurrentUserProfile | null
   role: AuthRole | null
   isAuthenticated: boolean
+  isLoadingSession: boolean
   isTokenExpired: boolean
+  sessionError: string | null
   login: (accessToken: string, refreshToken?: string) => AuthRole | null
   logout: () => void
+  refreshCurrentUser: () => Promise<void>
   setTokens: (tokens: AuthTokens) => void
 }
 

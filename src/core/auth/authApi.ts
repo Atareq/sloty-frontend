@@ -1,6 +1,7 @@
 import { apiRequest } from '../api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
+  CurrentUserProfile,
   LoginRequest,
   RefreshTokenRequest,
   TokenPair,
@@ -26,4 +27,8 @@ export function refreshAccessToken(
     method: 'POST',
     body: payload,
   })
+}
+
+export function fetchCurrentUserProfile(): Promise<CurrentUserProfile> {
+  return apiRequest<CurrentUserProfile>(apiEndpoints.auth.me)
 }
