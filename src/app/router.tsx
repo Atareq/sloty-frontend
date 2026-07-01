@@ -2,7 +2,10 @@ import { Navigate, createBrowserRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage/DashboardPage'
 import { SchedulePage } from '../features/schedule/SchedulePage/SchedulePage'
-import { AdminClubsPage } from '../features/admin/AdminClubsPage/AdminClubsPage'
+import { ClubFormPage } from '../features/clubs/ClubFormPage/ClubFormPage'
+import { ClubsListPage } from '../features/clubs/ClubsListPage/ClubsListPage'
+import { CourtFormPage } from '../features/courts/CourtFormPage/CourtFormPage'
+import { CourtsListPage } from '../features/courts/CourtsListPage/CourtsListPage'
 import { PlaceholderPage } from '../features/placeholders/PlaceholderPage/PlaceholderPage'
 import { AuthLandingRedirect } from '../core/auth/AuthLandingRedirect'
 import { ProtectedRoute } from '../core/auth/ProtectedRoute'
@@ -108,7 +111,47 @@ export const router = createBrowserRouter([
         path: '/admin/clubs',
         element: (
           <RoleRoute allowedRoles={['platform_super_admin']}>
-            <AdminClubsPage />
+            <ClubsListPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/clubs/new',
+        element: (
+          <RoleRoute allowedRoles={['platform_super_admin']}>
+            <ClubFormPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/clubs/:clubId',
+        element: (
+          <RoleRoute allowedRoles={['platform_super_admin']}>
+            <ClubFormPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/clubs/:clubSlug/courts',
+        element: (
+          <RoleRoute allowedRoles={['platform_super_admin']}>
+            <CourtsListPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/clubs/:clubSlug/courts/new',
+        element: (
+          <RoleRoute allowedRoles={['platform_super_admin']}>
+            <CourtFormPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/clubs/:clubSlug/courts/:courtId',
+        element: (
+          <RoleRoute allowedRoles={['platform_super_admin']}>
+            <CourtFormPage />
           </RoleRoute>
         ),
       },

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { AuthProvider } from './AuthProvider'
 import { fetchCurrentUserProfile } from './authApi'
-import { clearAuthTokens, setAccessToken } from './authStorage'
+import { ApiClientError } from '../api/apiClient'
+import { clearAuthTokens, getAccessToken, setAccessToken } from './authStorage'
 import { createDevAccessToken } from './devAuth'
 import { ProtectedRoute } from './ProtectedRoute'
 
@@ -74,4 +75,20 @@ describe('ProtectedRoute', () => {
 
     expect(await screen.findByText('محتوى محمي')).toBeInTheDocument()
   })
+
+  it.each([401, 403])(
+    'clears tokens and redirects when session hydration returns %s',
+    async (status) => {
+      setAccessToken(createDevAccessToken('court_staff'))
+      mockedFetchCurrentUserProfile.mockRejectedValueOnce(
+        new ApiClientError('Unauthorized', status),
+      )
+
+      renderProtectedRoute()
+
+      expect(await screen.findByText('صفحة تسجيل الدخول')).toBeInTheDocument()
+      expect(screen.queryByText('جاري تحميل الجلسة...')).not.toBeInTheDocument()
+      expect(getAccessToken()).toBeNull()
+    },
+  )
 })

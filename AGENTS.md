@@ -65,6 +65,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `AuthProvider` owns session hydration and current-user profile loading from `apiEndpoints.auth.me`.
 - Components should use `useAuth().currentUser` for displayed user profile data when available.
 - Do not parse or build feature logic from `/me` memberships until the response shape is confirmed.
+- Sprint 2A clubs/courts setup API calls must go through feature wrappers such as `clubsApi` and `courtsApi`.
+- Working-hours setup is intentionally deferred to Sprint 2B; keep Sprint 2A screens to placeholder copy only for that area.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 - Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.

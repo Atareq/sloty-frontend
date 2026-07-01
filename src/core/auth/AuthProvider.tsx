@@ -53,6 +53,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAccessTokenState(null)
     setCurrentUser(null)
     setSessionError(null)
+    setIsLoadingSession(false)
   }, [])
 
   const setTokens = useCallback((tokens: AuthTokens): void => {

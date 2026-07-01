@@ -1,0 +1,134 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import { AppButton } from '../../../shared/components/AppButton/AppButton'
+import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { listClubs } from '../clubsApi'
+import type { Club } from '../clubs.types'
+
+/**
+ * Platform-admin club setup entry point.
+ *
+ * This screen lists the current clubs only; ownership, memberships, and booking
+ * workflows intentionally stay outside Sprint 2A.
+ */
+export function ClubsListPage() {
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadClubs(): Promise<void> {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const response = await listClubs()
+
+        if (isActive) {
+          setClubs(response.results)
+        }
+      } catch {
+        if (isActive) {
+          setError('تعذر تحميل قائمة الأندية')
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadClubs()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        actions={
+          <Link to="/admin/clubs/new">
+            <AppButton>إضافة نادي</AppButton>
+          </Link>
+        }
+        description="إعداد الأندية الأساسية قبل إضافة الملاعب وساعات العمل."
+        title="إدارة الأندية"
+        tone="brand"
+      />
+
+      {isLoading ? (
+        <AppCard>
+          <p className="text-sm text-[var(--sloty-text-muted)]">
+            جاري تحميل الأندية...
+          </p>
+        </AppCard>
+      ) : null}
+
+      {error ? (
+        <AppCard>
+          <p className="text-sm font-semibold text-[var(--sloty-danger)]">
+            {error}
+          </p>
+        </AppCard>
+      ) : null}
+
+      {!isLoading && !error && clubs.length === 0 ? (
+        <AppCard>
+          <p className="text-sm text-[var(--sloty-text-muted)]">
+            لا توجد أندية حتى الآن.
+          </p>
+        </AppCard>
+      ) : null}
+
+      {!isLoading && !error && clubs.length > 0 ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {clubs.map((club) => (
+            <AppCard className="space-y-4" key={club.id}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+                    {club.name}
+                  </h2>
+                  <p className="text-xs font-semibold text-[var(--sloty-text-muted)]">
+                    {club.slug}
+                  </p>
+                  <p className="text-sm text-[var(--sloty-text-muted)]">
+                    {club.city} - {club.area}
+                  </p>
+                </div>
+                <span
+                  className={[
+                    'w-fit rounded-full px-3 py-1 text-xs font-bold',
+                    club.is_active
+                      ? 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]'
+                      : 'bg-slate-100 text-slate-600',
+                  ].join(' ')}
+                >
+                  {club.is_active ? 'نشط' : 'غير نشط'}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link className="sm:w-auto" to={`/admin/clubs/${club.id}`}>
+                  <AppButton fullWidth variant="secondary">
+                    تعديل النادي
+                  </AppButton>
+                </Link>
+                <Link to={`/admin/clubs/${club.slug}/courts`}>
+                  <AppButton fullWidth variant="secondary">
+                    الملاعب
+                  </AppButton>
+                </Link>
+              </div>
+            </AppCard>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
