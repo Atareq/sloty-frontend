@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
 import { createCourt, getCourt, updateCourt } from '../courtsApi'
 import type { CourtPayload } from '../courts.types'
 
@@ -55,8 +56,8 @@ function buildPayload(formState: CourtFormState): CourtPayload {
 /**
  * Create/edit form for court setup under a club.
  *
- * The working-hours card is intentionally a placeholder because Sprint 2B will
- * own that API flow and detailed schedule rules.
+ * Working-hours setup is mounted below the court form, but booking-slot
+ * generation still belongs to a later booking integration sprint.
  */
 export function CourtFormPage() {
   const navigate = useNavigate()
@@ -133,12 +134,24 @@ export function CourtFormPage() {
       return
     }
 
-    if (
-      !formState.name.trim() ||
-      !formState.default_price.trim() ||
-      Number(formState.slot_duration_minutes) <= 0
-    ) {
-      setError('اسم الملعب والسعر ومدة الحصة مطلوبة')
+    if (!formState.name.trim()) {
+      setError('اسم الملعب مطلوب')
+      return
+    }
+
+    const defaultPrice = Number(formState.default_price)
+    const slotDurationMinutes = Number(formState.slot_duration_minutes)
+    const internalHoldExpiryHours = Number(formState.internal_hold_expiry_hours)
+    const hasInvalidNumber =
+      !Number.isFinite(defaultPrice) ||
+      !Number.isFinite(slotDurationMinutes) ||
+      !Number.isFinite(internalHoldExpiryHours) ||
+      defaultPrice <= 0 ||
+      slotDurationMinutes <= 0 ||
+      internalHoldExpiryHours <= 0
+
+    if (hasInvalidNumber) {
+      setError('السعر ومدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً أكبر من صفر')
       return
     }
 
@@ -289,11 +302,11 @@ export function CourtFormPage() {
         )}
       </AppCard>
 
-      <AppCard>
-        <p className="text-sm font-semibold text-[var(--sloty-text-primary)]">
-          إعدادات ساعات العمل ستضاف في الخطوة التالية
-        </p>
-      </AppCard>
+      <CourtWorkingHoursSection
+        clubSlug={clubSlug}
+        courtId={courtId}
+        isCreateMode={isCreateMode}
+      />
     </div>
   )
 }
