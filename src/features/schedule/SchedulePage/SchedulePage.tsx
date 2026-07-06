@@ -1,14 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { listClubs } from '../../clubs/clubsApi'
+import type { Club } from '../../clubs/clubs.types'
+import { listCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
+import type { CourtWorkingHour } from '../../courts/courtWorkingHours.types'
+import { listCourts } from '../../courts/courtsApi'
+import type { Court } from '../../courts/courts.types'
 import { BookingCard } from '../components/BookingCard/BookingCard'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
 import {
-  scheduleBookings,
-  scheduleCourt,
-  scheduleDateFilters,
-  scheduleStaff,
-  scheduleSummary,
-} from '../scheduleMockData'
+  createDateFilterOptions,
+  generateSlotsFromWorkingHour,
+  getWeekdayFromDateValue,
+} from '../scheduleBoard.helpers'
 import type { ScheduleBooking } from '../schedule.types'
+import { listBookingsForCourtDay } from '../scheduleApi'
+import type { BookingListItem } from '../scheduleApi.types'
 
 const statusLegend = [
   {
@@ -27,9 +33,9 @@ const statusLegend = [
 
 function getStatusLabel(status: ScheduleBooking['status']): string {
   const statusLabels: Record<ScheduleBooking['status'], string> = {
-      available: 'متاح',
-      cancelled: 'ملغي',
-      confirmed: 'مؤكد',
+    available: 'متاح',
+    cancelled: 'ملغي',
+    confirmed: 'مؤكد',
   }
 
   return statusLabels[status]
@@ -47,19 +53,204 @@ function getDialogDescription(status: ScheduleBooking['status']): string {
   return 'هذه نافذة إضافة حجز مؤقتة فقط. سيتم تنفيذ نموذج الحجز السريع لاحقاً بدون افتراضات خلفية.'
 }
 
+function getSummary(slots: ScheduleBooking[]) {
+  return {
+    availableCount: slots.filter((slot) => slot.status === 'available').length,
+    confirmedCount: slots.filter((slot) => slot.status === 'confirmed').length,
+    cancelledCount: slots.filter((slot) => slot.status === 'cancelled').length,
+    totalSlots: slots.length,
+  }
+}
+
+function getCourtDateLabel(date: string): string {
+  return new Intl.DateTimeFormat('ar-EG', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(`${date}T00:00:00`))
+}
+
 /**
- * Staff Today Schedule UI slice.
+ * Read-only Booking Board for court availability.
  *
- * This screen uses local typed mock data for visual preview only. It does not
- * call booking APIs or implement add-booking/payment/completion behavior.
+ * It reads clubs, courts, working hours, and bookings to generate availability
+ * slots only. Booking creation and lifecycle actions are intentionally deferred.
  */
 export function SchedulePage() {
+  const dateFilters = useMemo(() => createDateFilterOptions(), [])
   const [activeDateKey, setActiveDateKey] = useState('today')
+  const [selectedClub, setSelectedClub] = useState<Club | null>(null)
+  const [courts, setCourts] = useState<Court[]>([])
+  const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null)
+  const [workingHours, setWorkingHours] = useState<CourtWorkingHour[]>([])
+  const [bookings, setBookings] = useState<BookingListItem[]>([])
+  const [setupMessage, setSetupMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isSetupLoading, setIsSetupLoading] = useState(true)
+  const [isBookingsLoading, setIsBookingsLoading] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
-  const daySlots = scheduleBookings.filter((booking) => booking.period === 'day')
-  const nightSlots = scheduleBookings.filter(
-    (booking) => booking.period === 'night',
-  )
+  const selectedDate =
+    dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
+    dateFilters[0].date
+  const selectedCourt =
+    courts.find((court) => court.id === selectedCourtId) ?? null
+  const selectedWorkingHour = selectedCourt
+    ? workingHours.find(
+        (workingHour) =>
+          workingHour.court === selectedCourt.id &&
+          workingHour.weekday === getWeekdayFromDateValue(selectedDate),
+      )
+    : undefined
+  const slotGeneration = selectedCourt
+    ? generateSlotsFromWorkingHour(
+        selectedWorkingHour,
+        selectedCourt.slot_duration_minutes,
+        bookings,
+      )
+    : { slots: [], message: setupMessage }
+  const slots = slotGeneration.slots
+  const boardMessage = slotGeneration.message ?? setupMessage
+  const daySlots = slots.filter((booking) => booking.period === 'day')
+  const nightSlots = slots.filter((booking) => booking.period === 'night')
+  const summary = getSummary(slots)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadSetup(): Promise<void> {
+      setIsSetupLoading(true)
+      setError(null)
+      setSetupMessage(null)
+
+      try {
+        const clubsResponse = await listClubs()
+        const firstActiveClub =
+          clubsResponse.results.find((club) => club.is_active) ?? null
+
+        if (!firstActiveClub) {
+          if (isActive) {
+            setSelectedClub(null)
+            setCourts([])
+            setSelectedCourtId(null)
+            setWorkingHours([])
+            setSetupMessage('لا توجد أندية نشطة لعرض جدول الحجز')
+          }
+          return
+        }
+
+        const [courtsResponse, workingHoursResponse] = await Promise.all([
+          listCourts(firstActiveClub.slug),
+          listCourtWorkingHours(firstActiveClub.slug),
+        ])
+        const activeCourts = courtsResponse.results.filter(
+          (court) => court.is_active,
+        )
+        const firstActiveCourt = activeCourts[0] ?? null
+
+        if (isActive) {
+          setSelectedClub(firstActiveClub)
+          setCourts(activeCourts)
+          setSelectedCourtId(firstActiveCourt?.id ?? null)
+          setWorkingHours(workingHoursResponse.results)
+          setSetupMessage(
+            firstActiveCourt ? null : 'لا توجد ملاعب نشطة لعرض جدول الحجز',
+          )
+        }
+      } catch {
+        if (isActive) {
+          setError('تعذر تحميل إعدادات جدول الحجز')
+        }
+      } finally {
+        if (isActive) {
+          setIsSetupLoading(false)
+        }
+      }
+    }
+
+    void loadSetup()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedClub || !selectedCourt) {
+      queueMicrotask(() => setBookings([]))
+      return
+    }
+
+    let isActive = true
+    const clubSlug = selectedClub.slug
+    const courtId = selectedCourt.id
+    const date = selectedDate
+
+    async function loadBookings(): Promise<void> {
+      setIsBookingsLoading(true)
+      setError(null)
+
+      try {
+        const response = await listBookingsForCourtDay(clubSlug, {
+          court: courtId,
+          date,
+        })
+
+        if (isActive) {
+          setBookings(response.results)
+        }
+      } catch {
+        if (isActive) {
+          setBookings([])
+          setError('تعذر تحميل حجوزات اليوم')
+        }
+      } finally {
+        if (isActive) {
+          setIsBookingsLoading(false)
+        }
+      }
+    }
+
+    void loadBookings()
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedClub, selectedCourt, selectedDate])
+
+  function handleCourtChange(nextCourtId: string): void {
+    setSelectedCourtId(Number(nextCourtId))
+    setSelectedSlot(null)
+  }
+
+  function handleDateChange(nextDateKey: string): void {
+    setActiveDateKey(nextDateKey)
+    setSelectedSlot(null)
+  }
+
+  const scheduleCourt = {
+    clubName: selectedClub?.name ?? 'سلوتي',
+    courtName: selectedCourt?.name ?? 'لا يوجد ملعب',
+    dateLabel: getCourtDateLabel(selectedDate),
+  }
+  const scheduleStaff = {
+    name: 'مستخدم سلوتي',
+    role: 'تشغيل الملعب',
+  }
+  const scheduleDateFilters = dateFilters.map(({ key, label }) => ({
+    key,
+    label,
+  }))
+  const shouldShowBoardSlots =
+    !isSetupLoading && !isBookingsLoading && !error && slots.length > 0
+  const shouldShowBoardMessage =
+    !isSetupLoading &&
+    !isBookingsLoading &&
+    !error &&
+    Boolean(boardMessage) &&
+    slots.length === 0
+  const loadingMessage = isSetupLoading
+    ? 'جاري تحميل إعدادات جدول الحجز...'
+    : 'جاري تحميل حجوزات اليوم...'
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
@@ -68,9 +259,9 @@ export function SchedulePage() {
           activeDateKey={activeDateKey}
           court={scheduleCourt}
           dateFilters={scheduleDateFilters}
-          onDateChange={setActiveDateKey}
+          onDateChange={handleDateChange}
           staff={scheduleStaff}
-          summary={scheduleSummary}
+          summary={summary}
         />
 
         <section className="flex flex-col gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:flex-row md:items-center md:justify-between md:px-5">
@@ -82,22 +273,40 @@ export function SchedulePage() {
               اختر فترة متاحة أو ملغية لإضافة حجز، أو فترة مؤكدة لعرض التفاصيل
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {statusLegend.map((item) => (
-              <span
-                className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-bg)] px-3 py-1 text-xs font-bold text-[var(--sloty-text-muted)]"
-                key={item.label}
-              >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {courts.length > 1 ? (
+              <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+                <span>الملعب</span>
+                <select
+                  className="h-10 rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-bold text-[var(--sloty-text-primary)]"
+                  onChange={(event) => handleCourtChange(event.target.value)}
+                  value={selectedCourtId ?? ''}
+                >
+                  {courts.map((court) => (
+                    <option key={court.id} value={court.id}>
+                      {court.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {statusLegend.map((item) => (
                 <span
-                  aria-hidden="true"
-                  className={[
-                    'h-3 w-3 rounded-full border-2',
-                    item.className,
-                  ].join(' ')}
-                />
-                {item.label}
-              </span>
-            ))}
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-bg)] px-3 py-1 text-xs font-bold text-[var(--sloty-text-muted)]"
+                  key={item.label}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={[
+                      'h-3 w-3 rounded-full border-2',
+                      item.className,
+                    ].join(' ')}
+                  />
+                  {item.label}
+                </span>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -110,41 +319,59 @@ export function SchedulePage() {
         >
           <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/30 via-emerald-900/10 to-slate-950/35" />
           <div className="relative z-10 grid min-h-[560px] grid-cols-1 gap-3 p-2 sm:min-h-[560px] sm:gap-4 sm:p-4 md:min-h-[480px] md:grid-cols-2 md:p-5 lg:min-h-[540px] lg:p-6">
-            <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
-              <div>
-                <p className="text-xs font-bold text-white/75">
-                  الفترة الصباحيه
+            {isSetupLoading ||
+            isBookingsLoading ||
+            error ||
+            shouldShowBoardMessage ? (
+              <div className="flex items-center justify-center rounded-3xl border border-white/20 bg-white/88 p-5 text-center md:col-span-2">
+                <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
+                  {error ??
+                    (isSetupLoading || isBookingsLoading
+                      ? loadingMessage
+                      : boardMessage)}
                 </p>
-                <h3 className="text-lg font-black text-white">اليوم</h3>
               </div>
-              <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
-                {daySlots.map((booking) => (
-                  <BookingCard
-                    booking={booking}
-                    key={booking.id}
-                    onSelect={setSelectedSlot}
-                  />
-                ))}
-              </div>
-            </div>
+            ) : null}
 
-            <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
-              <div>
-                <p className="text-xs font-bold text-white/75">
-                  الفترة المسائية
-                </p>
-                <h3 className="text-lg font-black text-white">المساء</h3>
-              </div>
-              <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
-                {nightSlots.map((booking) => (
-                  <BookingCard
-                    booking={booking}
-                    key={booking.id}
-                    onSelect={setSelectedSlot}
-                  />
-                ))}
-              </div>
-            </div>
+            {shouldShowBoardSlots ? (
+              <>
+                <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
+                  <div>
+                    <p className="text-xs font-bold text-white/75">
+                      الفترة الصباحيه
+                    </p>
+                    <h3 className="text-lg font-black text-white">اليوم</h3>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
+                    {daySlots.map((booking) => (
+                      <BookingCard
+                        booking={booking}
+                        key={booking.id}
+                        onSelect={setSelectedSlot}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
+                  <div>
+                    <p className="text-xs font-bold text-white/75">
+                      الفترة المسائية
+                    </p>
+                    <h3 className="text-lg font-black text-white">المساء</h3>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
+                    {nightSlots.map((booking) => (
+                      <BookingCard
+                        booking={booking}
+                        key={booking.id}
+                        onSelect={setSelectedSlot}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         </section>
       </div>

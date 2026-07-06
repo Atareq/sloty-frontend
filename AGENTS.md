@@ -68,7 +68,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 2A clubs/courts setup API calls must go through feature wrappers such as `clubsApi` and `courtsApi`.
 - Sprint 2B court working-hours setup lives inside the courts feature; keep it separate from booking-slot generation.
 - Court working-hours setup API calls belong in the courts feature wrapper/component.
-- Booking Board must not generate real slots from working hours until the booking integration sprint.
+- Booking Board read-only integration uses clubs, courts, working-hours, and bookings APIs to generate availability slots.
+- Booking Board must not show payment or lifecycle details; booking creation is deferred to Sprint 3B.
+- Overnight working-hour ranges are deferred unless explicitly requested.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 - Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.
