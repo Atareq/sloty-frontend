@@ -137,6 +137,29 @@ function getSlotStatus(
   return 'available'
 }
 
+function getSlotBooking(
+  bookings: BookingListItem[],
+  slotStart: number,
+  slotEnd: number,
+): BookingListItem | undefined {
+  const visibleBookings = getVisibleBookings(bookings)
+  const confirmedBooking = visibleBookings.find(
+    (booking) =>
+      booking.status === 'CONFIRMED' &&
+      bookingOverlapsSlot(booking, slotStart, slotEnd),
+  )
+
+  if (confirmedBooking) {
+    return confirmedBooking
+  }
+
+  return visibleBookings.find(
+    (booking) =>
+      booking.status === 'CANCELLED' &&
+      bookingOverlapsSlot(booking, slotStart, slotEnd),
+  )
+}
+
 export function generateSlotsFromWorkingHour(
   workingHour: CourtWorkingHour | undefined,
   slotDurationMinutes: number,
@@ -175,6 +198,7 @@ export function generateSlotsFromWorkingHour(
     const slotEnd = slotStart + duration
     const startTime = minutesToTime(slotStart)
     const endTime = minutesToTime(slotEnd)
+    const booking = getSlotBooking(bookings, slotStart, slotEnd)
 
     slots.push({
       id: `slot-${startTime.replace(':', '')}`,
@@ -182,6 +206,7 @@ export function generateSlotsFromWorkingHour(
       startTime,
       endTime,
       period: getPeriod(slotStart),
+      ...(booking ? { booking } : {}),
     })
   }
 

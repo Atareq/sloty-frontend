@@ -9,6 +9,7 @@ import {
   AddBookingSheet,
   type AddBookingSheetValues,
 } from '../components/AddBookingSheet/AddBookingSheet'
+import { BookingDetailsSheet } from '../components/BookingDetailsSheet/BookingDetailsSheet'
 import { BookingCard } from '../components/BookingCard/BookingCard'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
 import {
@@ -18,7 +19,11 @@ import {
   getWeekdayFromDateValue,
 } from '../scheduleBoard.helpers'
 import type { ScheduleBooking } from '../schedule.types'
-import { createBooking, listBookingsForCourtDay } from '../scheduleApi'
+import {
+  cancelBooking,
+  createBooking,
+  listBookingsForCourtDay,
+} from '../scheduleApi'
 import type { BookingListItem } from '../scheduleApi.types'
 
 const statusLegend = [
@@ -35,20 +40,6 @@ const statusLegend = [
     className: 'border-[#D1D5DB] bg-[#F3F4F6]',
   },
 ]
-
-function getStatusLabel(status: ScheduleBooking['status']): string {
-  const statusLabels: Record<ScheduleBooking['status'], string> = {
-    available: 'متاح',
-    cancelled: 'ملغي',
-    confirmed: 'مؤكد',
-  }
-
-  return statusLabels[status]
-}
-
-function getDialogTitle(status: ScheduleBooking['status']): string {
-  return status === 'confirmed' ? 'تفاصيل الحجز' : 'إضافة حجز'
-}
 
 function getSummary(slots: ScheduleBooking[]) {
   return {
@@ -84,8 +75,8 @@ async function fetchBookingResults(
  * Booking Board for court availability and quick manual creation.
  *
  * It reads clubs, courts, working hours, and bookings to generate availability
- * slots. Sprint 3B creates manual bookings only from available/cancelled slots;
- * lifecycle and payment actions are intentionally deferred.
+ * slots. Available/cancelled slots create manual bookings, and confirmed slots
+ * show booking details with a focused cancel action.
  */
 export function SchedulePage() {
   const dateFilters = useMemo(() => createDateFilterOptions(), [])
@@ -102,6 +93,8 @@ export function SchedulePage() {
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [isCancelSubmitting, setIsCancelSubmitting] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
     dateFilters[0].date
@@ -280,16 +273,37 @@ export function SchedulePage() {
     }
   }
 
+  async function handleCancelBooking(bookingId: number | string): Promise<void> {
+    if (!selectedClub || !selectedCourt) {
+      return
+    }
+
+    setIsCancelSubmitting(true)
+    setCancelError(null)
+
+    try {
+      await cancelBooking(selectedClub.slug, bookingId)
+      setSelectedSlot(null)
+      await reloadBookings()
+    } catch {
+      setCancelError('تعذر إلغاء الحجز. حاول مرة أخرى')
+    } finally {
+      setIsCancelSubmitting(false)
+    }
+  }
+
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
     setSelectedSlot(null)
     setCreateError(null)
+    setCancelError(null)
   }
 
   function handleDateChange(nextDateKey: string): void {
     setActiveDateKey(nextDateKey)
     setSelectedSlot(null)
     setCreateError(null)
+    setCancelError(null)
   }
 
   const scheduleCourt = {
@@ -460,45 +474,19 @@ export function SchedulePage() {
       ) : null}
 
       {selectedSlot?.status === 'confirmed' ? (
-        <div
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-          role="dialog"
-        >
-          <div className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl">
-            <div className="space-y-2">
-              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                تفاصيل الفترة
-              </p>
-              <h2
-                className="text-xl font-black text-[var(--sloty-text-primary)]"
-                dir="ltr"
-              >
-                {selectedSlot.startTime}
-              </h2>
-              <h3 className="text-lg font-black text-[var(--sloty-text-primary)]">
-                {getDialogTitle(selectedSlot.status)}
-              </h3>
-              <p className="text-sm text-[var(--sloty-text-muted)]">
-                الحالة: {getStatusLabel(selectedSlot.status)}
-              </p>
-              <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-                هذه نافذة تفاصيل مؤقتة فقط. عمليات الدفع والإكمال والإلغاء ستأتي
-                في تدفق منفصل لاحقاً.
-              </p>
-            </div>
-            <button
-              className="mt-5 h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white text-sm font-bold text-[var(--sloty-text-primary)]"
-              onClick={() => {
-                setSelectedSlot(null)
-                setCreateError(null)
-              }}
-              type="button"
-            >
-              إغلاق
-            </button>
-          </div>
-        </div>
+        <BookingDetailsSheet
+          booking={selectedSlot.booking}
+          courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
+          dateLabel={scheduleCourt.dateLabel}
+          error={cancelError}
+          isSubmitting={isCancelSubmitting}
+          onCancel={handleCancelBooking}
+          onClose={() => {
+            setSelectedSlot(null)
+            setCancelError(null)
+          }}
+          slot={selectedSlot}
+        />
       ) : null}
     </div>
   )

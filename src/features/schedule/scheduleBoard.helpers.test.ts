@@ -45,6 +45,8 @@ describe('scheduleBoard helpers', () => {
       {
         id: 1,
         court: 7,
+        customer_name: 'أحمد علي',
+        customer_phone: '01000000000',
         start_time: '07:00',
         end_time: '08:00',
         status: 'CONFIRMED',
@@ -64,6 +66,7 @@ describe('scheduleBoard helpers', () => {
       'confirmed',
       'cancelled',
     ])
+    expect(result.slots[1].booking).toEqual(bookings[0])
   })
 
   it('hides lifecycle-only backend booking statuses from board mapping', () => {

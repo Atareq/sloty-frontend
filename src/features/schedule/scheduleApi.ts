@@ -46,3 +46,20 @@ export function createBooking(
     body: payload,
   })
 }
+
+/**
+ * Cancels a confirmed booking from the Booking Details sheet.
+ *
+ * Complete, no-show, expire, and payment flows are intentionally deferred.
+ */
+export function cancelBooking(
+  clubSlug: string,
+  bookingId: number | string,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(
+    apiEndpoints.clubs.bookings.cancel(clubSlug, bookingId),
+    {
+      method: 'POST',
+    },
+  )
+}

@@ -5,7 +5,11 @@ import { listClubs } from '../../clubs/clubsApi'
 import { listCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
 import { listCourts } from '../../courts/courtsApi'
 import { createDateFilterOptions, getWeekdayFromDateValue } from '../scheduleBoard.helpers'
-import { createBooking, listBookingsForCourtDay } from '../scheduleApi'
+import {
+  cancelBooking,
+  createBooking,
+  listBookingsForCourtDay,
+} from '../scheduleApi'
 import { SchedulePage } from './SchedulePage'
 
 vi.mock('../../clubs/clubsApi', () => ({
@@ -21,6 +25,7 @@ vi.mock('../../courts/courtWorkingHoursApi', () => ({
 }))
 
 vi.mock('../scheduleApi', () => ({
+  cancelBooking: vi.fn(),
   createBooking: vi.fn(),
   listBookingsForCourtDay: vi.fn(),
 }))
@@ -30,6 +35,7 @@ const mockedListCourts = vi.mocked(listCourts)
 const mockedListCourtWorkingHours = vi.mocked(listCourtWorkingHours)
 const mockedListBookingsForCourtDay = vi.mocked(listBookingsForCourtDay)
 const mockedCreateBooking = vi.mocked(createBooking)
+const mockedCancelBooking = vi.mocked(cancelBooking)
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -89,6 +95,8 @@ function mockScheduleApiData(): void {
       {
         id: 10,
         court: 7,
+        customer_name: 'أحمد علي',
+        customer_phone: '01000000000',
         start_time: '07:00',
         end_time: '08:00',
         status: 'CONFIRMED',
@@ -109,6 +117,15 @@ function mockScheduleApiData(): void {
       },
     ]),
   )
+  mockedCancelBooking.mockResolvedValue({
+    id: 10,
+    court: 7,
+    customer_name: 'أحمد علي',
+    customer_phone: '01000000000',
+    start_time: '07:00',
+    end_time: '08:00',
+    status: 'CANCELLED',
+  })
   mockedCreateBooking.mockResolvedValue({
     id: 20,
     court: 7,
@@ -196,14 +213,38 @@ describe('SchedulePage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('opens details placeholder from confirmed slots', async () => {
+  it('opens booking details from confirmed slots', async () => {
     const user = userEvent.setup()
 
     render(<SchedulePage />)
 
     await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
 
-    expect(screen.getByRole('heading', { name: 'تفاصيل الحجز' }))
+    expect(screen.getByRole('heading', { name: 'حجز مؤكد' }))
       .toBeInTheDocument()
+    expect(screen.getByText('أحمد علي')).toBeInTheDocument()
+    expect(screen.getByText('01000000000')).toBeInTheDocument()
+  })
+
+  it('cancels a confirmed booking and reloads bookings', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
+    await user.click(
+      screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }),
+    )
+
+    await waitFor(() => {
+      expect(mockedCancelBooking).toHaveBeenCalledWith('nasr-club', 10)
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'حجز مؤكد' }),
+    ).not.toBeInTheDocument()
   })
 })

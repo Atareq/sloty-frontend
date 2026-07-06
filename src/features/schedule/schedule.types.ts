@@ -1,3 +1,5 @@
+import type { BookingListItem } from './scheduleApi.types'
+
 export type BookingBoardSlotStatus = 'available' | 'confirmed' | 'cancelled'
 export type BookingBoardPeriod = 'day' | 'night'
 
@@ -30,6 +32,7 @@ export interface ScheduleBooking {
   startTime: string
   endTime: string
   period: BookingBoardPeriod
+  booking?: BookingListItem
 }
 
 export interface ScheduleSummary {

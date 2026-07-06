@@ -3,6 +3,7 @@ import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   buildBookingListPath,
+  cancelBooking,
   createBooking,
   listBookingsForCourtDay,
 } from './scheduleApi'
@@ -65,6 +66,25 @@ describe('scheduleApi', () => {
       {
         method: 'POST',
         body: payload,
+      },
+    )
+  })
+
+  it('cancels bookings through the shared cancel endpoint with POST', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 20,
+      court: 3,
+      start_time: '2026-07-02T18:00:00',
+      end_time: '2026-07-02T19:00:00',
+      status: 'CANCELLED',
+    })
+
+    await cancelBooking('nasr-club', 20)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.cancel('nasr-club', 20),
+      {
+        method: 'POST',
       },
     )
   })
