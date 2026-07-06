@@ -58,6 +58,10 @@ export function getWeekdayFromDateValue(dateValue: string): CourtWorkingHour['we
   return (jsDay === 0 ? 6 : jsDay - 1) as CourtWorkingHour['weekday']
 }
 
+export function formatBookingDateTime(dateValue: string, timeValue: string): string {
+  return `${dateValue}T${timeValue}:00`
+}
+
 function timeToMinutes(time: string): number | null {
   const timePart = time.includes('T') ? time.split('T')[1] : time
   const [hours, minutes] = timePart.split(':').map(Number)
@@ -170,11 +174,13 @@ export function generateSlotsFromWorkingHour(
   for (let slotStart = opensAt; slotStart + duration <= closesAt; slotStart += duration) {
     const slotEnd = slotStart + duration
     const startTime = minutesToTime(slotStart)
+    const endTime = minutesToTime(slotEnd)
 
     slots.push({
       id: `slot-${startTime.replace(':', '')}`,
       status: getSlotStatus(bookings, slotStart, slotEnd),
       startTime,
+      endTime,
       period: getPeriod(slotStart),
     })
   }

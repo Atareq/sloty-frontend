@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
 import {
+  formatBookingDateTime,
   generateSlotsFromWorkingHour,
   getVisibleBookings,
 } from './scheduleBoard.helpers'
@@ -25,7 +26,18 @@ describe('scheduleBoard helpers', () => {
       '07:00',
       '08:00',
     ])
+    expect(result.slots.map((slot) => slot.endTime)).toEqual([
+      '07:00',
+      '08:00',
+      '09:00',
+    ])
     expect(result.slots.every((slot) => slot.status === 'available')).toBe(true)
+  })
+
+  it('formats a local booking datetime from date and board time', () => {
+    expect(formatBookingDateTime('2026-07-02', '18:00')).toBe(
+      '2026-07-02T18:00:00',
+    )
   })
 
   it('maps confirmed and cancelled bookings to board statuses', () => {

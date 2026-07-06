@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import { buildBookingListPath, listBookingsForCourtDay } from './scheduleApi'
+import {
+  buildBookingListPath,
+  createBooking,
+  listBookingsForCourtDay,
+} from './scheduleApi'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -31,6 +35,37 @@ describe('scheduleApi', () => {
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.bookings.list('nasr-club')}?court=3&date=2026-07-02`,
+    )
+  })
+
+  it('creates bookings through the shared booking list endpoint with POST', async () => {
+    const payload = {
+      court: 3,
+      customer_name: 'أحمد علي',
+      customer_phone: '01000000000',
+      start_time: '2026-07-02T18:00:00',
+      end_time: '2026-07-02T19:00:00',
+      source: 'MANUAL' as const,
+    }
+
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 20,
+      court: 3,
+      customer_name: 'أحمد علي',
+      customer_phone: '01000000000',
+      start_time: '2026-07-02T18:00:00',
+      end_time: '2026-07-02T19:00:00',
+      status: 'CONFIRMED',
+    })
+
+    await createBooking('nasr-club', payload)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.list('nasr-club'),
+      {
+        method: 'POST',
+        body: payload,
+      },
     )
   })
 })

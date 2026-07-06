@@ -1,7 +1,11 @@
 import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import type { BookingListItem, BookingListParams } from './scheduleApi.types'
+import type {
+  BookingCreatePayload,
+  BookingListItem,
+  BookingListParams,
+} from './scheduleApi.types'
 
 export function buildBookingListPath(
   clubSlug: string,
@@ -26,4 +30,19 @@ export function listBookingsForCourtDay(
   return apiRequest<PaginatedResponse<BookingListItem>>(
     buildBookingListPath(clubSlug, params),
   )
+}
+
+/**
+ * Creates one manual booking from an available or cancelled Booking Board slot.
+ *
+ * Payments and lifecycle actions intentionally stay out of Sprint 3B.
+ */
+export function createBooking(
+  clubSlug: string,
+  payload: BookingCreatePayload,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(apiEndpoints.clubs.bookings.list(clubSlug), {
+    method: 'POST',
+    body: payload,
+  })
 }

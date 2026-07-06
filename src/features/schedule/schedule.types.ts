@@ -20,14 +20,15 @@ export interface ScheduleDateFilter {
 /**
  * UI-only shape for the staff schedule preview.
  *
- * Booking Board slots intentionally expose only availability state and start
- * time. Operational lifecycle/payment details belong in future details flows,
- * not in this board model.
+ * Booking Board slots intentionally expose only availability state and their
+ * time range. Operational lifecycle/payment details belong in future details
+ * flows, not in this board model.
  */
 export interface ScheduleBooking {
   id: string
   status: BookingBoardSlotStatus
   startTime: string
+  endTime: string
   period: BookingBoardPeriod
 }
 

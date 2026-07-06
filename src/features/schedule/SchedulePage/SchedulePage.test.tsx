@@ -1,11 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listClubs } from '../../clubs/clubsApi'
 import { listCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
 import { listCourts } from '../../courts/courtsApi'
 import { createDateFilterOptions, getWeekdayFromDateValue } from '../scheduleBoard.helpers'
-import { listBookingsForCourtDay } from '../scheduleApi'
+import { createBooking, listBookingsForCourtDay } from '../scheduleApi'
 import { SchedulePage } from './SchedulePage'
 
 vi.mock('../../clubs/clubsApi', () => ({
@@ -21,6 +21,7 @@ vi.mock('../../courts/courtWorkingHoursApi', () => ({
 }))
 
 vi.mock('../scheduleApi', () => ({
+  createBooking: vi.fn(),
   listBookingsForCourtDay: vi.fn(),
 }))
 
@@ -28,6 +29,7 @@ const mockedListClubs = vi.mocked(listClubs)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedListCourtWorkingHours = vi.mocked(listCourtWorkingHours)
 const mockedListBookingsForCourtDay = vi.mocked(listBookingsForCourtDay)
+const mockedCreateBooking = vi.mocked(createBooking)
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -107,6 +109,15 @@ function mockScheduleApiData(): void {
       },
     ]),
   )
+  mockedCreateBooking.mockResolvedValue({
+    id: 20,
+    court: 7,
+    customer_name: 'أحمد علي',
+    customer_phone: '01000000000',
+    start_time: `${today}T06:00:00`,
+    end_time: `${today}T07:00:00`,
+    status: 'CONFIRMED',
+  })
 }
 
 describe('SchedulePage', () => {
@@ -139,7 +150,7 @@ describe('SchedulePage', () => {
     expect(screen.queryByText('لم يحضر')).not.toBeInTheDocument()
   })
 
-  it('opens add booking placeholder from available and cancelled slots', async () => {
+  it('opens add booking sheet from available and cancelled slots', async () => {
     const user = userEvent.setup()
 
     render(<SchedulePage />)
@@ -154,6 +165,35 @@ describe('SchedulePage', () => {
 
     expect(screen.getByRole('heading', { name: 'إضافة حجز' }))
       .toBeInTheDocument()
+  })
+
+  it('creates a manual booking from an available slot and reloads bookings', async () => {
+    const user = userEvent.setup()
+    const today = createDateFilterOptions()[0].date
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '06:00 متاح' }))
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
+
+    await waitFor(() => {
+      expect(mockedCreateBooking).toHaveBeenCalledWith('nasr-club', {
+        court: 7,
+        customer_name: 'أحمد علي',
+        customer_phone: '01000000000',
+        start_time: `${today}T06:00:00`,
+        end_time: `${today}T07:00:00`,
+        source: 'MANUAL',
+      })
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'إضافة حجز' }),
+    ).not.toBeInTheDocument()
   })
 
   it('opens details placeholder from confirmed slots', async () => {

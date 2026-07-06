@@ -5,15 +5,20 @@ import { listCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
 import type { CourtWorkingHour } from '../../courts/courtWorkingHours.types'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
+import {
+  AddBookingSheet,
+  type AddBookingSheetValues,
+} from '../components/AddBookingSheet/AddBookingSheet'
 import { BookingCard } from '../components/BookingCard/BookingCard'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
 import {
   createDateFilterOptions,
+  formatBookingDateTime,
   generateSlotsFromWorkingHour,
   getWeekdayFromDateValue,
 } from '../scheduleBoard.helpers'
 import type { ScheduleBooking } from '../schedule.types'
-import { listBookingsForCourtDay } from '../scheduleApi'
+import { createBooking, listBookingsForCourtDay } from '../scheduleApi'
 import type { BookingListItem } from '../scheduleApi.types'
 
 const statusLegend = [
@@ -45,14 +50,6 @@ function getDialogTitle(status: ScheduleBooking['status']): string {
   return status === 'confirmed' ? 'تفاصيل الحجز' : 'إضافة حجز'
 }
 
-function getDialogDescription(status: ScheduleBooking['status']): string {
-  if (status === 'confirmed') {
-    return 'هذه نافذة تفاصيل مؤقتة فقط. عمليات الدفع والإكمال والإلغاء ستأتي في تدفق منفصل لاحقاً.'
-  }
-
-  return 'هذه نافذة إضافة حجز مؤقتة فقط. سيتم تنفيذ نموذج الحجز السريع لاحقاً بدون افتراضات خلفية.'
-}
-
 function getSummary(slots: ScheduleBooking[]) {
   return {
     availableCount: slots.filter((slot) => slot.status === 'available').length,
@@ -70,11 +67,25 @@ function getCourtDateLabel(date: string): string {
   }).format(new Date(`${date}T00:00:00`))
 }
 
+async function fetchBookingResults(
+  clubSlug: string,
+  courtId: number,
+  date: string,
+): Promise<BookingListItem[]> {
+  const response = await listBookingsForCourtDay(clubSlug, {
+    court: courtId,
+    date,
+  })
+
+  return response.results
+}
+
 /**
- * Read-only Booking Board for court availability.
+ * Booking Board for court availability and quick manual creation.
  *
  * It reads clubs, courts, working hours, and bookings to generate availability
- * slots only. Booking creation and lifecycle actions are intentionally deferred.
+ * slots. Sprint 3B creates manual bookings only from available/cancelled slots;
+ * lifecycle and payment actions are intentionally deferred.
  */
 export function SchedulePage() {
   const dateFilters = useMemo(() => createDateFilterOptions(), [])
@@ -89,6 +100,8 @@ export function SchedulePage() {
   const [isSetupLoading, setIsSetupLoading] = useState(true)
   const [isBookingsLoading, setIsBookingsLoading] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
+  const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
     dateFilters[0].date
@@ -174,6 +187,29 @@ export function SchedulePage() {
     }
   }, [])
 
+  async function reloadBookings(): Promise<void> {
+    if (!selectedClub || !selectedCourt) {
+      setBookings([])
+      return
+    }
+
+    const clubSlug = selectedClub.slug
+    const courtId = selectedCourt.id
+    const date = selectedDate
+
+    setIsBookingsLoading(true)
+    setError(null)
+
+    try {
+      setBookings(await fetchBookingResults(clubSlug, courtId, date))
+    } catch {
+      setBookings([])
+      setError('تعذر تحميل حجوزات اليوم')
+    } finally {
+      setIsBookingsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!selectedClub || !selectedCourt) {
       queueMicrotask(() => setBookings([]))
@@ -190,13 +226,10 @@ export function SchedulePage() {
       setError(null)
 
       try {
-        const response = await listBookingsForCourtDay(clubSlug, {
-          court: courtId,
-          date,
-        })
+        const results = await fetchBookingResults(clubSlug, courtId, date)
 
         if (isActive) {
-          setBookings(response.results)
+          setBookings(results)
         }
       } catch {
         if (isActive) {
@@ -217,14 +250,46 @@ export function SchedulePage() {
     }
   }, [selectedClub, selectedCourt, selectedDate])
 
+  async function handleCreateBooking(
+    values: AddBookingSheetValues,
+  ): Promise<void> {
+    if (!selectedClub || !selectedCourt || !selectedSlot) {
+      return
+    }
+
+    setIsCreateSubmitting(true)
+    setCreateError(null)
+
+    try {
+      await createBooking(selectedClub.slug, {
+        court: selectedCourt.id,
+        customer_name: values.customer_name,
+        customer_phone: values.customer_phone,
+        start_time: formatBookingDateTime(selectedDate, selectedSlot.startTime),
+        end_time: formatBookingDateTime(selectedDate, selectedSlot.endTime),
+        source: 'MANUAL',
+        ...(values.notes ? { notes: values.notes } : {}),
+      })
+
+      setSelectedSlot(null)
+      await reloadBookings()
+    } catch {
+      setCreateError('تعذر إنشاء الحجز. تأكد من البيانات وحاول مرة أخرى')
+    } finally {
+      setIsCreateSubmitting(false)
+    }
+  }
+
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
     setSelectedSlot(null)
+    setCreateError(null)
   }
 
   function handleDateChange(nextDateKey: string): void {
     setActiveDateKey(nextDateKey)
     setSelectedSlot(null)
+    setCreateError(null)
   }
 
   const scheduleCourt = {
@@ -376,7 +441,25 @@ export function SchedulePage() {
         </section>
       </div>
 
-      {selectedSlot ? (
+      {selectedSlot &&
+      selectedSlot.status !== 'confirmed' &&
+      selectedCourt ? (
+        <AddBookingSheet
+          courtName={selectedCourt.name}
+          dateLabel={scheduleCourt.dateLabel}
+          endTime={selectedSlot.endTime}
+          error={createError}
+          isSubmitting={isCreateSubmitting}
+          onClose={() => {
+            setSelectedSlot(null)
+            setCreateError(null)
+          }}
+          onSubmit={handleCreateBooking}
+          startTime={selectedSlot.startTime}
+        />
+      ) : null}
+
+      {selectedSlot?.status === 'confirmed' ? (
         <div
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
@@ -400,12 +483,16 @@ export function SchedulePage() {
                 الحالة: {getStatusLabel(selectedSlot.status)}
               </p>
               <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-                {getDialogDescription(selectedSlot.status)}
+                هذه نافذة تفاصيل مؤقتة فقط. عمليات الدفع والإكمال والإلغاء ستأتي
+                في تدفق منفصل لاحقاً.
               </p>
             </div>
             <button
               className="mt-5 h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white text-sm font-bold text-[var(--sloty-text-primary)]"
-              onClick={() => setSelectedSlot(null)}
+              onClick={() => {
+                setSelectedSlot(null)
+                setCreateError(null)
+              }}
               type="button"
             >
               إغلاق

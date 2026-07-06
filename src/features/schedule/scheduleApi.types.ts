@@ -16,6 +16,16 @@ export interface BookingListItem {
   status: BackendBookingStatus
 }
 
+export interface BookingCreatePayload {
+  court: number
+  customer_name: string
+  customer_phone: string
+  start_time: string
+  end_time: string
+  source?: 'MANUAL' | 'ADMIN_CORRECTION'
+  notes?: string
+}
+
 export interface BookingListParams {
   court: number | string
   date: string

@@ -7,6 +7,7 @@ const confirmedBooking: ScheduleBooking = {
   id: 'booking-test',
   status: 'confirmed',
   startTime: '08:00',
+  endTime: '09:00',
   period: 'day',
 }
 
