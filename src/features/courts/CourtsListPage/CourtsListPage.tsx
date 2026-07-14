@@ -58,25 +58,34 @@ export function CourtsListPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Link to="/admin/clubs">
+    <PageHeader
+      tone="brand"
+      actions={
+        <div className="grid w-full max-w-sm grid-cols-2 gap-2 sm:flex sm:w-auto sm:max-w-none">
+          <Link
+            className="min-w-0 sm:w-auto"
+            to="/admin/clubs"
+          >
+            <AppButton fullWidth>
+              الأندية
+            </AppButton>
+          </Link>
+
+          {clubSlug ? (
+            <Link
+              className="min-w-0 sm:w-auto"
+              to={`/admin/clubs/${clubSlug}/courts/new`}
+            >
               <AppButton fullWidth variant="secondary">
-                الأندية
+                إضافة ملعب
               </AppButton>
             </Link>
-            {clubSlug ? (
-              <Link to={`/admin/clubs/${clubSlug}/courts/new`}>
-                <AppButton fullWidth>إضافة ملعب</AppButton>
-              </Link>
-            ) : null}
-          </div>
-        }
-        description={clubSlug ? `ملاعب النادي: ${clubSlug}` : undefined}
-        title="إدارة الملاعب"
-      />
-
+          ) : null}
+        </div>
+      }
+      description={clubSlug ? `ملاعب النادي: ${clubSlug}` : undefined}
+      title="إدارة الملاعب"
+    />
       {isLoading ? (
         <AppCard>
           <p className="text-sm text-[var(--sloty-text-muted)]">

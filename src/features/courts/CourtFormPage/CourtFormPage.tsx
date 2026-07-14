@@ -7,9 +7,33 @@ import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection
 import { createCourt, getCourt, updateCourt } from '../courtsApi'
 import type { CourtPayload } from '../courts.types'
 
-interface CourtFormState {
+type SportType =
+  | 'FOOTBALL'
+  | 'PADEL'
+  | 'TENNIS'
+
+const sportTypeChoices: Array<{
+  value: SportType
+  label: string
+}> = [
+  {
+    value: 'FOOTBALL',
+    label: 'كرة القدم',
+  },
+  {
+    value: 'PADEL',
+    label: 'بادل',
+  },
+  {
+    value: 'TENNIS',
+    label: 'تنس',
+  },
+
+]
+
+type CourtFormState = {
   name: string
-  sport_type: string
+  sport_type: SportType
   default_price: string
   slot_duration_minutes: string
   is_active: boolean
@@ -207,20 +231,47 @@ export function CourtFormPage() {
               />
             </label>
 
-            <label className="space-y-2 text-sm font-semibold">
-              <span>نوع الرياضة</span>
-              <input
-                className={inputClass}
-                dir="ltr"
-                onChange={(event) =>
-                  updateField('sport_type', event.target.value)
-                }
-                value={formState.sport_type}
-              />
-            </label>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold">
+                نوع الرياضة
+              </legend>
+
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {sportTypeChoices.map((sport) => {
+                  const isSelected = formState.sport_type === sport.value
+
+                  return (
+                    <label
+                      key={sport.value}
+                      className={[
+                        'shrink-0 cursor-pointer rounded-lg border px-4 py-2',
+                        'text-sm font-medium transition-colors',
+                        isSelected
+                          ? 'border-blue-600 bg-blue-600 text-white'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
+                      ].join(' ')}
+                    >
+                      <input
+                        type="radio"
+                        name="sport_type"
+                        value={sport.value}
+                        checked={isSelected}
+                        onChange={() =>
+                          updateField('sport_type', sport.value)
+                        }
+                        className="sr-only"
+                      />
+
+                      {sport.label}
+                    </label>
+                  )
+                })}
+              </div>
+
+            </fieldset>
 
             <label className="space-y-2 text-sm font-semibold">
-              <span>السعر الافتراضي</span>
+              <span>سعر الفترة الواحده</span>
               <input
                 className={inputClass}
                 inputMode="decimal"
@@ -231,28 +282,48 @@ export function CourtFormPage() {
               />
             </label>
 
-            <label className="space-y-2 text-sm font-semibold">
-              <span>مدةالحجز بالدقائق</span>
-              <input
+            <label className="block space-y-2 text-sm font-semibold">
+              <span>مدة الفترة الواحدة</span>
+
+              <select
                 className={inputClass}
-                inputMode="numeric"
                 onChange={(event) =>
                   updateField('slot_duration_minutes', event.target.value)
                 }
                 value={formState.slot_duration_minutes}
-              />
-            </label>
+              >
+                <option value="30">30 دقيقة</option>
+                <option value="45">45 دقيقة</option>
+                <option value="60">ساعة واحدة</option>
+                <option value="90">ساعة ونصف</option>
+                <option value="120">ساعتان</option>
+              </select>
 
-            <label className="space-y-2 text-sm font-semibold">
-              <span>مده انتهاء الحجز بدون عربون</span>
-              <input
+              <span className="block text-xs font-normal text-gray-500">
+                يتم حفظ مدة الفترة ولا يمكن تغييرها بعد ذلك.
+              </span>
+            </label>
+            <label className="block space-y-2 text-sm font-semibold">
+              <span>مدة الاحتفاظ بالحجز بدون دفع</span>
+
+              <select
                 className={inputClass}
-                inputMode="numeric"
                 onChange={(event) =>
                   updateField('internal_hold_expiry_hours', event.target.value)
                 }
                 value={formState.internal_hold_expiry_hours}
-              />
+              >
+                <option value="1">ساعة واحدة</option>
+                <option value="2">ساعتان</option>
+                <option value="6">6 ساعات</option>
+                <option value="12">12 ساعة</option>
+                <option value="16">16 ساعة</option>
+                <option value="24">24 ساعة</option>
+              </select>
+
+              <span className="block text-xs font-normal text-gray-500">
+                المدة التي يظل فيها الحجز محفوظاً قبل إلغائه في حالة عدم الدفع.
+              </span>
             </label>
 
             <label className="flex items-center gap-3 text-sm font-semibold">
@@ -275,7 +346,7 @@ export function CourtFormPage() {
                 }
                 type="checkbox"
               />
-              يتطلب مرجع دفع رقمي
+              إيصال الدفع إلزامي
             </label>
 
             <label className="space-y-2 text-sm font-semibold lg:col-span-2">
