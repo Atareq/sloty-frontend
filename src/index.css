@@ -92,19 +92,57 @@ select {
 }
 
 .sloty-phone-input {
-  direction: ltr;
-  height: 2.75rem;
+  display: flex;
+  min-height: 2.75rem;
   width: 100%;
-  border-radius: 0.75rem;
+  align-items: stretch;
+  overflow: hidden;
   border: 1px solid var(--sloty-border);
+  border-radius: 0.75rem;
   background: white;
-  padding-inline: 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--sloty-text-primary);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.sloty-phone-input input {
+.sloty-phone-input:focus-within {
+  border-color: var(--sloty-primary);
+  box-shadow: 0 0 0 2px rgb(11 107 58 / 15%);
+}
+
+.sloty-phone-input--error {
+  border-color: var(--sloty-danger);
+}
+
+.sloty-phone-input__country {
+  width: 6.25rem;
+  flex: 0 0 auto;
+  border: 0;
+  border-left: 1px solid var(--sloty-border);
+  background: var(--sloty-bg);
+  color: var(--sloty-text-primary);
+  font-size: 0.8125rem;
+  font-weight: 700;
   outline: none;
-  width: 100%;
+  padding-inline: 0.5rem;
+}
+
+.sloty-phone-input__number {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--sloty-text-primary);
+  direction: ltr;
+  font-size: 0.875rem;
+  font-weight: 600;
+  outline: none;
+  padding-inline: 0.75rem;
+  text-align: left;
+}
+
+.sloty-phone-input__country:disabled,
+.sloty-phone-input__number:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }

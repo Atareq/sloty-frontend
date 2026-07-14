@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
+import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
 import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
 import { findGovernorateByCode } from '../../locations/egyptLocations.helpers'
 import type { EgyptLocationsResponse } from '../../locations/egyptLocations.types'
@@ -18,7 +20,7 @@ const initialFormState: ClubFormState = {
   governorate: '',
   city: '',
   address: '',
-  phone_number: '',
+  phone_number: undefined,
   notes: '',
   is_active: true,
   manager_can_settle_transactions: false,
@@ -114,7 +116,7 @@ export function ClubFormPage() {
             governorate: club.governorate ?? '',
             city: club.city,
             address: club.address ?? '',
-            phone_number: club.phone_number ?? '',
+            phone_number: club.phone_number,
             notes: club.notes ?? '',
             is_active: club.is_active,
             manager_can_settle_transactions:
@@ -164,6 +166,14 @@ export function ClubFormPage() {
       !formState.city
     ) {
       setError('اسم النادي والمحافظة والمدينة/المركز مطلوبة')
+      return
+    }
+
+    if (
+      formState.phone_number &&
+      !isValidSlotyPhoneNumber(formState.phone_number)
+    ) {
+      setError('رقم هاتف النادي غير صحيح')
       return
     }
 
@@ -277,17 +287,20 @@ export function ClubFormPage() {
               />
             </label>
 
-            <label className="space-y-2 text-sm font-semibold">
+            <div className="space-y-2 text-sm font-semibold">
               <span>رقم الهاتف</span>
-              <input
-                className={inputClass}
-                inputMode="tel"
-                onChange={(event) =>
-                  updateField('phone_number', event.target.value)
+              <SlotyPhoneNumberInput
+                error={error === 'رقم هاتف النادي غير صحيح'}
+                disabled={isSubmitting}
+                onChange={(value) =>
+                  setFormState((current) => ({
+                    ...current,
+                    phone_number: value,
+                  }))
                 }
                 value={formState.phone_number}
               />
-            </label>
+            </div>
 
             <label className="flex items-center gap-3 text-sm font-semibold">
               <input

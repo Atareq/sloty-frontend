@@ -234,7 +234,7 @@ describe('SchedulePage', () => {
       expect(mockedCreateBooking).toHaveBeenCalledWith('nasr-club', {
         court: 7,
         customer_name: 'أحمد علي',
-        customer_phone: '01000000000',
+        customer_phone: '+201000000000',
         start_time: `${today}T06:00:00`,
         end_time: `${today}T07:00:00`,
         source: 'MANUAL',

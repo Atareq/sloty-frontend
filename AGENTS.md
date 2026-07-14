@@ -60,6 +60,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - API base URL must live in one shared config file; do not hardcode it across components.
 - API endpoint paths must live in `src/shared/api/apiEndpoints.ts`; do not hardcode API URLs inside components.
 - Egypt governorates/cities must come from `GET /egypt-locations/`; club forms must submit governorate/city codes, not Arabic or English labels, and must not hardcode Egypt location lists. Club address forms use governorate, city, and optional address; do not reintroduce `area`.
+- Phone country/region selection is frontend UI only. Backend payloads must send one E.164 phone field such as `customer_phone` or `phone_number`; do not send `phone_region`, `country`, or calling-code fields.
 - JWT role claims are used by the frontend for UX, navigation, and route protection.
 - Components must use `useAuth()` instead of decoding tokens directly.
 - Decode access tokens in the auth utility/provider layer only.

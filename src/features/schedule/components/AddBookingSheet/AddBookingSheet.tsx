@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import type { Value } from 'react-phone-number-input'
+import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
+import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
 
 export interface AddBookingSheetValues {
   customer_name: string
@@ -36,7 +39,7 @@ export function AddBookingSheet({
   startTime,
 }: AddBookingSheetProps) {
   const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerPhone, setCustomerPhone] = useState<Value | undefined>()
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -44,18 +47,23 @@ export function AddBookingSheet({
     event.preventDefault()
 
     const trimmedName = customerName.trim()
-    const trimmedPhone = customerPhone.trim()
     const trimmedNotes = notes.trim()
 
-    if (!trimmedName || !trimmedPhone) {
+    if (!trimmedName || !customerPhone) {
       setValidationError('اسم العميل ورقم الهاتف مطلوبان')
       return
     }
 
+    if (!isValidSlotyPhoneNumber(customerPhone)) {
+      setValidationError('رقم الهاتف غير صحيح')
+      return
+    }
+
     setValidationError(null)
+
     await onSubmit({
       customer_name: trimmedName,
-      customer_phone: trimmedPhone,
+      customer_phone: customerPhone,
       notes: trimmedNotes || undefined,
     })
   }
@@ -99,17 +107,16 @@ export function AddBookingSheet({
             />
           </label>
 
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+          <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>رقم الهاتف</span>
-            <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-              dir="ltr"
+
+            <SlotyPhoneNumberInput
               disabled={isSubmitting}
-              inputMode="tel"
-              onChange={(event) => setCustomerPhone(event.target.value)}
+              error={validationError === 'رقم الهاتف غير صحيح'}
+              onChange={setCustomerPhone}
               value={customerPhone}
             />
-          </label>
+          </div>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>

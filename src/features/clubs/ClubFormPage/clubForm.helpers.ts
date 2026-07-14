@@ -1,4 +1,5 @@
 import type { ClubPayload } from '../clubs.types'
+import type { Value } from 'react-phone-number-input'
 
 export interface ClubFormState {
   name: string
@@ -6,15 +7,15 @@ export interface ClubFormState {
   governorate: string
   city: string
   address: string
-  phone_number: string
+  phone_number: Value | undefined
   notes: string
   is_active: boolean
   manager_can_settle_transactions: boolean
   manager_can_change_pricing: boolean
 }
 
-function optionalText(value: string): string | undefined {
-  const trimmedValue = value.trim()
+function optionalText(value: string | undefined): string | undefined {
+  const trimmedValue = value?.trim()
   return trimmedValue ? trimmedValue : undefined
 }
 

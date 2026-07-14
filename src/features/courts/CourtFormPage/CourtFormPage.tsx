@@ -232,7 +232,7 @@ export function CourtFormPage() {
             </label>
 
             <label className="space-y-2 text-sm font-semibold">
-              <span>مدة الحصة بالدقائق</span>
+              <span>مدةالحجز بالدقائق</span>
               <input
                 className={inputClass}
                 inputMode="numeric"
@@ -244,7 +244,7 @@ export function CourtFormPage() {
             </label>
 
             <label className="space-y-2 text-sm font-semibold">
-              <span>انتهاء الحجز الداخلي بالساعات</span>
+              <span>مده انتهاء الحجز بدون عربون</span>
               <input
                 className={inputClass}
                 inputMode="numeric"
