@@ -3,6 +3,12 @@ import { Link } from 'react-router'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
+import {
+  getCityLabel,
+  getGovernorateLabel,
+} from '../../locations/egyptLocations.helpers'
+import type { EgyptLocationsResponse } from '../../locations/egyptLocations.types'
 import { listClubs } from '../clubsApi'
 import type { Club } from '../clubs.types'
 
@@ -14,6 +20,9 @@ import type { Club } from '../clubs.types'
  */
 export function ClubsListPage() {
   const [clubs, setClubs] = useState<Club[]>([])
+  const [locations, setLocations] = useState<EgyptLocationsResponse | null>(
+    null,
+  )
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -25,14 +34,19 @@ export function ClubsListPage() {
       setError(null)
 
       try {
-        const response = await listClubs()
+        const [clubsResponse, locationsResponse] = await Promise.all([
+          listClubs(),
+          fetchEgyptLocations().catch(() => null),
+        ])
 
         if (isActive) {
-          setClubs(response.results)
+          setClubs(clubsResponse.results)
+          setLocations(locationsResponse)
         }
       } catch {
         if (isActive) {
           setError('تعذر تحميل قائمة الأندية')
+          setLocations(null)
         }
       } finally {
         if (isActive) {
@@ -98,7 +112,17 @@ export function ClubsListPage() {
                     {club.slug}
                   </p>
                   <p className="text-sm text-[var(--sloty-text-muted)]">
-                    {club.city} - {club.area}
+                    {[
+                      club.governorate
+                        ? getGovernorateLabel(locations, club.governorate)
+                        : '',
+                      club.governorate
+                        ? getCityLabel(locations, club.governorate, club.city)
+                        : club.city,
+                      club.area,
+                    ]
+                      .filter(Boolean)
+                      .join(' - ')}
                   </p>
                 </div>
                 <span

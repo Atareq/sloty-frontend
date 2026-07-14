@@ -21,10 +21,14 @@ import {
 import type { ScheduleBooking } from '../schedule.types'
 import {
   cancelBooking,
+  completeBooking,
   createBooking,
   listBookingsForCourtDay,
+  markBookingNoShow,
 } from '../scheduleApi'
 import type { BookingListItem } from '../scheduleApi.types'
+import { createTransaction } from '../../transactions/transactionsApi'
+import type { RecordPaymentSheetValues } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 
 const statusLegend = [
   {
@@ -76,7 +80,7 @@ async function fetchBookingResults(
  *
  * It reads clubs, courts, working hours, and bookings to generate availability
  * slots. Available/cancelled slots create manual bookings, and confirmed slots
- * show booking details with a focused cancel action.
+ * show booking details with focused lifecycle actions.
  */
 export function SchedulePage() {
   const dateFilters = useMemo(() => createDateFilterOptions(), [])
@@ -93,8 +97,13 @@ export function SchedulePage() {
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [isCancelSubmitting, setIsCancelSubmitting] = useState(false)
-  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [isBookingActionSubmitting, setIsBookingActionSubmitting] =
+    useState(false)
+  const [bookingActionError, setBookingActionError] = useState<string | null>(
+    null,
+  )
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
     dateFilters[0].date
@@ -278,17 +287,84 @@ export function SchedulePage() {
       return
     }
 
-    setIsCancelSubmitting(true)
-    setCancelError(null)
+    setIsBookingActionSubmitting(true)
+    setBookingActionError(null)
 
     try {
       await cancelBooking(selectedClub.slug, bookingId)
       setSelectedSlot(null)
       await reloadBookings()
     } catch {
-      setCancelError('تعذر إلغاء الحجز. حاول مرة أخرى')
+      setBookingActionError('تعذر إلغاء الحجز. حاول مرة أخرى')
     } finally {
-      setIsCancelSubmitting(false)
+      setIsBookingActionSubmitting(false)
+    }
+  }
+
+  async function handleCompleteBooking(
+    bookingId: number | string,
+  ): Promise<void> {
+    if (!selectedClub || !selectedCourt) {
+      return
+    }
+
+    setIsBookingActionSubmitting(true)
+    setBookingActionError(null)
+
+    try {
+      await completeBooking(selectedClub.slug, bookingId)
+      setSelectedSlot(null)
+      await reloadBookings()
+    } catch {
+      setBookingActionError('تعذر إكمال الحجز. حاول مرة أخرى')
+    } finally {
+      setIsBookingActionSubmitting(false)
+    }
+  }
+
+  async function handleNoShowBooking(
+    bookingId: number | string,
+  ): Promise<void> {
+    if (!selectedClub || !selectedCourt) {
+      return
+    }
+
+    setIsBookingActionSubmitting(true)
+    setBookingActionError(null)
+
+    try {
+      await markBookingNoShow(selectedClub.slug, bookingId)
+      setSelectedSlot(null)
+      await reloadBookings()
+    } catch {
+      setBookingActionError('تعذر تسجيل عدم الحضور. حاول مرة أخرى')
+    } finally {
+      setIsBookingActionSubmitting(false)
+    }
+  }
+
+  async function handleRecordPayment(
+    bookingId: number,
+    values: RecordPaymentSheetValues,
+  ): Promise<void> {
+    if (!selectedClub || !selectedCourt) {
+      return
+    }
+
+    setIsPaymentSubmitting(true)
+    setPaymentError(null)
+
+    try {
+      await createTransaction(selectedClub.slug, {
+        booking: bookingId,
+        ...values,
+      })
+      await reloadBookings()
+    } catch {
+      setPaymentError('تعذر تسجيل الدفع. حاول مرة أخرى')
+      throw new Error('Unable to record booking payment')
+    } finally {
+      setIsPaymentSubmitting(false)
     }
   }
 
@@ -296,14 +372,16 @@ export function SchedulePage() {
     setSelectedCourtId(Number(nextCourtId))
     setSelectedSlot(null)
     setCreateError(null)
-    setCancelError(null)
+    setBookingActionError(null)
+    setPaymentError(null)
   }
 
   function handleDateChange(nextDateKey: string): void {
     setActiveDateKey(nextDateKey)
     setSelectedSlot(null)
     setCreateError(null)
-    setCancelError(null)
+    setBookingActionError(null)
+    setPaymentError(null)
   }
 
   const scheduleCourt = {
@@ -478,13 +556,19 @@ export function SchedulePage() {
           booking={selectedSlot.booking}
           courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
           dateLabel={scheduleCourt.dateLabel}
-          error={cancelError}
-          isSubmitting={isCancelSubmitting}
+          error={bookingActionError}
+          isSubmitting={isBookingActionSubmitting}
           onCancel={handleCancelBooking}
+          onComplete={handleCompleteBooking}
           onClose={() => {
             setSelectedSlot(null)
-            setCancelError(null)
+            setBookingActionError(null)
+            setPaymentError(null)
           }}
+          onNoShow={handleNoShowBooking}
+          onRecordPayment={handleRecordPayment}
+          paymentError={paymentError}
+          isPaymentSubmitting={isPaymentSubmitting}
           slot={selectedSlot}
         />
       ) : null}

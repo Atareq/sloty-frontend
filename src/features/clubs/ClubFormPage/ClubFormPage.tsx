@@ -3,25 +3,19 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
+import { findGovernorateByCode } from '../../locations/egyptLocations.helpers'
+import type { EgyptLocationsResponse } from '../../locations/egyptLocations.types'
 import { createClub, getClub, updateClub } from '../clubsApi'
-import type { ClubPayload } from '../clubs.types'
-
-interface ClubFormState {
-  name: string
-  slug: string
-  city: string
-  area: string
-  address: string
-  phone_number: string
-  notes: string
-  is_active: boolean
-  manager_can_settle_transactions: boolean
-  manager_can_change_pricing: boolean
-}
+import {
+  buildClubPayload,
+  type ClubFormState,
+} from './clubForm.helpers'
 
 const initialFormState: ClubFormState = {
   name: '',
   slug: '',
+  governorate: '',
   city: '',
   area: '',
   address: '',
@@ -34,29 +28,10 @@ const initialFormState: ClubFormState = {
 
 const inputClass =
   'h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15'
+const selectClass =
+  'h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:cursor-not-allowed disabled:opacity-60'
 const textareaClass =
   'min-h-24 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15'
-
-function optionalText(value: string): string | undefined {
-  const trimmedValue = value.trim()
-  return trimmedValue ? trimmedValue : undefined
-}
-
-function buildPayload(formState: ClubFormState, isCreateMode: boolean): ClubPayload {
-  return {
-    name: formState.name.trim(),
-    ...(isCreateMode ? { slug: optionalText(formState.slug) } : {}),
-    city: formState.city.trim(),
-    area: formState.area.trim(),
-    address: optionalText(formState.address),
-    phone_number: optionalText(formState.phone_number),
-    notes: optionalText(formState.notes),
-    is_active: formState.is_active,
-    manager_can_settle_transactions:
-      formState.manager_can_settle_transactions,
-    manager_can_change_pricing: formState.manager_can_change_pricing,
-  }
-}
 
 /**
  * Create/edit form for the minimal club setup contract.
@@ -71,11 +46,52 @@ export function ClubFormPage() {
   const [formState, setFormState] = useState<ClubFormState>(initialFormState)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(!isCreateMode)
+  const [locations, setLocations] = useState<EgyptLocationsResponse | null>(
+    null,
+  )
+  const [locationsError, setLocationsError] = useState<string | null>(null)
+  const [isLocationsLoading, setIsLocationsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const selectedGovernorate = findGovernorateByCode(
+    locations,
+    formState.governorate,
+  )
   const title = useMemo(
     () => (isCreateMode ? 'إضافة نادي' : 'تعديل النادي'),
     [isCreateMode],
   )
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadLocations(): Promise<void> {
+      setIsLocationsLoading(true)
+      setLocationsError(null)
+
+      try {
+        const response = await fetchEgyptLocations()
+
+        if (isActive) {
+          setLocations(response)
+        }
+      } catch {
+        if (isActive) {
+          setLocations(null)
+          setLocationsError('تعذر تحميل المحافظات والمدن')
+        }
+      } finally {
+        if (isActive) {
+          setIsLocationsLoading(false)
+        }
+      }
+    }
+
+    void loadLocations()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   useEffect(() => {
     if (isCreateMode || !clubId) {
@@ -96,6 +112,7 @@ export function ClubFormPage() {
           setFormState({
             name: club.name,
             slug: club.slug,
+            governorate: club.governorate ?? '',
             city: club.city,
             area: club.area,
             address: club.address ?? '',
@@ -132,11 +149,24 @@ export function ClubFormPage() {
     }))
   }
 
+  function handleGovernorateChange(governorateCode: string): void {
+    setFormState((current) => ({
+      ...current,
+      governorate: governorateCode,
+      city: '',
+    }))
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
 
-    if (!formState.name.trim() || !formState.city.trim() || !formState.area.trim()) {
-      setError('اسم النادي والمدينة والمنطقة مطلوبة')
+    if (
+      !formState.name.trim() ||
+      !formState.governorate ||
+      !formState.city ||
+      !formState.area.trim()
+    ) {
+      setError('اسم النادي والمحافظة والمدينة/المركز والمنطقة مطلوبة')
       return
     }
 
@@ -144,7 +174,7 @@ export function ClubFormPage() {
     setIsSubmitting(true)
 
     try {
-      const payload = buildPayload(formState, isCreateMode)
+      const payload = buildClubPayload(formState, isCreateMode)
       const savedClub =
         isCreateMode || !clubId
           ? await createClub(payload)
@@ -171,9 +201,11 @@ export function ClubFormPage() {
       />
 
       <AppCard>
-        {isLoading ? (
+        {isLoading || isLocationsLoading ? (
           <p className="text-sm text-[var(--sloty-text-muted)]">
-            جاري تحميل بيانات النادي...
+            {isLocationsLoading
+              ? 'جاري تحميل المحافظات والمدن...'
+              : 'جاري تحميل بيانات النادي...'}
           </p>
         ) : (
           <form className="grid gap-4 lg:grid-cols-2" onSubmit={handleSubmit}>
@@ -199,12 +231,44 @@ export function ClubFormPage() {
             ) : null}
 
             <label className="space-y-2 text-sm font-semibold">
-              <span>المدينة</span>
-              <input
-                className={inputClass}
+              <span>المحافظة</span>
+              <select
+                className={selectClass}
+                onChange={(event) =>
+                  handleGovernorateChange(event.target.value)
+                }
+                value={formState.governorate}
+              >
+                <option value="">اختر المحافظة</option>
+                {locations?.governorates.map((governorate) => (
+                  <option key={governorate.code} value={governorate.code}>
+                    {governorate.name_ar}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm font-semibold">
+              <span>المدينة/المركز</span>
+              <select
+                className={selectClass}
+                disabled={!formState.governorate || !selectedGovernorate}
                 onChange={(event) => updateField('city', event.target.value)}
                 value={formState.city}
-              />
+              >
+                <option value="">اختر المدينة/المركز</option>
+                {selectedGovernorate?.cities.map((city) => (
+                  <option key={city.code} value={city.code}>
+                    {city.name_ar}
+                  </option>
+                ))}
+              </select>
+              {selectedGovernorate &&
+              selectedGovernorate.cities.length === 0 ? (
+                <span className="block text-xs font-bold text-[var(--sloty-text-muted)]">
+                  لا توجد مدن أو مراكز مسجلة لهذه المحافظة
+                </span>
+              ) : null}
             </label>
 
             <label className="space-y-2 text-sm font-semibold">
@@ -283,6 +347,12 @@ export function ClubFormPage() {
             {error ? (
               <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-semibold text-[var(--sloty-danger)] lg:col-span-2">
                 {error}
+              </p>
+            ) : null}
+
+            {locationsError ? (
+              <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-semibold text-[var(--sloty-danger)] lg:col-span-2">
+                {locationsError}
               </p>
             ) : null}
 

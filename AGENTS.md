@@ -59,6 +59,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 
 - API base URL must live in one shared config file; do not hardcode it across components.
 - API endpoint paths must live in `src/shared/api/apiEndpoints.ts`; do not hardcode API URLs inside components.
+- Egypt governorates/cities must come from `GET /egypt-locations/`; club forms must submit governorate/city codes, not Arabic or English labels, and must not hardcode Egypt location lists.
 - JWT role claims are used by the frontend for UX, navigation, and route protection.
 - Components must use `useAuth()` instead of decoding tokens directly.
 - Decode access tokens in the auth utility/provider layer only.
@@ -72,7 +73,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Booking Board must not show payment or lifecycle details.
 - Sprint 3B creates bookings only from available/cancelled Booking Board slots.
 - Sprint 3C adds confirmed booking details and cancel action only.
-- Complete, no-show, expire, booking payment, and financial actions are deferred to later sprints.
+- Sprint 3D adds complete/no-show actions from confirmed booking details only.
+- Sprint 4 adds basic transaction listing and confirmed-booking payment recording through `apiEndpoints.clubs.transactions`; keep settlement, reports, charts, and owner financial dashboards deferred.
+- Expire and non-transaction financial actions are deferred to later sprints.
 - Overnight working-hour ranges are deferred unless explicitly requested.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.

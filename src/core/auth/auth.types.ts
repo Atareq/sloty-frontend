@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 
 export const AUTH_ROLES = [
-  'platform_super_admin',
-  'club_owner',
-  'club_manager',
-  'court_staff',
+  'PLATFORM_ADMIN',
+  'OWNER',
+  'MANAGER',
+  'STAFF',
 ] as const
 
 export type AuthRole = (typeof AUTH_ROLES)[number]
@@ -70,10 +70,10 @@ export interface AuthProviderProps {
 }
 
 export const DEFAULT_ROLE_REDIRECTS: Record<AuthRole, string> = {
-  platform_super_admin: '/admin/clubs',
-  club_owner: '/dashboard',
-  club_manager: '/schedule',
-  court_staff: '/schedule',
+  PLATFORM_ADMIN: '/admin/clubs',
+  OWNER: '/dashboard',
+  MANAGER: '/schedule',
+  STAFF: '/schedule',
 }
 
 /**

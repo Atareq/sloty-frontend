@@ -4,7 +4,7 @@ import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 /**
  * Minimal platform-admin placeholder route.
  *
- * The auth foundation needs a landing path for `platform_super_admin`, but the
+ * The auth foundation needs a landing path for `PLATFORM_ADMIN`, but the
  * actual clubs management screen is intentionally out of scope for this task.
  */
 export function AdminClubsPage() {

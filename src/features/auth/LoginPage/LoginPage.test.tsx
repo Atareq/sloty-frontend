@@ -100,7 +100,7 @@ describe('LoginPage', () => {
 
   it('calls the auth API and stores tokens on successful login', async () => {
     const user = userEvent.setup()
-    const accessToken = createDevAccessToken('court_staff')
+    const accessToken = createDevAccessToken('STAFF')
 
     mockedLoginWithPassword.mockResolvedValueOnce({
       access: accessToken,

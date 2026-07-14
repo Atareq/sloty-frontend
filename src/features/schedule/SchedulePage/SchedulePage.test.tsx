@@ -7,9 +7,12 @@ import { listCourts } from '../../courts/courtsApi'
 import { createDateFilterOptions, getWeekdayFromDateValue } from '../scheduleBoard.helpers'
 import {
   cancelBooking,
+  completeBooking,
   createBooking,
   listBookingsForCourtDay,
+  markBookingNoShow,
 } from '../scheduleApi'
+import { createTransaction } from '../../transactions/transactionsApi'
 import { SchedulePage } from './SchedulePage'
 
 vi.mock('../../clubs/clubsApi', () => ({
@@ -26,8 +29,14 @@ vi.mock('../../courts/courtWorkingHoursApi', () => ({
 
 vi.mock('../scheduleApi', () => ({
   cancelBooking: vi.fn(),
+  completeBooking: vi.fn(),
   createBooking: vi.fn(),
   listBookingsForCourtDay: vi.fn(),
+  markBookingNoShow: vi.fn(),
+}))
+
+vi.mock('../../transactions/transactionsApi', () => ({
+  createTransaction: vi.fn(),
 }))
 
 const mockedListClubs = vi.mocked(listClubs)
@@ -36,6 +45,9 @@ const mockedListCourtWorkingHours = vi.mocked(listCourtWorkingHours)
 const mockedListBookingsForCourtDay = vi.mocked(listBookingsForCourtDay)
 const mockedCreateBooking = vi.mocked(createBooking)
 const mockedCancelBooking = vi.mocked(cancelBooking)
+const mockedCompleteBooking = vi.mocked(completeBooking)
+const mockedMarkBookingNoShow = vi.mocked(markBookingNoShow)
+const mockedCreateTransaction = vi.mocked(createTransaction)
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -126,6 +138,24 @@ function mockScheduleApiData(): void {
     end_time: '08:00',
     status: 'CANCELLED',
   })
+  mockedCompleteBooking.mockResolvedValue({
+    id: 10,
+    court: 7,
+    customer_name: 'أحمد علي',
+    customer_phone: '01000000000',
+    start_time: '07:00',
+    end_time: '08:00',
+    status: 'COMPLETED',
+  })
+  mockedMarkBookingNoShow.mockResolvedValue({
+    id: 10,
+    court: 7,
+    customer_name: 'أحمد علي',
+    customer_phone: '01000000000',
+    start_time: '07:00',
+    end_time: '08:00',
+    status: 'NO_SHOW',
+  })
   mockedCreateBooking.mockResolvedValue({
     id: 20,
     court: 7,
@@ -134,6 +164,12 @@ function mockScheduleApiData(): void {
     start_time: `${today}T06:00:00`,
     end_time: `${today}T07:00:00`,
     status: 'CONFIRMED',
+  })
+  mockedCreateTransaction.mockResolvedValue({
+    id: 30,
+    booking: 10,
+    amount: '150',
+    payment_method: 'CASH',
   })
 }
 
@@ -245,6 +281,77 @@ describe('SchedulePage', () => {
     })
     expect(
       screen.queryByRole('heading', { name: 'حجز مؤكد' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('completes a confirmed booking and reloads bookings', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
+    await user.click(
+      screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
+    )
+
+    await waitFor(() => {
+      expect(mockedCompleteBooking).toHaveBeenCalledWith('nasr-club', 10)
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'حجز مؤكد' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('marks a confirmed booking as no-show and reloads bookings', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'تسجيل عدم حضور' }))
+    await user.click(
+      screen.getByRole('button', { name: 'تأكيد عدم الحضور' }),
+    )
+
+    await waitFor(() => {
+      expect(mockedMarkBookingNoShow).toHaveBeenCalledWith('nasr-club', 10)
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'حجز مؤكد' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('records payment for a confirmed booking and reloads bookings', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'تسجيل دفع' }))
+    await user.type(screen.getByLabelText('المبلغ'), '150')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفع' }))
+
+    await waitFor(() => {
+      expect(mockedCreateTransaction).toHaveBeenCalledWith('nasr-club', {
+        booking: 10,
+        amount: '150',
+        payment_method: 'CASH',
+        reference: undefined,
+        notes: undefined,
+      })
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'تسجيل دفع' }),
     ).not.toBeInTheDocument()
   })
 })

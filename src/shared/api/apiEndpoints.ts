@@ -12,6 +12,7 @@ export const apiEndpoints = {
     refresh: 'auth/token/refresh/',
     me: 'me/',
   },
+  egyptLocations: 'egypt-locations/',
   clubs: {
     list: 'clubs/',
     detail: (id: ApiId) => `clubs/${id}/`,

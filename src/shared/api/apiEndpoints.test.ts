@@ -15,6 +15,7 @@ describe('apiEndpoints', () => {
   })
 
   it('builds core resource detail URLs', () => {
+    expect(apiEndpoints.egyptLocations).toBe('egypt-locations/')
     expect(apiEndpoints.clubs.detail(4)).toBe('clubs/4/')
     expect(apiEndpoints.clubs.courts.detail('nasr-club', 3)).toBe(
       'clubs/nasr-club/courts/3/',

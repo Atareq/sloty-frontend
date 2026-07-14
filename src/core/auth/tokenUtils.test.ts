@@ -20,20 +20,20 @@ describe('tokenUtils', () => {
   it('decodes a valid JWT payload', () => {
     const token = createJwt({
       user_id: 7,
-      role: 'court_staff',
+      role: 'STAFF',
       name: 'Ahmed',
       court_id: 3,
     })
 
     expect(decodeJwtPayload(token)).toMatchObject({
       user_id: 7,
-      role: 'court_staff',
+      role: 'STAFF',
       name: 'Ahmed',
       court_id: 3,
     })
     expect(decodeAccessToken(token)).toMatchObject({
       user_id: 7,
-      role: 'court_staff',
+      role: 'STAFF',
       name: 'Ahmed',
       court_id: 3,
     })

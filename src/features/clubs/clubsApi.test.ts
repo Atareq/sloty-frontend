@@ -15,10 +15,16 @@ describe('clubsApi', () => {
 
     await listClubs()
     await getClub(12)
-    await createClub({ name: 'نادي النصر', city: 'أسيوط', area: 'وسط البلد' })
+    await createClub({
+      name: 'نادي النصر',
+      governorate: 'ASSIUT',
+      city: 'ASSIUT_MARKAZ',
+      area: 'وسط البلد',
+    })
     await updateClub(12, {
       name: 'نادي النصر',
-      city: 'أسيوط',
+      governorate: 'ASSIUT',
+      city: 'ASSIUT_MARKAZ',
       area: 'وسط البلد',
       is_active: true,
     })
@@ -30,7 +36,12 @@ describe('clubsApi', () => {
     )
     expect(mockedApiRequest).toHaveBeenNthCalledWith(3, apiEndpoints.clubs.list, {
       method: 'POST',
-      body: { name: 'نادي النصر', city: 'أسيوط', area: 'وسط البلد' },
+      body: {
+        name: 'نادي النصر',
+        governorate: 'ASSIUT',
+        city: 'ASSIUT_MARKAZ',
+        area: 'وسط البلد',
+      },
     })
     expect(mockedApiRequest).toHaveBeenNthCalledWith(
       4,
@@ -39,7 +50,8 @@ describe('clubsApi', () => {
         method: 'PATCH',
         body: {
           name: 'نادي النصر',
-          city: 'أسيوط',
+          governorate: 'ASSIUT',
+          city: 'ASSIUT_MARKAZ',
           area: 'وسط البلد',
           is_active: true,
         },

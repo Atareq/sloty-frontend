@@ -4,8 +4,10 @@ import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   buildBookingListPath,
   cancelBooking,
+  completeBooking,
   createBooking,
   listBookingsForCourtDay,
+  markBookingNoShow,
 } from './scheduleApi'
 
 vi.mock('../../core/api/apiClient', () => ({
@@ -83,6 +85,44 @@ describe('scheduleApi', () => {
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       apiEndpoints.clubs.bookings.cancel('nasr-club', 20),
+      {
+        method: 'POST',
+      },
+    )
+  })
+
+  it('completes bookings through the shared complete endpoint with POST', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 20,
+      court: 3,
+      start_time: '2026-07-02T18:00:00',
+      end_time: '2026-07-02T19:00:00',
+      status: 'COMPLETED',
+    })
+
+    await completeBooking('nasr-club', 20)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.complete('nasr-club', 20),
+      {
+        method: 'POST',
+      },
+    )
+  })
+
+  it('marks bookings as no-show through the shared no-show endpoint with POST', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 20,
+      court: 3,
+      start_time: '2026-07-02T18:00:00',
+      end_time: '2026-07-02T19:00:00',
+      status: 'NO_SHOW',
+    })
+
+    await markBookingNoShow('nasr-club', 20)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.noShow('nasr-club', 20),
       {
         method: 'POST',
       },

@@ -20,7 +20,7 @@ function AuthProviderHarness() {
     <div>
       <p>{currentUser?.username ?? 'لا يوجد مستخدم'}</p>
       <button
-        onClick={() => login(createDevAccessToken('court_staff'), 'refresh-token')}
+        onClick={() => login(createDevAccessToken('STAFF'), 'refresh-token')}
         type="button"
       >
         تسجيل دخول تجريبي

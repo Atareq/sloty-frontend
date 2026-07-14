@@ -7,6 +7,7 @@ import { ClubsListPage } from '../features/clubs/ClubsListPage/ClubsListPage'
 import { CourtFormPage } from '../features/courts/CourtFormPage/CourtFormPage'
 import { CourtsListPage } from '../features/courts/CourtsListPage/CourtsListPage'
 import { PlaceholderPage } from '../features/placeholders/PlaceholderPage/PlaceholderPage'
+import { TransactionsListPage } from '../features/transactions/TransactionsListPage/TransactionsListPage'
 import { AuthLandingRedirect } from '../core/auth/AuthLandingRedirect'
 import { ProtectedRoute } from '../core/auth/ProtectedRoute'
 import { RoleRoute } from '../core/auth/RoleRoute'
@@ -37,7 +38,7 @@ export const router = createBrowserRouter([
       {
         path: '/dashboard',
         element: (
-          <RoleRoute allowedRoles={['club_owner', 'club_manager']}>
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
             <DashboardPage />
           </RoleRoute>
         ),
@@ -45,7 +46,7 @@ export const router = createBrowserRouter([
       {
         path: '/schedule',
         element: (
-          <RoleRoute allowedRoles={['club_owner', 'club_manager', 'court_staff']}>
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
             <SchedulePage />
           </RoleRoute>
         ),
@@ -54,7 +55,7 @@ export const router = createBrowserRouter([
         path: '/bookings',
         element: (
           <RoleRoute
-            allowedRoles={['club_owner', 'club_manager', 'court_staff']}
+            allowedRoles={['OWNER', 'MANAGER', 'STAFF']}
           >
             <PlaceholderPage
               description="مسار مؤقت لقائمة الحجوزات داخل واجهة سلوتي التشغيلية."
@@ -64,9 +65,17 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/transactions',
+        element: (
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+            <TransactionsListPage />
+          </RoleRoute>
+        ),
+      },
+      {
         path: '/settlements',
         element: (
-          <RoleRoute allowedRoles={['club_owner']}>
+          <RoleRoute allowedRoles={['OWNER']}>
             <PlaceholderPage
               description="مسار مؤقت لتسويات المالك بدون منطق مالي حقيقي."
               title="التسويات"
@@ -77,7 +86,7 @@ export const router = createBrowserRouter([
       {
         path: '/reports',
         element: (
-          <RoleRoute allowedRoles={['club_owner']}>
+          <RoleRoute allowedRoles={['OWNER']}>
             <PlaceholderPage
               description="مسار مؤقت للتقارير، وسيبقى بلا أرقام وهمية حتى اعتماد مصادر البيانات."
               title="التقارير"
@@ -88,7 +97,7 @@ export const router = createBrowserRouter([
       {
         path: '/settings',
         element: (
-          <RoleRoute allowedRoles={['club_owner']}>
+          <RoleRoute allowedRoles={['OWNER']}>
             <PlaceholderPage
               description="مسار مؤقت لإعدادات النادي ضمن صلاحيات المالك."
               title="الإعدادات"
@@ -99,7 +108,7 @@ export const router = createBrowserRouter([
       {
         path: '/more',
         element: (
-          <RoleRoute allowedRoles={['club_manager', 'court_staff']}>
+          <RoleRoute allowedRoles={['MANAGER', 'STAFF']}>
             <PlaceholderPage
               description="مسار مؤقت للمزيد من إجراءات الموظف والمدير."
               title="المزيد"
@@ -110,7 +119,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <ClubsListPage />
           </RoleRoute>
         ),
@@ -118,7 +127,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/new',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <ClubFormPage />
           </RoleRoute>
         ),
@@ -126,7 +135,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubId',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <ClubFormPage />
           </RoleRoute>
         ),
@@ -134,7 +143,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubSlug/courts',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <CourtsListPage />
           </RoleRoute>
         ),
@@ -142,7 +151,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubSlug/courts/new',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <CourtFormPage />
           </RoleRoute>
         ),
@@ -150,7 +159,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubSlug/courts/:courtId',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <CourtFormPage />
           </RoleRoute>
         ),
@@ -158,7 +167,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/users',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <PlaceholderPage
               description="مسار مؤقت لإدارة مستخدمي المنصة."
               title="المستخدمون"
@@ -169,7 +178,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/settings',
         element: (
-          <RoleRoute allowedRoles={['platform_super_admin']}>
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
             <PlaceholderPage
               description="مسار مؤقت لإعدادات منصة سلوتي."
               title="إعدادات المنصة"

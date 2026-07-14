@@ -50,7 +50,7 @@ export function createBooking(
 /**
  * Cancels a confirmed booking from the Booking Details sheet.
  *
- * Complete, no-show, expire, and payment flows are intentionally deferred.
+ * Expire and payment flows are intentionally deferred.
  */
 export function cancelBooking(
   clubSlug: string,
@@ -58,6 +58,30 @@ export function cancelBooking(
 ): Promise<BookingListItem> {
   return apiRequest<BookingListItem>(
     apiEndpoints.clubs.bookings.cancel(clubSlug, bookingId),
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function completeBooking(
+  clubSlug: string,
+  bookingId: number | string,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(
+    apiEndpoints.clubs.bookings.complete(clubSlug, bookingId),
+    {
+      method: 'POST',
+    },
+  )
+}
+
+export function markBookingNoShow(
+  clubSlug: string,
+  bookingId: number | string,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(
+    apiEndpoints.clubs.bookings.noShow(clubSlug, bookingId),
     {
       method: 'POST',
     },

@@ -59,7 +59,7 @@ describe('ProtectedRoute', () => {
   })
 
   it('shows a loading state while session hydration is running', () => {
-    setAccessToken(createDevAccessToken('court_staff'))
+    setAccessToken(createDevAccessToken('STAFF'))
     mockedFetchCurrentUserProfile.mockReturnValueOnce(new Promise(() => {}))
 
     renderProtectedRoute()
@@ -68,7 +68,7 @@ describe('ProtectedRoute', () => {
   })
 
   it('renders protected content for authenticated users', async () => {
-    setAccessToken(createDevAccessToken('court_staff'))
+    setAccessToken(createDevAccessToken('STAFF'))
     mockedFetchCurrentUserProfile.mockResolvedValueOnce(currentUserProfile)
 
     renderProtectedRoute()
@@ -79,7 +79,7 @@ describe('ProtectedRoute', () => {
   it.each([401, 403])(
     'clears tokens and redirects when session hydration returns %s',
     async (status) => {
-      setAccessToken(createDevAccessToken('court_staff'))
+      setAccessToken(createDevAccessToken('STAFF'))
       mockedFetchCurrentUserProfile.mockRejectedValueOnce(
         new ApiClientError('Unauthorized', status),
       )

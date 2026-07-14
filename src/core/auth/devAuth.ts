@@ -12,13 +12,13 @@ function encodeBase64Url(value: string): string {
  *
  * Remove this helper when real login API integration is introduced.
  */
-export function createDevAccessToken(role: AuthRole = 'court_staff'): string {
+export function createDevAccessToken(role: AuthRole = 'STAFF'): string {
   const claims: AuthClaims = {
     user_id: 1,
     role,
     name: 'مستخدم تجريبي',
-    club_id: role === 'platform_super_admin' ? undefined : 1,
-    court_id: role === 'court_staff' ? 1 : undefined,
+    club_id: role === 'PLATFORM_ADMIN' ? undefined : 1,
+    court_id: role === 'STAFF' ? 1 : undefined,
     exp: Math.floor(Date.now() / 1000) + 60 * 60,
   }
 

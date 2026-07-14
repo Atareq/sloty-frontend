@@ -34,7 +34,7 @@ function renderRoleRoute() {
           <Route element={<p>جدول الموظف</p>} path="/schedule" />
           <Route
             element={
-              <RoleRoute allowedRoles={['platform_super_admin']}>
+              <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
                 <p>إدارة المنصة</p>
               </RoleRoute>
             }
@@ -53,7 +53,7 @@ describe('RoleRoute', () => {
   })
 
   it('blocks unauthorized authenticated roles', async () => {
-    setAccessToken(createDevAccessToken('court_staff'))
+    setAccessToken(createDevAccessToken('STAFF'))
     mockedFetchCurrentUserProfile.mockResolvedValueOnce(currentUserProfile)
 
     renderRoleRoute()
@@ -62,7 +62,7 @@ describe('RoleRoute', () => {
   })
 
   it('allows authorized roles', async () => {
-    setAccessToken(createDevAccessToken('platform_super_admin'))
+    setAccessToken(createDevAccessToken('PLATFORM_ADMIN'))
     mockedFetchCurrentUserProfile.mockResolvedValueOnce(currentUserProfile)
 
     renderRoleRoute()
