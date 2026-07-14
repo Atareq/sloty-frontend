@@ -119,7 +119,6 @@ export function ClubsListPage() {
                       club.governorate
                         ? getCityLabel(locations, club.governorate, club.city)
                         : club.city,
-                      club.area,
                     ]
                       .filter(Boolean)
                       .join(' - ')}

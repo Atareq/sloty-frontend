@@ -5,7 +5,6 @@ export interface ClubFormState {
   slug: string
   governorate: string
   city: string
-  area: string
   address: string
   phone_number: string
   notes: string
@@ -28,7 +27,6 @@ export function buildClubPayload(
     ...(isCreateMode ? { slug: optionalText(formState.slug) } : {}),
     governorate: formState.governorate,
     city: formState.city.trim(),
-    area: formState.area.trim(),
     address: optionalText(formState.address),
     phone_number: optionalText(formState.phone_number),
     notes: optionalText(formState.notes),

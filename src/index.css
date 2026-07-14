@@ -90,3 +90,21 @@ select {
   background-position: center;
   background-size: cover;
 }
+
+.sloty-phone-input {
+  direction: ltr;
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--sloty-border);
+  background: white;
+  padding-inline: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--sloty-text-primary);
+}
+
+.sloty-phone-input input {
+  outline: none;
+  width: 100%;
+}

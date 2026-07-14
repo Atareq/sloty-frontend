@@ -17,7 +17,6 @@ const initialFormState: ClubFormState = {
   slug: '',
   governorate: '',
   city: '',
-  area: '',
   address: '',
   phone_number: '',
   notes: '',
@@ -114,7 +113,6 @@ export function ClubFormPage() {
             slug: club.slug,
             governorate: club.governorate ?? '',
             city: club.city,
-            area: club.area,
             address: club.address ?? '',
             phone_number: club.phone_number ?? '',
             notes: club.notes ?? '',
@@ -163,10 +161,9 @@ export function ClubFormPage() {
     if (
       !formState.name.trim() ||
       !formState.governorate ||
-      !formState.city ||
-      !formState.area.trim()
+      !formState.city
     ) {
-      setError('اسم النادي والمحافظة والمدينة/المركز والمنطقة مطلوبة')
+      setError('اسم النادي والمحافظة والمدينة/المركز مطلوبة')
       return
     }
 
@@ -269,15 +266,6 @@ export function ClubFormPage() {
                   لا توجد مدن أو مراكز مسجلة لهذه المحافظة
                 </span>
               ) : null}
-            </label>
-
-            <label className="space-y-2 text-sm font-semibold">
-              <span>المنطقة</span>
-              <input
-                className={inputClass}
-                onChange={(event) => updateField('area', event.target.value)}
-                value={formState.area}
-              />
             </label>
 
             <label className="space-y-2 text-sm font-semibold lg:col-span-2">

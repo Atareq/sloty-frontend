@@ -68,7 +68,6 @@ function mockScheduleApiData(): void {
         name: 'نادي النصر',
         slug: 'nasr-club',
         city: 'أسيوط',
-        area: 'وسط البلد',
         is_active: true,
         manager_can_settle_transactions: false,
         manager_can_change_pricing: false,

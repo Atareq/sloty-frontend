@@ -19,13 +19,11 @@ describe('clubsApi', () => {
       name: 'نادي النصر',
       governorate: 'ASSIUT',
       city: 'ASSIUT_MARKAZ',
-      area: 'وسط البلد',
     })
     await updateClub(12, {
       name: 'نادي النصر',
       governorate: 'ASSIUT',
       city: 'ASSIUT_MARKAZ',
-      area: 'وسط البلد',
       is_active: true,
     })
 
@@ -40,7 +38,6 @@ describe('clubsApi', () => {
         name: 'نادي النصر',
         governorate: 'ASSIUT',
         city: 'ASSIUT_MARKAZ',
-        area: 'وسط البلد',
       },
     })
     expect(mockedApiRequest).toHaveBeenNthCalledWith(
@@ -52,7 +49,6 @@ describe('clubsApi', () => {
           name: 'نادي النصر',
           governorate: 'ASSIUT',
           city: 'ASSIUT_MARKAZ',
-          area: 'وسط البلد',
           is_active: true,
         },
       },

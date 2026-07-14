@@ -4,7 +4,6 @@ export interface Club {
   slug: string
   governorate?: string
   city: string
-  area: string
   address?: string
   phone_number?: string
   notes?: string
@@ -20,7 +19,6 @@ export interface ClubPayload {
   slug?: string
   governorate: string
   city: string
-  area: string
   address?: string
   phone_number?: string
   notes?: string
