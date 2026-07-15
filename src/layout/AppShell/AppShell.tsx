@@ -3,7 +3,12 @@ import { useAuth } from '../../core/auth/useAuth'
 import { AppButton } from '../../shared/components/AppButton/AppButton'
 import { MobileBottomNav } from '../../shared/components/MobileBottomNav/MobileBottomNav'
 import { getNavigationItemsForRole } from '../../shared/navigation/navigation.config'
-import type { CurrentUserProfile } from '../../core/auth/auth.types'
+import {
+  canManageSettlements,
+  type CurrentUserProfile,
+  type CurrentUserMembership,
+} from '../../core/auth/auth.types'
+import type { NavigationItem } from '../../shared/navigation/navigation.config'
 
 function getUserDisplayName(
   currentUser: CurrentUserProfile | null,
@@ -15,6 +20,17 @@ function getUserDisplayName(
     .trim()
 
   return profileName || currentUser?.username || claimName || 'مستخدم سلوتي'
+}
+
+function canShowNavigationItem(
+  item: NavigationItem,
+  selectedMembership: CurrentUserMembership | null,
+): boolean {
+  if (item.path === '/settlements') {
+    return canManageSettlements(selectedMembership)
+  }
+
+  return true
 }
 
 /**
@@ -34,17 +50,23 @@ export function AppShell() {
   } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const desktopItems = role ? getNavigationItemsForRole(role) : []
+  const desktopItems = role
+    ? getNavigationItemsForRole(role).filter((item) =>
+        canShowNavigationItem(item, selectedMembership),
+      )
+    : []
   const displayName = getUserDisplayName(currentUser, claims?.name)
   const selectedClubName = selectedMembership?.club.name ?? null
   const canChangeClub = (currentUser?.memberships.length ?? 0) > 1
   const mobileItems = role
-    ? getNavigationItemsForRole(role, { mobileOnly: true }).map((item) => ({
-        key: item.path,
-        label: item.label,
-        marker: item.marker,
-        path: item.path,
-      }))
+    ? getNavigationItemsForRole(role, { mobileOnly: true })
+        .filter((item) => canShowNavigationItem(item, selectedMembership))
+        .map((item) => ({
+          key: item.path,
+          label: item.label,
+          marker: item.marker,
+          path: item.path,
+        }))
     : []
 
   function handleLogout(): void {

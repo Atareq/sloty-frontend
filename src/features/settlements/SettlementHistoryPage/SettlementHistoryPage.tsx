@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../../../core/auth/useAuth'
+import { canManageSettlements } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -32,11 +33,12 @@ function getSettlementAmount(settlement: Settlement): string | null {
  * Read-only settlement history for the selected club context.
  */
 export function SettlementHistoryPage() {
-  const { selectedClubSlug } = useAuth()
+  const { selectedClubSlug, selectedMembership } = useAuth()
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const canSettle = canManageSettlements(selectedMembership)
 
   useEffect(() => {
     let isActive = true
@@ -46,6 +48,14 @@ export function SettlementHistoryPage() {
         setSettlements([])
         setError(null)
         setMessage('اختر ناديًا أولًا لعرض التسويات')
+        setIsLoading(false)
+        return
+      }
+
+      if (!canSettle) {
+        setSettlements([])
+        setError('ليس لديك صلاحية إدارة التسويات')
+        setMessage(null)
         setIsLoading(false)
         return
       }
@@ -77,7 +87,7 @@ export function SettlementHistoryPage() {
     return () => {
       isActive = false
     }
-  }, [selectedClubSlug])
+  }, [canSettle, selectedClubSlug])
 
   return (
     <div className="space-y-5">

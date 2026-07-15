@@ -14,7 +14,7 @@ import {
 import type {
   SettlementCreatePayload,
   SettlementPreview,
-  SettlementPreviewParams,
+  SettlementQueryParams,
 } from '../settlements.types'
 
 interface FilterState {
@@ -29,7 +29,7 @@ const initialFilters: FilterState = {
   date_to: '',
 }
 
-function buildParams(filters: FilterState): SettlementPreviewParams {
+function buildParams(filters: FilterState): SettlementQueryParams {
   return {
     ...(filters.staff.trim() ? { staff: filters.staff.trim() } : {}),
     ...(filters.date_from ? { date_from: filters.date_from } : {}),
@@ -198,7 +198,7 @@ export function SettlementPreviewPage() {
       {selectedClubSlug && !canSettle ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-danger)]">
-            ليس لديك صلاحية إدارة التسويات.
+            ليس لديك صلاحية إدارة التسويات
           </p>
         </AppCard>
       ) : null}

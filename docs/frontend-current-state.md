@@ -94,7 +94,8 @@ Source-of-truth order:
 
 - Sprint 6 settlement foundation is implemented for preview, create, history, and detail.
 - Settlement pages use `selectedClubSlug`; owner can settle, and manager access depends on `can_manage_settlements`.
-- Settled transactions are shown as locked/read-only. Reports and audit logs remain deferred.
+- Settled transactions are shown as locked/read-only. Cancelled transactions remain visible and are not manually counted in frontend totals.
+- Reports and audit logs remain deferred.
 
 ## Working Hours
 

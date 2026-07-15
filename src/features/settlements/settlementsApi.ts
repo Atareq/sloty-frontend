@@ -5,10 +5,10 @@ import type {
   Settlement,
   SettlementCreatePayload,
   SettlementPreview,
-  SettlementPreviewParams,
+  SettlementQueryParams,
 } from './settlements.types'
 
-function buildQueryString(params?: SettlementPreviewParams): string {
+function buildQueryString(params?: SettlementQueryParams): string {
   const searchParams = new URLSearchParams()
 
   if (params?.staff) {
@@ -37,7 +37,7 @@ function buildQueryString(params?: SettlementPreviewParams): string {
  */
 export function getSettlementPreview(
   clubSlug: string,
-  params?: SettlementPreviewParams,
+  params?: SettlementQueryParams,
 ): Promise<SettlementPreview> {
   return apiRequest<SettlementPreview>(
     `${apiEndpoints.clubs.settlements.preview(clubSlug)}${buildQueryString(params)}`,
@@ -62,7 +62,7 @@ export function createSettlement(
  */
 export function listSettlements(
   clubSlug: string,
-  params?: SettlementPreviewParams,
+  params?: SettlementQueryParams,
 ): Promise<PaginatedResponse<Settlement>> {
   return apiRequest<PaginatedResponse<Settlement>>(
     `${apiEndpoints.clubs.settlements.list(clubSlug)}${buildQueryString(params)}`,

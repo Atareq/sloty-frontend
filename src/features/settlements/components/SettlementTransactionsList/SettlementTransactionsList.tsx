@@ -58,9 +58,16 @@ export function SettlementTransactionsList({
                   {transaction.amount}
                 </p>
               </div>
-              <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
-                {settlementPaymentMethodLabels[transaction.payment_method]}
-              </span>
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
+                  {settlementPaymentMethodLabels[transaction.payment_method]}
+                </span>
+                {transaction.is_cancelled ? (
+                  <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-black text-[var(--sloty-danger)]">
+                    ملغي
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <dl className="grid grid-cols-1 gap-2 text-sm">
@@ -104,6 +111,16 @@ export function SettlementTransactionsList({
                   </dt>
                   <dd className="font-black text-[var(--sloty-text-primary)]">
                     {createdLabel}
+                  </dd>
+                </div>
+              ) : null}
+              {transaction.cancellation_reason ? (
+                <div className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2">
+                  <dt className="font-bold text-[var(--sloty-danger)]">
+                    سبب الإلغاء
+                  </dt>
+                  <dd className="mt-1 font-black text-[var(--sloty-danger)]">
+                    {transaction.cancellation_reason}
                   </dd>
                 </div>
               ) : null}

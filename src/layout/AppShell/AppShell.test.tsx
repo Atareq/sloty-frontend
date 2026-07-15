@@ -12,7 +12,10 @@ vi.mock('../../core/auth/useAuth', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const clearSelectedClub = vi.fn()
 
-function getAuthValue(membershipCount = 2) {
+function getAuthValue(
+  membershipCount = 2,
+  options: { canManageSettlements?: boolean } = {},
+) {
   const selectedMembership = {
     id: 10,
     role: 'MANAGER' as const,
@@ -24,6 +27,7 @@ function getAuthValue(membershipCount = 2) {
       is_active: true,
     },
     court: null,
+    can_manage_settlements: options.canManageSettlements ?? false,
   }
 
   return {
@@ -118,5 +122,20 @@ describe('AppShell', () => {
 
     expect(clearSelectedClub).toHaveBeenCalledTimes(1)
     expect(await screen.findByText('اختيار النادي')).toBeInTheDocument()
+  })
+
+  it('shows settlement navigation only when the selected membership allows it', () => {
+    renderAppShell()
+
+    expect(screen.queryByText('التسويات')).not.toBeInTheDocument()
+
+    cleanup()
+    mockedUseAuth.mockReturnValue(
+      getAuthValue(2, { canManageSettlements: true }),
+    )
+
+    renderAppShell()
+
+    expect(screen.getAllByText('التسويات').length).toBeGreaterThan(0)
   })
 })

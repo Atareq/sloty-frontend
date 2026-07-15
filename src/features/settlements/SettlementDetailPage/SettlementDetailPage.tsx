@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useAuth } from '../../../core/auth/useAuth'
+import { canManageSettlements } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -30,12 +31,13 @@ function formatDate(value: string | undefined): string | null {
  * Read-only settlement detail with locked transaction list.
  */
 export function SettlementDetailPage() {
-  const { selectedClubSlug } = useAuth()
+  const { selectedClubSlug, selectedMembership } = useAuth()
   const { settlementId } = useParams()
   const [settlement, setSettlement] = useState<Settlement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const canSettle = canManageSettlements(selectedMembership)
 
   useEffect(() => {
     let isActive = true
@@ -45,6 +47,14 @@ export function SettlementDetailPage() {
         setSettlement(null)
         setError(null)
         setMessage('اختر ناديًا أولًا لعرض التسويات')
+        setIsLoading(false)
+        return
+      }
+
+      if (!canSettle) {
+        setSettlement(null)
+        setError('ليس لديك صلاحية إدارة التسويات')
+        setMessage(null)
         setIsLoading(false)
         return
       }
@@ -83,7 +93,7 @@ export function SettlementDetailPage() {
     return () => {
       isActive = false
     }
-  }, [selectedClubSlug, settlementId])
+  }, [canSettle, selectedClubSlug, settlementId])
 
   return (
     <div className="space-y-5">

@@ -22,7 +22,18 @@ function mockAuth() {
     claims: { user_id: 1 },
     currentUser: null,
     selectedClubSlug: 'nasr-club',
-    selectedMembership: null,
+    selectedMembership: {
+      id: 10,
+      role: 'OWNER',
+      club: {
+        id: 1,
+        name: 'نادي النصر',
+        slug: 'nasr-club',
+        city: 'ASSIUT',
+        is_active: true,
+      },
+      court: null,
+    },
     role: 'OWNER',
     isAuthenticated: true,
     isLoadingSession: false,
@@ -74,6 +85,8 @@ describe('SettlementDetailPage', () => {
           amount: '300.00',
           payment_method: 'CASH',
           is_settled: true,
+          is_cancelled: true,
+          cancellation_reason: 'مبلغ خاطئ',
         },
       ],
     })
@@ -89,6 +102,8 @@ describe('SettlementDetailPage', () => {
     expect(screen.getByText('2000.00')).toBeInTheDocument()
     expect(screen.getByText('Shift settlement')).toBeInTheDocument()
     expect(screen.getByText('معاملة مقفلة')).toBeInTheDocument()
+    expect(screen.getByText('ملغي')).toBeInTheDocument()
+    expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
     expect(mockedGetSettlement).toHaveBeenCalledWith('nasr-club', '9')
   })
 })

@@ -36,6 +36,8 @@ export interface SettlementTransaction {
   created?: string
   created_by?: SettlementStaff | null
   is_settled?: boolean
+  is_cancelled?: boolean
+  cancellation_reason?: string | null
 }
 
 export interface SettlementPreview {
@@ -60,7 +62,7 @@ export interface Settlement {
   transactions?: SettlementTransaction[]
 }
 
-export interface SettlementPreviewParams {
+export interface SettlementQueryParams {
   staff?: number | string
   date_from?: string
   date_to?: string

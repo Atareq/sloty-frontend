@@ -139,7 +139,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية إدارة التسويات.'),
+      await screen.findByText('ليس لديك صلاحية إدارة التسويات'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
@@ -157,7 +157,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية إدارة التسويات.'),
+      await screen.findByText('ليس لديك صلاحية إدارة التسويات'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
