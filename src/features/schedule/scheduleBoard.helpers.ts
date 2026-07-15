@@ -1,4 +1,7 @@
-import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
+import type {
+  CourtWeekday,
+  CourtWorkingHour,
+} from '../courts/courtWorkingHours.types'
 import type { BookingBoardPeriod, ScheduleBooking } from './schedule.types'
 import type { BookingListItem } from './scheduleApi.types'
 
@@ -51,11 +54,20 @@ export function createDateFilterOptions(today = new Date()): DateFilterOption[] 
   ]
 }
 
-export function getWeekdayFromDateValue(dateValue: string): CourtWorkingHour['weekday'] {
-  const date = new Date(`${dateValue}T00:00:00`)
-  const jsDay = date.getDay()
+const weekdayByJsDay: Record<number, CourtWeekday> = {
+  0: 'SUNDAY',
+  1: 'MONDAY',
+  2: 'TUESDAY',
+  3: 'WEDNESDAY',
+  4: 'THURSDAY',
+  5: 'FRIDAY',
+  6: 'SATURDAY',
+}
 
-  return (jsDay === 0 ? 6 : jsDay - 1) as CourtWorkingHour['weekday']
+export function getWeekdayFromDateValue(dateValue: string): CourtWeekday {
+  const date = new Date(`${dateValue}T00:00:00`)
+
+  return weekdayByJsDay[date.getDay()]
 }
 
 export function formatBookingDateTime(dateValue: string, timeValue: string): string {
@@ -166,7 +178,7 @@ export function generateSlotsFromWorkingHour(
   bookings: BookingListItem[],
 ): SlotGenerationResult {
   if (!workingHour) {
-    return { slots: [], message: 'لم يتم ضبط ساعات العمل لهذا اليوم' }
+    return { slots: [], message: 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
   }
 
   if (workingHour.is_closed) {
@@ -174,7 +186,7 @@ export function generateSlotsFromWorkingHour(
   }
 
   if (!workingHour.opens_at || !workingHour.closes_at) {
-    return { slots: [], message: 'لم يتم ضبط ساعات العمل لهذا اليوم' }
+    return { slots: [], message: 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
   }
 
   const opensAt = timeToMinutes(workingHour.opens_at)
@@ -185,7 +197,7 @@ export function generateSlotsFromWorkingHour(
       : 60
 
   if (opensAt === null || closesAt === null) {
-    return { slots: [], message: 'لم يتم ضبط ساعات العمل لهذا اليوم' }
+    return { slots: [], message: 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
   }
 
   if (closesAt <= opensAt) {
@@ -210,5 +222,5 @@ export function generateSlotsFromWorkingHour(
     })
   }
 
-  return { slots, message: slots.length > 0 ? null : 'لم يتم ضبط ساعات العمل لهذا اليوم' }
+  return { slots, message: slots.length > 0 ? null : 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
 }

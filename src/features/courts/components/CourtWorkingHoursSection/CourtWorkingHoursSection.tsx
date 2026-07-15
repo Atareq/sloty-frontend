@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import {
-  createCourtWorkingHour,
-  listCourtWorkingHours,
-  updateCourtWorkingHour,
+  getCourtWorkingHours,
+  saveCourtWorkingHours,
 } from '../../courtWorkingHoursApi'
 import type {
   CourtWorkingHour,
   CourtWorkingHourPayload,
-  Weekday,
+  CourtWeekday,
 } from '../../courtWorkingHours.types'
 import { getWeekdayLabel, weekdays } from './courtWorkingHours.helpers'
 
@@ -32,17 +31,17 @@ function createEmptyDraft(): WorkingHourDraft {
   return {
     opens_at: '',
     closes_at: '',
-    is_closed: false,
+    is_closed: true,
   }
 }
 
-function createInitialDrafts(): Record<Weekday, WorkingHourDraft> {
+function createInitialDrafts(): Record<CourtWeekday, WorkingHourDraft> {
   return weekdays.reduce(
     (drafts, weekday) => ({
       ...drafts,
       [weekday]: createEmptyDraft(),
     }),
-    {} as Record<Weekday, WorkingHourDraft>,
+    {} as Record<CourtWeekday, WorkingHourDraft>,
   )
 }
 
@@ -55,10 +54,7 @@ function draftFromRecord(record: CourtWorkingHour): WorkingHourDraft {
 }
 
 /**
- * Court working-hours setup for the platform-admin court edit flow.
- *
- * The backend list endpoint is club-scoped, so this component filters records
- * client-side by the current court id and saves each weekday independently.
+ * Court weekly working-hours setup for one selected court.
  */
 export function CourtWorkingHoursSection({
   clubSlug,
@@ -68,25 +64,27 @@ export function CourtWorkingHoursSection({
   const numericCourtId = Number(courtId)
   const canLoadWorkingHours =
     Boolean(clubSlug && courtId) && Number.isFinite(numericCourtId)
-  const [records, setRecords] = useState<CourtWorkingHour[]>([])
   const [drafts, setDrafts] =
-    useState<Record<Weekday, WorkingHourDraft>>(createInitialDrafts)
+    useState<Record<CourtWeekday, WorkingHourDraft>>(createInitialDrafts)
   const [isLoading, setIsLoading] = useState(canLoadWorkingHours && !isCreateMode)
-  const [savingWeekday, setSavingWeekday] = useState<Weekday | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(
     canLoadWorkingHours || isCreateMode ? null : 'رابط الملعب غير صحيح',
   )
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const recordsByWeekday = useMemo(() => {
-    return records.reduce(
-      (mappedRecords, record) => ({
-        ...mappedRecords,
-        [record.weekday]: record,
-      }),
-      {} as Partial<Record<Weekday, CourtWorkingHour>>,
-    )
-  }, [records])
+  const weeklyPayload = useMemo(() => {
+    return weekdays.map((weekday): CourtWorkingHourPayload => {
+      const draft = drafts[weekday]
+
+      return {
+        weekday,
+        opens_at: draft.is_closed ? null : draft.opens_at,
+        closes_at: draft.is_closed ? null : draft.closes_at,
+        is_closed: draft.is_closed,
+      }
+    })
+  }, [drafts])
 
   useEffect(() => {
     if (isCreateMode || !canLoadWorkingHours || !clubSlug) {
@@ -95,23 +93,23 @@ export function CourtWorkingHoursSection({
 
     let isActive = true
     const currentClubSlug = clubSlug
+    const currentCourtId = numericCourtId
 
     async function loadWorkingHours(): Promise<void> {
       setIsLoading(true)
       setError(null)
 
       try {
-        const response = await listCourtWorkingHours(currentClubSlug)
-        const courtRecords = response.results.filter(
-          (record) => record.court === numericCourtId,
+        const response = await getCourtWorkingHours(
+          currentClubSlug,
+          currentCourtId,
         )
 
         if (isActive) {
-          setRecords(courtRecords)
-          setDrafts((currentDrafts) => {
-            const nextDrafts = { ...currentDrafts }
+          setDrafts(() => {
+            const nextDrafts = createInitialDrafts()
 
-            courtRecords.forEach((record) => {
+            response.working_hours.forEach((record) => {
               nextDrafts[record.weekday] = draftFromRecord(record)
             })
 
@@ -120,7 +118,7 @@ export function CourtWorkingHoursSection({
         }
       } catch {
         if (isActive) {
-          setError('تعذر تحميل ساعات العمل')
+          setError('تعذر تحميل مواعيد العمل')
         }
       } finally {
         if (isActive) {
@@ -137,7 +135,7 @@ export function CourtWorkingHoursSection({
   }, [canLoadWorkingHours, clubSlug, isCreateMode, numericCourtId])
 
   function updateDraft(
-    weekday: Weekday,
+    weekday: CourtWeekday,
     field: keyof WorkingHourDraft,
     value: string | boolean,
   ): void {
@@ -146,61 +144,64 @@ export function CourtWorkingHoursSection({
       [weekday]: {
         ...currentDrafts[weekday],
         [field]: value,
+        ...(field === 'is_closed' && value === true
+          ? { opens_at: '', closes_at: '' }
+          : {}),
       },
     }))
+    setError(null)
+    setSuccessMessage(null)
   }
 
-  async function handleSave(weekday: Weekday): Promise<void> {
+  async function handleSave(): Promise<void> {
     if (!clubSlug || !canLoadWorkingHours) {
       setError('رابط الملعب غير صحيح')
       return
     }
 
-    const draft = drafts[weekday]
+    const invalidOpenDraft = weekdays.find(
+      (weekday) => !drafts[weekday].is_closed && !drafts[weekday].opens_at,
+    )
 
-    if (!draft.is_closed && (!draft.opens_at || !draft.closes_at)) {
-      setError('وقت الفتح والإغلاق مطلوبان عند تفعيل اليوم')
+    if (invalidOpenDraft) {
+      setError('وقت الفتح مطلوب')
       setSuccessMessage(null)
       return
     }
 
-    const payload: CourtWorkingHourPayload = {
-      court: numericCourtId,
-      weekday,
-      opens_at: draft.is_closed ? null : draft.opens_at,
-      closes_at: draft.is_closed ? null : draft.closes_at,
-      is_closed: draft.is_closed,
-    }
-    const existingRecord = recordsByWeekday[weekday]
+    const invalidCloseDraft = weekdays.find(
+      (weekday) => !drafts[weekday].is_closed && !drafts[weekday].closes_at,
+    )
 
-    setSavingWeekday(weekday)
+    if (invalidCloseDraft) {
+      setError('وقت الإغلاق مطلوب')
+      setSuccessMessage(null)
+      return
+    }
+
+    setIsSaving(true)
     setError(null)
     setSuccessMessage(null)
 
     try {
-      const savedRecord = existingRecord
-        ? await updateCourtWorkingHour(clubSlug, existingRecord.id, payload)
-        : await createCourtWorkingHour(clubSlug, payload)
-
-      setRecords((currentRecords) => {
-        const otherRecords = currentRecords.filter(
-          (record) => record.weekday !== savedRecord.weekday,
-        )
-
-        return [...otherRecords, savedRecord].sort(
-          (firstRecord, secondRecord) =>
-            firstRecord.weekday - secondRecord.weekday,
-        )
+      const response = await saveCourtWorkingHours(clubSlug, numericCourtId, {
+        working_hours: weeklyPayload,
       })
-      setDrafts((currentDrafts) => ({
-        ...currentDrafts,
-        [savedRecord.weekday]: draftFromRecord(savedRecord),
-      }))
-      setSuccessMessage('تم حفظ ساعات العمل')
+
+      setDrafts(() => {
+        const nextDrafts = createInitialDrafts()
+
+        response.working_hours.forEach((record) => {
+          nextDrafts[record.weekday] = draftFromRecord(record)
+        })
+
+        return nextDrafts
+      })
+      setSuccessMessage('تم حفظ مواعيد العمل')
     } catch {
-      setError('تعذر حفظ ساعات العمل')
+      setError('تعذر حفظ مواعيد العمل')
     } finally {
-      setSavingWeekday(null)
+      setIsSaving(false)
     }
   }
 
@@ -208,7 +209,7 @@ export function CourtWorkingHoursSection({
     return (
       <AppCard>
         <p className="text-sm font-semibold text-[var(--sloty-text-primary)]">
-          احفظ بيانات الملعب أولاً ثم أضف ساعات العمل.
+          يمكن ضبط مواعيد العمل بعد إنشاء الملعب
         </p>
       </AppCard>
     )
@@ -218,23 +219,17 @@ export function CourtWorkingHoursSection({
     <AppCard className="space-y-4">
       <div className="space-y-1">
         <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-          ساعات العمل
+          مواعيد العمل
         </h2>
         <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-          اضبط مواعيد كل يوم لهذا الملعب فقط. لا يتم إنشاء حجوزات أو خانات
-          حقيقية من هذه البيانات في هذه الخطوة.
+          اضبط جدول الأسبوع المتكرر لهذا الملعب فقط. يتم حفظ الأسبوع كاملاً
+          عند الضغط على زر الحفظ.
         </p>
       </div>
 
       {isLoading ? (
         <p className="text-sm text-[var(--sloty-text-muted)]">
-          جاري تحميل ساعات العمل...
-        </p>
-      ) : null}
-
-      {!isLoading && records.length === 0 ? (
-        <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm text-[var(--sloty-text-muted)]">
-          لم يتم ضبط ساعات عمل لهذا الملعب بعد.
+          جاري تحميل مواعيد العمل...
         </p>
       ) : null}
 
@@ -253,11 +248,10 @@ export function CourtWorkingHoursSection({
       <div className="space-y-3">
         {weekdays.map((weekday) => {
           const draft = drafts[weekday]
-          const isSaving = savingWeekday === weekday
 
           return (
             <div
-              className="grid gap-3 rounded-2xl border border-[var(--sloty-border)] bg-white p-3 sm:grid-cols-[minmax(7rem,1fr)_auto_auto_auto] sm:items-end"
+              className="grid gap-3 rounded-2xl border border-[var(--sloty-border)] bg-white p-3 sm:grid-cols-[minmax(7rem,1fr)_auto_auto] sm:items-end"
               key={weekday}
             >
               <label className="flex items-center justify-between gap-3 text-sm font-bold sm:block">
@@ -301,18 +295,14 @@ export function CourtWorkingHoursSection({
                   value={draft.closes_at}
                 />
               </label>
-
-              <AppButton
-                disabled={isSaving}
-                onClick={() => void handleSave(weekday)}
-                variant="secondary"
-              >
-                {isSaving ? 'جاري الحفظ...' : 'حفظ'}
-              </AppButton>
             </div>
           )
         })}
       </div>
+
+      <AppButton disabled={isSaving || isLoading} onClick={() => void handleSave()}>
+        {isSaving ? 'جاري الحفظ...' : 'حفظ مواعيد الأسبوع'}
+      </AppButton>
     </AppCard>
   )
 }

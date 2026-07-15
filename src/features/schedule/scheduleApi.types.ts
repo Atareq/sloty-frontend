@@ -14,6 +14,13 @@ export interface BookingListItem {
   start_time: string
   end_time: string
   status: BackendBookingStatus
+  cancellation_reason?: string | null
+  no_show_reason?: string | null
+  completed_at?: string | null
+  cancelled_at?: string | null
+  total_price?: string | null
+  paid_amount?: string | null
+  remaining_amount?: string | null
 }
 
 export interface BookingCreatePayload {
@@ -26,10 +33,18 @@ export interface BookingCreatePayload {
   notes?: string
 }
 
-export interface BookingReschedulePayload {
-  court: number
-  start_time: string
-  end_time: string
+export interface BookingCancelPayload {
+  reason?: string
+  notes?: string
+}
+
+export interface BookingNoShowPayload {
+  reason?: string
+  notes?: string
+}
+
+export interface BookingCompletePayload {
+  confirm_remaining_cash?: boolean
 }
 
 export interface BookingListParams {

@@ -2,16 +2,18 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
-import { listCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
+import { getCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
 import { listCourts } from '../../courts/courtsApi'
-import { createDateFilterOptions, getWeekdayFromDateValue } from '../scheduleBoard.helpers'
+import {
+  createDateFilterOptions,
+  getWeekdayFromDateValue,
+} from '../scheduleBoard.helpers'
 import {
   cancelBooking,
   completeBooking,
   createBooking,
   listBookingsForCourtDay,
   markBookingNoShow,
-  rescheduleBooking,
 } from '../scheduleApi'
 import { createTransaction } from '../../transactions/transactionsApi'
 import { SchedulePage } from './SchedulePage'
@@ -25,7 +27,7 @@ vi.mock('../../courts/courtsApi', () => ({
 }))
 
 vi.mock('../../courts/courtWorkingHoursApi', () => ({
-  listCourtWorkingHours: vi.fn(),
+  getCourtWorkingHours: vi.fn(),
 }))
 
 vi.mock('../scheduleApi', () => ({
@@ -34,7 +36,6 @@ vi.mock('../scheduleApi', () => ({
   createBooking: vi.fn(),
   listBookingsForCourtDay: vi.fn(),
   markBookingNoShow: vi.fn(),
-  rescheduleBooking: vi.fn(),
 }))
 
 vi.mock('../../transactions/transactionsApi', () => ({
@@ -43,13 +44,12 @@ vi.mock('../../transactions/transactionsApi', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListCourts = vi.mocked(listCourts)
-const mockedListCourtWorkingHours = vi.mocked(listCourtWorkingHours)
+const mockedGetCourtWorkingHours = vi.mocked(getCourtWorkingHours)
 const mockedListBookingsForCourtDay = vi.mocked(listBookingsForCourtDay)
 const mockedCreateBooking = vi.mocked(createBooking)
 const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedMarkBookingNoShow = vi.mocked(markBookingNoShow)
-const mockedRescheduleBooking = vi.mocked(rescheduleBooking)
 const mockedCreateTransaction = vi.mocked(createTransaction)
 
 function paginatedResponse<T>(results: T[]) {
@@ -132,17 +132,20 @@ function mockScheduleApiData(): void {
       },
     ]),
   )
-  mockedListCourtWorkingHours.mockResolvedValue(
-    paginatedResponse([
-      {
-        id: 3,
-        court: 7,
-        weekday: getWeekdayFromDateValue(today),
-        opens_at: '06:00',
-        closes_at: '09:00',
-        is_closed: false,
-      },
-    ]),
+  mockedGetCourtWorkingHours.mockResolvedValue(
+    {
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [
+        {
+          id: 3,
+          weekday: getWeekdayFromDateValue(today),
+          opens_at: '06:00',
+          closes_at: '09:00',
+          is_closed: false,
+        },
+      ],
+    },
   )
   mockedListBookingsForCourtDay.mockResolvedValue(
     paginatedResponse([
@@ -213,15 +216,6 @@ function mockScheduleApiData(): void {
     amount: '150',
     payment_method: 'CASH',
   })
-  mockedRescheduleBooking.mockResolvedValue({
-    id: 10,
-    court: 7,
-    customer_name: 'أحمد علي',
-    customer_phone: '01000000000',
-    start_time: `${today}T08:00:00`,
-    end_time: `${today}T09:00:00`,
-    status: 'CONFIRMED',
-  })
 }
 
 describe('SchedulePage', () => {
@@ -242,7 +236,9 @@ describe('SchedulePage', () => {
       await screen.findByRole('button', { name: '06:00 متاح' }),
     ).toBeInTheDocument()
     expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
-    expect(mockedListCourtWorkingHours).toHaveBeenCalledWith('nasr-club')
+    await waitFor(() => {
+      expect(mockedGetCourtWorkingHours).toHaveBeenCalledWith('nasr-club', 7)
+    })
     expect(mockedListBookingsForCourtDay).toHaveBeenCalledWith('nasr-club', {
       court: 7,
       date: createDateFilterOptions()[0].date,
@@ -262,7 +258,7 @@ describe('SchedulePage', () => {
       await screen.findByText('اختر ناديًا أولًا لعرض جدول الحجز'),
     ).toBeInTheDocument()
     expect(mockedListCourts).not.toHaveBeenCalled()
-    expect(mockedListCourtWorkingHours).not.toHaveBeenCalled()
+    expect(mockedGetCourtWorkingHours).not.toHaveBeenCalled()
     expect(mockedListBookingsForCourtDay).not.toHaveBeenCalled()
   })
 
@@ -275,6 +271,73 @@ describe('SchedulePage', () => {
     expect(screen.queryByText('انتظار الدفع')).not.toBeInTheDocument()
     expect(screen.queryByText('منتهي')).not.toBeInTheDocument()
     expect(screen.queryByText('لم يحضر')).not.toBeInTheDocument()
+  })
+
+  it('reloads working hours when selected court changes', async () => {
+    const user = userEvent.setup()
+
+    mockedListCourts.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 7,
+          club: 1,
+          name: 'ملعب 1',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+        {
+          id: 8,
+          club: 1,
+          name: 'ملعب 2',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+      ]),
+    )
+
+    render(<SchedulePage />)
+
+    await waitFor(() => {
+      expect(mockedGetCourtWorkingHours).toHaveBeenCalledWith('nasr-club', 7)
+    })
+
+    await user.selectOptions(screen.getByLabelText('الملعب'), '8')
+
+    await waitFor(() => {
+      expect(mockedGetCourtWorkingHours).toHaveBeenCalledWith('nasr-club', 8)
+    })
+  })
+
+  it('shows an Arabic closed-day message from court working hours', async () => {
+    const today = createDateFilterOptions()[0].date
+
+    mockedGetCourtWorkingHours.mockResolvedValueOnce({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [
+        {
+          id: 3,
+          weekday: getWeekdayFromDateValue(today),
+          opens_at: null,
+          closes_at: null,
+          is_closed: true,
+        },
+      ],
+    })
+
+    render(<SchedulePage />)
+
+    expect(
+      await screen.findByText('الملعب مغلق في هذا اليوم'),
+    ).toBeInTheDocument()
   })
 
   it('opens add booking sheet from available and cancelled slots', async () => {
@@ -338,54 +401,7 @@ describe('SchedulePage', () => {
       screen.getByRole('button', { name: 'إضافة دفعة' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'تغيير الموعد' }),
-    ).toBeInTheDocument()
-  })
-
-  it('reschedules a confirmed booking and reloads bookings', async () => {
-    const user = userEvent.setup()
-    const today = createDateFilterOptions()[0].date
-
-    render(<SchedulePage />)
-
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
-    await user.click(screen.getByRole('button', { name: 'تغيير الموعد' }))
-    await user.click(screen.getByRole('button', { name: '08:00 - 09:00' }))
-    await user.click(screen.getByRole('button', { name: 'تأكيد تغيير الموعد' }))
-
-    await waitFor(() => {
-      expect(mockedRescheduleBooking).toHaveBeenCalledWith('nasr-club', 10, {
-        court: 7,
-        start_time: `${today}T08:00:00`,
-        end_time: `${today}T09:00:00`,
-      })
-    })
-    await waitFor(() => {
-      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
-    })
-    expect(
-      screen.queryByRole('heading', { name: 'تغيير الموعد' }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: 'حجز مؤكد' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows an Arabic error when reschedule fails', async () => {
-    const user = userEvent.setup()
-    mockedRescheduleBooking.mockRejectedValueOnce(new Error('Overlap'))
-
-    render(<SchedulePage />)
-
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
-    await user.click(screen.getByRole('button', { name: 'تغيير الموعد' }))
-    await user.click(screen.getByRole('button', { name: '08:00 - 09:00' }))
-    await user.click(screen.getByRole('button', { name: 'تأكيد تغيير الموعد' }))
-
-    expect(
-      await screen.findByText(
-        'تعذر تغيير الموعد. تأكد أن الموعد متاح وحاول مرة أخرى',
-      ),
+      screen.getByText('تغيير الموعد سيتم إضافته بعد اعتماد واجهة الخلفية'),
     ).toBeInTheDocument()
   })
 
@@ -443,12 +459,15 @@ describe('SchedulePage', () => {
 
     await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
+    await user.selectOptions(screen.getByLabelText('سبب الإلغاء'), 'العميل ألغى')
     await user.click(
       screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }),
     )
 
     await waitFor(() => {
-      expect(mockedCancelBooking).toHaveBeenCalledWith('nasr-club', 10)
+      expect(mockedCancelBooking).toHaveBeenCalledWith('nasr-club', 10, {
+        reason: 'العميل ألغى',
+      })
     })
     await waitFor(() => {
       expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
@@ -487,12 +506,15 @@ describe('SchedulePage', () => {
 
     await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'تسجيل عدم حضور' }))
+    await user.selectOptions(screen.getByLabelText('سبب عدم الحضور'), 'لم يحضر العميل')
     await user.click(
       screen.getByRole('button', { name: 'تأكيد عدم الحضور' }),
     )
 
     await waitFor(() => {
-      expect(mockedMarkBookingNoShow).toHaveBeenCalledWith('nasr-club', 10)
+      expect(mockedMarkBookingNoShow).toHaveBeenCalledWith('nasr-club', 10, {
+        reason: 'لم يحضر العميل',
+      })
     })
     await waitFor(() => {
       expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)

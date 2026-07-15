@@ -1,18 +1,33 @@
-export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
+export type CourtWeekday =
+  | 'SATURDAY'
+  | 'SUNDAY'
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
 
 export interface CourtWorkingHour {
-  id: number
-  court: number
-  weekday: Weekday
+  id?: number
+  weekday: CourtWeekday
   opens_at: string | null
   closes_at: string | null
   is_closed: boolean
 }
 
 export interface CourtWorkingHourPayload {
-  court: number
-  weekday: Weekday
-  opens_at?: string | null
-  closes_at?: string | null
+  weekday: CourtWeekday
+  opens_at: string | null
+  closes_at: string | null
   is_closed: boolean
+}
+
+export interface CourtWorkingHoursResponse {
+  court: number
+  court_name: string
+  working_hours: CourtWorkingHour[]
+}
+
+export interface CourtWorkingHoursPutPayload {
+  working_hours: CourtWorkingHourPayload[]
 }

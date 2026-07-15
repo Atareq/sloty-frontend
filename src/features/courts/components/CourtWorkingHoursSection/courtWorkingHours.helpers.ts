@@ -1,17 +1,25 @@
-import type { Weekday } from '../../courtWorkingHours.types'
+import type { CourtWeekday } from '../../courtWorkingHours.types'
 
-export const weekdays: Weekday[] = [0, 1, 2, 3, 4, 5, 6]
+export const weekdays: CourtWeekday[] = [
+  'SATURDAY',
+  'SUNDAY',
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+]
 
-const weekdayLabels: Record<Weekday, string> = {
-  0: 'الاثنين',
-  1: 'الثلاثاء',
-  2: 'الأربعاء',
-  3: 'الخميس',
-  4: 'الجمعة',
-  5: 'السبت',
-  6: 'الأحد',
+const weekdayLabels: Record<CourtWeekday, string> = {
+  SATURDAY: 'السبت',
+  SUNDAY: 'الأحد',
+  MONDAY: 'الاثنين',
+  TUESDAY: 'الثلاثاء',
+  WEDNESDAY: 'الأربعاء',
+  THURSDAY: 'الخميس',
+  FRIDAY: 'الجمعة',
 }
 
-export function getWeekdayLabel(weekday: Weekday): string {
+export function getWeekdayLabel(weekday: CourtWeekday): string {
   return weekdayLabels[weekday]
 }

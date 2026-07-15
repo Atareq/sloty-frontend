@@ -8,7 +8,6 @@ import {
   createBooking,
   listBookingsForCourtDay,
   markBookingNoShow,
-  rescheduleBooking,
 } from './scheduleApi'
 
 vi.mock('../../core/api/apiClient', () => ({
@@ -73,31 +72,12 @@ describe('scheduleApi', () => {
     )
   })
 
-  it('reschedules bookings through the shared detail endpoint with PATCH', async () => {
+  it('cancels bookings through the shared cancel endpoint with POST', async () => {
     const payload = {
-      court: 3,
-      start_time: '2026-07-02T20:00:00',
-      end_time: '2026-07-02T21:00:00',
+      reason: 'العميل ألغى',
+      notes: 'اتصل قبل الموعد',
     }
 
-    mockedApiRequest.mockResolvedValueOnce({
-      id: 20,
-      ...payload,
-      status: 'CONFIRMED',
-    })
-
-    await rescheduleBooking('nasr-club', 20, payload)
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.bookings.detail('nasr-club', 20),
-      {
-        method: 'PATCH',
-        body: payload,
-      },
-    )
-  })
-
-  it('cancels bookings through the shared cancel endpoint with POST', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       id: 20,
       court: 3,
@@ -106,12 +86,13 @@ describe('scheduleApi', () => {
       status: 'CANCELLED',
     })
 
-    await cancelBooking('nasr-club', 20)
+    await cancelBooking('nasr-club', 20, payload)
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       apiEndpoints.clubs.bookings.cancel('nasr-club', 20),
       {
         method: 'POST',
+        body: payload,
       },
     )
   })
@@ -136,6 +117,11 @@ describe('scheduleApi', () => {
   })
 
   it('marks bookings as no-show through the shared no-show endpoint with POST', async () => {
+    const payload = {
+      reason: 'لم يحضر العميل',
+      notes: 'لم يرد على الهاتف',
+    }
+
     mockedApiRequest.mockResolvedValueOnce({
       id: 20,
       court: 3,
@@ -144,12 +130,13 @@ describe('scheduleApi', () => {
       status: 'NO_SHOW',
     })
 
-    await markBookingNoShow('nasr-club', 20)
+    await markBookingNoShow('nasr-club', 20, payload)
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       apiEndpoints.clubs.bookings.noShow('nasr-club', 20),
       {
         method: 'POST',
+        body: payload,
       },
     )
   })

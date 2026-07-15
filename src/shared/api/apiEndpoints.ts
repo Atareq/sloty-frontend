@@ -33,11 +33,10 @@ export const apiEndpoints = {
       list: (clubSlug: string) => `clubs/${clubSlug}/courts/`,
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/courts/${id}/`,
-    },
-    courtWorkingHours: {
-      list: (clubSlug: string) => `clubs/${clubSlug}/court-working-hours/`,
-      detail: (clubSlug: string, id: ApiId) =>
-        `clubs/${clubSlug}/court-working-hours/${id}/`,
+      workingHours: {
+        detail: (clubSlug: string, courtId: ApiId) =>
+          `clubs/${clubSlug}/courts/${courtId}/working-hours/`,
+      },
     },
     memberships: {
       list: (clubSlug: string) => `clubs/${clubSlug}/memberships/`,

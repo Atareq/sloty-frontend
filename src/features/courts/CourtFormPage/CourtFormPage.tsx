@@ -30,6 +30,7 @@ const sportTypeChoices: Array<{
   },
 
 ]
+const sportTypeValues = sportTypeChoices.map((sport) => sport.value)
 
 type CourtFormState = {
   name: string
@@ -63,10 +64,16 @@ function optionalText(value: string): string | undefined {
   return trimmedValue ? trimmedValue : undefined
 }
 
+function toSportType(value: string): SportType {
+  return sportTypeValues.includes(value as SportType)
+    ? (value as SportType)
+    : 'FOOTBALL'
+}
+
 function buildPayload(formState: CourtFormState): CourtPayload {
   return {
     name: formState.name.trim(),
-    sport_type: formState.sport_type.trim() || 'FOOTBALL',
+    sport_type: formState.sport_type,
     default_price: formState.default_price.trim(),
     slot_duration_minutes: Number(formState.slot_duration_minutes),
     is_active: formState.is_active,
@@ -115,7 +122,7 @@ export function CourtFormPage() {
         if (isActive) {
           setFormState({
             name: court.name,
-            sport_type: court.sport_type,
+            sport_type: toSportType(court.sport_type),
             default_price: String(court.default_price),
             slot_duration_minutes: String(court.slot_duration_minutes),
             is_active: court.is_active,

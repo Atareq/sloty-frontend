@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type { ScheduleBooking } from '../../schedule.types'
 import type { BookingListItem } from '../../scheduleApi.types'
@@ -10,12 +9,11 @@ export interface BookingDetailsSheetProps {
   error: string | null
   isSubmitting: boolean
   slot: ScheduleBooking
-  onAddPayment: (booking: BookingListItem) => void
-  onCancel: (bookingId: number | string) => Promise<void>
-  onComplete: (bookingId: number | string) => Promise<void>
+  onAddPayment?: (booking: BookingListItem) => void
   onClose: () => void
-  onNoShow: (bookingId: number | string) => Promise<void>
-  onReschedule: (booking: BookingListItem) => void
+  onRequestCancel: (booking: BookingListItem) => void
+  onRequestComplete: (booking: BookingListItem) => void
+  onRequestNoShow: (booking: BookingListItem) => void
 }
 
 const statusLabelByStatus: Record<BookingListItem['status'], string> = {
@@ -40,33 +38,21 @@ export function BookingDetailsSheet({
   error,
   isSubmitting,
   onAddPayment,
-  onCancel,
-  onComplete,
   onClose,
-  onNoShow,
-  onReschedule,
+  onRequestCancel,
+  onRequestComplete,
+  onRequestNoShow,
   slot,
 }: BookingDetailsSheetProps) {
-  const [confirmingAction, setConfirmingAction] = useState<
-    'cancel' | 'complete' | 'noShow' | null
-  >(null)
   const shouldShowActions = booking?.status === 'CONFIRMED'
-
-  async function handleActionClick(
-    action: 'cancel' | 'complete' | 'noShow',
-    handler: (bookingId: number | string) => Promise<void>,
-  ): Promise<void> {
-    if (!booking) {
-      return
-    }
-
-    if (confirmingAction !== action) {
-      setConfirmingAction(action)
-      return
-    }
-
-    await handler(booking.id)
+  const lockedMessageByStatus: Partial<Record<BookingListItem['status'], string>> = {
+    COMPLETED: 'هذا الحجز مكتمل ولا يمكن تعديله',
+    CANCELLED: 'هذا الحجز ملغي ولا يؤثر على توفر الموعد',
+    NO_SHOW: 'تم تسجيل هذا الحجز كعدم حضور',
+    EXPIRED: 'انتهت صلاحية هذا الحجز',
+    HOLD: 'هذا الحجز في انتظار التأكيد',
   }
+  const lockedMessage = booking ? lockedMessageByStatus[booking.status] : null
 
   return (
     <div
@@ -129,21 +115,9 @@ export function BookingDetailsSheet({
           </p>
         )}
 
-        {confirmingAction === 'complete' ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-sm font-bold text-[var(--sloty-primary-dark)]">
-            سيتم اعتبار الحجز مكتملاً بعد التأكيد.
-          </p>
-        ) : null}
-
-        {confirmingAction === 'noShow' ? (
+        {lockedMessage ? (
           <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            سيتم تسجيل العميل كعدم حضور بعد التأكيد.
-          </p>
-        ) : null}
-
-        {confirmingAction === 'cancel' ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-            سيتم إلغاء هذا الحجز بعد التأكيد.
+            {lockedMessage}
           </p>
         ) : null}
 
@@ -154,7 +128,7 @@ export function BookingDetailsSheet({
         ) : null}
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {shouldShowActions && booking ? (
+          {shouldShowActions && booking && onAddPayment ? (
             <AppButton
               disabled={isSubmitting}
               fullWidth
@@ -165,66 +139,43 @@ export function BookingDetailsSheet({
               إضافة دفعة
             </AppButton>
           ) : null}
-          {shouldShowActions && booking ? (
-            <AppButton
-              disabled={isSubmitting}
-              fullWidth
-              onClick={() => onReschedule(booking)}
-              type="button"
-              variant="secondary"
-            >
-              تغيير الموعد
-            </AppButton>
-          ) : null}
           {shouldShowActions ? (
             <AppButton
               disabled={isSubmitting}
               fullWidth
-              onClick={() => handleActionClick('complete', onComplete)}
+              onClick={() => booking && onRequestComplete(booking)}
               type="button"
               variant="primary"
             >
-              {confirmingAction === 'complete'
-                ? 'تأكيد إكمال الحجز'
-                : 'إكمال الحجز'}
+              إكمال الحجز
             </AppButton>
           ) : null}
           {shouldShowActions ? (
             <AppButton
               disabled={isSubmitting}
               fullWidth
-              onClick={() => handleActionClick('noShow', onNoShow)}
+              onClick={() => booking && onRequestNoShow(booking)}
               type="button"
               variant="secondary"
             >
-              {confirmingAction === 'noShow'
-                ? 'تأكيد عدم الحضور'
-                : 'تسجيل عدم حضور'}
+              تسجيل عدم حضور
             </AppButton>
           ) : null}
           {shouldShowActions ? (
             <AppButton
               disabled={isSubmitting}
               fullWidth
-              onClick={() => handleActionClick('cancel', onCancel)}
+              onClick={() => booking && onRequestCancel(booking)}
               type="button"
               variant="danger"
             >
-              {confirmingAction === 'cancel'
-                ? 'تأكيد إلغاء الحجز'
-                : 'إلغاء الحجز'}
+              إلغاء الحجز
             </AppButton>
           ) : null}
-          {confirmingAction ? (
-            <AppButton
-              disabled={isSubmitting}
-              fullWidth
-              onClick={() => setConfirmingAction(null)}
-              type="button"
-              variant="secondary"
-            >
-              رجوع
-            </AppButton>
+          {shouldShowActions ? (
+            <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)] sm:col-span-2">
+              تغيير الموعد سيتم إضافته بعد اعتماد واجهة الخلفية
+            </p>
           ) : null}
           <AppButton
             disabled={isSubmitting}

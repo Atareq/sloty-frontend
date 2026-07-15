@@ -37,12 +37,13 @@ Source-of-truth order:
 - Platform admin clubs/courts setup
 - Egypt location dropdowns for club address
 - International phone input with E.164 payload submission
-- Court working hours setup
+- Court working hours setup through nested per-court weekly API
 - Booking Board read-only slots
 - Manual booking creation
 - Booking details cancel / complete / no-show actions
 - Sprint 4 payment recording from confirmed booking details
-- Sprint 5A reschedule foundation from confirmed booking details
+- Sprint 5 booking lifecycle foundation from confirmed booking details
+- Reschedule is deferred until the backend exposes a confirmed contract
 - Basic transactions API/list foundation
 
 ## Routing Highlights
@@ -77,5 +78,11 @@ Source-of-truth order:
 ## Known Next Tasks
 
 1. Remove the optional club slug input from `LoginPage` if backend no longer needs it.
-2. Backend remains responsible for booking overlap validation during reschedule.
+2. Add reschedule only after backend exposes a confirmed endpoint/contract; do not reuse detail PATCH speculatively.
 3. Payment gateway, settlement, reports, audit logs, and pilot hardening remain deferred.
+
+## Working Hours
+
+- Working hours now use `clubs/{club_slug}/courts/{court_id}/working-hours/`.
+- The old flat `court-working-hours/` endpoint is removed from frontend usage.
+- Court settings saves the full weekly schedule with PUT, and Booking Board fetches working hours for the selected court.

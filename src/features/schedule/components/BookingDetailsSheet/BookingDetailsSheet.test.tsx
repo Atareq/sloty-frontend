@@ -35,11 +35,10 @@ function renderBookingDetails(
       error={null}
       isSubmitting={false}
       onAddPayment={vi.fn()}
-      onCancel={vi.fn()}
-      onComplete={vi.fn()}
       onClose={vi.fn()}
-      onNoShow={vi.fn()}
-      onReschedule={vi.fn()}
+      onRequestCancel={vi.fn()}
+      onRequestComplete={vi.fn()}
+      onRequestNoShow={vi.fn()}
       slot={slot}
       {...props}
     />,
@@ -66,7 +65,7 @@ describe('BookingDetailsSheet', () => {
       screen.getByRole('button', { name: 'إضافة دفعة' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'تغيير الموعد' }),
+      screen.getByText('تغيير الموعد سيتم إضافته بعد اعتماد واجهة الخلفية'),
     ).toBeInTheDocument()
   })
 
@@ -81,100 +80,25 @@ describe('BookingDetailsSheet', () => {
     expect(onAddPayment).toHaveBeenCalledWith(booking)
   })
 
-  it('calls onReschedule from confirmed bookings', async () => {
+  it('calls lifecycle request handlers from confirmed bookings', async () => {
     const user = userEvent.setup()
-    const onReschedule = vi.fn()
+    const onRequestComplete = vi.fn()
+    const onRequestNoShow = vi.fn()
+    const onRequestCancel = vi.fn()
 
-    renderBookingDetails({ onReschedule })
-
-    await user.click(screen.getByRole('button', { name: 'تغيير الموعد' }))
-
-    expect(onReschedule).toHaveBeenCalledWith(booking)
-  })
-
-  it('uses an inline confirm step before calling cancel', async () => {
-    const user = userEvent.setup()
-    const onCancel = vi.fn().mockResolvedValue(undefined)
-
-    renderBookingDetails({ onCancel })
-
-    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
-
-    expect(onCancel).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }),
-    ).toBeInTheDocument()
-
-    await user.click(
-      screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }),
-    )
-
-    expect(onCancel).toHaveBeenCalledWith(10)
-  })
-
-  it('uses an inline confirm step before calling complete', async () => {
-    const user = userEvent.setup()
-    const onComplete = vi.fn().mockResolvedValue(undefined)
-
-    renderBookingDetails({ onComplete })
+    renderBookingDetails({
+      onRequestCancel,
+      onRequestComplete,
+      onRequestNoShow,
+    })
 
     await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
-
-    expect(onComplete).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'رجوع' })).toBeInTheDocument()
-    expect(
-      screen.getByText('سيتم اعتبار الحجز مكتملاً بعد التأكيد.'),
-    ).toBeInTheDocument()
-
-    await user.click(
-      screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
-    )
-
-    expect(onComplete).toHaveBeenCalledWith(10)
-  })
-
-  it('returns from an inline confirm step without calling the handler', async () => {
-    const user = userEvent.setup()
-    const onNoShow = vi.fn().mockResolvedValue(undefined)
-
-    renderBookingDetails({ onNoShow })
-
     await user.click(screen.getByRole('button', { name: 'تسجيل عدم حضور' }))
-    await user.click(screen.getByRole('button', { name: 'رجوع' }))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
-    expect(onNoShow).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole('button', { name: 'تسجيل عدم حضور' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'تأكيد عدم الحضور' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('uses an inline confirm step before calling no-show', async () => {
-    const user = userEvent.setup()
-    const onNoShow = vi.fn().mockResolvedValue(undefined)
-
-    renderBookingDetails({ onNoShow })
-
-    await user.click(screen.getByRole('button', { name: 'تسجيل عدم حضور' }))
-
-    expect(onNoShow).not.toHaveBeenCalled()
-    expect(
-      screen.getByRole('button', { name: 'تأكيد عدم الحضور' }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('سيتم تسجيل العميل كعدم حضور بعد التأكيد.'),
-    ).toBeInTheDocument()
-
-    await user.click(
-      screen.getByRole('button', { name: 'تأكيد عدم الحضور' }),
-    )
-
-    expect(onNoShow).toHaveBeenCalledWith(10)
+    expect(onRequestComplete).toHaveBeenCalledWith(booking)
+    expect(onRequestNoShow).toHaveBeenCalledWith(booking)
+    expect(onRequestCancel).toHaveBeenCalledWith(booking)
   })
 
   it('hides lifecycle actions for cancelled bookings', () => {
@@ -198,7 +122,25 @@ describe('BookingDetailsSheet', () => {
       screen.queryByRole('button', { name: 'إضافة دفعة' }),
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'تغيير الموعد' }),
+      screen.getByText('هذا الحجز ملغي ولا يؤثر على توفر الموعد'),
+    ).toBeInTheDocument()
+  })
+
+  it.each([
+    ['COMPLETED' as const, 'هذا الحجز مكتمل ولا يمكن تعديله'],
+    ['NO_SHOW' as const, 'تم تسجيل هذا الحجز كعدم حضور'],
+    ['EXPIRED' as const, 'انتهت صلاحية هذا الحجز'],
+  ])('shows locked message for %s bookings', (status, message) => {
+    renderBookingDetails({
+      booking: {
+        ...booking,
+        status,
+      },
+    })
+
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'إلغاء الحجز' }),
     ).not.toBeInTheDocument()
   })
 })

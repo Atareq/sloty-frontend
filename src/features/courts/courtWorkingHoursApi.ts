@@ -1,47 +1,34 @@
 import { apiRequest } from '../../core/api/apiClient'
-import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
-  CourtWorkingHour,
-  CourtWorkingHourPayload,
+  CourtWorkingHoursPutPayload,
+  CourtWorkingHoursResponse,
 } from './courtWorkingHours.types'
 
 /**
- * Lists all working-hour records for a club.
- *
- * The backend endpoint is club-scoped, so court filtering stays in the feature
- * UI that knows the current court id.
+ * Loads the weekly recurring working-hours schedule for one court.
  */
-export function listCourtWorkingHours(
+export function getCourtWorkingHours(
   clubSlug: string,
-): Promise<PaginatedResponse<CourtWorkingHour>> {
-  return apiRequest<PaginatedResponse<CourtWorkingHour>>(
-    apiEndpoints.clubs.courtWorkingHours.list(clubSlug),
+  courtId: number | string,
+): Promise<CourtWorkingHoursResponse> {
+  return apiRequest<CourtWorkingHoursResponse>(
+    apiEndpoints.clubs.courts.workingHours.detail(clubSlug, courtId),
   )
 }
 
-export function createCourtWorkingHour(
+/**
+ * Replaces the full weekly recurring working-hours schedule for one court.
+ */
+export function saveCourtWorkingHours(
   clubSlug: string,
-  payload: CourtWorkingHourPayload,
-): Promise<CourtWorkingHour> {
-  return apiRequest<CourtWorkingHour>(
-    apiEndpoints.clubs.courtWorkingHours.list(clubSlug),
+  courtId: number | string,
+  payload: CourtWorkingHoursPutPayload,
+): Promise<CourtWorkingHoursResponse> {
+  return apiRequest<CourtWorkingHoursResponse>(
+    apiEndpoints.clubs.courts.workingHours.detail(clubSlug, courtId),
     {
-      method: 'POST',
-      body: payload,
-    },
-  )
-}
-
-export function updateCourtWorkingHour(
-  clubSlug: string,
-  id: number | string,
-  payload: Partial<CourtWorkingHourPayload>,
-): Promise<CourtWorkingHour> {
-  return apiRequest<CourtWorkingHour>(
-    apiEndpoints.clubs.courtWorkingHours.detail(clubSlug, id),
-    {
-      method: 'PATCH',
+      method: 'PUT',
       body: payload,
     },
   )

@@ -2,9 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
-  createCourtWorkingHour,
-  listCourtWorkingHours,
-  updateCourtWorkingHour,
+  getCourtWorkingHours,
+  saveCourtWorkingHours,
 } from './courtWorkingHoursApi'
 
 vi.mock('../../core/api/apiClient', () => ({
@@ -14,39 +13,45 @@ vi.mock('../../core/api/apiClient', () => ({
 const mockedApiRequest = vi.mocked(apiRequest)
 
 const workingHourPayload = {
-  court: 7,
-  weekday: 0 as const,
+  weekday: 'SATURDAY' as const,
   opens_at: '18:00',
   closes_at: '23:00',
   is_closed: false,
 }
 
 describe('courtWorkingHoursApi', () => {
-  it('uses shared court working-hours endpoints for list/create/update calls', async () => {
+  it('loads court working hours from the nested court endpoint', async () => {
     mockedApiRequest.mockResolvedValue({})
 
-    await listCourtWorkingHours('nasr-club')
-    await createCourtWorkingHour('nasr-club', workingHourPayload)
-    await updateCourtWorkingHour('nasr-club', 5, { is_closed: true })
+    await getCourtWorkingHours('nasr-club', 7)
 
-    expect(mockedApiRequest).toHaveBeenNthCalledWith(
-      1,
-      apiEndpoints.clubs.courtWorkingHours.list('nasr-club'),
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.courts.workingHours.detail('nasr-club', 7),
     )
-    expect(mockedApiRequest).toHaveBeenNthCalledWith(
-      2,
-      apiEndpoints.clubs.courtWorkingHours.list('nasr-club'),
+  })
+
+  it('saves the full weekly schedule with PUT to the nested court endpoint', async () => {
+    const payload = {
+      working_hours: [
+        workingHourPayload,
+        {
+          weekday: 'SUNDAY' as const,
+          opens_at: null,
+          closes_at: null,
+          is_closed: true,
+        },
+      ],
+    }
+
+    mockedApiRequest.mockResolvedValue({})
+
+    await saveCourtWorkingHours('nasr-club', 7, payload)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.courts.workingHours.detail('nasr-club', 7),
       {
-        method: 'POST',
-        body: workingHourPayload,
-      },
-    )
-    expect(mockedApiRequest).toHaveBeenNthCalledWith(
-      3,
-      apiEndpoints.clubs.courtWorkingHours.detail('nasr-club', 5),
-      {
-        method: 'PATCH',
-        body: { is_closed: true },
+        method: 'PUT',
+        body: payload,
       },
     )
   })

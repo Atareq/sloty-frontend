@@ -2,10 +2,12 @@ import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
+  BookingCancelPayload,
+  BookingCompletePayload,
   BookingCreatePayload,
   BookingListItem,
   BookingListParams,
-  BookingReschedulePayload,
+  BookingNoShowPayload,
 } from './scheduleApi.types'
 
 export function buildBookingListPath(
@@ -49,25 +51,6 @@ export function createBooking(
 }
 
 /**
- * Updates a booking's court/time using the existing detail PATCH endpoint.
- *
- * Backend validation remains authoritative for overlap and permissions.
- */
-export function rescheduleBooking(
-  clubSlug: string,
-  bookingId: number | string,
-  payload: BookingReschedulePayload,
-): Promise<BookingListItem> {
-  return apiRequest<BookingListItem>(
-    apiEndpoints.clubs.bookings.detail(clubSlug, bookingId),
-    {
-      method: 'PATCH',
-      body: payload,
-    },
-  )
-}
-
-/**
  * Cancels a confirmed booking from the Booking Details sheet.
  *
  * Expire remains deferred; payment recording lives in transactions APIs.
@@ -75,11 +58,13 @@ export function rescheduleBooking(
 export function cancelBooking(
   clubSlug: string,
   bookingId: number | string,
+  payload?: BookingCancelPayload,
 ): Promise<BookingListItem> {
   return apiRequest<BookingListItem>(
     apiEndpoints.clubs.bookings.cancel(clubSlug, bookingId),
     {
       method: 'POST',
+      ...(payload ? { body: payload } : {}),
     },
   )
 }
@@ -87,11 +72,13 @@ export function cancelBooking(
 export function completeBooking(
   clubSlug: string,
   bookingId: number | string,
+  payload?: BookingCompletePayload,
 ): Promise<BookingListItem> {
   return apiRequest<BookingListItem>(
     apiEndpoints.clubs.bookings.complete(clubSlug, bookingId),
     {
       method: 'POST',
+      ...(payload ? { body: payload } : {}),
     },
   )
 }
@@ -99,11 +86,13 @@ export function completeBooking(
 export function markBookingNoShow(
   clubSlug: string,
   bookingId: number | string,
+  payload?: BookingNoShowPayload,
 ): Promise<BookingListItem> {
   return apiRequest<BookingListItem>(
     apiEndpoints.clubs.bookings.noShow(clubSlug, bookingId),
     {
       method: 'POST',
+      ...(payload ? { body: payload } : {}),
     },
   )
 }

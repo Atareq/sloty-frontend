@@ -78,7 +78,11 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 2A clubs/courts setup API calls must go through feature wrappers such as `clubsApi` and `courtsApi`.
 - Sprint 2B court working-hours setup lives inside the courts feature; keep it separate from booking-slot generation.
 - Court working-hours setup API calls belong in the courts feature wrapper/component.
+- Court working hours use the nested court weekly endpoint `clubs/{club_slug}/courts/{court_id}/working-hours/`; do not use the old flat `court-working-hours/` endpoint.
+- Working hours are weekly recurring rows for one court, saved as a full-week PUT; one court has up to seven weekday rows, and closed days send `opens_at`/`closes_at` as `null`.
+- Do not add holiday/Ramadan working-hour exceptions in MVP unless explicitly requested.
 - Booking Board integration uses clubs, courts, working-hours, and bookings APIs to generate availability slots.
+- Booking Board must fetch working hours for the selected court only.
 - Booking Board must not show payment or lifecycle details.
 - Sprint 3B creates bookings only from available/cancelled Booking Board slots.
 - Sprint 3C adds confirmed booking details and cancel action only.
@@ -86,7 +90,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 4 adds basic transaction listing and confirmed-booking payment recording through `apiEndpoints.clubs.transactions`; transaction API calls go through `src/features/transactions/transactionsApi.ts`.
 - Payment recording opens from confirmed booking details only. Backend validates overpayment and permission rules.
 - Booking Board remains availability-focused and must not show money on slot buttons.
-- Sprint 5A reschedule uses the existing booking detail PATCH endpoint; frontend can offer available/cancelled generated slots, while backend validates overlap and permissions.
+- Sprint 5 lifecycle actions stay inside confirmed booking details: cancellation requires a reason sheet, complete requires explicit confirmation, and no-show uses a confirmation/reason sheet.
+- Reschedule is deferred until a confirmed backend endpoint/contract exists; do not invent a PATCH flow or custom reschedule path.
+- Hold expiry is backend-driven; the frontend must not fake expiry transitions.
+- Completed, cancelled, no-show, and expired bookings are read-only when shown in booking details.
 - Booking Board remains availability-focused and must not show lifecycle/payment details on slot buttons.
 - Settlement, reports, charts, owner financial dashboards, commission, and payment gateway logic are deferred.
 - Expire and non-transaction financial actions are deferred to later sprints.
