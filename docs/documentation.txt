@@ -1,6 +1,11 @@
 Phase 1 Final Report
 FROM a project management point of view.
 Sports Courts Rental Management System — Business Direction
+
+Current implementation note:
+
+This file remains product/reference documentation. MVP 1 court-management rules are still valid, but the current frontend is React + Vite and already in implementation. The accepted frontend auth flow now uses `/me` memberships for post-login club selection.
+
 1. Final Product Vision
 
 The product will start as a free, mobile-first court management system for football courts in Assiut, designed to replace paper-based booking and help court owners manage reservations, deposits, remaining payments, staff activity, and daily/weekly operations.

@@ -1,5 +1,10 @@
 Sloty UI/UX Design Reference Report
 Sports Courts Rental Management System
+
+Current frontend implementation note:
+
+This document remains a design-direction reference. New pages in the current React frontend should use the shared `PageHeader` by default, follow the shared `AppCard` and `AppButton` patterns, and keep one Sloty visual fingerprint across the app. Do not create custom page headers or separate-looking prototype pages unless the existing shared pattern clearly does not fit.
+
 1. UI Vision
 
 Sloty should not look like a childish football app. It should look like a professional sports operations system built for real court owners, managers, staff, and later players.

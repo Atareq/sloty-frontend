@@ -1,5 +1,21 @@
 Phase 3 Started — Senior Team Lead / Sprint Planning
 
+Current Frontend Implementation Status
+
+This file is still a planning reference, not the exact source of truth for current frontend implementation details.
+
+Current frontend reality:
+- The frontend is React + TypeScript + Vite + Tailwind CSS + React Router + Vitest, not Angular.
+- The repo is already in implementation, not only planning.
+- Step 1 post-login `/me` club selection is implemented.
+- `/me` is the post-login user-context source.
+- `selectedClubSlug` is the only persisted club-selection value.
+- `0` memberships and not platform admin goes to `/no-club-access`.
+- `1` membership auto-selects the club slug and enters `/dashboard`.
+- `2+` memberships go to `/select-club` unless a valid stored selection already exists.
+- Platform admin can enter `/admin/clubs` without `selectedClubSlug`.
+- The next frontend implementation step is using `selectedClubSlug` in club-scoped pages such as `SchedulePage` and `TransactionsListPage` instead of choosing the first active club.
+
 We are now in Phase 3 only.
 
 I will not move to backend implementation / Django design until you explicitly say:
@@ -54,7 +70,7 @@ Add base timestamp models.
 Add soft-deactivation pattern where needed.
 Add project settings for local/development/production.
 Frontend Tasks
-Create Angular project.
+Create React + Vite project.
 Configure routing.
 Configure auth module structure.
 Configure API service layer.

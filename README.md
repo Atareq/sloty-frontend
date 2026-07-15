@@ -4,6 +4,8 @@ Sloty is a React frontend for an Arabic-first, RTL-first, mobile-first sports co
 
 This repository is frontend-only. Do not add backend, Django, database, serializer, model, migration, or API implementation changes here.
 
+Read [`AGENTS.md`](./AGENTS.md) before changing code. For implementation details, the current source code and `AGENTS.md` are authoritative. The files under [`docs/`](./docs/) remain useful product and planning references, but some of them predate the current React implementation.
+
 ## Stack
 
 - React
