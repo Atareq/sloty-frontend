@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { ClubSelectionPage } from '../features/auth/ClubSelectionPage/ClubSelectionPage'
 import { NoClubAccessPage } from '../features/auth/NoClubAccessPage/NoClubAccessPage'
+import { AuditLogsPage } from '../features/audit/AuditLogsPage/AuditLogsPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage/DashboardPage'
 import { SchedulePage } from '../features/schedule/SchedulePage/SchedulePage'
 import { ClubFormPage } from '../features/clubs/ClubFormPage/ClubFormPage'
@@ -11,6 +12,7 @@ import { CourtsListPage } from '../features/courts/CourtsListPage/CourtsListPage
 import { SettingsCourtDetailsPage } from '../features/courts/SettingsCourtDetailsPage/SettingsCourtDetailsPage'
 import { SettingsCourtsPage } from '../features/courts/SettingsCourtsPage/SettingsCourtsPage'
 import { PlaceholderPage } from '../features/placeholders/PlaceholderPage/PlaceholderPage'
+import { ReportsPage } from '../features/reports/ReportsPage/ReportsPage'
 import { SettlementDetailPage } from '../features/settlements/SettlementDetailPage/SettlementDetailPage'
 import { SettlementHistoryPage } from '../features/settlements/SettlementHistoryPage/SettlementHistoryPage'
 import { SettlementPreviewPage } from '../features/settlements/SettlementPreviewPage/SettlementPreviewPage'
@@ -123,10 +125,15 @@ export const router = createBrowserRouter([
         path: '/reports',
         element: (
           <RoleRoute allowedRoles={['OWNER']}>
-            <PlaceholderPage
-              description="مسار مؤقت للتقارير، وسيبقى بلا أرقام وهمية حتى اعتماد مصادر البيانات."
-              title="التقارير"
-            />
+            <ReportsPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/audit-logs',
+        element: (
+          <RoleRoute allowedRoles={['OWNER']}>
+            <AuditLogsPage />
           </RoleRoute>
         ),
       },

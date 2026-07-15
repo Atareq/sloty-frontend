@@ -95,7 +95,13 @@ Source-of-truth order:
 - Sprint 6 settlement foundation is implemented for preview, create, history, and detail.
 - Settlement pages use `selectedClubSlug`; owner can settle, and manager access depends on `can_manage_settlements`.
 - Settled transactions are shown as locked/read-only. Cancelled transactions remain visible and are not manually counted in frontend totals.
-- Reports and audit logs remain deferred.
+
+## Dashboard, Reports, And Audit Logs
+
+- Sprint 7 dashboard, reports, and audit foundation is implemented.
+- Dashboard, reports, and audit pages use `selectedClubSlug` and backend endpoints for metrics and log data.
+- Financial metrics come from backend summary/report responses only; the frontend does not calculate revenue or cancelled-payment totals from raw rows.
+- Reports and audit logs are read-only. Sprint 8 is QA and pilot hardening.
 
 ## Working Hours
 

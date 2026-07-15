@@ -100,7 +100,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Backend remains the authority for settlement permissions; settled transactions are locked/read-only and the frontend must not offer raw transaction editing.
 - Transaction correction is cancel payment with a required reason through the transaction cancel endpoint; do not add edit/void payment flows.
 - Cancelled transactions remain visible and frontend code must not manually count them in payment totals.
-- Reports, charts, owner financial dashboards, audit logs, commission, and payment gateway logic are deferred.
+- Sprint 7 implements backend-calculated dashboard, reports, and audit logs; these pages use `selectedClubSlug` from `useAuth()`.
+- Dashboard and report financial metrics must come from backend summary/report endpoints. Do not fake numbers or manually count cancelled transactions in totals; cancelled transactions remain visible while backend summaries decide accounting.
+- Audit logs are read-only. Reports and audit access are role/permission-gated UX helpers, with backend remaining the authority.
+- Charts are deferred unless an existing charting package is already available; payment gateway, marketplace, commission, and player app logic are deferred.
 - Expire and non-transaction financial actions are deferred to later sprints.
 - Overnight working-hour ranges are deferred unless explicitly requested.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.

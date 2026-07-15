@@ -65,6 +65,13 @@ export const navigationItems: NavigationItem[] = [
     showInMobile: true,
   },
   {
+    path: '/audit-logs',
+    label: 'سجل النشاط',
+    marker: 'ن',
+    allowedRoles: ['OWNER'],
+    showInMobile: true,
+  },
+  {
     path: '/settings/courts',
     label: 'إعدادات الملاعب',
     marker: 'ع',
