@@ -83,7 +83,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 3B creates bookings only from available/cancelled Booking Board slots.
 - Sprint 3C adds confirmed booking details and cancel action only.
 - Sprint 3D adds complete/no-show actions from confirmed booking details only.
-- Sprint 4 adds basic transaction listing and transaction API/form primitives through `apiEndpoints.clubs.transactions`; keep Booking Details lifecycle-only unless payment recording is explicitly requested again, and keep settlement, reports, charts, and owner financial dashboards deferred.
+- Sprint 4 adds basic transaction listing and confirmed-booking payment recording through `apiEndpoints.clubs.transactions`; transaction API calls go through `src/features/transactions/transactionsApi.ts`.
+- Payment recording opens from confirmed booking details only. Backend validates overpayment and permission rules.
+- Booking Board remains availability-focused and must not show money on slot buttons.
+- Settlement, reports, charts, owner financial dashboards, commission, and payment gateway logic are deferred.
 - Expire and non-transaction financial actions are deferred to later sprints.
 - Overnight working-hour ranges are deferred unless explicitly requested.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.

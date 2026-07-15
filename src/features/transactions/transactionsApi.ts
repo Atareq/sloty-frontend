@@ -7,7 +7,7 @@ import type {
 } from './transactions.types'
 
 /**
- * Lists recorded payments for one active club.
+ * Lists recorded payments for the selected club context.
  *
  * The endpoint path stays in the shared registry so feature code does not
  * duplicate backend URL strings.
@@ -20,6 +20,9 @@ export function listTransactions(
   )
 }
 
+/**
+ * Records one payment transaction in a club-scoped transaction ledger.
+ */
 export function createTransaction(
   clubSlug: string,
   payload: TransactionCreatePayload,
@@ -33,6 +36,9 @@ export function createTransaction(
   )
 }
 
+/**
+ * Fetches one recorded payment transaction by id.
+ */
 export function getTransaction(
   clubSlug: string,
   id: number | string,

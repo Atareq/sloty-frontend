@@ -12,6 +12,7 @@ import {
   listBookingsForCourtDay,
   markBookingNoShow,
 } from '../scheduleApi'
+import { createTransaction } from '../../transactions/transactionsApi'
 import { SchedulePage } from './SchedulePage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -34,6 +35,10 @@ vi.mock('../scheduleApi', () => ({
   markBookingNoShow: vi.fn(),
 }))
 
+vi.mock('../../transactions/transactionsApi', () => ({
+  createTransaction: vi.fn(),
+}))
+
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedListCourtWorkingHours = vi.mocked(listCourtWorkingHours)
@@ -42,6 +47,7 @@ const mockedCreateBooking = vi.mocked(createBooking)
 const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedMarkBookingNoShow = vi.mocked(markBookingNoShow)
+const mockedCreateTransaction = vi.mocked(createTransaction)
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -198,6 +204,12 @@ function mockScheduleApiData(): void {
     end_time: `${today}T07:00:00`,
     status: 'CONFIRMED',
   })
+  mockedCreateTransaction.mockResolvedValue({
+    id: 30,
+    booking: 10,
+    amount: '150',
+    payment_method: 'CASH',
+  })
 }
 
 describe('SchedulePage', () => {
@@ -311,8 +323,55 @@ describe('SchedulePage', () => {
     expect(screen.getByText('أحمد علي')).toBeInTheDocument()
     expect(screen.getByText('01000000000')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'تسجيل دفع' }),
+      screen.getByRole('button', { name: 'إضافة دفعة' }),
+    ).toBeInTheDocument()
+  })
+
+  it('records a payment for a confirmed booking and reloads bookings', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
+    await user.type(screen.getByLabelText('المبلغ'), '150')
+    await user.selectOptions(screen.getByLabelText('طريقة الدفع'), 'CASH')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+    await waitFor(() => {
+      expect(mockedCreateTransaction).toHaveBeenCalledWith('nasr-club', {
+        booking: 10,
+        amount: '150',
+        payment_method: 'CASH',
+      })
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'إضافة دفعة' }),
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'حجز مؤكد' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows an Arabic error when payment recording fails', async () => {
+    const user = userEvent.setup()
+    mockedCreateTransaction.mockRejectedValueOnce(new Error('Bad request'))
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
+    await user.type(screen.getByLabelText('المبلغ'), '150')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+    expect(
+      await screen.findByText(
+        'تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('cancels a confirmed booking and reloads bookings', async () => {

@@ -13,16 +13,12 @@ export type RecordPaymentSheetValues = Omit<
 >
 
 export interface RecordPaymentSheetProps {
+  bookingId: number | string
   error: string | null
   isSubmitting: boolean
   onClose: () => void
-  onSubmit: (values: RecordPaymentSheetValues) => Promise<void>
+  onSubmit: (values: RecordPaymentSheetValues) => Promise<void> | void
 }
-
-const referenceRecommendedMethods: PaymentMethod[] = [
-  'DIGITAL_WALLET',
-  'BANK_TRANSFER',
-]
 
 /**
  * Presentational payment-recording form for confirmed bookings.
@@ -31,6 +27,7 @@ const referenceRecommendedMethods: PaymentMethod[] = [
  * this sheet can remain reusable from booking details or future transaction UI.
  */
 export function RecordPaymentSheet({
+  bookingId,
   error,
   isSubmitting,
   onClose,
@@ -41,8 +38,6 @@ export function RecordPaymentSheet({
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
-  const shouldRecommendReference =
-    referenceRecommendedMethods.includes(paymentMethod) && !reference.trim()
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -50,9 +45,15 @@ export function RecordPaymentSheet({
     const trimmedAmount = amount.trim()
     const trimmedReference = reference.trim()
     const trimmedNotes = notes.trim()
+    const numericAmount = Number(trimmedAmount)
 
-    if (!trimmedAmount || Number(trimmedAmount) <= 0) {
-      setValidationError('المبلغ مطلوب ويجب أن يكون أكبر من صفر')
+    if (!trimmedAmount) {
+      setValidationError('المبلغ مطلوب')
+      return
+    }
+
+    if (Number.isNaN(numericAmount) || numericAmount <= 0) {
+      setValidationError('المبلغ يجب أن يكون أكبر من صفر')
       return
     }
 
@@ -81,11 +82,14 @@ export function RecordPaymentSheet({
       >
         <div className="space-y-1">
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            معاملة حجز
+            حجز #{bookingId}
           </p>
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            تسجيل دفع
+            إضافة دفعة
           </h2>
+          <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
+            سجل دفعة جديدة لهذا الحجز
+          </p>
         </div>
 
         <div className="mt-5 space-y-4">
@@ -120,7 +124,7 @@ export function RecordPaymentSheet({
           </label>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>مرجع الدفع</span>
+            <span>رقم العملية</span>
             <input
               className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
               disabled={isSubmitting}
@@ -128,11 +132,9 @@ export function RecordPaymentSheet({
               value={reference}
             />
           </label>
-          {shouldRecommendReference ? (
-            <p className="-mt-2 rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-xs font-bold text-[var(--sloty-primary-dark)]">
-              يفضل إضافة مرجع الدفع لهذه الطريقة
-            </p>
-          ) : null}
+          <p className="-mt-2 text-xs font-bold text-[var(--sloty-text-muted)]">
+            اختياري حسب طريقة الدفع وسياسة الملعب
+          </p>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>
@@ -158,7 +160,7 @@ export function RecordPaymentSheet({
             type="submit"
             variant="primary"
           >
-            {isSubmitting ? 'جاري التسجيل...' : 'تسجيل الدفع'}
+            {isSubmitting ? 'جاري التسجيل...' : 'تسجيل الدفعة'}
           </AppButton>
           <AppButton
             disabled={isSubmitting}
@@ -167,7 +169,7 @@ export function RecordPaymentSheet({
             type="button"
             variant="secondary"
           >
-            إغلاق
+            إلغاء
           </AppButton>
         </div>
       </form>

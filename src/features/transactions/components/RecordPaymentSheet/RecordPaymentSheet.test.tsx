@@ -10,6 +10,7 @@ describe('RecordPaymentSheet', () => {
 
     render(
       <RecordPaymentSheet
+        bookingId={10}
         error={null}
         isSubmitting={false}
         onClose={vi.fn()}
@@ -17,11 +18,31 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدفع' }))
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
 
-    expect(
-      screen.getByText('المبلغ مطلوب ويجب أن يكون أكبر من صفر'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('المبلغ مطلوب')).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('validates that amount is greater than zero', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('المبلغ'), '0')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+    expect(screen.getByText('المبلغ يجب أن يكون أكبر من صفر'))
+      .toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
@@ -31,6 +52,7 @@ describe('RecordPaymentSheet', () => {
 
     render(
       <RecordPaymentSheet
+        bookingId={10}
         error={null}
         isSubmitting={false}
         onClose={vi.fn()}
@@ -43,9 +65,9 @@ describe('RecordPaymentSheet', () => {
       screen.getByLabelText('طريقة الدفع'),
       'DIGITAL_WALLET',
     )
-    await user.type(screen.getByLabelText('مرجع الدفع'), ' REF-123 ')
+    await user.type(screen.getByLabelText('رقم العملية'), ' REF-123 ')
     await user.type(screen.getByLabelText('ملاحظات'), ' دفعة مقدمة ')
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدفع' }))
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       amount: '150',
@@ -55,25 +77,22 @@ describe('RecordPaymentSheet', () => {
     })
   })
 
-  it('recommends a reference for wallet and bank transfer payments', async () => {
+  it('calls onClose when cancel is clicked', async () => {
     const user = userEvent.setup()
+    const onClose = vi.fn()
 
     render(
       <RecordPaymentSheet
+        bookingId={10}
         error={null}
         isSubmitting={false}
-        onClose={vi.fn()}
+        onClose={onClose}
         onSubmit={vi.fn()}
       />,
     )
 
-    await user.selectOptions(
-      screen.getByLabelText('طريقة الدفع'),
-      'BANK_TRANSFER',
-    )
+    await user.click(screen.getByRole('button', { name: 'إلغاء' }))
 
-    expect(
-      screen.getByText('يفضل إضافة مرجع الدفع لهذه الطريقة'),
-    ).toBeInTheDocument()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

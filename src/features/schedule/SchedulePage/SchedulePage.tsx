@@ -12,6 +12,11 @@ import {
 import { BookingDetailsSheet } from '../components/BookingDetailsSheet/BookingDetailsSheet'
 import { BookingCard } from '../components/BookingCard/BookingCard'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
+import { createTransaction } from '../../transactions/transactionsApi'
+import {
+  RecordPaymentSheet,
+  type RecordPaymentSheetValues,
+} from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 import {
   createDateFilterOptions,
   formatBookingDateTime,
@@ -103,6 +108,11 @@ export function SchedulePage() {
   const [bookingActionError, setBookingActionError] = useState<string | null>(
     null,
   )
+  const [paymentBooking, setPaymentBooking] = useState<BookingListItem | null>(
+    null,
+  )
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
     dateFilters[0].date
@@ -337,18 +347,50 @@ export function SchedulePage() {
     }
   }
 
+  async function handleRecordPayment(
+    values: RecordPaymentSheetValues,
+  ): Promise<void> {
+    if (!selectedClubSlug || !paymentBooking) {
+      return
+    }
+
+    setIsPaymentSubmitting(true)
+    setPaymentError(null)
+
+    try {
+      await createTransaction(selectedClubSlug, {
+        booking: paymentBooking.id,
+        amount: values.amount,
+        payment_method: values.payment_method,
+        ...(values.reference ? { reference: values.reference } : {}),
+        ...(values.notes ? { notes: values.notes } : {}),
+      })
+      setPaymentBooking(null)
+      setSelectedSlot(null)
+      await reloadBookings()
+    } catch {
+      setPaymentError('تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى')
+    } finally {
+      setIsPaymentSubmitting(false)
+    }
+  }
+
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
     setSelectedSlot(null)
+    setPaymentBooking(null)
     setCreateError(null)
     setBookingActionError(null)
+    setPaymentError(null)
   }
 
   function handleDateChange(nextDateKey: string): void {
     setActiveDateKey(nextDateKey)
     setSelectedSlot(null)
+    setPaymentBooking(null)
     setCreateError(null)
     setBookingActionError(null)
+    setPaymentError(null)
   }
 
   const scheduleCourt = {
@@ -525,14 +567,33 @@ export function SchedulePage() {
           dateLabel={scheduleCourt.dateLabel}
           error={bookingActionError}
           isSubmitting={isBookingActionSubmitting}
+          onAddPayment={(booking) => {
+            setPaymentBooking(booking)
+            setPaymentError(null)
+          }}
           onCancel={handleCancelBooking}
           onComplete={handleCompleteBooking}
           onClose={() => {
             setSelectedSlot(null)
             setBookingActionError(null)
+            setPaymentBooking(null)
+            setPaymentError(null)
           }}
           onNoShow={handleNoShowBooking}
           slot={selectedSlot}
+        />
+      ) : null}
+
+      {paymentBooking ? (
+        <RecordPaymentSheet
+          bookingId={paymentBooking.id}
+          error={paymentError}
+          isSubmitting={isPaymentSubmitting}
+          onClose={() => {
+            setPaymentBooking(null)
+            setPaymentError(null)
+          }}
+          onSubmit={handleRecordPayment}
         />
       ) : null}
     </div>

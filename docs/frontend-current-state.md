@@ -41,6 +41,7 @@ Source-of-truth order:
 - Booking Board read-only slots
 - Manual booking creation
 - Booking details cancel / complete / no-show actions
+- Sprint 4 payment recording from confirmed booking details
 - Basic transactions API/list foundation
 
 ## Routing Highlights
@@ -74,9 +75,5 @@ Source-of-truth order:
 
 ## Known Next Tasks
 
-1. Use `selectedClubSlug` in `SchedulePage` instead of choosing the first active club.
-2. Use `selectedClubSlug` in `TransactionsListPage` instead of choosing the first active club.
-3. Show selected club name and a change-club action in `AppShell`.
-4. Remove the optional club slug input from `LoginPage` if backend no longer needs it.
-5. Continue payment recording from Booking Details only after club context is clean.
-6. Later: settlement, reports, audit logs, and pilot hardening.
+1. Remove the optional club slug input from `LoginPage` if backend no longer needs it.
+2. Payment gateway, settlement, reports, audit logs, and pilot hardening remain deferred.

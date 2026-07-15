@@ -10,6 +10,7 @@ export interface BookingDetailsSheetProps {
   error: string | null
   isSubmitting: boolean
   slot: ScheduleBooking
+  onAddPayment: (booking: BookingListItem) => void
   onCancel: (bookingId: number | string) => Promise<void>
   onComplete: (bookingId: number | string) => Promise<void>
   onClose: () => void
@@ -37,6 +38,7 @@ export function BookingDetailsSheet({
   dateLabel,
   error,
   isSubmitting,
+  onAddPayment,
   onCancel,
   onComplete,
   onClose,
@@ -150,6 +152,17 @@ export function BookingDetailsSheet({
         ) : null}
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {shouldShowActions && booking ? (
+            <AppButton
+              disabled={isSubmitting}
+              fullWidth
+              onClick={() => onAddPayment(booking)}
+              type="button"
+              variant="primary"
+            >
+              إضافة دفعة
+            </AppButton>
+          ) : null}
           {shouldShowActions ? (
             <AppButton
               disabled={isSubmitting}

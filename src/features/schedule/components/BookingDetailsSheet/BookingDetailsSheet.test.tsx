@@ -34,6 +34,7 @@ function renderBookingDetails(
       dateLabel="الخميس، ٢ يوليو"
       error={null}
       isSubmitting={false}
+      onAddPayment={vi.fn()}
       onCancel={vi.fn()}
       onComplete={vi.fn()}
       onClose={vi.fn()}
@@ -61,8 +62,19 @@ describe('BookingDetailsSheet', () => {
       screen.getByRole('button', { name: 'إلغاء الحجز' }),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'تسجيل دفع' }),
-    ).not.toBeInTheDocument()
+      screen.getByRole('button', { name: 'إضافة دفعة' }),
+    ).toBeInTheDocument()
+  })
+
+  it('calls onAddPayment from confirmed bookings', async () => {
+    const user = userEvent.setup()
+    const onAddPayment = vi.fn()
+
+    renderBookingDetails({ onAddPayment })
+
+    await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
+
+    expect(onAddPayment).toHaveBeenCalledWith(booking)
   })
 
   it('uses an inline confirm step before calling cancel', async () => {
@@ -166,6 +178,9 @@ describe('BookingDetailsSheet', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'إلغاء الحجز' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'إضافة دفعة' }),
     ).not.toBeInTheDocument()
   })
 })
