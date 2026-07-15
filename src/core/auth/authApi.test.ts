@@ -20,7 +20,8 @@ describe('authApi', () => {
       phone_number: null,
       is_active: true,
       is_platform_admin: false,
-      memberships: 'read-only backend shape',
+      requires_club_selection: false,
+      memberships: [],
     })
 
     await fetchCurrentUserProfile()

@@ -1,5 +1,7 @@
 import { Navigate, createBrowserRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage/LoginPage'
+import { ClubSelectionPage } from '../features/auth/ClubSelectionPage/ClubSelectionPage'
+import { NoClubAccessPage } from '../features/auth/NoClubAccessPage/NoClubAccessPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage/DashboardPage'
 import { SchedulePage } from '../features/schedule/SchedulePage/SchedulePage'
 import { ClubFormPage } from '../features/clubs/ClubFormPage/ClubFormPage'
@@ -29,8 +31,24 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
+    path: '/select-club',
     element: (
       <ProtectedRoute>
+        <ClubSelectionPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/no-club-access',
+    element: (
+      <ProtectedRoute>
+        <NoClubAccessPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    element: (
+      <ProtectedRoute enforceClubAccess>
         <AppShell />
       </ProtectedRoute>
     ),
@@ -38,7 +56,7 @@ export const router = createBrowserRouter([
       {
         path: '/dashboard',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
             <DashboardPage />
           </RoleRoute>
         ),

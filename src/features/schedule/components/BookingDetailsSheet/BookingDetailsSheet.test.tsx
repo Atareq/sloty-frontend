@@ -33,14 +33,11 @@ function renderBookingDetails(
       courtName="ملعب 1"
       dateLabel="الخميس، ٢ يوليو"
       error={null}
-      isPaymentSubmitting={false}
       isSubmitting={false}
       onCancel={vi.fn()}
       onComplete={vi.fn()}
       onClose={vi.fn()}
       onNoShow={vi.fn()}
-      onRecordPayment={vi.fn().mockResolvedValue(undefined)}
-      paymentError={null}
       slot={slot}
       {...props}
     />,
@@ -61,8 +58,11 @@ describe('BookingDetailsSheet', () => {
       screen.getByRole('button', { name: 'تسجيل عدم حضور' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'تسجيل دفع' }),
+      screen.getByRole('button', { name: 'إلغاء الحجز' }),
     ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تسجيل دفع' }),
+    ).not.toBeInTheDocument()
   })
 
   it('uses an inline confirm step before calling cancel', async () => {
@@ -97,6 +97,7 @@ describe('BookingDetailsSheet', () => {
     expect(
       screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'رجوع' })).toBeInTheDocument()
     expect(
       screen.getByText('سيتم اعتبار الحجز مكتملاً بعد التأكيد.'),
     ).toBeInTheDocument()
@@ -106,6 +107,24 @@ describe('BookingDetailsSheet', () => {
     )
 
     expect(onComplete).toHaveBeenCalledWith(10)
+  })
+
+  it('returns from an inline confirm step without calling the handler', async () => {
+    const user = userEvent.setup()
+    const onNoShow = vi.fn().mockResolvedValue(undefined)
+
+    renderBookingDetails({ onNoShow })
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل عدم حضور' }))
+    await user.click(screen.getByRole('button', { name: 'رجوع' }))
+
+    expect(onNoShow).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'تسجيل عدم حضور' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تأكيد عدم الحضور' }),
+    ).not.toBeInTheDocument()
   })
 
   it('uses an inline confirm step before calling no-show', async () => {
@@ -131,34 +150,22 @@ describe('BookingDetailsSheet', () => {
     expect(onNoShow).toHaveBeenCalledWith(10)
   })
 
-  it('opens payment recording for confirmed bookings', async () => {
-    const user = userEvent.setup()
-    const onRecordPayment = vi.fn().mockResolvedValue(undefined)
-
-    renderBookingDetails({ onRecordPayment })
-
-    await user.click(screen.getByRole('button', { name: 'تسجيل دفع' }))
-    await user.type(screen.getByLabelText('المبلغ'), '150')
-    await user.click(screen.getAllByRole('button', { name: 'تسجيل الدفع' })[0])
-
-    expect(onRecordPayment).toHaveBeenCalledWith(10, {
-      amount: '150',
-      payment_method: 'CASH',
-      reference: undefined,
-      notes: undefined,
-    })
-  })
-
-  it('hides payment recording for non-confirmed bookings', () => {
+  it('hides lifecycle actions for cancelled bookings', () => {
     renderBookingDetails({
       booking: {
         ...booking,
-        status: 'COMPLETED',
+        status: 'CANCELLED',
       },
     })
 
     expect(
-      screen.queryByRole('button', { name: 'تسجيل دفع' }),
+      screen.queryByRole('button', { name: 'إكمال الحجز' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تسجيل عدم حضور' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'إلغاء الحجز' }),
     ).not.toBeInTheDocument()
   })
 })

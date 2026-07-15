@@ -16,13 +16,21 @@ export interface RoleRouteProps {
  * frontend landing page. It is not a backend authorization boundary.
  */
 export function RoleRoute({ allowedRoles, children }: RoleRouteProps) {
-  const { isAuthenticated, isLoadingSession, role } = useAuth()
+  const { isAuthenticated, isLoadingSession, role, selectedClubSlug } = useAuth()
 
   if (isLoadingSession) {
     return <p className="p-4 text-sm font-semibold">جاري تحميل الجلسة...</p>
   }
 
-  if (!isAuthenticated || !role) {
+  if (!isAuthenticated) {
+    return <Navigate replace to="/login" />
+  }
+
+  if (!role && !selectedClubSlug) {
+    return <Navigate replace to="/select-club" />
+  }
+
+  if (!role) {
     return <Navigate replace to="/login" />
   }
 

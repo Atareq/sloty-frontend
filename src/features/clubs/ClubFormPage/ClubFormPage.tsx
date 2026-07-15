@@ -198,15 +198,20 @@ export function ClubFormPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        tone="brand"
         actions={
-          <Link to="/admin/clubs">
-            <AppButton variant="secondary">العودة للأندية</AppButton>
+          <Link
+            className="w-full sm:w-auto"
+            to="/admin/clubs"
+          >
+            <AppButton fullWidth variant="secondary">
+              العودة للأندية
+            </AppButton>
           </Link>
         }
         description="بيانات النادي الأساسية وأعلام صلاحيات المدير."
         title={title}
       />
-
       <AppCard>
         {isLoading || isLocationsLoading ? (
           <p className="text-sm text-[var(--sloty-text-muted)]">

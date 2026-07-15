@@ -22,7 +22,27 @@ const currentUserProfile = {
   phone_number: null,
   is_active: true,
   is_platform_admin: false,
-  memberships: 'read-only backend shape',
+  requires_club_selection: false,
+  memberships: [
+    {
+      id: 10,
+      role: 'STAFF' as const,
+      club: {
+        id: 1,
+        slug: 'demo-football-club',
+        name: 'Demo Football Club',
+        is_active: true,
+      },
+      court: { id: 3, name: 'Court 1' },
+    },
+  ],
+}
+
+const platformAdminProfile = {
+  ...currentUserProfile,
+  is_platform_admin: true,
+  requires_club_selection: false,
+  memberships: [],
 }
 
 function renderRoleRoute() {
@@ -31,7 +51,7 @@ function renderRoleRoute() {
       <MemoryRouter initialEntries={['/admin-only']}>
         <Routes>
           <Route element={<p>صفحة تسجيل الدخول</p>} path="/login" />
-          <Route element={<p>جدول الموظف</p>} path="/schedule" />
+          <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
           <Route
             element={
               <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
@@ -58,12 +78,12 @@ describe('RoleRoute', () => {
 
     renderRoleRoute()
 
-    expect(await screen.findByText('جدول الموظف')).toBeInTheDocument()
+    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
   })
 
   it('allows authorized roles', async () => {
     setAccessToken(createDevAccessToken('PLATFORM_ADMIN'))
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(currentUserProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(platformAdminProfile)
 
     renderRoleRoute()
 

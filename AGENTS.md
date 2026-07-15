@@ -66,7 +66,13 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Decode access tokens in the auth utility/provider layer only.
 - `AuthProvider` owns session hydration and current-user profile loading from `apiEndpoints.auth.me`.
 - Components should use `useAuth().currentUser` for displayed user profile data when available.
-- Do not parse or build feature logic from `/me` memberships until the response shape is confirmed.
+- `/me` is the post-login source of authenticated user context.
+- `/me` memberships are confirmed and used for frontend club-selection UX.
+- Store only `selectedClubSlug` persistently; do not store full memberships or permissions as trusted authority.
+- If `/me` returns one membership, auto-select its club slug.
+- If `/me` returns multiple memberships, show `/select-club`.
+- If `/me` returns no memberships and the user is not platform admin, show `/no-club-access`.
+- Backend remains the source of truth for permissions; do not trust frontend-selected club context without backend verification.
 - Sprint 2A clubs/courts setup API calls must go through feature wrappers such as `clubsApi` and `courtsApi`.
 - Sprint 2B court working-hours setup lives inside the courts feature; keep it separate from booking-slot generation.
 - Court working-hours setup API calls belong in the courts feature wrapper/component.
@@ -75,12 +81,16 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 3B creates bookings only from available/cancelled Booking Board slots.
 - Sprint 3C adds confirmed booking details and cancel action only.
 - Sprint 3D adds complete/no-show actions from confirmed booking details only.
-- Sprint 4 adds basic transaction listing and confirmed-booking payment recording through `apiEndpoints.clubs.transactions`; keep settlement, reports, charts, and owner financial dashboards deferred.
+- Sprint 4 adds basic transaction listing and transaction API/form primitives through `apiEndpoints.clubs.transactions`; keep Booking Details lifecycle-only unless payment recording is explicitly requested again, and keep settlement, reports, charts, and owner financial dashboards deferred.
 - Expire and non-transaction financial actions are deferred to later sprints.
 - Overnight working-hour ranges are deferred unless explicitly requested.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 - Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.
+- Every new page must use the repo shared `PageHeader` by default unless there is a clear reason not to.
+- Do not create custom page headers when `PageHeader` fits the use case.
+- Keep one Sloty visual fingerprint across the project: Arabic-first, RTL-first, mobile-first, green brand system, rounded cards, shared `AppCard`/`AppButton` patterns, consistent spacing, and responsive layouts.
+- Any new page must look like part of the same product, not a separate prototype.
 
 ## Change Review
 

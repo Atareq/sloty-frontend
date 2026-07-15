@@ -53,13 +53,13 @@ export function decodeAccessToken(token: string | null): AuthClaims | null {
 
   const payload = decodeJwtPayload(token)
 
-  if (!payload || typeof payload.user_id !== 'number' || !isAuthRole(payload.role)) {
+  if (!payload || typeof payload.user_id !== 'number') {
     return null
   }
 
   return {
     user_id: payload.user_id,
-    role: payload.role,
+    role: isAuthRole(payload.role) ? payload.role : undefined,
     name: typeof payload.name === 'string' ? payload.name : undefined,
     club_id: typeof payload.club_id === 'number' ? payload.club_id : undefined,
     court_id:

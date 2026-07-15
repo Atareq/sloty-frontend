@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { getDefaultRouteForRole } from '../../../core/auth/auth.types'
 import { loginWithPassword } from '../../../core/auth/authApi'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -58,14 +57,8 @@ export function LoginPage() {
           ? { club_slug: formState.clubSlug.trim() }
           : {}),
       })
-      const role = login(tokens.access, tokens.refresh)
-
-      if (!role) {
-        setError('تم تسجيل الدخول لكن بيانات الصلاحية غير صالحة')
-        return
-      }
-
-      navigate(getDefaultRouteForRole(role))
+      login(tokens.access, tokens.refresh)
+      navigate('/')
     } catch {
       setError('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى')
     } finally {

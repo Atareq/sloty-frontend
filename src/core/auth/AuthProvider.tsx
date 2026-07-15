@@ -16,6 +16,11 @@ import {
   setAccessToken,
   setRefreshToken,
 } from './authStorage'
+import {
+  clearSelectedClubSlug,
+  getSelectedClubSlug,
+  saveSelectedClubSlug,
+} from './selectedClubStorage'
 import { decodeAccessToken, isJwtExpired } from './tokenUtils'
 
 function getClaims(accessToken: string | null): AuthClaims | null {
@@ -41,17 +46,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
     getAccessToken(),
   )
   const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null)
+  const [selectedClubSlug, setSelectedClubSlugState] = useState<string | null>(
+    () => getSelectedClubSlug(),
+  )
   const [isLoadingSession, setIsLoadingSession] = useState(hasUsableStoredToken)
   const [sessionError, setSessionError] = useState<string | null>(null)
   const claims = useMemo(() => getClaims(accessToken), [accessToken])
-  const role: AuthRole | null = claims?.role ?? null
   const isTokenExpired = isJwtExpired(claims)
   const isAuthenticated = Boolean(accessToken && claims && !isTokenExpired)
+  const selectedMembership = useMemo(() => {
+    if (!currentUser || !selectedClubSlug) {
+      return null
+    }
+
+    return (
+      currentUser.memberships.find(
+        (membership) => membership.club.slug === selectedClubSlug,
+      ) ?? null
+    )
+  }, [currentUser, selectedClubSlug])
+  const role: AuthRole | null = useMemo(() => {
+    if (currentUser?.is_platform_admin) {
+      return 'PLATFORM_ADMIN'
+    }
+
+    return selectedMembership?.role ?? claims?.role ?? null
+  }, [claims, currentUser, selectedMembership])
 
   const clearSession = useCallback((): void => {
     clearAuthTokens()
+    clearSelectedClubSlug()
     setAccessTokenState(null)
     setCurrentUser(null)
+    setSelectedClubSlugState(null)
     setSessionError(null)
     setIsLoadingSession(false)
   }, [])
@@ -61,7 +88,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setRefreshToken(tokens.refreshToken)
     setCurrentUser(null)
     setSessionError(null)
+    setIsLoadingSession(true)
     setAccessTokenState(tokens.accessToken)
+  }, [])
+
+  const clearSelectedClub = useCallback((): void => {
+    clearSelectedClubSlug()
+    setSelectedClubSlugState(null)
+  }, [])
+
+  const selectClub = useCallback((slug: string): void => {
+    saveSelectedClubSlug(slug)
+    setSelectedClubSlugState(slug)
   }, [])
 
   const refreshCurrentUser = useCallback(async (): Promise<void> => {
@@ -105,6 +143,41 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [accessToken, claims, clearSession])
 
   useEffect(() => {
+    if (!currentUser || currentUser.is_platform_admin) {
+      return
+    }
+
+    const memberships = currentUser.memberships
+
+    if (memberships.length === 0) {
+      queueMicrotask(() => {
+        clearSelectedClub()
+      })
+      return
+    }
+
+    if (memberships.length === 1) {
+      const [membership] = memberships
+      if (selectedClubSlug !== membership.club.slug) {
+        queueMicrotask(() => {
+          selectClub(membership.club.slug)
+        })
+      }
+      return
+    }
+
+    const hasSelectedMembership = memberships.some(
+      (membership) => membership.club.slug === selectedClubSlug,
+    )
+
+    if (selectedClubSlug && !hasSelectedMembership) {
+      queueMicrotask(() => {
+        clearSelectedClub()
+      })
+    }
+  }, [clearSelectedClub, currentUser, selectClub, selectedClubSlug])
+
+  useEffect(() => {
     if (!accessToken) {
       return
     }
@@ -135,7 +208,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         refreshToken: nextRefreshToken,
       })
 
-      return nextClaims.role
+      return nextClaims.role ?? null
     },
     [setTokens],
   )
@@ -150,6 +223,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       accessToken,
       claims,
       currentUser,
+      selectedClubSlug,
+      selectedMembership,
       role,
       isAuthenticated,
       isLoadingSession,
@@ -157,12 +232,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       sessionError,
       login,
       logout,
+      selectClub,
+      clearSelectedClub,
       refreshCurrentUser,
       setTokens,
     }),
     [
       accessToken,
       claims,
+      clearSelectedClub,
       currentUser,
       isAuthenticated,
       isLoadingSession,
@@ -171,6 +249,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logout,
       refreshCurrentUser,
       role,
+      selectClub,
+      selectedClubSlug,
+      selectedMembership,
       sessionError,
       setTokens,
     ],

@@ -27,8 +27,6 @@ import {
   markBookingNoShow,
 } from '../scheduleApi'
 import type { BookingListItem } from '../scheduleApi.types'
-import { createTransaction } from '../../transactions/transactionsApi'
-import type { RecordPaymentSheetValues } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 
 const statusLegend = [
   {
@@ -102,8 +100,6 @@ export function SchedulePage() {
   const [bookingActionError, setBookingActionError] = useState<string | null>(
     null,
   )
-  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
-  const [paymentError, setPaymentError] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
     dateFilters[0].date
@@ -343,37 +339,11 @@ export function SchedulePage() {
     }
   }
 
-  async function handleRecordPayment(
-    bookingId: number,
-    values: RecordPaymentSheetValues,
-  ): Promise<void> {
-    if (!selectedClub || !selectedCourt) {
-      return
-    }
-
-    setIsPaymentSubmitting(true)
-    setPaymentError(null)
-
-    try {
-      await createTransaction(selectedClub.slug, {
-        booking: bookingId,
-        ...values,
-      })
-      await reloadBookings()
-    } catch {
-      setPaymentError('تعذر تسجيل الدفع. حاول مرة أخرى')
-      throw new Error('Unable to record booking payment')
-    } finally {
-      setIsPaymentSubmitting(false)
-    }
-  }
-
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
     setSelectedSlot(null)
     setCreateError(null)
     setBookingActionError(null)
-    setPaymentError(null)
   }
 
   function handleDateChange(nextDateKey: string): void {
@@ -381,7 +351,6 @@ export function SchedulePage() {
     setSelectedSlot(null)
     setCreateError(null)
     setBookingActionError(null)
-    setPaymentError(null)
   }
 
   const scheduleCourt = {
@@ -563,12 +532,8 @@ export function SchedulePage() {
           onClose={() => {
             setSelectedSlot(null)
             setBookingActionError(null)
-            setPaymentError(null)
           }}
           onNoShow={handleNoShowBooking}
-          onRecordPayment={handleRecordPayment}
-          paymentError={paymentError}
-          isPaymentSubmitting={isPaymentSubmitting}
           slot={selectedSlot}
         />
       ) : null}

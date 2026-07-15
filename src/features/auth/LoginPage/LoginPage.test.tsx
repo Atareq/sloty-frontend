@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../../../core/auth/AuthProvider'
+import { AuthLandingRedirect } from '../../../core/auth/AuthLandingRedirect'
 import {
   fetchCurrentUserProfile,
   loginWithPassword,
@@ -31,7 +32,20 @@ const currentUserProfile = {
   phone_number: null,
   is_active: true,
   is_platform_admin: false,
-  memberships: 'read-only backend shape',
+  requires_club_selection: false,
+  memberships: [
+    {
+      id: 10,
+      role: 'STAFF' as const,
+      club: {
+        id: 1,
+        slug: 'demo-football-club',
+        name: 'Demo Football Club',
+        is_active: true,
+      },
+      court: { id: 3, name: 'Court 1' },
+    },
+  ],
 }
 
 function renderLoginPage() {
@@ -49,8 +63,9 @@ function renderLoginPageWithRoutes() {
     <AuthProvider>
       <MemoryRouter initialEntries={['/login']}>
         <Routes>
+          <Route element={<AuthLandingRedirect />} path="/" />
           <Route element={<LoginPage />} path="/login" />
-          <Route element={<p>صفحة الجدول</p>} path="/schedule" />
+          <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
@@ -122,7 +137,7 @@ describe('LoginPage', () => {
       password: 'secret-pass',
       club_slug: 'nasr-club',
     })
-    expect(await screen.findByText('صفحة الجدول')).toBeInTheDocument()
+    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
     expect(getAccessToken()).toBe(accessToken)
     expect(getRefreshToken()).toBe('refresh-token')
   })
@@ -144,7 +159,7 @@ describe('LoginPage', () => {
     expect(
       await screen.findByText('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى'),
     ).toBeInTheDocument()
-    expect(screen.queryByText('صفحة الجدول')).not.toBeInTheDocument()
+    expect(screen.queryByText('لوحة التحكم')).not.toBeInTheDocument()
     expect(getAccessToken()).toBeNull()
   })
 })

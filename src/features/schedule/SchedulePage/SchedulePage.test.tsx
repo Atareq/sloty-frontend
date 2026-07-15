@@ -12,7 +12,6 @@ import {
   listBookingsForCourtDay,
   markBookingNoShow,
 } from '../scheduleApi'
-import { createTransaction } from '../../transactions/transactionsApi'
 import { SchedulePage } from './SchedulePage'
 
 vi.mock('../../clubs/clubsApi', () => ({
@@ -35,10 +34,6 @@ vi.mock('../scheduleApi', () => ({
   markBookingNoShow: vi.fn(),
 }))
 
-vi.mock('../../transactions/transactionsApi', () => ({
-  createTransaction: vi.fn(),
-}))
-
 const mockedListClubs = vi.mocked(listClubs)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedListCourtWorkingHours = vi.mocked(listCourtWorkingHours)
@@ -47,7 +42,6 @@ const mockedCreateBooking = vi.mocked(createBooking)
 const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedMarkBookingNoShow = vi.mocked(markBookingNoShow)
-const mockedCreateTransaction = vi.mocked(createTransaction)
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -164,12 +158,6 @@ function mockScheduleApiData(): void {
     end_time: `${today}T07:00:00`,
     status: 'CONFIRMED',
   })
-  mockedCreateTransaction.mockResolvedValue({
-    id: 30,
-    booking: 10,
-    amount: '150',
-    payment_method: 'CASH',
-  })
 }
 
 describe('SchedulePage', () => {
@@ -259,6 +247,9 @@ describe('SchedulePage', () => {
       .toBeInTheDocument()
     expect(screen.getByText('أحمد علي')).toBeInTheDocument()
     expect(screen.getByText('01000000000')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تسجيل دفع' }),
+    ).not.toBeInTheDocument()
   })
 
   it('cancels a confirmed booking and reloads bookings', async () => {
@@ -324,33 +315,6 @@ describe('SchedulePage', () => {
     })
     expect(
       screen.queryByRole('heading', { name: 'حجز مؤكد' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('records payment for a confirmed booking and reloads bookings', async () => {
-    const user = userEvent.setup()
-
-    render(<SchedulePage />)
-
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
-    await user.click(screen.getByRole('button', { name: 'تسجيل دفع' }))
-    await user.type(screen.getByLabelText('المبلغ'), '150')
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدفع' }))
-
-    await waitFor(() => {
-      expect(mockedCreateTransaction).toHaveBeenCalledWith('nasr-club', {
-        booking: 10,
-        amount: '150',
-        payment_method: 'CASH',
-        reference: undefined,
-        notes: undefined,
-      })
-    })
-    await waitFor(() => {
-      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
-    })
-    expect(
-      screen.queryByRole('heading', { name: 'تسجيل دفع' }),
     ).not.toBeInTheDocument()
   })
 })

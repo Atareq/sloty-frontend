@@ -43,8 +43,17 @@ describe('tokenUtils', () => {
     expect(decodeJwtPayload('not-a-jwt')).toBeNull()
     expect(decodeAccessToken('not-a-jwt')).toBeNull()
     expect(
-      decodeAccessToken(createJwt({ user_id: 7, role: 'unknown_role' })),
+      decodeAccessToken(createJwt({ role: 'STAFF' })),
     ).toBeNull()
+  })
+
+  it('keeps the token usable when role is absent or unrecognized', () => {
+    expect(
+      decodeAccessToken(createJwt({ user_id: 7, role: 'unknown_role' })),
+    ).toMatchObject({
+      user_id: 7,
+      role: undefined,
+    })
   })
 
   it('detects expired tokens from past exp claims', () => {
