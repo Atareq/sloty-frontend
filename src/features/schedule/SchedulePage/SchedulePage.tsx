@@ -17,6 +17,7 @@ import {
   RecordPaymentSheet,
   type RecordPaymentSheetValues,
 } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
+import { RescheduleBookingSheet } from '../components/RescheduleBookingSheet/RescheduleBookingSheet'
 import {
   createDateFilterOptions,
   formatBookingDateTime,
@@ -30,6 +31,7 @@ import {
   createBooking,
   listBookingsForCourtDay,
   markBookingNoShow,
+  rescheduleBooking,
 } from '../scheduleApi'
 import type { BookingListItem } from '../scheduleApi.types'
 
@@ -113,6 +115,10 @@ export function SchedulePage() {
   )
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [rescheduleBookingTarget, setRescheduleBookingTarget] =
+    useState<BookingListItem | null>(null)
+  const [isRescheduleSubmitting, setIsRescheduleSubmitting] = useState(false)
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
     dateFilters[0].date
@@ -375,22 +381,50 @@ export function SchedulePage() {
     }
   }
 
+  async function handleRescheduleBooking(slot: ScheduleBooking): Promise<void> {
+    if (!selectedClubSlug || !selectedCourt || !rescheduleBookingTarget) {
+      return
+    }
+
+    setIsRescheduleSubmitting(true)
+    setRescheduleError(null)
+
+    try {
+      await rescheduleBooking(selectedClubSlug, rescheduleBookingTarget.id, {
+        court: selectedCourt.id,
+        start_time: formatBookingDateTime(selectedDate, slot.startTime),
+        end_time: formatBookingDateTime(selectedDate, slot.endTime),
+      })
+      setRescheduleBookingTarget(null)
+      setSelectedSlot(null)
+      await reloadBookings()
+    } catch {
+      setRescheduleError('تعذر تغيير الموعد. تأكد أن الموعد متاح وحاول مرة أخرى')
+    } finally {
+      setIsRescheduleSubmitting(false)
+    }
+  }
+
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
     setSelectedSlot(null)
     setPaymentBooking(null)
+    setRescheduleBookingTarget(null)
     setCreateError(null)
     setBookingActionError(null)
     setPaymentError(null)
+    setRescheduleError(null)
   }
 
   function handleDateChange(nextDateKey: string): void {
     setActiveDateKey(nextDateKey)
     setSelectedSlot(null)
     setPaymentBooking(null)
+    setRescheduleBookingTarget(null)
     setCreateError(null)
     setBookingActionError(null)
     setPaymentError(null)
+    setRescheduleError(null)
   }
 
   const scheduleCourt = {
@@ -578,8 +612,14 @@ export function SchedulePage() {
             setBookingActionError(null)
             setPaymentBooking(null)
             setPaymentError(null)
+            setRescheduleBookingTarget(null)
+            setRescheduleError(null)
           }}
           onNoShow={handleNoShowBooking}
+          onReschedule={(booking) => {
+            setRescheduleBookingTarget(booking)
+            setRescheduleError(null)
+          }}
           slot={selectedSlot}
         />
       ) : null}
@@ -594,6 +634,23 @@ export function SchedulePage() {
             setPaymentError(null)
           }}
           onSubmit={handleRecordPayment}
+        />
+      ) : null}
+
+      {rescheduleBookingTarget && selectedCourt ? (
+        <RescheduleBookingSheet
+          bookingId={rescheduleBookingTarget.id}
+          courtName={selectedCourt.name}
+          currentSlotId={selectedSlot?.id}
+          dateLabel={scheduleCourt.dateLabel}
+          error={rescheduleError}
+          isSubmitting={isRescheduleSubmitting}
+          onClose={() => {
+            setRescheduleBookingTarget(null)
+            setRescheduleError(null)
+          }}
+          onSubmit={handleRescheduleBooking}
+          slots={slots}
         />
       ) : null}
     </div>

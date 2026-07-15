@@ -8,6 +8,7 @@ import {
   createBooking,
   listBookingsForCourtDay,
   markBookingNoShow,
+  rescheduleBooking,
 } from './scheduleApi'
 
 vi.mock('../../core/api/apiClient', () => ({
@@ -67,6 +68,30 @@ describe('scheduleApi', () => {
       apiEndpoints.clubs.bookings.list('nasr-club'),
       {
         method: 'POST',
+        body: payload,
+      },
+    )
+  })
+
+  it('reschedules bookings through the shared detail endpoint with PATCH', async () => {
+    const payload = {
+      court: 3,
+      start_time: '2026-07-02T20:00:00',
+      end_time: '2026-07-02T21:00:00',
+    }
+
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 20,
+      ...payload,
+      status: 'CONFIRMED',
+    })
+
+    await rescheduleBooking('nasr-club', 20, payload)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.detail('nasr-club', 20),
+      {
+        method: 'PATCH',
         body: payload,
       },
     )

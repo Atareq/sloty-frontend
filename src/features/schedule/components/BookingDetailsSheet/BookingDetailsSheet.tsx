@@ -15,6 +15,7 @@ export interface BookingDetailsSheetProps {
   onComplete: (bookingId: number | string) => Promise<void>
   onClose: () => void
   onNoShow: (bookingId: number | string) => Promise<void>
+  onReschedule: (booking: BookingListItem) => void
 }
 
 const statusLabelByStatus: Record<BookingListItem['status'], string> = {
@@ -43,6 +44,7 @@ export function BookingDetailsSheet({
   onComplete,
   onClose,
   onNoShow,
+  onReschedule,
   slot,
 }: BookingDetailsSheetProps) {
   const [confirmingAction, setConfirmingAction] = useState<
@@ -161,6 +163,17 @@ export function BookingDetailsSheet({
               variant="primary"
             >
               إضافة دفعة
+            </AppButton>
+          ) : null}
+          {shouldShowActions && booking ? (
+            <AppButton
+              disabled={isSubmitting}
+              fullWidth
+              onClick={() => onReschedule(booking)}
+              type="button"
+              variant="secondary"
+            >
+              تغيير الموعد
             </AppButton>
           ) : null}
           {shouldShowActions ? (

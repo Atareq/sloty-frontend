@@ -5,6 +5,7 @@ import type {
   BookingCreatePayload,
   BookingListItem,
   BookingListParams,
+  BookingReschedulePayload,
 } from './scheduleApi.types'
 
 export function buildBookingListPath(
@@ -48,9 +49,28 @@ export function createBooking(
 }
 
 /**
+ * Updates a booking's court/time using the existing detail PATCH endpoint.
+ *
+ * Backend validation remains authoritative for overlap and permissions.
+ */
+export function rescheduleBooking(
+  clubSlug: string,
+  bookingId: number | string,
+  payload: BookingReschedulePayload,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(
+    apiEndpoints.clubs.bookings.detail(clubSlug, bookingId),
+    {
+      method: 'PATCH',
+      body: payload,
+    },
+  )
+}
+
+/**
  * Cancels a confirmed booking from the Booking Details sheet.
  *
- * Expire and payment flows are intentionally deferred.
+ * Expire remains deferred; payment recording lives in transactions APIs.
  */
 export function cancelBooking(
   clubSlug: string,

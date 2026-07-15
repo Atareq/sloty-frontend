@@ -26,6 +26,12 @@ export interface BookingCreatePayload {
   notes?: string
 }
 
+export interface BookingReschedulePayload {
+  court: number
+  start_time: string
+  end_time: string
+}
+
 export interface BookingListParams {
   court: number | string
   date: string

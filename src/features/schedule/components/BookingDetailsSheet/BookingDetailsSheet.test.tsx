@@ -39,6 +39,7 @@ function renderBookingDetails(
       onComplete={vi.fn()}
       onClose={vi.fn()}
       onNoShow={vi.fn()}
+      onReschedule={vi.fn()}
       slot={slot}
       {...props}
     />,
@@ -64,6 +65,9 @@ describe('BookingDetailsSheet', () => {
     expect(
       screen.getByRole('button', { name: 'إضافة دفعة' }),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'تغيير الموعد' }),
+    ).toBeInTheDocument()
   })
 
   it('calls onAddPayment from confirmed bookings', async () => {
@@ -75,6 +79,17 @@ describe('BookingDetailsSheet', () => {
     await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
 
     expect(onAddPayment).toHaveBeenCalledWith(booking)
+  })
+
+  it('calls onReschedule from confirmed bookings', async () => {
+    const user = userEvent.setup()
+    const onReschedule = vi.fn()
+
+    renderBookingDetails({ onReschedule })
+
+    await user.click(screen.getByRole('button', { name: 'تغيير الموعد' }))
+
+    expect(onReschedule).toHaveBeenCalledWith(booking)
   })
 
   it('uses an inline confirm step before calling cancel', async () => {
@@ -181,6 +196,9 @@ describe('BookingDetailsSheet', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'إضافة دفعة' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تغيير الموعد' }),
     ).not.toBeInTheDocument()
   })
 })

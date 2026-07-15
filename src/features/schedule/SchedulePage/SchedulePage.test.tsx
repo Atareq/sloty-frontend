@@ -11,6 +11,7 @@ import {
   createBooking,
   listBookingsForCourtDay,
   markBookingNoShow,
+  rescheduleBooking,
 } from '../scheduleApi'
 import { createTransaction } from '../../transactions/transactionsApi'
 import { SchedulePage } from './SchedulePage'
@@ -33,6 +34,7 @@ vi.mock('../scheduleApi', () => ({
   createBooking: vi.fn(),
   listBookingsForCourtDay: vi.fn(),
   markBookingNoShow: vi.fn(),
+  rescheduleBooking: vi.fn(),
 }))
 
 vi.mock('../../transactions/transactionsApi', () => ({
@@ -47,6 +49,7 @@ const mockedCreateBooking = vi.mocked(createBooking)
 const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedMarkBookingNoShow = vi.mocked(markBookingNoShow)
+const mockedRescheduleBooking = vi.mocked(rescheduleBooking)
 const mockedCreateTransaction = vi.mocked(createTransaction)
 
 function paginatedResponse<T>(results: T[]) {
@@ -210,6 +213,15 @@ function mockScheduleApiData(): void {
     amount: '150',
     payment_method: 'CASH',
   })
+  mockedRescheduleBooking.mockResolvedValue({
+    id: 10,
+    court: 7,
+    customer_name: 'أحمد علي',
+    customer_phone: '01000000000',
+    start_time: `${today}T08:00:00`,
+    end_time: `${today}T09:00:00`,
+    status: 'CONFIRMED',
+  })
 }
 
 describe('SchedulePage', () => {
@@ -324,6 +336,56 @@ describe('SchedulePage', () => {
     expect(screen.getByText('01000000000')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'إضافة دفعة' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'تغيير الموعد' }),
+    ).toBeInTheDocument()
+  })
+
+  it('reschedules a confirmed booking and reloads bookings', async () => {
+    const user = userEvent.setup()
+    const today = createDateFilterOptions()[0].date
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'تغيير الموعد' }))
+    await user.click(screen.getByRole('button', { name: '08:00 - 09:00' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد تغيير الموعد' }))
+
+    await waitFor(() => {
+      expect(mockedRescheduleBooking).toHaveBeenCalledWith('nasr-club', 10, {
+        court: 7,
+        start_time: `${today}T08:00:00`,
+        end_time: `${today}T09:00:00`,
+      })
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'تغيير الموعد' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'حجز مؤكد' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows an Arabic error when reschedule fails', async () => {
+    const user = userEvent.setup()
+    mockedRescheduleBooking.mockRejectedValueOnce(new Error('Overlap'))
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(screen.getByRole('button', { name: 'تغيير الموعد' }))
+    await user.click(screen.getByRole('button', { name: '08:00 - 09:00' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد تغيير الموعد' }))
+
+    expect(
+      await screen.findByText(
+        'تعذر تغيير الموعد. تأكد أن الموعد متاح وحاول مرة أخرى',
+      ),
     ).toBeInTheDocument()
   })
 
