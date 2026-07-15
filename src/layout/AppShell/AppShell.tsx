@@ -24,11 +24,20 @@ function getUserDisplayName(
  * navigation as a bottom bar, keeping navigation rules in one shared config.
  */
 export function AppShell() {
-  const { claims, currentUser, logout, role } = useAuth()
+  const {
+    claims,
+    clearSelectedClub,
+    currentUser,
+    logout,
+    role,
+    selectedMembership,
+  } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const desktopItems = role ? getNavigationItemsForRole(role) : []
   const displayName = getUserDisplayName(currentUser, claims?.name)
+  const selectedClubName = selectedMembership?.club.name ?? null
+  const canChangeClub = (currentUser?.memberships.length ?? 0) > 1
   const mobileItems = role
     ? getNavigationItemsForRole(role, { mobileOnly: true }).map((item) => ({
         key: item.path,
@@ -41,6 +50,11 @@ export function AppShell() {
   function handleLogout(): void {
     logout()
     navigate('/login')
+  }
+
+  function handleChangeClub(): void {
+    clearSelectedClub()
+    navigate('/select-club')
   }
 
   function handleMobileNavigation(nextPath: string): void {
@@ -61,7 +75,23 @@ export function AppShell() {
           <p className="mt-1 text-xs leading-5 text-white/78">
             {displayName}
           </p>
+          {selectedClubName ? (
+            <p className="mt-3 rounded-2xl bg-white/12 px-3 py-2 text-xs font-bold leading-5 text-white">
+              النادي الحالي: {selectedClubName}
+            </p>
+          ) : null}
         </div>
+
+        {canChangeClub ? (
+          <AppButton
+            className="mt-3 border-white/20 bg-white/10 text-white hover:bg-white/16"
+            fullWidth
+            onClick={handleChangeClub}
+            variant="secondary"
+          >
+            تغيير النادي
+          </AppButton>
+        ) : null}
 
         <nav aria-label="تنقل التطبيق" className="mt-5 flex flex-1 flex-col gap-1">
           {desktopItems.map((item) => (
@@ -97,12 +127,21 @@ export function AppShell() {
               Sloty
             </p>
             <p className="text-xs text-[var(--sloty-text-muted)]">
-              {displayName}
+              {selectedClubName
+                ? `النادي الحالي: ${selectedClubName}`
+                : displayName}
             </p>
           </div>
-          <AppButton onClick={handleLogout} variant="secondary">
-            خروج
-          </AppButton>
+          <div className="flex items-center gap-2">
+            {canChangeClub ? (
+              <AppButton onClick={handleChangeClub} variant="secondary">
+                تغيير النادي
+              </AppButton>
+            ) : null}
+            <AppButton onClick={handleLogout} variant="secondary">
+              خروج
+            </AppButton>
+          </div>
         </div>
       </header>
 

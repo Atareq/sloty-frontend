@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listClubs } from '../../clubs/clubsApi'
+import { useAuth } from '../../../core/auth/useAuth'
 import { listCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
 import { listCourts } from '../../courts/courtsApi'
 import { createDateFilterOptions, getWeekdayFromDateValue } from '../scheduleBoard.helpers'
@@ -14,8 +14,8 @@ import {
 } from '../scheduleApi'
 import { SchedulePage } from './SchedulePage'
 
-vi.mock('../../clubs/clubsApi', () => ({
-  listClubs: vi.fn(),
+vi.mock('../../../core/auth/useAuth', () => ({
+  useAuth: vi.fn(),
 }))
 
 vi.mock('../../courts/courtsApi', () => ({
@@ -34,7 +34,7 @@ vi.mock('../scheduleApi', () => ({
   markBookingNoShow: vi.fn(),
 }))
 
-const mockedListClubs = vi.mocked(listClubs)
+const mockedUseAuth = vi.mocked(useAuth)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedListCourtWorkingHours = vi.mocked(listCourtWorkingHours)
 const mockedListBookingsForCourtDay = vi.mocked(listBookingsForCourtDay)
@@ -55,19 +55,59 @@ function paginatedResponse<T>(results: T[]) {
 function mockScheduleApiData(): void {
   const today = createDateFilterOptions()[0].date
 
-  mockedListClubs.mockResolvedValue(
-    paginatedResponse([
-      {
+  mockedUseAuth.mockReturnValue({
+    accessToken: 'token',
+    claims: { user_id: 1 },
+    currentUser: {
+      id: 1,
+      username: 'staff-user',
+      email: 'staff@example.com',
+      first_name: 'أحمد',
+      last_name: 'علي',
+      phone_number: null,
+      is_active: true,
+      is_platform_admin: false,
+      requires_club_selection: false,
+      memberships: [
+        {
+          id: 10,
+          role: 'STAFF',
+          club: {
+            id: 1,
+            name: 'نادي النصر',
+            slug: 'nasr-club',
+            city: 'ASSIUT',
+            is_active: true,
+          },
+          court: { id: 7, name: 'ملعب 1' },
+        },
+      ],
+    },
+    selectedClubSlug: 'nasr-club',
+    selectedMembership: {
+      id: 10,
+      role: 'STAFF',
+      club: {
         id: 1,
         name: 'نادي النصر',
         slug: 'nasr-club',
-        city: 'أسيوط',
+        city: 'ASSIUT',
         is_active: true,
-        manager_can_settle_transactions: false,
-        manager_can_change_pricing: false,
       },
-    ]),
-  )
+      court: { id: 7, name: 'ملعب 1' },
+    },
+    role: 'STAFF',
+    isAuthenticated: true,
+    isLoadingSession: false,
+    isTokenExpired: false,
+    sessionError: null,
+    login: vi.fn(),
+    logout: vi.fn(),
+    selectClub: vi.fn(),
+    clearSelectedClub: vi.fn(),
+    refreshCurrentUser: vi.fn(),
+    setTokens: vi.fn(),
+  })
   mockedListCourts.mockResolvedValue(
     paginatedResponse([
       {
@@ -177,6 +217,29 @@ describe('SchedulePage', () => {
     expect(
       await screen.findByRole('button', { name: '06:00 متاح' }),
     ).toBeInTheDocument()
+    expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
+    expect(mockedListCourtWorkingHours).toHaveBeenCalledWith('nasr-club')
+    expect(mockedListBookingsForCourtDay).toHaveBeenCalledWith('nasr-club', {
+      court: 7,
+      date: createDateFilterOptions()[0].date,
+    })
+  })
+
+  it('does not fetch schedule data without a selected club slug', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      selectedClubSlug: null,
+      selectedMembership: null,
+    })
+
+    render(<SchedulePage />)
+
+    expect(
+      await screen.findByText('اختر ناديًا أولًا لعرض جدول الحجز'),
+    ).toBeInTheDocument()
+    expect(mockedListCourts).not.toHaveBeenCalled()
+    expect(mockedListCourtWorkingHours).not.toHaveBeenCalled()
+    expect(mockedListBookingsForCourtDay).not.toHaveBeenCalled()
   })
 
   it('does not render lifecycle-only statuses on the Booking Board', async () => {

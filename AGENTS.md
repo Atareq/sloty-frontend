@@ -73,6 +73,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - If `/me` returns multiple memberships, show `/select-club`.
 - If `/me` returns no memberships and the user is not platform admin, show `/no-club-access`.
 - Backend remains the source of truth for permissions; do not trust frontend-selected club context without backend verification.
+- Club-scoped pages should use `selectedClubSlug` and the current `selectedMembership` from `useAuth()`.
+- Do not fetch all clubs just to pick the first active club for normal club users.
 - Sprint 2A clubs/courts setup API calls must go through feature wrappers such as `clubsApi` and `courtsApi`.
 - Sprint 2B court working-hours setup lives inside the courts feature; keep it separate from booking-slot generation.
 - Court working-hours setup API calls belong in the courts feature wrapper/component.

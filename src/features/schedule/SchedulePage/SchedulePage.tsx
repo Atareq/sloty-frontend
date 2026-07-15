@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listClubs } from '../../clubs/clubsApi'
-import type { Club } from '../../clubs/clubs.types'
+import { useAuth } from '../../../core/auth/useAuth'
+import type { CurrentUserMembershipClub } from '../../../core/auth/auth.types'
 import { listCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
 import type { CourtWorkingHour } from '../../courts/courtWorkingHours.types'
 import { listCourts } from '../../courts/courtsApi'
@@ -76,14 +76,17 @@ async function fetchBookingResults(
 /**
  * Booking Board for court availability and quick manual creation.
  *
- * It reads clubs, courts, working hours, and bookings to generate availability
- * slots. Available/cancelled slots create manual bookings, and confirmed slots
- * show booking details with focused lifecycle actions.
+ * It uses the selected club context, courts, working hours, and bookings to
+ * generate availability slots. Available/cancelled slots create manual
+ * bookings, and confirmed slots show booking details with focused lifecycle
+ * actions.
  */
 export function SchedulePage() {
+  const { selectedClubSlug, selectedMembership } = useAuth()
   const dateFilters = useMemo(() => createDateFilterOptions(), [])
   const [activeDateKey, setActiveDateKey] = useState('today')
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null)
+  const selectedClub: CurrentUserMembershipClub | null =
+    selectedMembership?.club ?? null
   const [courts, setCourts] = useState<Court[]>([])
   const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null)
   const [workingHours, setWorkingHours] = useState<CourtWorkingHour[]>([])
@@ -129,29 +132,25 @@ export function SchedulePage() {
     let isActive = true
 
     async function loadSetup(): Promise<void> {
+      if (!selectedClubSlug || !selectedClub) {
+        setCourts([])
+        setSelectedCourtId(null)
+        setWorkingHours([])
+        setBookings([])
+        setSetupMessage('اختر ناديًا أولًا لعرض جدول الحجز')
+        setError(null)
+        setIsSetupLoading(false)
+        return
+      }
+
       setIsSetupLoading(true)
       setError(null)
       setSetupMessage(null)
 
       try {
-        const clubsResponse = await listClubs()
-        const firstActiveClub =
-          clubsResponse.results.find((club) => club.is_active) ?? null
-
-        if (!firstActiveClub) {
-          if (isActive) {
-            setSelectedClub(null)
-            setCourts([])
-            setSelectedCourtId(null)
-            setWorkingHours([])
-            setSetupMessage('لا توجد أندية نشطة لعرض جدول الحجز')
-          }
-          return
-        }
-
         const [courtsResponse, workingHoursResponse] = await Promise.all([
-          listCourts(firstActiveClub.slug),
-          listCourtWorkingHours(firstActiveClub.slug),
+          listCourts(selectedClubSlug),
+          listCourtWorkingHours(selectedClubSlug),
         ])
         const activeCourts = courtsResponse.results.filter(
           (court) => court.is_active,
@@ -159,7 +158,6 @@ export function SchedulePage() {
         const firstActiveCourt = activeCourts[0] ?? null
 
         if (isActive) {
-          setSelectedClub(firstActiveClub)
           setCourts(activeCourts)
           setSelectedCourtId(firstActiveCourt?.id ?? null)
           setWorkingHours(workingHoursResponse.results)
@@ -183,15 +181,15 @@ export function SchedulePage() {
     return () => {
       isActive = false
     }
-  }, [])
+  }, [selectedClub, selectedClubSlug])
 
   async function reloadBookings(): Promise<void> {
-    if (!selectedClub || !selectedCourt) {
+    if (!selectedClubSlug || !selectedCourt) {
       setBookings([])
       return
     }
 
-    const clubSlug = selectedClub.slug
+    const clubSlug = selectedClubSlug
     const courtId = selectedCourt.id
     const date = selectedDate
 
@@ -209,13 +207,13 @@ export function SchedulePage() {
   }
 
   useEffect(() => {
-    if (!selectedClub || !selectedCourt) {
+    if (!selectedClubSlug || !selectedCourt) {
       queueMicrotask(() => setBookings([]))
       return
     }
 
     let isActive = true
-    const clubSlug = selectedClub.slug
+    const clubSlug = selectedClubSlug
     const courtId = selectedCourt.id
     const date = selectedDate
 
@@ -246,12 +244,12 @@ export function SchedulePage() {
     return () => {
       isActive = false
     }
-  }, [selectedClub, selectedCourt, selectedDate])
+  }, [selectedClubSlug, selectedCourt, selectedDate])
 
   async function handleCreateBooking(
     values: AddBookingSheetValues,
   ): Promise<void> {
-    if (!selectedClub || !selectedCourt || !selectedSlot) {
+    if (!selectedClubSlug || !selectedCourt || !selectedSlot) {
       return
     }
 
@@ -259,7 +257,7 @@ export function SchedulePage() {
     setCreateError(null)
 
     try {
-      await createBooking(selectedClub.slug, {
+      await createBooking(selectedClubSlug, {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
@@ -279,7 +277,7 @@ export function SchedulePage() {
   }
 
   async function handleCancelBooking(bookingId: number | string): Promise<void> {
-    if (!selectedClub || !selectedCourt) {
+    if (!selectedClubSlug || !selectedCourt) {
       return
     }
 
@@ -287,7 +285,7 @@ export function SchedulePage() {
     setBookingActionError(null)
 
     try {
-      await cancelBooking(selectedClub.slug, bookingId)
+      await cancelBooking(selectedClubSlug, bookingId)
       setSelectedSlot(null)
       await reloadBookings()
     } catch {
@@ -300,7 +298,7 @@ export function SchedulePage() {
   async function handleCompleteBooking(
     bookingId: number | string,
   ): Promise<void> {
-    if (!selectedClub || !selectedCourt) {
+    if (!selectedClubSlug || !selectedCourt) {
       return
     }
 
@@ -308,7 +306,7 @@ export function SchedulePage() {
     setBookingActionError(null)
 
     try {
-      await completeBooking(selectedClub.slug, bookingId)
+      await completeBooking(selectedClubSlug, bookingId)
       setSelectedSlot(null)
       await reloadBookings()
     } catch {
@@ -321,7 +319,7 @@ export function SchedulePage() {
   async function handleNoShowBooking(
     bookingId: number | string,
   ): Promise<void> {
-    if (!selectedClub || !selectedCourt) {
+    if (!selectedClubSlug || !selectedCourt) {
       return
     }
 
@@ -329,7 +327,7 @@ export function SchedulePage() {
     setBookingActionError(null)
 
     try {
-      await markBookingNoShow(selectedClub.slug, bookingId)
+      await markBookingNoShow(selectedClubSlug, bookingId)
       setSelectedSlot(null)
       await reloadBookings()
     } catch {

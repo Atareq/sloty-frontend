@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '../../../core/auth/useAuth'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
-import { listClubs } from '../../clubs/clubsApi'
-import type { Club } from '../../clubs/clubs.types'
 import { listTransactions } from '../transactionsApi'
 import type { Transaction } from '../transactions.types'
 import { paymentMethodLabels } from '../transactions.types'
@@ -25,51 +24,40 @@ function formatTransactionDate(value: string | undefined): string | null {
 }
 
 /**
- * Basic transaction history for the first active club.
- *
- * It mirrors the temporary active-club strategy used by SchedulePage until the
- * authenticated membership shape is confirmed by the backend contract.
+ * Basic transaction history for the currently selected club context.
  */
 export function TransactionsListPage() {
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null)
+  const { selectedClubSlug, selectedMembership } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const selectedClubName = selectedMembership?.club.name ?? null
 
   useEffect(() => {
     let isActive = true
 
     async function loadTransactions(): Promise<void> {
+      if (!selectedClubSlug) {
+        setTransactions([])
+        setError(null)
+        setMessage('اختر ناديًا أولًا لعرض المعاملات')
+        setIsLoading(false)
+        return
+      }
+
       setIsLoading(true)
       setError(null)
       setMessage(null)
 
       try {
-        const clubsResponse = await listClubs()
-        const firstActiveClub =
-          clubsResponse.results.find((club) => club.is_active) ?? null
-
-        if (!firstActiveClub) {
-          if (isActive) {
-            setSelectedClub(null)
-            setTransactions([])
-            setMessage('لا توجد أندية نشطة لعرض المعاملات')
-          }
-          return
-        }
-
-        const transactionsResponse = await listTransactions(
-          firstActiveClub.slug,
-        )
+        const transactionsResponse = await listTransactions(selectedClubSlug)
 
         if (isActive) {
-          setSelectedClub(firstActiveClub)
           setTransactions(transactionsResponse.results)
         }
       } catch {
         if (isActive) {
-          setSelectedClub(null)
           setTransactions([])
           setError('تعذر تحميل المعاملات. حاول مرة أخرى')
         }
@@ -85,14 +73,14 @@ export function TransactionsListPage() {
     return () => {
       isActive = false
     }
-  }, [])
+  }, [selectedClubSlug])
 
   return (
     <div className="space-y-5">
       <PageHeader
         description={
-          selectedClub
-            ? `سجل المدفوعات المسجلة داخل ${selectedClub.name}`
+          selectedClubName
+            ? `سجل المدفوعات المسجلة داخل ${selectedClubName}`
             : 'سجل بسيط للمدفوعات المسجلة على حجوزات النادي النشط'
         }
         tone="brand"

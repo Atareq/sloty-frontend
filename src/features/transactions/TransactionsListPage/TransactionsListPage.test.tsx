@@ -1,18 +1,18 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listClubs } from '../../clubs/clubsApi'
+import { useAuth } from '../../../core/auth/useAuth'
 import { listTransactions } from '../transactionsApi'
 import { TransactionsListPage } from './TransactionsListPage'
 
-vi.mock('../../clubs/clubsApi', () => ({
-  listClubs: vi.fn(),
+vi.mock('../../../core/auth/useAuth', () => ({
+  useAuth: vi.fn(),
 }))
 
 vi.mock('../transactionsApi', () => ({
   listTransactions: vi.fn(),
 }))
 
-const mockedListClubs = vi.mocked(listClubs)
+const mockedUseAuth = vi.mocked(useAuth)
 const mockedListTransactions = vi.mocked(listTransactions)
 
 function paginatedResponse<T>(results: T[]) {
@@ -27,22 +27,62 @@ function paginatedResponse<T>(results: T[]) {
 describe('TransactionsListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('loads transactions for the first active club', async () => {
-    mockedListClubs.mockResolvedValueOnce(
-      paginatedResponse([
-        {
+    mockedUseAuth.mockReturnValue({
+      accessToken: 'token',
+      claims: { user_id: 1 },
+      currentUser: {
+        id: 1,
+        username: 'staff-user',
+        email: 'staff@example.com',
+        first_name: 'أحمد',
+        last_name: 'علي',
+        phone_number: null,
+        is_active: true,
+        is_platform_admin: false,
+        requires_club_selection: false,
+        memberships: [
+          {
+            id: 10,
+            role: 'MANAGER',
+            club: {
+              id: 1,
+              name: 'نادي النصر',
+              slug: 'nasr-club',
+              city: 'ASSIUT',
+              is_active: true,
+            },
+            court: null,
+          },
+        ],
+      },
+      selectedClubSlug: 'nasr-club',
+      selectedMembership: {
+        id: 10,
+        role: 'MANAGER',
+        club: {
           id: 1,
           name: 'نادي النصر',
           slug: 'nasr-club',
-          city: 'أسيوط',
+          city: 'ASSIUT',
           is_active: true,
-          manager_can_settle_transactions: false,
-          manager_can_change_pricing: false,
         },
-      ]),
-    )
+        court: null,
+      },
+      role: 'MANAGER',
+      isAuthenticated: true,
+      isLoadingSession: false,
+      isTokenExpired: false,
+      sessionError: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+      selectClub: vi.fn(),
+      clearSelectedClub: vi.fn(),
+      refreshCurrentUser: vi.fn(),
+      setTokens: vi.fn(),
+    })
+  })
+
+  it('loads transactions for the selected club slug', async () => {
     mockedListTransactions.mockResolvedValueOnce(
       paginatedResponse([
         {
@@ -63,22 +103,12 @@ describe('TransactionsListPage', () => {
     expect(screen.getByText('#10')).toBeInTheDocument()
     expect(screen.getByText('REF-123')).toBeInTheDocument()
     expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club')
+    expect(
+      screen.getByText('سجل المدفوعات المسجلة داخل نادي النصر'),
+    ).toBeInTheDocument()
   })
 
-  it('shows an empty state when the active club has no transactions', async () => {
-    mockedListClubs.mockResolvedValueOnce(
-      paginatedResponse([
-        {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'أسيوط',
-          is_active: true,
-          manager_can_settle_transactions: false,
-          manager_can_change_pricing: false,
-        },
-      ]),
-    )
+  it('shows an empty state when the selected club has no transactions', async () => {
     mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
 
     render(<TransactionsListPage />)
@@ -86,5 +116,20 @@ describe('TransactionsListPage', () => {
     expect(
       await screen.findByText('لا توجد معاملات مسجلة حتى الآن'),
     ).toBeInTheDocument()
+  })
+
+  it('does not load transactions without a selected club slug', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      selectedClubSlug: null,
+      selectedMembership: null,
+    })
+
+    render(<TransactionsListPage />)
+
+    expect(
+      await screen.findByText('اختر ناديًا أولًا لعرض المعاملات'),
+    ).toBeInTheDocument()
+    expect(mockedListTransactions).not.toHaveBeenCalled()
   })
 })
