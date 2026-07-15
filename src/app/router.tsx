@@ -8,7 +8,12 @@ import { ClubFormPage } from '../features/clubs/ClubFormPage/ClubFormPage'
 import { ClubsListPage } from '../features/clubs/ClubsListPage/ClubsListPage'
 import { CourtFormPage } from '../features/courts/CourtFormPage/CourtFormPage'
 import { CourtsListPage } from '../features/courts/CourtsListPage/CourtsListPage'
+import { SettingsCourtDetailsPage } from '../features/courts/SettingsCourtDetailsPage/SettingsCourtDetailsPage'
+import { SettingsCourtsPage } from '../features/courts/SettingsCourtsPage/SettingsCourtsPage'
 import { PlaceholderPage } from '../features/placeholders/PlaceholderPage/PlaceholderPage'
+import { SettlementDetailPage } from '../features/settlements/SettlementDetailPage/SettlementDetailPage'
+import { SettlementHistoryPage } from '../features/settlements/SettlementHistoryPage/SettlementHistoryPage'
+import { SettlementPreviewPage } from '../features/settlements/SettlementPreviewPage/SettlementPreviewPage'
 import { TransactionsListPage } from '../features/transactions/TransactionsListPage/TransactionsListPage'
 import { AuthLandingRedirect } from '../core/auth/AuthLandingRedirect'
 import { ProtectedRoute } from '../core/auth/ProtectedRoute'
@@ -93,11 +98,24 @@ export const router = createBrowserRouter([
       {
         path: '/settlements',
         element: (
-          <RoleRoute allowedRoles={['OWNER']}>
-            <PlaceholderPage
-              description="مسار مؤقت لتسويات المالك بدون منطق مالي حقيقي."
-              title="التسويات"
-            />
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+            <SettlementPreviewPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/settlements/history',
+        element: (
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+            <SettlementHistoryPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/settlements/:settlementId',
+        element: (
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+            <SettlementDetailPage />
           </RoleRoute>
         ),
       },
@@ -109,6 +127,22 @@ export const router = createBrowserRouter([
               description="مسار مؤقت للتقارير، وسيبقى بلا أرقام وهمية حتى اعتماد مصادر البيانات."
               title="التقارير"
             />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/settings/courts',
+        element: (
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+            <SettingsCourtsPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/settings/courts/:courtId',
+        element: (
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+            <SettingsCourtDetailsPage />
           </RoleRoute>
         ),
       },

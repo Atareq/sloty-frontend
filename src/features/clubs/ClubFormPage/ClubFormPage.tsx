@@ -23,8 +23,6 @@ const initialFormState: ClubFormState = {
   phone_number: undefined,
   notes: '',
   is_active: true,
-  manager_can_settle_transactions: false,
-  manager_can_change_pricing: false,
 }
 
 const inputClass =
@@ -119,9 +117,6 @@ export function ClubFormPage() {
             phone_number: club.phone_number,
             notes: club.notes ?? '',
             is_active: club.is_active,
-            manager_can_settle_transactions:
-              club.manager_can_settle_transactions,
-            manager_can_change_pricing: club.manager_can_change_pricing,
           })
         }
       } catch {
@@ -209,7 +204,7 @@ export function ClubFormPage() {
             </AppButton>
           </Link>
         }
-        description="بيانات النادي الأساسية وأعلام صلاحيات المدير."
+        description="بيانات النادي الأساسية."
         title={title}
       />
       <AppCard>
@@ -314,31 +309,6 @@ export function ClubFormPage() {
                 type="checkbox"
               />
               النادي نشط
-            </label>
-
-            <label className="flex items-center gap-3 text-sm font-semibold">
-              <input
-                checked={formState.manager_can_settle_transactions}
-                onChange={(event) =>
-                  updateField(
-                    'manager_can_settle_transactions',
-                    event.target.checked,
-                  )
-                }
-                type="checkbox"
-              />
-              المدير يمكنه تسوية المعاملات
-            </label>
-
-            <label className="flex items-center gap-3 text-sm font-semibold">
-              <input
-                checked={formState.manager_can_change_pricing}
-                onChange={(event) =>
-                  updateField('manager_can_change_pricing', event.target.checked)
-                }
-                type="checkbox"
-              />
-              المدير يمكنه تغيير التسعير
             </label>
 
             <label className="space-y-2 text-sm font-semibold lg:col-span-2">

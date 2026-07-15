@@ -9,7 +9,7 @@ import type { BookingListItem } from './scheduleApi.types'
 
 const workingHour: CourtWorkingHour = {
   id: 1,
-  weekday: 'SATURDAY',
+  weekday: 5,
   opens_at: '06:00',
   closes_at: '09:00',
   is_closed: false,

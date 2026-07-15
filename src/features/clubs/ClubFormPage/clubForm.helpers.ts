@@ -10,8 +10,6 @@ export interface ClubFormState {
   phone_number: Value | undefined
   notes: string
   is_active: boolean
-  manager_can_settle_transactions: boolean
-  manager_can_change_pricing: boolean
 }
 
 function optionalText(value: string | undefined): string | undefined {
@@ -32,8 +30,5 @@ export function buildClubPayload(
     phone_number: optionalText(formState.phone_number),
     notes: optionalText(formState.notes),
     is_active: formState.is_active,
-    manager_can_settle_transactions:
-      formState.manager_can_settle_transactions,
-    manager_can_change_pricing: formState.manager_can_change_pricing,
   }
 }

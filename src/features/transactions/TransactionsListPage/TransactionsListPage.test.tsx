@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
-import { listTransactions } from '../transactionsApi'
+import { cancelTransaction, listTransactions } from '../transactionsApi'
 import { TransactionsListPage } from './TransactionsListPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -9,10 +10,12 @@ vi.mock('../../../core/auth/useAuth', () => ({
 }))
 
 vi.mock('../transactionsApi', () => ({
+  cancelTransaction: vi.fn(),
   listTransactions: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedCancelTransaction = vi.mocked(cancelTransaction)
 const mockedListTransactions = vi.mocked(listTransactions)
 
 function paginatedResponse<T>(results: T[]) {
@@ -131,5 +134,70 @@ describe('TransactionsListPage', () => {
       await screen.findByText('اختر ناديًا أولًا لعرض المعاملات'),
     ).toBeInTheDocument()
     expect(mockedListTransactions).not.toHaveBeenCalled()
+  })
+
+  it('shows cancelled transaction state and cancellation reason', async () => {
+    mockedListTransactions.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 7,
+          amount: '200.00',
+          payment_method: 'CASH' as const,
+          is_cancelled: true,
+          cancellation_reason: 'مبلغ خاطئ',
+          cancelled_by: { id: 1, name: 'أحمد' },
+          cancelled_at: '2026-07-02T12:00:00Z',
+        },
+      ]),
+    )
+
+    render(<TransactionsListPage />)
+
+    expect(await screen.findByText('ملغي')).toBeInTheDocument()
+    expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
+    expect(screen.getByText('أحمد')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'إلغاء الدفع' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('cancels an active payment and reloads transactions', async () => {
+    const user = userEvent.setup()
+
+    mockedListTransactions
+      .mockResolvedValueOnce(
+        paginatedResponse([
+          {
+            id: 5,
+            amount: '150.00',
+            payment_method: 'CASH' as const,
+            created_by: { id: 1, name: 'أحمد' },
+            is_cancelled: false,
+            is_settled: false,
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(paginatedResponse([]))
+    mockedCancelTransaction.mockResolvedValueOnce({
+      id: 5,
+      amount: '150.00',
+      payment_method: 'CASH',
+      is_cancelled: true,
+    })
+
+    render(<TransactionsListPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'إلغاء الدفع' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الدفع' }))
+
+    expect(screen.getByText('سبب الإلغاء مطلوب')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('سبب الإلغاء'), 'مبلغ خاطئ')
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الدفع' }))
+
+    expect(mockedCancelTransaction).toHaveBeenCalledWith('nasr-club', 5, {
+      reason: 'مبلغ خاطئ',
+    })
+    expect(mockedListTransactions).toHaveBeenCalledTimes(2)
   })
 })

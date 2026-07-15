@@ -38,12 +38,15 @@ Source-of-truth order:
 - Egypt location dropdowns for club address
 - International phone input with E.164 payload submission
 - Court working hours setup through nested per-court weekly API
+- Club-user court settings for pricing and working-hours permissions
 - Booking Board read-only slots
 - Manual booking creation
 - Booking details cancel / complete / no-show actions
 - Sprint 4 payment recording from confirmed booking details
 - Sprint 5 booking lifecycle foundation from confirmed booking details
 - Reschedule is deferred until the backend exposes a confirmed contract
+- Sprint 6 settlement foundation with preview, create, history, and detail pages
+- Transaction cancel payment foundation
 - Basic transactions API/list foundation
 
 ## Routing Highlights
@@ -54,6 +57,11 @@ Source-of-truth order:
 - `/dashboard`
 - `/schedule`
 - `/transactions`
+- `/settings/courts`
+- `/settings/courts/:courtId`
+- `/settlements`
+- `/settlements/history`
+- `/settlements/:settlementId`
 - `/admin/clubs`
 - `/admin/clubs/:clubSlug/courts`
 
@@ -61,6 +69,7 @@ Source-of-truth order:
 
 - `/me` is the post-login source of authenticated user context.
 - `/me` memberships are confirmed and used for club-selection UX.
+- Manager permissions are read from the selected membership, not the club object.
 - Persist only `selectedClubSlug`.
 - `0` memberships and not platform admin: `/no-club-access`
 - `1` membership: auto-select its club slug, then enter `/dashboard`
@@ -79,10 +88,21 @@ Source-of-truth order:
 
 1. Remove the optional club slug input from `LoginPage` if backend no longer needs it.
 2. Add reschedule only after backend exposes a confirmed endpoint/contract; do not reuse detail PATCH speculatively.
-3. Payment gateway, settlement, reports, audit logs, and pilot hardening remain deferred.
+3. Payment gateway, reports, audit logs, and pilot hardening remain deferred.
+
+## Settlements
+
+- Sprint 6 settlement foundation is implemented for preview, create, history, and detail.
+- Settlement pages use `selectedClubSlug`; owner can settle, and manager access depends on `can_manage_settlements`.
+- Settled transactions are shown as locked/read-only. Reports and audit logs remain deferred.
 
 ## Working Hours
 
 - Working hours now use `clubs/{club_slug}/courts/{court_id}/working-hours/`.
 - The old flat `court-working-hours/` endpoint is removed from frontend usage.
-- Court settings saves the full weekly schedule with PUT, and Booking Board fetches working hours for the selected court.
+- Court settings saves the full weekly schedule with PUT using numeric weekdays (`0` Monday through `6` Sunday), and Booking Board fetches working hours for the selected court.
+
+## Transactions
+
+- Payment corrections use the cancel payment flow with a required reason.
+- Cancelled transactions remain visible in the transaction list and are marked as cancelled.

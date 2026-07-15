@@ -39,7 +39,7 @@ describe('CourtWorkingHoursSection', () => {
       working_hours: [
         {
           id: 1,
-          weekday: 'SATURDAY',
+          weekday: 5,
           opens_at: '10:00',
           closes_at: '23:00',
           is_closed: false,
@@ -95,7 +95,7 @@ describe('CourtWorkingHoursSection', () => {
     await user.clear(screen.getByDisplayValue('10:00'))
     await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
 
-    expect(await screen.findByText('وقت الفتح مطلوب')).toBeInTheDocument()
+    expect(await screen.findAllByText('وقت الفتح مطلوب')).toHaveLength(2)
     expect(mockedSaveCourtWorkingHours).not.toHaveBeenCalled()
   })
 
@@ -111,14 +111,14 @@ describe('CourtWorkingHoursSection', () => {
     )
 
     await screen.findByText('السبت')
-    await user.click(screen.getAllByRole('checkbox')[0])
+    await user.click(screen.getAllByRole('button', { name: 'مغلق' })[0])
     await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
 
     await waitFor(() => {
       expect(mockedSaveCourtWorkingHours).toHaveBeenCalledWith('nasr-club', 7, {
         working_hours: expect.arrayContaining([
           {
-            weekday: 'SATURDAY',
+            weekday: 5,
             opens_at: null,
             closes_at: null,
             is_closed: true,
@@ -126,5 +126,27 @@ describe('CourtWorkingHoursSection', () => {
         ]),
       })
     })
+  })
+
+  it('rejects close time before open time', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <CourtWorkingHoursSection
+        clubSlug="nasr-club"
+        courtId="7"
+        isCreateMode={false}
+      />,
+    )
+
+    await screen.findByText('السبت')
+    await user.clear(screen.getByDisplayValue('23:00'))
+    await user.type(screen.getByLabelText('يغلق'), '09:00')
+    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+
+    expect(
+      await screen.findAllByText('وقت الإغلاق يجب أن يكون بعد وقت الفتح'),
+    ).toHaveLength(2)
+    expect(mockedSaveCourtWorkingHours).not.toHaveBeenCalled()
   })
 })

@@ -14,8 +14,6 @@ describe('buildClubPayload', () => {
           phone_number: '+201012345678',
           notes: '',
           is_active: true,
-          manager_can_settle_transactions: false,
-          manager_can_change_pricing: false,
         },
         true,
       ),
@@ -28,8 +26,6 @@ describe('buildClubPayload', () => {
       phone_number: '+201012345678',
       notes: undefined,
       is_active: true,
-      manager_can_settle_transactions: false,
-      manager_can_change_pricing: false,
     })
   })
 })

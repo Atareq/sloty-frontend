@@ -1,7 +1,5 @@
-import type {
-  CourtWeekday,
-  CourtWorkingHour,
-} from '../courts/courtWorkingHours.types'
+import { getCourtWeekdayFromDate } from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
+import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
 import type { BookingBoardPeriod, ScheduleBooking } from './schedule.types'
 import type { BookingListItem } from './scheduleApi.types'
 
@@ -54,20 +52,8 @@ export function createDateFilterOptions(today = new Date()): DateFilterOption[] 
   ]
 }
 
-const weekdayByJsDay: Record<number, CourtWeekday> = {
-  0: 'SUNDAY',
-  1: 'MONDAY',
-  2: 'TUESDAY',
-  3: 'WEDNESDAY',
-  4: 'THURSDAY',
-  5: 'FRIDAY',
-  6: 'SATURDAY',
-}
-
-export function getWeekdayFromDateValue(dateValue: string): CourtWeekday {
-  const date = new Date(`${dateValue}T00:00:00`)
-
-  return weekdayByJsDay[date.getDay()]
+export function getWeekdayFromDateValue(dateValue: string): CourtWorkingHour['weekday'] {
+  return getCourtWeekdayFromDate(dateValue)
 }
 
 export function formatBookingDateTime(dateValue: string, timeValue: string): string {

@@ -54,7 +54,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/settlements',
     label: 'التسويات',
     marker: 'ت',
-    allowedRoles: ['OWNER'],
+    allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: true,
   },
   {
@@ -65,10 +65,10 @@ export const navigationItems: NavigationItem[] = [
     showInMobile: true,
   },
   {
-    path: '/settings',
-    label: 'الإعدادات',
+    path: '/settings/courts',
+    label: 'إعدادات الملاعب',
     marker: 'ع',
-    allowedRoles: ['OWNER'],
+    allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
   },
   {

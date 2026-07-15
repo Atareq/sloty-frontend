@@ -8,8 +8,6 @@ export interface Club {
   phone_number?: string
   notes?: string
   is_active: boolean
-  manager_can_settle_transactions: boolean
-  manager_can_change_pricing: boolean
   created?: string
   modified?: string
 }
@@ -23,6 +21,4 @@ export interface ClubPayload {
   phone_number?: string
   notes?: string
   is_active?: boolean
-  manager_can_settle_transactions?: boolean
-  manager_can_change_pricing?: boolean
 }

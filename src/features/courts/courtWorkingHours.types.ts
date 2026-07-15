@@ -1,11 +1,4 @@
-export type CourtWeekday =
-  | 'SATURDAY'
-  | 'SUNDAY'
-  | 'MONDAY'
-  | 'TUESDAY'
-  | 'WEDNESDAY'
-  | 'THURSDAY'
-  | 'FRIDAY'
+export type CourtWeekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
 
 export interface CourtWorkingHour {
   id?: number

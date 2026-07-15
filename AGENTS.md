@@ -69,6 +69,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `/me` is the post-login source of authenticated user context.
 - `/me` memberships are confirmed and used for frontend club-selection UX.
 - Store only `selectedClubSlug` persistently; do not store full memberships or permissions as trusted authority.
+- Manager permission flags live on the selected membership, not the club object: use `can_change_pricing`, `can_manage_working_hours`, and `can_manage_settlements`.
 - If `/me` returns one membership, auto-select its club slug.
 - If `/me` returns multiple memberships, show `/select-club`.
 - If `/me` returns no memberships and the user is not platform admin, show `/no-club-access`.
@@ -79,7 +80,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 2B court working-hours setup lives inside the courts feature; keep it separate from booking-slot generation.
 - Court working-hours setup API calls belong in the courts feature wrapper/component.
 - Court working hours use the nested court weekly endpoint `clubs/{club_slug}/courts/{court_id}/working-hours/`; do not use the old flat `court-working-hours/` endpoint.
-- Working hours are weekly recurring rows for one court, saved as a full-week PUT; one court has up to seven weekday rows, and closed days send `opens_at`/`closes_at` as `null`.
+- Working hours are weekly recurring rows for one court, saved as a full-week PUT; one court has up to seven numeric weekday rows (`0` Monday through `6` Sunday), and closed days send `opens_at`/`closes_at` as `null`.
 - Do not add holiday/Ramadan working-hour exceptions in MVP unless explicitly requested.
 - Booking Board integration uses clubs, courts, working-hours, and bookings APIs to generate availability slots.
 - Booking Board must fetch working hours for the selected court only.
@@ -95,7 +96,11 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Hold expiry is backend-driven; the frontend must not fake expiry transitions.
 - Completed, cancelled, no-show, and expired bookings are read-only when shown in booking details.
 - Booking Board remains availability-focused and must not show lifecycle/payment details on slot buttons.
-- Settlement, reports, charts, owner financial dashboards, commission, and payment gateway logic are deferred.
+- Sprint 6 implements staff settlement foundation: settlement pages use `selectedClubSlug`, owner can settle, manager can settle only when `selectedMembership.can_manage_settlements` allows it, and staff cannot settle.
+- Backend remains the authority for settlement permissions; settled transactions are locked/read-only and the frontend must not offer raw transaction editing.
+- Transaction correction is cancel payment with a required reason through the transaction cancel endpoint; do not add edit/void payment flows.
+- Cancelled transactions remain visible and frontend code must not manually count them in payment totals.
+- Reports, charts, owner financial dashboards, audit logs, commission, and payment gateway logic are deferred.
 - Expire and non-transaction financial actions are deferred to later sprints.
 - Overnight working-hour ranges are deferred unless explicitly requested.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.

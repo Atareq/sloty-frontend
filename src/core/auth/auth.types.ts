@@ -46,8 +46,6 @@ export interface CurrentUserMembershipClub {
   city?: string
   address?: string
   phone_number?: string
-  manager_can_settle_transactions?: boolean
-  manager_can_change_pricing?: boolean
   is_active: boolean
 }
 
@@ -61,6 +59,9 @@ export interface CurrentUserMembership {
   role: Exclude<AuthRole, 'PLATFORM_ADMIN'>
   club: CurrentUserMembershipClub
   court: CurrentUserMembershipCourt | null
+  can_change_pricing?: boolean
+  can_manage_working_hours?: boolean
+  can_manage_settlements?: boolean
 }
 
 export interface CurrentUserProfile {
@@ -114,4 +115,52 @@ export const DEFAULT_ROLE_REDIRECTS: Record<AuthRole, string> = {
  */
 export function getDefaultRouteForRole(role: AuthRole): string {
   return DEFAULT_ROLE_REDIRECTS[role]
+}
+
+export function canManagePricing(
+  membership: CurrentUserMembership | null,
+): boolean {
+  if (!membership) {
+    return false
+  }
+
+  if (membership.role === 'OWNER') {
+    return true
+  }
+
+  return membership.role === 'MANAGER' && Boolean(membership.can_change_pricing)
+}
+
+export function canManageWorkingHours(
+  membership: CurrentUserMembership | null,
+): boolean {
+  if (!membership) {
+    return false
+  }
+
+  if (membership.role === 'OWNER') {
+    return true
+  }
+
+  return (
+    membership.role === 'MANAGER' &&
+    Boolean(membership.can_manage_working_hours)
+  )
+}
+
+export function canManageSettlements(
+  membership: CurrentUserMembership | null,
+): boolean {
+  if (!membership) {
+    return false
+  }
+
+  if (membership.role === 'OWNER') {
+    return true
+  }
+
+  return (
+    membership.role === 'MANAGER' &&
+    Boolean(membership.can_manage_settlements)
+  )
 }

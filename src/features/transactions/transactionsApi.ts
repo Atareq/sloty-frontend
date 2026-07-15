@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
   Transaction,
+  TransactionCancelPayload,
   TransactionCreatePayload,
 } from './transactions.types'
 
@@ -45,5 +46,22 @@ export function getTransaction(
 ): Promise<Transaction> {
   return apiRequest<Transaction>(
     apiEndpoints.clubs.transactions.detail(clubSlug, id),
+  )
+}
+
+/**
+ * Cancels a payment transaction with a reason while keeping it visible in the ledger.
+ */
+export function cancelTransaction(
+  clubSlug: string,
+  transactionId: number | string,
+  payload: TransactionCancelPayload,
+): Promise<Transaction> {
+  return apiRequest<Transaction>(
+    apiEndpoints.clubs.transactions.cancel(clubSlug, transactionId),
+    {
+      method: 'POST',
+      body: payload,
+    },
   )
 }

@@ -13,9 +13,9 @@ vi.mock('../../core/api/apiClient', () => ({
 const mockedApiRequest = vi.mocked(apiRequest)
 
 const workingHourPayload = {
-  weekday: 'SATURDAY' as const,
-  opens_at: '18:00',
-  closes_at: '23:00',
+  weekday: 5 as const,
+  opens_at: '18:00:00',
+  closes_at: '23:00:00',
   is_closed: false,
 }
 
@@ -35,7 +35,7 @@ describe('courtWorkingHoursApi', () => {
       working_hours: [
         workingHourPayload,
         {
-          weekday: 'SUNDAY' as const,
+          weekday: 6 as const,
           opens_at: null,
           closes_at: null,
           is_closed: true,

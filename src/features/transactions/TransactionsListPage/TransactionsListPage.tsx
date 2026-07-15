@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../../core/auth/useAuth'
+import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
-import { listTransactions } from '../transactionsApi'
+import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
+import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
+import { cancelTransaction, listTransactions } from '../transactionsApi'
 import type { Transaction } from '../transactions.types'
 import { paymentMethodLabels } from '../transactions.types'
 
@@ -23,16 +26,49 @@ function formatTransactionDate(value: string | undefined): string | null {
   }).format(date)
 }
 
+function getActorId(
+  value: Transaction['created_by'] | Transaction['cancelled_by'],
+): number | null {
+  if (!value) {
+    return null
+  }
+
+  return typeof value === 'number' ? value : value.id
+}
+
+function getActorName(
+  value: Transaction['created_by'] | Transaction['cancelled_by'],
+): string | null {
+  if (!value || typeof value === 'number') {
+    return null
+  }
+
+  return value.name ?? `#${value.id}`
+}
+
 /**
  * Basic transaction history for the currently selected club context.
  */
 export function TransactionsListPage() {
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const { currentUser, selectedClubSlug, selectedMembership } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [cancelTarget, setCancelTarget] = useState<Transaction | null>(null)
+  const [isCancelSubmitting, setIsCancelSubmitting] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
+
+  async function reloadTransactions(): Promise<void> {
+    if (!selectedClubSlug) {
+      setTransactions([])
+      return
+    }
+
+    const transactionsResponse = await listTransactions(selectedClubSlug)
+    setTransactions(transactionsResponse.results)
+  }
 
   useEffect(() => {
     let isActive = true
@@ -74,6 +110,27 @@ export function TransactionsListPage() {
       isActive = false
     }
   }, [selectedClubSlug])
+
+  async function handleCancelTransaction(
+    values: CancelTransactionValues,
+  ): Promise<void> {
+    if (!selectedClubSlug || !cancelTarget) {
+      return
+    }
+
+    setIsCancelSubmitting(true)
+    setCancelError(null)
+
+    try {
+      await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
+      setCancelTarget(null)
+      await reloadTransactions()
+    } catch {
+      setCancelError('تعذر إلغاء الدفع. حاول مرة أخرى')
+    } finally {
+      setIsCancelSubmitting(false)
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -122,6 +179,15 @@ export function TransactionsListPage() {
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {transactions.map((transaction) => {
             const createdLabel = formatTransactionDate(transaction.created)
+            const cancelledAtLabel = formatTransactionDate(
+              transaction.cancelled_at ?? undefined,
+            )
+            const cancelledByName = getActorName(transaction.cancelled_by)
+            const createdById = getActorId(transaction.created_by)
+            const canCancel =
+              transaction.is_cancelled !== true &&
+              transaction.is_settled !== true &&
+              (!currentUser?.id || !createdById || currentUser.id === createdById)
 
             return (
               <AppCard className="space-y-3" key={transaction.id}>
@@ -137,9 +203,16 @@ export function TransactionsListPage() {
                       {transaction.amount}
                     </p>
                   </div>
-                  <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
-                    {paymentMethodLabels[transaction.payment_method]}
-                  </span>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
+                      {paymentMethodLabels[transaction.payment_method]}
+                    </span>
+                    {transaction.is_cancelled ? (
+                      <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-black text-[var(--sloty-danger)]">
+                        ملغي
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
                 <dl className="grid grid-cols-1 gap-2 text-sm">
@@ -176,11 +249,66 @@ export function TransactionsListPage() {
                       </dd>
                     </div>
                   ) : null}
+                  {transaction.cancellation_reason ? (
+                    <div className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2">
+                      <dt className="font-bold text-[var(--sloty-danger)]">
+                        سبب الإلغاء
+                      </dt>
+                      <dd className="mt-1 font-black text-[var(--sloty-danger)]">
+                        {transaction.cancellation_reason}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {cancelledAtLabel ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                      <dt className="font-bold text-[var(--sloty-text-muted)]">
+                        تاريخ الإلغاء
+                      </dt>
+                      <dd className="font-black text-[var(--sloty-text-primary)]">
+                        {cancelledAtLabel}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {cancelledByName ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                      <dt className="font-bold text-[var(--sloty-text-muted)]">
+                        ألغي بواسطة
+                      </dt>
+                      <dd className="font-black text-[var(--sloty-text-primary)]">
+                        {cancelledByName}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
+
+                {canCancel ? (
+                  <AppButton
+                    fullWidth
+                    onClick={() => {
+                      setCancelTarget(transaction)
+                      setCancelError(null)
+                    }}
+                    variant="danger"
+                  >
+                    إلغاء الدفع
+                  </AppButton>
+                ) : null}
               </AppCard>
             )
           })}
         </section>
+      ) : null}
+
+      {cancelTarget ? (
+        <CancelTransactionSheet
+          error={cancelError}
+          isSubmitting={isCancelSubmitting}
+          onClose={() => {
+            setCancelTarget(null)
+            setCancelError(null)
+          }}
+          onSubmit={handleCancelTransaction}
+        />
       ) : null}
     </div>
   )

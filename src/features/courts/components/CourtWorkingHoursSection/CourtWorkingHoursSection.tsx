@@ -22,10 +22,21 @@ export interface CourtWorkingHoursSectionProps {
   clubSlug?: string
   courtId?: string
   isCreateMode: boolean
+  canEdit?: boolean
 }
 
 const timeInputClass =
   'h-10 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:cursor-not-allowed disabled:opacity-50'
+
+function normalizeTime(value: string): string {
+  return value.length === 5 ? `${value}:00` : value
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number)
+
+  return hours * 60 + minutes
+}
 
 function createEmptyDraft(): WorkingHourDraft {
   return {
@@ -59,6 +70,7 @@ function draftFromRecord(record: CourtWorkingHour): WorkingHourDraft {
 export function CourtWorkingHoursSection({
   clubSlug,
   courtId,
+  canEdit = true,
   isCreateMode,
 }: CourtWorkingHoursSectionProps) {
   const numericCourtId = Number(courtId)
@@ -71,6 +83,9 @@ export function CourtWorkingHoursSection({
   const [error, setError] = useState<string | null>(
     canLoadWorkingHours || isCreateMode ? null : 'رابط الملعب غير صحيح',
   )
+  const [rowErrors, setRowErrors] = useState<
+    Partial<Record<CourtWeekday, string>>
+  >({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const weeklyPayload = useMemo(() => {
@@ -79,8 +94,8 @@ export function CourtWorkingHoursSection({
 
       return {
         weekday,
-        opens_at: draft.is_closed ? null : draft.opens_at,
-        closes_at: draft.is_closed ? null : draft.closes_at,
+        opens_at: draft.is_closed ? null : normalizeTime(draft.opens_at),
+        closes_at: draft.is_closed ? null : normalizeTime(draft.closes_at),
         is_closed: draft.is_closed,
       }
     })
@@ -149,6 +164,50 @@ export function CourtWorkingHoursSection({
           : {}),
       },
     }))
+    setRowErrors((currentErrors) => ({
+      ...currentErrors,
+      [weekday]: undefined,
+    }))
+    setError(null)
+    setSuccessMessage(null)
+  }
+
+  function setDayState(weekday: CourtWeekday, isClosed: boolean): void {
+    updateDraft(weekday, 'is_closed', isClosed)
+  }
+
+  function applySaturdayToAllDays(): void {
+    const saturdayDraft = drafts[5]
+
+    setDrafts(
+      weekdays.reduce(
+        (nextDrafts, weekday) => ({
+          ...nextDrafts,
+          [weekday]: { ...saturdayDraft },
+        }),
+        {} as Record<CourtWeekday, WorkingHourDraft>,
+      ),
+    )
+    setRowErrors({})
+    setError(null)
+    setSuccessMessage(null)
+  }
+
+  function setAllDaysClosed(isClosed: boolean): void {
+    setDrafts(
+      weekdays.reduce(
+        (nextDrafts, weekday) => ({
+          ...nextDrafts,
+          [weekday]: {
+            opens_at: '',
+            closes_at: '',
+            is_closed: isClosed,
+          },
+        }),
+        {} as Record<CourtWeekday, WorkingHourDraft>,
+      ),
+    )
+    setRowErrors({})
     setError(null)
     setSuccessMessage(null)
   }
@@ -159,11 +218,17 @@ export function CourtWorkingHoursSection({
       return
     }
 
+    if (!canEdit) {
+      setError('ليس لديك صلاحية تعديل مواعيد العمل.')
+      return
+    }
+
     const invalidOpenDraft = weekdays.find(
       (weekday) => !drafts[weekday].is_closed && !drafts[weekday].opens_at,
     )
 
     if (invalidOpenDraft) {
+      setRowErrors({ [invalidOpenDraft]: 'وقت الفتح مطلوب' })
       setError('وقت الفتح مطلوب')
       setSuccessMessage(null)
       return
@@ -174,13 +239,33 @@ export function CourtWorkingHoursSection({
     )
 
     if (invalidCloseDraft) {
+      setRowErrors({ [invalidCloseDraft]: 'وقت الإغلاق مطلوب' })
       setError('وقت الإغلاق مطلوب')
+      setSuccessMessage(null)
+      return
+    }
+
+    const invalidRangeDraft = weekdays.find((weekday) => {
+      const draft = drafts[weekday]
+
+      return (
+        !draft.is_closed &&
+        timeToMinutes(draft.closes_at) <= timeToMinutes(draft.opens_at)
+      )
+    })
+
+    if (invalidRangeDraft) {
+      setRowErrors({
+        [invalidRangeDraft]: 'وقت الإغلاق يجب أن يكون بعد وقت الفتح',
+      })
+      setError('وقت الإغلاق يجب أن يكون بعد وقت الفتح')
       setSuccessMessage(null)
       return
     }
 
     setIsSaving(true)
     setError(null)
+    setRowErrors({})
     setSuccessMessage(null)
 
     try {
@@ -245,62 +330,117 @@ export function CourtWorkingHoursSection({
         </p>
       ) : null}
 
+      {!canEdit ? (
+        <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+          ليس لديك صلاحية تعديل مواعيد العمل.
+        </p>
+      ) : null}
+
+      {canEdit ? (
+        <div className="flex flex-wrap gap-2">
+          <AppButton onClick={applySaturdayToAllDays} variant="secondary">
+            تطبيق مواعيد السبت على باقي الأيام
+          </AppButton>
+          <AppButton onClick={() => setAllDaysClosed(false)} variant="secondary">
+            فتح كل الأيام
+          </AppButton>
+          <AppButton onClick={() => setAllDaysClosed(true)} variant="secondary">
+            إغلاق كل الأيام
+          </AppButton>
+        </div>
+      ) : null}
+
       <div className="space-y-3">
         {weekdays.map((weekday) => {
           const draft = drafts[weekday]
 
           return (
             <div
-              className="grid gap-3 rounded-2xl border border-[var(--sloty-border)] bg-white p-3 sm:grid-cols-[minmax(7rem,1fr)_auto_auto] sm:items-end"
+              className="grid gap-3 rounded-2xl border border-[var(--sloty-border)] bg-white p-3 lg:grid-cols-[8rem_11rem_1fr_1fr] lg:items-end"
               key={weekday}
             >
-              <label className="flex items-center justify-between gap-3 text-sm font-bold sm:block">
+              <div className="text-sm font-bold">
                 <span className="block text-[var(--sloty-text-primary)]">
                   {getWeekdayLabel(weekday)}
                 </span>
-                <span className="flex items-center gap-2 text-xs text-[var(--sloty-text-muted)] sm:mt-2">
-                  <input
-                    checked={draft.is_closed}
-                    onChange={(event) =>
-                      updateDraft(weekday, 'is_closed', event.target.checked)
-                    }
-                    type="checkbox"
-                  />
+                {rowErrors[weekday] ? (
+                  <span className="mt-1 block text-xs text-[var(--sloty-danger)]">
+                    {rowErrors[weekday]}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-1">
+                <button
+                  className={[
+                    'rounded-lg px-3 py-2 text-sm font-bold transition',
+                    !draft.is_closed
+                      ? 'sloty-green-surface-button text-white'
+                      : 'text-[var(--sloty-text-muted)]',
+                  ].join(' ')}
+                  disabled={!canEdit}
+                  onClick={() => setDayState(weekday, false)}
+                  type="button"
+                >
+                  مفتوح
+                </button>
+                <button
+                  className={[
+                    'rounded-lg px-3 py-2 text-sm font-bold transition',
+                    draft.is_closed
+                      ? 'bg-slate-200 text-[var(--sloty-text-primary)]'
+                      : 'text-[var(--sloty-text-muted)]',
+                  ].join(' ')}
+                  disabled={!canEdit}
+                  onClick={() => setDayState(weekday, true)}
+                  type="button"
+                >
                   مغلق
-                </span>
-              </label>
+                </button>
+              </div>
 
-              <label className="space-y-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
-                <span>يفتح</span>
-                <input
-                  className={timeInputClass}
-                  disabled={draft.is_closed}
-                  onChange={(event) =>
-                    updateDraft(weekday, 'opens_at', event.target.value)
-                  }
-                  type="time"
-                  value={draft.opens_at}
-                />
-              </label>
+              {draft.is_closed ? (
+                <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)] lg:col-span-2">
+                  مغلق طوال اليوم
+                </p>
+              ) : (
+                <>
+                  <label className="space-y-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
+                    <span>يفتح</span>
+                    <input
+                      className={timeInputClass}
+                      disabled={!canEdit}
+                      onChange={(event) =>
+                        updateDraft(weekday, 'opens_at', event.target.value)
+                      }
+                      type="time"
+                      value={draft.opens_at}
+                    />
+                  </label>
 
-              <label className="space-y-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
-                <span>يغلق</span>
-                <input
-                  className={timeInputClass}
-                  disabled={draft.is_closed}
-                  onChange={(event) =>
-                    updateDraft(weekday, 'closes_at', event.target.value)
-                  }
-                  type="time"
-                  value={draft.closes_at}
-                />
-              </label>
+                  <label className="space-y-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
+                    <span>يغلق</span>
+                    <input
+                      className={timeInputClass}
+                      disabled={!canEdit}
+                      onChange={(event) =>
+                        updateDraft(weekday, 'closes_at', event.target.value)
+                      }
+                      type="time"
+                      value={draft.closes_at}
+                    />
+                  </label>
+                </>
+              )}
             </div>
           )
         })}
       </div>
 
-      <AppButton disabled={isSaving || isLoading} onClick={() => void handleSave()}>
+      <AppButton
+        disabled={isSaving || isLoading || !canEdit}
+        onClick={() => void handleSave()}
+      >
         {isSaving ? 'جاري الحفظ...' : 'حفظ مواعيد الأسبوع'}
       </AppButton>
     </AppCard>
