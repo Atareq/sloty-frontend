@@ -1,6 +1,10 @@
 import type { BookingListItem } from './scheduleApi.types'
 
-export type BookingBoardSlotStatus = 'available' | 'confirmed' | 'cancelled'
+export type BookingBoardSlotStatus =
+  | 'available'
+  | 'hold'
+  | 'confirmed'
+  | 'cancelled'
 export type BookingBoardPeriod = 'day' | 'night'
 
 export interface ScheduleStaff {
@@ -23,8 +27,8 @@ export interface ScheduleDateFilter {
  * UI-only shape for the staff schedule preview.
  *
  * Booking Board slots intentionally expose only availability state and their
- * time range. Operational lifecycle/payment details belong in future details
- * flows, not in this board model.
+ * time range. HOLD is visible because it blocks availability, while payment
+ * and lifecycle details stay inside focused sheets.
  */
 export interface ScheduleBooking {
   id: string

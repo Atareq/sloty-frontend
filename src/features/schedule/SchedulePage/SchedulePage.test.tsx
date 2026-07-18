@@ -140,9 +140,13 @@ function mockScheduleApiData(): void {
         {
           id: 3,
           weekday: getWeekdayFromDateValue(today),
-          opens_at: '06:00',
-          closes_at: '09:00',
           is_closed: false,
+          blocks: [
+            {
+              start_time: '06:00',
+              end_time: '10:00',
+            },
+          ],
         },
       ],
     },
@@ -206,8 +210,8 @@ function mockScheduleApiData(): void {
     court: 7,
     customer_name: 'أحمد علي',
     customer_phone: '01000000000',
-    start_time: `${today}T06:00:00`,
-    end_time: `${today}T07:00:00`,
+    start_time: `${today}T09:00:00`,
+    end_time: `${today}T10:00:00`,
     status: 'CONFIRMED',
   })
   mockedCreateTransaction.mockResolvedValue({
@@ -233,7 +237,10 @@ describe('SchedulePage', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('لوحة الحجز')).toBeInTheDocument()
     expect(
-      await screen.findByRole('button', { name: '06:00 متاح' }),
+      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: '09:00 متاح' }),
     ).toBeInTheDocument()
     expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
     await waitFor(() => {
@@ -262,10 +269,10 @@ describe('SchedulePage', () => {
     expect(mockedListBookingsForCourtDay).not.toHaveBeenCalled()
   })
 
-  it('does not render lifecycle-only statuses on the Booking Board', async () => {
+  it('renders HOLD as reserved and keeps lifecycle-only statuses off the board', async () => {
     render(<SchedulePage />)
 
-    expect(await screen.findByRole('button', { name: '06:00 متاح' }))
+    expect(await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }))
       .toBeInTheDocument()
     expect(screen.queryByText('مكتمل')).not.toBeInTheDocument()
     expect(screen.queryByText('انتظار الدفع')).not.toBeInTheDocument()
@@ -326,9 +333,8 @@ describe('SchedulePage', () => {
         {
           id: 3,
           weekday: getWeekdayFromDateValue(today),
-          opens_at: null,
-          closes_at: null,
           is_closed: true,
+          blocks: [],
         },
       ],
     })
@@ -340,12 +346,34 @@ describe('SchedulePage', () => {
     ).toBeInTheDocument()
   })
 
+  it('does not crash when working-hours blocks are missing', async () => {
+    const today = createDateFilterOptions()[0].date
+
+    mockedGetCourtWorkingHours.mockResolvedValueOnce({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [
+        {
+          id: 3,
+          weekday: getWeekdayFromDateValue(today),
+          is_closed: false,
+        },
+      ],
+    } as Awaited<ReturnType<typeof getCourtWorkingHours>>)
+
+    render(<SchedulePage />)
+
+    expect(
+      await screen.findByText('لم يتم ضبط مواعيد العمل لهذا اليوم'),
+    ).toBeInTheDocument()
+  })
+
   it('opens add booking sheet from available and cancelled slots', async () => {
     const user = userEvent.setup()
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '06:00 متاح' }))
+    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
 
     expect(screen.getByRole('heading', { name: 'إضافة حجز' }))
       .toBeInTheDocument()
@@ -363,7 +391,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '06:00 متاح' }))
+    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
     await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
     await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
@@ -373,14 +401,132 @@ describe('SchedulePage', () => {
         court: 7,
         customer_name: 'أحمد علي',
         customer_phone: '+201000000000',
-        start_time: `${today}T06:00:00`,
-        end_time: `${today}T07:00:00`,
+        start_time: `${today}T09:00:00`,
+        end_time: `${today}T10:00:00`,
         source: 'MANUAL',
       })
     })
     await waitFor(() => {
       expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
     })
+    expect(
+      screen.queryByRole('heading', { name: 'إضافة حجز' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens the HOLD action sheet instead of add booking for held slots', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+    )
+
+    expect(screen.getByRole('heading', { name: 'حجز مؤقت' }))
+      .toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'إضافة حجز' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'إضافة دفعة' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'تحرير الموعد' }),
+    ).toBeInTheDocument()
+  })
+
+  it('opens payment recording from a HOLD booking', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
+
+    expect(screen.getByRole('heading', { name: 'إضافة دفعة' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('حجز #12')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'حجز مؤقت' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('records a payment for a HOLD booking and reloads bookings', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
+    await user.type(screen.getByLabelText('المبلغ'), '100')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+    await waitFor(() => {
+      expect(mockedCreateTransaction).toHaveBeenCalledWith('nasr-club', {
+        booking: 12,
+        amount: '100',
+        payment_method: 'CASH',
+      })
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(await screen.findByText('تم تسجيل الدفعة بنجاح'))
+      .toBeInTheDocument()
+  })
+
+  it('frees a HOLD slot through the cancel booking endpoint', async () => {
+    const user = userEvent.setup()
+
+    render(<SchedulePage />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'تحرير الموعد' }))
+
+    await waitFor(() => {
+      expect(mockedCancelBooking).toHaveBeenCalledWith('nasr-club', 12, {
+        reason: 'تحرير الحجز المؤقت',
+        notes: 'تم تحرير الموعد من لوحة الحجز',
+      })
+    })
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
+    expect(await screen.findByText('تم تحرير الموعد بنجاح'))
+      .toBeInTheDocument()
+  })
+
+  it('opens the HOLD action sheet after creating a booking that returns HOLD', async () => {
+    const user = userEvent.setup()
+    const today = createDateFilterOptions()[0].date
+
+    mockedCreateBooking.mockResolvedValueOnce({
+      id: 20,
+      court: 7,
+      customer_name: 'أحمد علي',
+      customer_phone: '+201000000000',
+      start_time: `${today}T09:00:00`,
+      end_time: `${today}T10:00:00`,
+      status: 'HOLD',
+    })
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
+
+    expect(await screen.findByRole('heading', { name: 'حجز مؤقت' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('أحمد علي')).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'إضافة حجز' }),
     ).not.toBeInTheDocument()

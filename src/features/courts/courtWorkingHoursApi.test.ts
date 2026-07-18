@@ -3,6 +3,7 @@ import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   getCourtWorkingHours,
+  normalizeCourtWorkingHoursResponse,
   saveCourtWorkingHours,
 } from './courtWorkingHoursApi'
 
@@ -14,20 +15,29 @@ const mockedApiRequest = vi.mocked(apiRequest)
 
 const workingHourPayload = {
   weekday: 5 as const,
-  opens_at: '18:00:00',
-  closes_at: '23:00:00',
   is_closed: false,
+  blocks: [
+    {
+      start_time: '18:00',
+      end_time: '23:00',
+    },
+  ],
 }
 
 describe('courtWorkingHoursApi', () => {
   it('loads court working hours from the nested court endpoint', async () => {
-    mockedApiRequest.mockResolvedValue({})
+    mockedApiRequest.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [],
+    })
 
-    await getCourtWorkingHours('nasr-club', 7)
+    const response = await getCourtWorkingHours('nasr-club', 7)
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       apiEndpoints.clubs.courts.workingHours.detail('nasr-club', 7),
     )
+    expect(response.working_hours).toEqual([])
   })
 
   it('saves the full weekly schedule with PUT to the nested court endpoint', async () => {
@@ -36,14 +46,17 @@ describe('courtWorkingHoursApi', () => {
         workingHourPayload,
         {
           weekday: 6 as const,
-          opens_at: null,
-          closes_at: null,
           is_closed: true,
+          blocks: [],
         },
       ],
     }
 
-    mockedApiRequest.mockResolvedValue({})
+    mockedApiRequest.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [],
+    })
 
     await saveCourtWorkingHours('nasr-club', 7, payload)
 
@@ -54,5 +67,84 @@ describe('courtWorkingHoursApi', () => {
         body: payload,
       },
     )
+  })
+
+  it('normalizes legacy open and close fields into frontend blocks', () => {
+    const response = normalizeCourtWorkingHoursResponse({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [
+        {
+          id: 3,
+          weekday: 5,
+          is_closed: false,
+          opens_at: '10:00:00',
+          closes_at: '12:00:00',
+        },
+        {
+          id: 4,
+          weekday: 6,
+          is_closed: false,
+        },
+      ],
+    })
+
+    expect(response.working_hours).toEqual([
+      {
+        id: 3,
+        weekday: 5,
+        is_closed: false,
+        blocks: [{ start_time: '10:00', end_time: '12:00' }],
+      },
+      {
+        id: 4,
+        weekday: 6,
+        is_closed: false,
+        blocks: [],
+      },
+    ])
+  })
+
+  it('normalizes backend block time precision and closed-day blocks', () => {
+    const response = normalizeCourtWorkingHoursResponse({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [
+        {
+          weekday: 5,
+          is_closed: false,
+          blocks: [
+            {
+              id: 9,
+              start_time: '18:00:00',
+              end_time: '23:00:00',
+            },
+          ],
+        },
+        {
+          weekday: 6,
+          is_closed: true,
+          blocks: [
+            {
+              start_time: '08:00:00',
+              end_time: '10:00:00',
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(response.working_hours).toEqual([
+      {
+        weekday: 5,
+        is_closed: false,
+        blocks: [{ id: 9, start_time: '18:00', end_time: '23:00' }],
+      },
+      {
+        weekday: 6,
+        is_closed: true,
+        blocks: [],
+      },
+    ])
   })
 })

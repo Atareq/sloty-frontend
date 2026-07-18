@@ -1,3 +1,4 @@
+import { useCallback, useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../../core/auth/useAuth'
 import { AppButton } from '../../shared/components/AppButton/AppButton'
@@ -33,6 +34,20 @@ function canShowNavigationItem(
   return true
 }
 
+function getFlashMessage(locationState: unknown): string | null {
+  if (
+    locationState &&
+    typeof locationState === 'object' &&
+    'flashMessage' in locationState
+  ) {
+    const flashMessage = locationState.flashMessage
+
+    return typeof flashMessage === 'string' ? flashMessage : null
+  }
+
+  return null
+}
+
 /**
  * Role-aware application shell for authenticated Sloty pages.
  *
@@ -58,6 +73,7 @@ export function AppShell() {
   const displayName = getUserDisplayName(currentUser, claims?.name)
   const selectedClubName = selectedMembership?.club.name ?? null
   const canChangeClub = (currentUser?.memberships.length ?? 0) > 1
+  const flashMessage = getFlashMessage(location.state)
   const mobileItems = role
     ? getNavigationItemsForRole(role, { mobileOnly: true })
         .filter((item) => canShowNavigationItem(item, selectedMembership))
@@ -68,6 +84,25 @@ export function AppShell() {
           path: item.path,
         }))
     : []
+
+  const clearFlashMessage = useCallback((): void => {
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      replace: true,
+      state: null,
+    })
+  }, [location.hash, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    if (!flashMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      clearFlashMessage()
+    }, 3500)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [clearFlashMessage, flashMessage])
 
   function handleLogout(): void {
     logout()
@@ -169,6 +204,24 @@ export function AppShell() {
 
       <main className="min-h-svh px-4 pb-24 pt-5 sm:px-6 lg:pr-80 lg:pl-8 lg:pb-8 lg:pt-8">
         <div className="mx-auto w-full max-w-7xl">
+          {flashMessage ? (
+            <div
+              aria-live="polite"
+              className="mb-4 rounded-2xl border border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)] px-4 py-3 text-sm font-bold text-[var(--sloty-primary-dark)] shadow-[var(--sloty-shadow)]"
+              role="status"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span>{flashMessage}</span>
+                <button
+                  className="rounded-lg px-2 py-1 text-xs hover:bg-white/70"
+                  onClick={clearFlashMessage}
+                  type="button"
+                >
+                  إغلاق
+                </button>
+              </div>
+            </div>
+          ) : null}
           <Outlet />
         </div>
       </main>

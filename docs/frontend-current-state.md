@@ -107,7 +107,9 @@ Source-of-truth order:
 
 - Working hours now use `clubs/{club_slug}/courts/{court_id}/working-hours/`.
 - The old flat `court-working-hours/` endpoint is removed from frontend usage.
-- Court settings saves the full weekly schedule with PUT using numeric weekdays (`0` Monday through `6` Sunday), and Booking Board fetches working hours for the selected court.
+- Court settings saves the full weekly schedule with PUT using numeric weekdays (`0` Monday through `6` Sunday).
+- Working Hours V2 uses native time inputs for multiple same-day `blocks` instead of `opens_at`/`closes_at`.
+- Overnight working-hour blocks are not supported in this version, and Booking Board generates slots from blocks.
 
 ## Transactions
 

@@ -20,6 +20,7 @@ import {
   NoShowReasonSheet,
   type NoShowReasonValues,
 } from '../components/NoShowReasonSheet/NoShowReasonSheet'
+import { HoldBookingActionSheet } from '../components/HoldBookingActionSheet/HoldBookingActionSheet'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
 import { createTransaction } from '../../transactions/transactionsApi'
 import {
@@ -46,6 +47,10 @@ const statusLegend = [
   {
     label: 'متاح',
     className: 'border-[#22C55E] bg-white',
+  },
+  {
+    label: 'محجوز مؤقتًا',
+    className: 'border-amber-400 bg-amber-100',
   },
   {
     label: 'مؤكد',
@@ -84,7 +89,11 @@ async function fetchBookingResults(
     date,
   })
 
-  return response.results
+  const results = Array.isArray(response)
+    ? response
+    : response?.results
+
+  return Array.isArray(results) ? results : []
 }
 
 /**
@@ -92,8 +101,8 @@ async function fetchBookingResults(
  *
  * It uses the selected club context, courts, working hours, and bookings to
  * generate availability slots. Available/cancelled slots create manual
- * bookings, and confirmed slots show booking details with focused lifecycle
- * actions.
+ * bookings, HOLD slots show next-step actions, and confirmed slots show
+ * booking details with focused lifecycle actions.
  */
 export function SchedulePage() {
   const { selectedClubSlug, selectedMembership } = useAuth()
@@ -111,6 +120,9 @@ export function SchedulePage() {
   const [isWorkingHoursLoading, setIsWorkingHoursLoading] = useState(false)
   const [isBookingsLoading, setIsBookingsLoading] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
+  const [holdBooking, setHoldBooking] = useState<BookingListItem | null>(null)
+  const [isHoldActionSubmitting, setIsHoldActionSubmitting] = useState(false)
+  const [holdActionError, setHoldActionError] = useState<string | null>(null)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [paymentBooking, setPaymentBooking] = useState<BookingListItem | null>(
@@ -127,6 +139,7 @@ export function SchedulePage() {
   )
   const [isLifecycleSubmitting, setIsLifecycleSubmitting] = useState(false)
   const [lifecycleError, setLifecycleError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
     dateFilters[0].date
@@ -315,7 +328,8 @@ export function SchedulePage() {
     setCreateError(null)
 
     try {
-      await createBooking(selectedClubSlug, {
+      const slot = selectedSlot
+      const createdBooking = await createBooking(selectedClubSlug, {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
@@ -327,6 +341,15 @@ export function SchedulePage() {
 
       setSelectedSlot(null)
       await reloadBookings()
+
+      if (createdBooking.status === 'HOLD') {
+        setSelectedSlot({
+          ...slot,
+          status: 'hold',
+          booking: createdBooking,
+        })
+        setHoldBooking(createdBooking)
+      }
     } catch {
       setCreateError('تعذر إنشاء الحجز. تأكد من البيانات وحاول مرة أخرى')
     } finally {
@@ -417,7 +440,9 @@ export function SchedulePage() {
         ...(values.notes ? { notes: values.notes } : {}),
       })
       setPaymentBooking(null)
+      setHoldBooking(null)
       setSelectedSlot(null)
+      setSuccessMessage('تم تسجيل الدفعة بنجاح')
       await reloadBookings()
     } catch {
       setPaymentError('تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى')
@@ -426,11 +451,61 @@ export function SchedulePage() {
     }
   }
 
+  async function handleFreeHoldBooking(booking: BookingListItem): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsHoldActionSubmitting(true)
+    setHoldActionError(null)
+
+    try {
+      await cancelBooking(selectedClubSlug, booking.id, {
+        reason: 'تحرير الحجز المؤقت',
+        notes: 'تم تحرير الموعد من لوحة الحجز',
+      })
+      setHoldBooking(null)
+      setSelectedSlot(null)
+      setSuccessMessage('تم تحرير الموعد بنجاح')
+      await reloadBookings()
+    } catch {
+      setHoldActionError('تعذر تحرير الموعد. حاول مرة أخرى')
+    } finally {
+      setIsHoldActionSubmitting(false)
+    }
+  }
+
+  function handleSelectSlot(slot: ScheduleBooking): void {
+    setSuccessMessage(null)
+    setCreateError(null)
+    setPaymentError(null)
+    setLifecycleError(null)
+    setHoldActionError(null)
+
+    if (slot.status === 'available' || slot.status === 'cancelled') {
+      setSelectedSlot(slot)
+      setHoldBooking(null)
+      return
+    }
+
+    if (slot.status === 'hold') {
+      setSelectedSlot(slot)
+      setHoldBooking(slot.booking ?? null)
+      return
+    }
+
+    if (slot.status === 'confirmed') {
+      setSelectedSlot(slot)
+      setHoldBooking(null)
+    }
+  }
+
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
     setWorkingHours([])
     setBookings([])
     setSelectedSlot(null)
+    setHoldBooking(null)
     setPaymentBooking(null)
     setCancellingBooking(null)
     setCompletingBooking(null)
@@ -438,11 +513,14 @@ export function SchedulePage() {
     setCreateError(null)
     setPaymentError(null)
     setLifecycleError(null)
+    setHoldActionError(null)
+    setSuccessMessage(null)
   }
 
   function handleDateChange(nextDateKey: string): void {
     setActiveDateKey(nextDateKey)
     setSelectedSlot(null)
+    setHoldBooking(null)
     setPaymentBooking(null)
     setCancellingBooking(null)
     setCompletingBooking(null)
@@ -450,6 +528,8 @@ export function SchedulePage() {
     setCreateError(null)
     setPaymentError(null)
     setLifecycleError(null)
+    setHoldActionError(null)
+    setSuccessMessage(null)
   }
 
   const scheduleCourt = {
@@ -502,7 +582,7 @@ export function SchedulePage() {
               لوحة الحجز
             </h2>
             <p className="text-sm text-[var(--sloty-text-muted)]">
-              اختر فترة متاحة أو ملغية لإضافة حجز، أو فترة مؤكدة لعرض التفاصيل
+              اختر فترة متاحة أو ملغية لإضافة حجز، أو فترة مؤكدة/مؤقتة لعرض الإجراء المناسب
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -580,7 +660,7 @@ export function SchedulePage() {
                       <BookingCard
                         booking={booking}
                         key={booking.id}
-                        onSelect={setSelectedSlot}
+                        onSelect={handleSelectSlot}
                       />
                     ))}
                   </div>
@@ -598,7 +678,7 @@ export function SchedulePage() {
                       <BookingCard
                         booking={booking}
                         key={booking.id}
-                        onSelect={setSelectedSlot}
+                        onSelect={handleSelectSlot}
                       />
                     ))}
                   </div>
@@ -609,8 +689,23 @@ export function SchedulePage() {
         </section>
       </div>
 
+      {successMessage ? (
+        <div className="fixed left-4 top-4 z-[70] max-w-sm rounded-2xl border border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)] px-4 py-3 text-sm font-bold text-[var(--sloty-primary-dark)] shadow-[var(--sloty-shadow)]">
+          <div className="flex items-center gap-3">
+            <span>{successMessage}</span>
+            <button
+              className="rounded-lg px-2 py-1 text-xs hover:bg-white/70"
+              onClick={() => setSuccessMessage(null)}
+              type="button"
+            >
+              إغلاق
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {selectedSlot &&
-      selectedSlot.status !== 'confirmed' &&
+      (selectedSlot.status === 'available' || selectedSlot.status === 'cancelled') &&
       selectedCourt ? (
         <AddBookingSheet
           courtName={selectedCourt.name}
@@ -627,6 +722,31 @@ export function SchedulePage() {
         />
       ) : null}
 
+      {selectedSlot?.status === 'hold' && holdBooking ? (
+        <HoldBookingActionSheet
+          booking={holdBooking}
+          courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
+          dateLabel={scheduleCourt.dateLabel}
+          error={holdActionError}
+          isSubmitting={isHoldActionSubmitting}
+          onAddPayment={(booking) => {
+            setPaymentBooking(booking)
+            setHoldBooking(null)
+            setSelectedSlot(null)
+            setPaymentError(null)
+          }}
+          onClose={() => {
+            setSelectedSlot(null)
+            setHoldBooking(null)
+            setHoldActionError(null)
+          }}
+          onFreeSlot={(booking) => {
+            void handleFreeHoldBooking(booking)
+          }}
+          slot={selectedSlot}
+        />
+      ) : null}
+
       {selectedSlot?.status === 'confirmed' ? (
         <BookingDetailsSheet
           booking={selectedSlot.booking}
@@ -640,12 +760,14 @@ export function SchedulePage() {
           }}
           onClose={() => {
             setSelectedSlot(null)
+            setHoldBooking(null)
             setPaymentBooking(null)
             setPaymentError(null)
             setCancellingBooking(null)
             setCompletingBooking(null)
             setNoShowBooking(null)
             setLifecycleError(null)
+            setHoldActionError(null)
           }}
           onRequestCancel={(booking) => {
             setCancellingBooking(booking)

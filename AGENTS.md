@@ -40,7 +40,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Use responsive Tailwind classes such as `sm:`, `md:`, `lg:`, and `xl:` intentionally.
 - Do not blindly copy V0/Vercel prototype layout. Convert it into a real responsive web layout.
 - Background images are decorative only. Dynamic booking slots must always be real React components.
-- Booking Board shows only availability-related states: available, confirmed/reserved, and cancelled-but-bookable.
+- Booking Board shows only availability-related states: available, HOLD/reserved, confirmed/reserved, and cancelled-but-bookable.
+- HOLD slots are visible reserved slots; they are not available and must not open the AddBookingSheet.
 - Completed, payment, no-show, expired, and lifecycle statuses do not belong on Booking Board.
 - Booking Board slot buttons must remain compact and show only the start time.
 
@@ -80,16 +81,21 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 2B court working-hours setup lives inside the courts feature; keep it separate from booking-slot generation.
 - Court working-hours setup API calls belong in the courts feature wrapper/component.
 - Court working hours use the nested court weekly endpoint `clubs/{club_slug}/courts/{court_id}/working-hours/`; do not use the old flat `court-working-hours/` endpoint.
-- Working hours are weekly recurring rows for one court, saved as a full-week PUT; one court has up to seven numeric weekday rows (`0` Monday through `6` Sunday), and closed days send `opens_at`/`closes_at` as `null`.
+- Working hours are weekly recurring rows for one court, saved as a full-week PUT; one court has up to seven numeric weekday rows (`0` Monday through `6` Sunday).
+- Working Hours V2 uses native time inputs for same-day `blocks` per weekday, not `opens_at`/`closes_at`. Multiple same-day blocks are supported, overnight/next-day blocks are not supported, and the frontend must not send `end_day_offset`, `included_hours`, raw selected hours, or selected cells.
 - Do not add holiday/Ramadan working-hour exceptions in MVP unless explicitly requested.
 - Booking Board integration uses clubs, courts, working-hours, and bookings APIs to generate availability slots.
 - Booking Board must fetch working hours for the selected court only.
+- Booking Board must generate slots from working-hour blocks and defer backend validation authority to the API.
 - Booking Board must not show payment or lifecycle details.
-- Sprint 3B creates bookings only from available/cancelled Booking Board slots.
+- Sprint 3B creates bookings only from available/cancelled Booking Board slots; AddBookingSheet remains customer basics only.
 - Sprint 3C adds confirmed booking details and cancel action only.
 - Sprint 3D adds complete/no-show actions from confirmed booking details only.
 - Sprint 4 adds basic transaction listing and confirmed-booking payment recording through `apiEndpoints.clubs.transactions`; transaction API calls go through `src/features/transactions/transactionsApi.ts`.
-- Payment recording opens from confirmed booking details only. Backend validates overpayment and permission rules.
+- Payment recording opens after booking through RecordPaymentSheet from confirmed details or the HOLD action sheet. Backend validates overpayment and permission rules.
+- HOLD slots open a focused action sheet for adding payment or freeing/cancelling the slot through the current cancel flow.
+- BookingCard click behavior must match slot status; available/cancelled open AddBookingSheet, HOLD opens the HOLD action sheet, and confirmed opens booking details.
+- After payment, reload bookings and trust the backend-returned status; the frontend must not fake a CONFIRMED status.
 - Booking Board remains availability-focused and must not show money on slot buttons.
 - Sprint 5 lifecycle actions stay inside confirmed booking details: cancellation requires a reason sheet, complete requires explicit confirmation, and no-show uses a confirmation/reason sheet.
 - Reschedule is deferred until a confirmed backend endpoint/contract exists; do not invent a PATCH flow or custom reschedule path.

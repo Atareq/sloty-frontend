@@ -25,8 +25,8 @@ export interface AddBookingSheetProps {
 /**
  * Quick manual booking sheet for available/cancelled Booking Board slots.
  *
- * It only collects customer basics for Sprint 3B. Price, payment, and booking
- * lifecycle actions belong to later booking/payment flows.
+ * It only collects customer basics. Payment and freeing a HOLD slot happen
+ * after creation through focused booking/payment flows.
  */
 export function AddBookingSheet({
   courtName,
@@ -93,6 +93,9 @@ export function AddBookingSheet({
             dir="ltr"
           >
             {startTime} - {endTime}
+          </p>
+          <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
+            بعد حفظ الحجز يمكنك تسجيل دفعة أو تحرير الموعد.
           </p>
         </div>
 

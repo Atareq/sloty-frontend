@@ -1,4 +1,9 @@
-import { getCourtWeekdayFromDate } from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
+import {
+  isSameDayValidBlock,
+  normalizeTimeString,
+  sortBlocksByStartTime,
+  getCourtWeekdayFromDate,
+} from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
 import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
 import type { BookingBoardPeriod, ScheduleBooking } from './schedule.types'
 import type { BookingListItem } from './scheduleApi.types'
@@ -15,11 +20,12 @@ export interface SlotGenerationResult {
 }
 
 const hiddenBookingStatuses = new Set([
-  'HOLD',
   'COMPLETED',
   'NO_SHOW',
   'EXPIRED',
 ])
+
+const activeSlotStatusPriority = ['CONFIRMED', 'HOLD', 'CANCELLED'] as const
 
 function padTimePart(value: number): string {
   return String(value).padStart(2, '0')
@@ -111,25 +117,26 @@ function getSlotStatus(
   slotEnd: number,
 ): ScheduleBooking['status'] {
   const visibleBookings = getVisibleBookings(bookings)
+  const overlappingBooking = getSlotBooking(visibleBookings, slotStart, slotEnd)
 
-  if (
-    visibleBookings.some(
-      (booking) =>
-        booking.status === 'CONFIRMED' &&
-        bookingOverlapsSlot(booking, slotStart, slotEnd),
-    )
-  ) {
+  if (overlappingBooking?.status === 'CONFIRMED') {
     return 'confirmed'
   }
 
+  if (overlappingBooking?.status === 'HOLD') {
+    return 'hold'
+  }
+
+  if (overlappingBooking?.status === 'CANCELLED') {
+    return 'cancelled'
+  }
+
   if (
-    visibleBookings.some(
-      (booking) =>
-        booking.status === 'CANCELLED' &&
-        bookingOverlapsSlot(booking, slotStart, slotEnd),
+    visibleBookings.some((booking) =>
+      bookingOverlapsSlot(booking, slotStart, slotEnd),
     )
   ) {
-    return 'cancelled'
+    return 'hold'
   }
 
   return 'available'
@@ -141,72 +148,124 @@ function getSlotBooking(
   slotEnd: number,
 ): BookingListItem | undefined {
   const visibleBookings = getVisibleBookings(bookings)
-  const confirmedBooking = visibleBookings.find(
-    (booking) =>
-      booking.status === 'CONFIRMED' &&
-      bookingOverlapsSlot(booking, slotStart, slotEnd),
-  )
+  const prioritizedBooking = activeSlotStatusPriority
+    .map((status) =>
+      visibleBookings.find(
+        (booking) =>
+          booking.status === status &&
+          bookingOverlapsSlot(booking, slotStart, slotEnd),
+      ),
+    )
+    .find(Boolean)
 
-  if (confirmedBooking) {
-    return confirmedBooking
+  if (prioritizedBooking) {
+    return prioritizedBooking
   }
 
-  return visibleBookings.find(
-    (booking) =>
-      booking.status === 'CANCELLED' &&
-      bookingOverlapsSlot(booking, slotStart, slotEnd),
+  return visibleBookings.find((booking) =>
+    bookingOverlapsSlot(booking, slotStart, slotEnd),
   )
 }
 
 export function generateSlotsFromWorkingHour(
   workingHour: CourtWorkingHour | undefined,
   slotDurationMinutes: number,
-  bookings: BookingListItem[],
+  bookings: BookingListItem[] = [],
 ): SlotGenerationResult {
   if (!workingHour) {
-    return { slots: [], message: 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
+    return {
+      slots: [],
+      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
+    }
   }
+
+  const safeBlocks = Array.isArray(workingHour.blocks)
+    ? workingHour.blocks
+    : []
+
+  const safeBookings = Array.isArray(bookings)
+    ? bookings
+    : []
 
   if (workingHour.is_closed) {
-    return { slots: [], message: 'الملعب مغلق في هذا اليوم' }
+    return {
+      slots: [],
+      message: 'الملعب مغلق في هذا اليوم',
+    }
   }
 
-  if (!workingHour.opens_at || !workingHour.closes_at) {
-    return { slots: [], message: 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
+  if (safeBlocks.length === 0) {
+    return {
+      slots: [],
+      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
+    }
   }
 
-  const opensAt = timeToMinutes(workingHour.opens_at)
-  const closesAt = timeToMinutes(workingHour.closes_at)
   const duration =
-    Number.isFinite(slotDurationMinutes) && slotDurationMinutes > 0
+    Number.isFinite(slotDurationMinutes) &&
+    slotDurationMinutes > 0
       ? slotDurationMinutes
       : 60
 
-  if (opensAt === null || closesAt === null) {
-    return { slots: [], message: 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
-  }
-
-  if (closesAt <= opensAt) {
-    return { slots: [], message: 'نطاق ساعات العمل غير مدعوم بعد لهذا اليوم' }
-  }
-
   const slots: ScheduleBooking[] = []
 
-  for (let slotStart = opensAt; slotStart + duration <= closesAt; slotStart += duration) {
-    const slotEnd = slotStart + duration
-    const startTime = minutesToTime(slotStart)
-    const endTime = minutesToTime(slotEnd)
-    const booking = getSlotBooking(bookings, slotStart, slotEnd)
+  sortBlocksByStartTime(safeBlocks).forEach(
+    (block, blockIndex) => {
+      if (!isSameDayValidBlock(block)) {
+        return
+      }
 
-    slots.push({
-      id: `slot-${startTime.replace(':', '')}`,
-      status: getSlotStatus(bookings, slotStart, slotEnd),
-      startTime,
-      endTime,
-      period: getPeriod(slotStart),
-      ...(booking ? { booking } : {}),
-    })
+      const startsAt = timeToMinutes(block.start_time)
+      const endsAt = timeToMinutes(block.end_time)
+
+      if (startsAt === null || endsAt === null) {
+        return
+      }
+
+      for (
+        let slotStart = startsAt;
+        slotStart + duration <= endsAt;
+        slotStart += duration
+      ) {
+        const slotEnd = slotStart + duration
+        const startTime = minutesToTime(slotStart)
+        const endTime = minutesToTime(slotEnd)
+
+        const booking = getSlotBooking(
+          safeBookings,
+          slotStart,
+          slotEnd,
+        )
+
+        slots.push({
+          id: [
+            'slot',
+            blockIndex,
+            normalizeTimeString(startTime).replace(':', ''),
+          ].join('-'),
+          status: getSlotStatus(
+            safeBookings,
+            slotStart,
+            slotEnd,
+          ),
+          startTime,
+          endTime,
+          period: getPeriod(slotStart),
+          ...(booking ? { booking } : {}),
+        })
+      }
+    },
+  )
+
+  if (slots.length === 0) {
+    return {
+      slots,
+      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
+    }
   }
 
-  return { slots, message: slots.length > 0 ? null : 'لم يتم ضبط مواعيد العمل لهذا اليوم' }
+  return {
+    slots,
+    message: null,
+  }
 }

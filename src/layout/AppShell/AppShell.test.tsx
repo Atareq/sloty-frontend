@@ -72,9 +72,13 @@ function getAuthValue(
   }
 }
 
-function renderAppShell() {
+function renderAppShell(
+  initialEntry:
+    | string
+    | { pathname: string; state?: Record<string, unknown> } = '/dashboard',
+) {
   render(
-    <MemoryRouter initialEntries={['/dashboard']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route element={<AppShell />}>
           <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
@@ -137,5 +141,22 @@ describe('AppShell', () => {
     renderAppShell()
 
     expect(screen.getAllByText('التسويات').length).toBeGreaterThan(0)
+  })
+
+  it('shows and dismisses a route-state flash message', async () => {
+    const user = userEvent.setup()
+
+    renderAppShell({
+      pathname: '/dashboard',
+      state: { flashMessage: 'تم تحديث مواعيد العمل بنجاح' },
+    })
+
+    expect(await screen.findByText('تم تحديث مواعيد العمل بنجاح'))
+      .toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'إغلاق' }))
+
+    expect(screen.queryByText('تم تحديث مواعيد العمل بنجاح'))
+      .not.toBeInTheDocument()
   })
 })

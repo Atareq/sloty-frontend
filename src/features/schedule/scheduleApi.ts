@@ -38,7 +38,8 @@ export function listBookingsForCourtDay(
 /**
  * Creates one manual booking from an available or cancelled Booking Board slot.
  *
- * Payments and lifecycle actions intentionally stay out of Sprint 3B.
+ * The backend may return HOLD; payment and release actions happen after
+ * creation through focused sheets.
  */
 export function createBooking(
   clubSlug: string,
