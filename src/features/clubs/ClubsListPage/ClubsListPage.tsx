@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -43,9 +44,9 @@ export function ClubsListPage() {
           setClubs(clubsResponse.results)
           setLocations(locationsResponse)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل قائمة الأندية')
+          setError(getApiErrorMessage(error, 'تعذر تحميل قائمة الأندية'))
           setLocations(null)
         }
       } finally {

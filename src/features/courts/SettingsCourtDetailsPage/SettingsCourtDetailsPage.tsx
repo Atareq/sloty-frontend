@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -41,9 +42,9 @@ export function SettingsCourtDetailsPage() {
           setCourt(response)
           setPrice(response.default_price)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل بيانات الملعب')
+          setError(getApiErrorMessage(error, 'تعذر تحميل بيانات الملعب'))
         }
       } finally {
         if (isActive) {
@@ -90,8 +91,8 @@ export function SettingsCourtDetailsPage() {
       setCourt(savedCourt)
       setPrice(savedCourt.default_price)
       setPriceMessage('تم حفظ سعر الملعب')
-    } catch {
-      setPriceMessage('تعذر حفظ سعر الملعب')
+    } catch (error) {
+      setPriceMessage(getApiErrorMessage(error, 'تعذر حفظ سعر الملعب'))
     } finally {
       setIsSavingPrice(false)
     }

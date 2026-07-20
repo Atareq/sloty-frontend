@@ -60,6 +60,11 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 
 - API base URL must live in one shared config file; do not hardcode it across components.
 - API endpoint paths must live in `src/shared/api/apiEndpoints.ts`; do not hardcode API URLs inside components.
+- `apiRequest` must send `Accept-Language: ar` by default while preserving caller headers and explicit language overrides.
+- Display backend localized API error messages when available, but make frontend logic depend on error code, HTTP status, and field names, never message text.
+- Preserve backend `request_id` values on API errors for diagnostics without showing raw technical payloads to users.
+- Map backend `field_errors` to local form fields when practical, and never show raw technical errors, stack traces, `undefined`, or `[object Object]` to users.
+- Do not add a global toast for every API error; forms need local message and field-error handling.
 - Egypt governorates/cities must come from `GET /egypt-locations/`; club forms must submit governorate/city codes, not Arabic or English labels, and must not hardcode Egypt location lists. Club address forms use governorate, city, and optional address; do not reintroduce `area`.
 - Phone country/region selection is frontend UI only. Backend payloads must send one E.164 phone field such as `customer_phone` or `phone_number`; do not send `phone_region`, `country`, or calling-code fields.
 - JWT role claims are used by the frontend for UX, navigation, and route protection.
@@ -102,7 +107,13 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Hold expiry is backend-driven; the frontend must not fake expiry transitions.
 - Completed, cancelled, no-show, and expired bookings are read-only when shown in booking details.
 - Booking Board remains availability-focused and must not show lifecycle/payment details on slot buttons.
-- Sprint 6 implements staff settlement foundation: settlement pages use `selectedClubSlug`, owner can settle, manager can settle only when `selectedMembership.can_manage_settlements` allows it, and staff cannot settle.
+- Sprint 6 implements user-based settlement foundation: settlement pages use `selectedClubSlug`, owner can settle, manager can settle only when `selectedMembership.can_manage_settlements` allows it, and staff cannot settle.
+- The new settlement flow selects a club user as `collected_by`; it must not use date-range settlement creation.
+- Club users load from `clubs/{club_slug}/users/` and may be filtered by `role`, `court`, `is_active`, and `search`.
+- Settlement review posts `{ collected_by, dry_run: true }` to `clubs/{club_slug}/settlements/`; do not use the legacy preview URL unless the backend contract changes.
+- Settlement confirmation posts `{ collected_by, dry_run: false, notes? }` to `clubs/{club_slug}/settlements/`; do not send `date_from`, `date_to`, `period_start`, or `period_end`.
+- The settlement UI must be a strict review-and-confirm flow: first action text is `مراجعة التسوية`, and final approval text is `تأكيد التسوية`.
+- `period_start` and `period_end` are backend-generated settlement coverage fields and are display-only in the frontend.
 - Backend remains the authority for settlement permissions; settled transactions are locked/read-only and the frontend must not offer raw transaction editing.
 - Transaction correction is cancel payment with a required reason through the transaction cancel endpoint; do not add edit/void payment flows.
 - Cancelled transactions remain visible and frontend code must not manually count them in payment totals.

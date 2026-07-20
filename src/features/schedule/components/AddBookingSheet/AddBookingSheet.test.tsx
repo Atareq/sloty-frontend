@@ -81,4 +81,38 @@ describe('AddBookingSheet', () => {
     expect(screen.getByText('رقم الهاتف غير صحيح')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
+
+  it('shows backend field errors for customer name and phone', () => {
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error="يرجى مراجعة البيانات المدخلة."
+        fieldErrors={{
+          customer_name: [
+            {
+              code: 'REQUIRED',
+              message: 'اسم العميل مطلوب',
+            },
+          ],
+          phone_number: [
+            {
+              code: 'INVALID_PHONE',
+              message: 'رقم الهاتف غير صحيح من الخادم',
+            },
+          ],
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    expect(screen.getByText('اسم العميل مطلوب')).toBeInTheDocument()
+    expect(
+      screen.getByText('رقم الهاتف غير صحيح من الخادم'),
+    ).toBeInTheDocument()
+  })
 })

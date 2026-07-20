@@ -64,6 +64,7 @@ describe('AuditLogsPage', () => {
         {
           id: 1,
           action: 'TRANSACTION_CANCELLED',
+          action_label: 'تم إلغاء دفعة',
           actor: { id: 7, name: 'Owner Mahmoud' },
           target_type: 'Transaction',
           target_id: 101,
@@ -101,9 +102,11 @@ describe('AuditLogsPage', () => {
   it('renders audit log cards with clean metadata', async () => {
     render(<AuditLogsPage />)
 
-    expect(await screen.findByText('تم إلغاء الدفع')).toBeInTheDocument()
+    expect(await screen.findAllByText('تم إلغاء دفعة')).toHaveLength(2)
+    expect(screen.queryByText('TRANSACTION_CANCELLED')).not.toBeInTheDocument()
+    expect(screen.getByText('تم إلغاء الدفع')).toBeInTheDocument()
     expect(screen.getByText('Owner Mahmoud')).toBeInTheDocument()
-    expect(screen.getByText('reason')).toBeInTheDocument()
+    expect(screen.getByText('السبب')).toBeInTheDocument()
     expect(screen.getByText('Wrong amount entered')).toBeInTheDocument()
     expect(mockedListAuditLogs).toHaveBeenCalledWith('nasr-club', {})
   })

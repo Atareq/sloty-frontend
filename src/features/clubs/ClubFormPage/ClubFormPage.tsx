@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import {
+  getApiErrorMessage,
+  getApiFieldErrors,
+  getFirstFieldErrorMessage,
+} from '../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../core/api/apiClient'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -44,6 +50,10 @@ export function ClubFormPage() {
   const isCreateMode = !clubId
   const [formState, setFormState] = useState<ClubFormState>(initialFormState)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<
+    string,
+    ApiFieldError[]
+  > | null>(null)
   const [isLoading, setIsLoading] = useState(!isCreateMode)
   const [locations, setLocations] = useState<EgyptLocationsResponse | null>(
     null,
@@ -59,6 +69,18 @@ export function ClubFormPage() {
     () => (isCreateMode ? 'إضافة نادي' : 'تعديل النادي'),
     [isCreateMode],
   )
+  const nameFieldError = getFirstFieldErrorMessage(fieldErrors, 'name')
+  const slugFieldError = getFirstFieldErrorMessage(fieldErrors, 'slug')
+  const governorateFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'governorate',
+  )
+  const cityFieldError = getFirstFieldErrorMessage(fieldErrors, 'city')
+  const addressFieldError = getFirstFieldErrorMessage(fieldErrors, 'address')
+  const phoneFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'phone_number',
+  )
 
   useEffect(() => {
     let isActive = true
@@ -73,10 +95,12 @@ export function ClubFormPage() {
         if (isActive) {
           setLocations(response)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           setLocations(null)
-          setLocationsError('تعذر تحميل المحافظات والمدن')
+          setLocationsError(
+            getApiErrorMessage(error, 'تعذر تحميل المحافظات والمدن'),
+          )
         }
       } finally {
         if (isActive) {
@@ -103,6 +127,7 @@ export function ClubFormPage() {
     async function loadClub(): Promise<void> {
       setIsLoading(true)
       setError(null)
+      setFieldErrors(null)
 
       try {
         const club = await getClub(currentClubId)
@@ -119,9 +144,9 @@ export function ClubFormPage() {
             is_active: club.is_active,
           })
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل بيانات النادي')
+          setError(getApiErrorMessage(error, 'تعذر تحميل بيانات النادي'))
         }
       } finally {
         if (isActive) {
@@ -142,6 +167,7 @@ export function ClubFormPage() {
       ...current,
       [field]: value,
     }))
+    setFieldErrors(null)
   }
 
   function handleGovernorateChange(governorateCode: string): void {
@@ -150,6 +176,7 @@ export function ClubFormPage() {
       governorate: governorateCode,
       city: '',
     }))
+    setFieldErrors(null)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -161,6 +188,7 @@ export function ClubFormPage() {
       !formState.city
     ) {
       setError('اسم النادي والمحافظة والمدينة/المركز مطلوبة')
+      setFieldErrors(null)
       return
     }
 
@@ -169,10 +197,12 @@ export function ClubFormPage() {
       !isValidSlotyPhoneNumber(formState.phone_number)
     ) {
       setError('رقم هاتف النادي غير صحيح')
+      setFieldErrors(null)
       return
     }
 
     setError(null)
+    setFieldErrors(null)
     setIsSubmitting(true)
 
     try {
@@ -183,8 +213,9 @@ export function ClubFormPage() {
           : await updateClub(clubId, payload)
 
       navigate(isCreateMode ? '/admin/clubs' : `/admin/clubs/${savedClub.id}`)
-    } catch {
-      setError('تعذر حفظ بيانات النادي')
+    } catch (error) {
+      setError(getApiErrorMessage(error, 'تعذر حفظ بيانات النادي'))
+      setFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsSubmitting(false)
     }
@@ -224,6 +255,11 @@ export function ClubFormPage() {
                 value={formState.name}
               />
             </label>
+            {nameFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {nameFieldError}
+              </p>
+            ) : null}
 
             {isCreateMode ? (
               <label className="space-y-2 text-sm font-semibold">
@@ -235,6 +271,11 @@ export function ClubFormPage() {
                   value={formState.slug}
                 />
               </label>
+            ) : null}
+            {isCreateMode && slugFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {slugFieldError}
+              </p>
             ) : null}
 
             <label className="space-y-2 text-sm font-semibold">
@@ -254,6 +295,11 @@ export function ClubFormPage() {
                 ))}
               </select>
             </label>
+            {governorateFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {governorateFieldError}
+              </p>
+            ) : null}
 
             <label className="space-y-2 text-sm font-semibold">
               <span>المدينة/المركز</span>
@@ -277,6 +323,11 @@ export function ClubFormPage() {
                 </span>
               ) : null}
             </label>
+            {cityFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {cityFieldError}
+              </p>
+            ) : null}
 
             <label className="space-y-2 text-sm font-semibold lg:col-span-2">
               <span>العنوان</span>
@@ -286,21 +337,35 @@ export function ClubFormPage() {
                 value={formState.address}
               />
             </label>
+            {addressFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)] lg:col-span-2">
+                {addressFieldError}
+              </p>
+            ) : null}
 
             <div className="space-y-2 text-sm font-semibold">
               <span>رقم الهاتف</span>
               <SlotyPhoneNumberInput
-                error={error === 'رقم هاتف النادي غير صحيح'}
+                error={
+                  error === 'رقم هاتف النادي غير صحيح' ||
+                  Boolean(phoneFieldError)
+                }
                 disabled={isSubmitting}
-                onChange={(value) =>
+                onChange={(value) => {
                   setFormState((current) => ({
                     ...current,
                     phone_number: value,
                   }))
-                }
+                  setFieldErrors(null)
+                }}
                 value={formState.phone_number}
               />
             </div>
+            {phoneFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {phoneFieldError}
+              </p>
+            ) : null}
 
             <label className="flex items-center gap-3 text-sm font-semibold">
               <input

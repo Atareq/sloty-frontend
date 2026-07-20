@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage } from '../api/apiError.helpers'
 import { ApiClientError } from '../api/apiClient'
 import type {
   AuthClaims,
@@ -134,7 +135,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setCurrentUser(null)
-      setSessionError('تعذر تحميل بيانات الحساب')
+      setSessionError(getApiErrorMessage(error, 'تعذر تحميل بيانات الحساب'))
     } finally {
       if (getAccessToken() === accessToken) {
         setIsLoadingSession(false)

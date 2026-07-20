@@ -95,4 +95,33 @@ describe('RecordPaymentSheet', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('shows backend field errors near amount and reference fields', () => {
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error="يرجى مراجعة البيانات المدخلة."
+        fieldErrors={{
+          amount: [
+            {
+              code: 'TRANSACTION_AMOUNT_EXCEEDS_REMAINING',
+              message: 'المبلغ أكبر من المتبقي',
+            },
+          ],
+          reference: [
+            {
+              code: 'PAYMENT_REFERENCE_REQUIRED',
+              message: 'رقم العملية مطلوب',
+            },
+          ],
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('المبلغ أكبر من المتبقي')).toBeInTheDocument()
+    expect(screen.getByText('رقم العملية مطلوب')).toBeInTheDocument()
+  })
 })

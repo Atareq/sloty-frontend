@@ -1,8 +1,12 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
-import { getSettlement } from '../settlementsApi'
+import {
+  getSettlement,
+  markSettlementSettled,
+} from '../settlementsApi'
 import { SettlementDetailPage } from './SettlementDetailPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -11,10 +15,12 @@ vi.mock('../../../core/auth/useAuth', () => ({
 
 vi.mock('../settlementsApi', () => ({
   getSettlement: vi.fn(),
+  markSettlementSettled: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetSettlement = vi.mocked(getSettlement)
+const mockedMarkSettlementSettled = vi.mocked(markSettlementSettled)
 
 function mockAuth() {
   mockedUseAuth.mockReturnValue({
@@ -67,43 +73,70 @@ describe('SettlementDetailPage', () => {
     mockAuth()
     mockedGetSettlement.mockResolvedValue({
       id: 9,
-      staff: { id: 5, name: 'Ahmed Staff' },
-      totals: {
-        cash: '1200.00',
-        digital_wallet: '500.00',
-        bank_transfer: '300.00',
-        other: '0.00',
-        total: '2000.00',
+      club: 1,
+      collected_by: 5,
+      collected_by_name: 'Ahmed Staff',
+      total_amount: '2000.00',
+      transaction_count: 8,
+      totals_by_payment_method: {
+        CASH: '1200.00',
+        DIGITAL_WALLET: '500.00',
       },
+      period_start: '2026-07-19T10:00:00Z',
+      period_end: '2026-07-19T15:20:00Z',
+      status: 'PENDING',
       notes: 'Shift settlement',
-      settled_by: { id: 1, name: 'Owner User' },
-      settled_at: '2026-07-15T10:00:00Z',
-      transactions: [
+      created_by: { id: 1, name: 'Owner User' },
+      created: '2026-07-19T15:20:00Z',
+      settled_by: null,
+      settled_at: null,
+      lines: [
         {
-          id: 10,
-          booking: 55,
-          amount: '300.00',
+          id: 1,
+          transaction: 101,
+          amount: '500.00',
           payment_method: 'CASH',
-          is_settled: true,
-          is_cancelled: true,
-          cancellation_reason: 'مبلغ خاطئ',
         },
       ],
     })
+    mockedMarkSettlementSettled.mockResolvedValue({
+      id: 9,
+      collected_by: 5,
+      collected_by_name: 'Ahmed Staff',
+      total_amount: '2000.00',
+      transaction_count: 8,
+      status: 'SETTLED',
+    })
   })
 
-  it('renders locked settlement details', async () => {
+  it('renders collected-by settlement detail with display-only backend period', async () => {
     renderPage()
 
     expect(
-      await screen.findByText('هذه التسوية مقفلة ولا يمكن تعديل معاملاتها'),
+      await screen.findByText(
+        'الفترة المعروضة يتم تحديدها تلقائيًا من أول معاملة داخلة في التسوية حتى وقت تأكيد التسوية.',
+      ),
     ).toBeInTheDocument()
     expect(screen.getByText('Ahmed Staff')).toBeInTheDocument()
     expect(screen.getByText('2000.00')).toBeInTheDocument()
     expect(screen.getByText('Shift settlement')).toBeInTheDocument()
-    expect(screen.getByText('معاملة مقفلة')).toBeInTheDocument()
-    expect(screen.getByText('ملغي')).toBeInTheDocument()
-    expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
+    expect(screen.getByText('#101')).toBeInTheDocument()
     expect(mockedGetSettlement).toHaveBeenCalledWith('nasr-club', '9')
+  })
+
+  it('marks pending settlement as settled and reloads displayed state from response', async () => {
+    const user = userEvent.setup()
+
+    renderPage()
+
+    await user.click(await screen.findByRole('button', {
+      name: 'تأكيد الاستلام',
+    }))
+
+    await waitFor(() => {
+      expect(mockedMarkSettlementSettled).toHaveBeenCalledWith('nasr-club', '9')
+    })
+    expect(await screen.findByText('تم تحديث حالة التسوية')).toBeInTheDocument()
+    expect(screen.getByText('مسواة')).toBeInTheDocument()
   })
 })

@@ -14,64 +14,86 @@ export const settlementPaymentMethodLabels: Record<
   OTHER: 'أخرى',
 }
 
-export interface SettlementPaymentTotals {
-  cash: string
-  digital_wallet: string
-  bank_transfer: string
-  other: string
-  total: string
-}
-
-export interface SettlementStaff {
-  id: number
-  name: string
-}
-
-export interface SettlementTransaction {
+export interface SettlementPreviewTransaction {
   id: number
   booking?: number | null
+  court?: number | null
+  court_name?: string | null
   amount: string
   payment_method: SettlementPaymentMethod
+  payment_reference?: string | null
   reference?: string | null
   created?: string
-  created_by?: SettlementStaff | null
-  is_settled?: boolean
-  is_cancelled?: boolean
-  cancellation_reason?: string | null
 }
 
 export interface SettlementPreview {
-  staff?: SettlementStaff | null
-  date_from?: string | null
-  date_to?: string | null
-  totals: SettlementPaymentTotals
-  transactions: SettlementTransaction[]
+  dry_run?: true
+  created?: false
+  club: number
+  collected_by: number
+  collected_by_name: string
+  is_self_preview?: boolean
+  can_approve?: boolean
+  approval_required?: boolean
+  period_start?: string
+  period_end?: string
+  transaction_count: number
+  total_amount: string
+  totals_by_payment_method: Partial<Record<SettlementPaymentMethod, string>>
+  transactions: SettlementPreviewTransaction[]
+}
+
+export interface ReviewSettlementRequest {
+  collected_by: number
+  dry_run: true
+}
+
+export interface ConfirmSettlementRequest {
+  collected_by: number
+  dry_run: false
+  notes?: string
+}
+
+export type SettlementStatus = 'PENDING' | 'SETTLED' | 'CANCELLED'
+
+export interface SettlementLine {
+  id: number
+  transaction: number
+  amount: string
+  payment_method: SettlementPaymentMethod
+}
+
+export interface SettlementActor {
+  id: number
+  name?: string
 }
 
 export interface Settlement {
   id: number
-  staff?: SettlementStaff | null
-  date_from?: string | null
-  date_to?: string | null
-  totals?: SettlementPaymentTotals
-  total_amount?: string
+  dry_run?: false
+  created_at?: string
+  club?: number
+  court?: number | null
+  collected_by?: number | null
+  collected_by_name?: string | null
+  period_start?: string | null
+  period_end?: string | null
+  status?: SettlementStatus | string
+  total_amount?: string | null
+  transaction_count?: number
+  totals_by_payment_method?: Partial<Record<SettlementPaymentMethod, string>>
   notes?: string | null
+  created_by?: number | SettlementActor | null
+  settled_by?: number | SettlementActor | null
+  settled_at?: string | null
   created?: string
-  settled_at?: string
-  settled_by?: SettlementStaff | null
-  transactions?: SettlementTransaction[]
+  lines?: SettlementLine[]
+  transactions?: SettlementPreviewTransaction[]
 }
 
 export interface SettlementQueryParams {
-  staff?: number | string
-  date_from?: string
-  date_to?: string
+  collected_by?: number | string
+  status?: string
+  court?: number | string
   page?: number | string
-}
-
-export interface SettlementCreatePayload {
-  staff?: number | string
-  date_from?: string
-  date_to?: string
-  notes?: string
 }

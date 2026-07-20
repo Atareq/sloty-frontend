@@ -1,5 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
+import {
+  getApiErrorMessage,
+  getApiFieldErrors,
+  getFirstFieldErrorMessage,
+} from '../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../core/api/apiClient'
 import { loginWithPassword } from '../../../core/auth/authApi'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -28,14 +34,24 @@ export function LoginPage() {
   const { login } = useAuth()
   const [formState, setFormState] = useState<LoginFormState>(initialFormState)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<
+    string,
+    ApiFieldError[]
+  > | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const usernameFieldError =
+    getFirstFieldErrorMessage(fieldErrors, 'username') ??
+    getFirstFieldErrorMessage(fieldErrors, 'phone_number')
+  const passwordFieldError = getFirstFieldErrorMessage(fieldErrors, 'password')
+  const clubSlugFieldError = getFirstFieldErrorMessage(fieldErrors, 'club_slug')
 
   function updateField(field: keyof LoginFormState, value: string): void {
     setFormState((currentFormState) => ({
       ...currentFormState,
       [field]: value,
     }))
+    setFieldErrors(null)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -43,10 +59,12 @@ export function LoginPage() {
 
     if (!formState.username.trim() || !formState.password.trim()) {
       setError('رقم الموبايل أو اسم المستخدم وكلمة المرور مطلوبان')
+      setFieldErrors(null)
       return
     }
 
     setError(null)
+    setFieldErrors(null)
     setIsSubmitting(true)
 
     try {
@@ -59,8 +77,14 @@ export function LoginPage() {
       })
       login(tokens.access, tokens.refresh)
       navigate('/')
-    } catch {
-      setError('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى')
+    } catch (error) {
+      setError(
+        getApiErrorMessage(
+          error,
+          'تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى',
+        ),
+      )
+      setFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsSubmitting(false)
     }
@@ -124,6 +148,11 @@ export function LoginPage() {
                   value={formState.username}
                 />
               </div>
+              {usernameFieldError ? (
+                <p className="text-xs font-bold text-[var(--sloty-danger)]">
+                  {usernameFieldError}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -162,6 +191,11 @@ export function LoginPage() {
                   {showPassword ? 'إخفاء' : 'إظهار'}
                 </button>
               </div>
+              {passwordFieldError ? (
+                <p className="text-xs font-bold text-[var(--sloty-danger)]">
+                  {passwordFieldError}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -185,6 +219,11 @@ export function LoginPage() {
                 type="text"
                 value={formState.clubSlug}
               />
+              {clubSlugFieldError ? (
+                <p className="text-xs font-bold text-[var(--sloty-danger)]">
+                  {clubSlugFieldError}
+                </p>
+              ) : null}
             </div>
 
             {error ? (

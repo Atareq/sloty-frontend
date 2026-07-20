@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import {
+  getApiErrorMessage,
+  getApiFieldErrors,
+  getFirstFieldErrorMessage,
+} from '../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../core/api/apiClient'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -96,11 +102,28 @@ export function CourtFormPage() {
   const isCreateMode = !courtId
   const [formState, setFormState] = useState<CourtFormState>(initialFormState)
   const [error, setError] = useState<string | null>(clubSlug ? null : 'رابط النادي غير صحيح')
+  const [fieldErrors, setFieldErrors] = useState<Record<
+    string,
+    ApiFieldError[]
+  > | null>(null)
   const [isLoading, setIsLoading] = useState(Boolean(clubSlug && !isCreateMode))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const title = useMemo(
     () => (isCreateMode ? 'إضافة ملعب' : 'تعديل الملعب'),
     [isCreateMode],
+  )
+  const nameFieldError = getFirstFieldErrorMessage(fieldErrors, 'name')
+  const defaultPriceFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'default_price',
+  )
+  const slotDurationFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'slot_duration_minutes',
+  )
+  const holdExpiryFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'internal_hold_expiry_hours',
   )
 
   useEffect(() => {
@@ -115,6 +138,7 @@ export function CourtFormPage() {
     async function loadCourt(): Promise<void> {
       setIsLoading(true)
       setError(null)
+      setFieldErrors(null)
 
       try {
         const court = await getCourt(currentClubSlug, currentCourtId)
@@ -132,9 +156,9 @@ export function CourtFormPage() {
             notes: court.notes ?? '',
           })
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل بيانات الملعب')
+          setError(getApiErrorMessage(error, 'تعذر تحميل بيانات الملعب'))
         }
       } finally {
         if (isActive) {
@@ -155,6 +179,7 @@ export function CourtFormPage() {
       ...current,
       [field]: value,
     }))
+    setFieldErrors(null)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -162,11 +187,13 @@ export function CourtFormPage() {
 
     if (!clubSlug) {
       setError('رابط النادي غير صحيح')
+      setFieldErrors(null)
       return
     }
 
     if (!formState.name.trim()) {
       setError('اسم الملعب مطلوب')
+      setFieldErrors(null)
       return
     }
 
@@ -183,10 +210,12 @@ export function CourtFormPage() {
 
     if (hasInvalidNumber) {
       setError('السعر ومدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً أكبر من صفر')
+      setFieldErrors(null)
       return
     }
 
     setError(null)
+    setFieldErrors(null)
     setIsSubmitting(true)
 
     try {
@@ -201,8 +230,9 @@ export function CourtFormPage() {
           ? `/admin/clubs/${clubSlug}/courts`
           : `/admin/clubs/${clubSlug}/courts/${savedCourt.id}`,
       )
-    } catch {
-      setError('تعذر حفظ بيانات الملعب')
+    } catch (error) {
+      setError(getApiErrorMessage(error, 'تعذر حفظ بيانات الملعب'))
+      setFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsSubmitting(false)
     }
@@ -237,6 +267,11 @@ export function CourtFormPage() {
                 value={formState.name}
               />
             </label>
+            {nameFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {nameFieldError}
+              </p>
+            ) : null}
 
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">
@@ -288,6 +323,11 @@ export function CourtFormPage() {
                 value={formState.default_price}
               />
             </label>
+            {defaultPriceFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {defaultPriceFieldError}
+              </p>
+            ) : null}
 
             <label className="block space-y-2 text-sm font-semibold">
               <span>مدة الفترة الواحدة</span>
@@ -310,6 +350,11 @@ export function CourtFormPage() {
                 يتم حفظ مدة الفترة ولا يمكن تغييرها بعد ذلك.
               </span>
             </label>
+            {slotDurationFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {slotDurationFieldError}
+              </p>
+            ) : null}
             <label className="block space-y-2 text-sm font-semibold">
               <span>مدة الاحتفاظ بالحجز بدون دفع</span>
 
@@ -332,6 +377,11 @@ export function CourtFormPage() {
                 المدة التي يظل فيها الحجز محفوظاً قبل إلغائه في حالة عدم الدفع.
               </span>
             </label>
+            {holdExpiryFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {holdExpiryFieldError}
+              </p>
+            ) : null}
 
             <label className="flex items-center gap-3 text-sm font-semibold">
               <input

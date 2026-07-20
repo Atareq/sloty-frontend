@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -78,9 +79,9 @@ export function ReportsPage() {
 
     try {
       setReport(await getReports(selectedClubSlug, params))
-    } catch {
+    } catch (error) {
       setReport(null)
-      setError('تعذر تحميل التقرير')
+      setError(getApiErrorMessage(error, 'تعذر تحميل التقرير'))
     } finally {
       setIsLoading(false)
     }
@@ -101,10 +102,10 @@ export function ReportsPage() {
         if (isActive) {
           setReport(response)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           setReport(null)
-          setError('تعذر تحميل التقرير')
+          setError(getApiErrorMessage(error, 'تعذر تحميل التقرير'))
         }
       }
     }

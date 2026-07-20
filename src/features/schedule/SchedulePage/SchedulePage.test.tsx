@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { getCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
 import { listCourts } from '../../courts/courtsApi'
@@ -412,6 +413,30 @@ describe('SchedulePage', () => {
     expect(
       screen.queryByRole('heading', { name: 'إضافة حجز' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows backend booking conflict message and reloads bookings', async () => {
+    const user = userEvent.setup()
+
+    mockedCreateBooking.mockRejectedValueOnce(
+      new ApiClientError('هذا الموعد محجوز بالفعل', 409, {
+        code: 'BOOKING_SLOT_ALREADY_TAKEN',
+      }),
+    )
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
+
+    expect(
+      await screen.findByText('هذا الموعد محجوز بالفعل'),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('opens the HOLD action sheet instead of add booking for held slots', async () => {

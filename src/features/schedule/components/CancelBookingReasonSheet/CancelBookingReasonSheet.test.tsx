@@ -60,4 +60,27 @@ describe('CancelBookingReasonSheet', () => {
       notes: 'ظرف طارئ',
     })
   })
+
+  it('shows backend field error for cancellation reason', () => {
+    render(
+      <CancelBookingReasonSheet
+        error="يرجى مراجعة البيانات المدخلة."
+        fieldErrors={{
+          reason: [
+            {
+              code: 'REQUIRED',
+              message: 'سبب الإلغاء مطلوب من الخادم',
+            },
+          ],
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByText('سبب الإلغاء مطلوب من الخادم'),
+    ).toBeInTheDocument()
+  })
 })

@@ -41,4 +41,25 @@ describe('CancelTransactionSheet', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({ reason: 'مبلغ خاطئ' })
   })
+
+  it('shows backend field error for cancellation reason', () => {
+    render(
+      <CancelTransactionSheet
+        error="يرجى مراجعة البيانات المدخلة."
+        fieldErrors={{
+          reason: [
+            {
+              code: 'REQUIRED',
+              message: 'اكتب سبب الإلغاء',
+            },
+          ],
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('اكتب سبب الإلغاء')).toBeInTheDocument()
+  })
 })

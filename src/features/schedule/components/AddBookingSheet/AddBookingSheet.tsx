@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  getFirstFieldErrorMessage,
+} from '../../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type { Value } from 'react-phone-number-input'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
@@ -18,6 +22,7 @@ export interface AddBookingSheetProps {
   endTime: string
   isSubmitting: boolean
   error: string | null
+  fieldErrors?: Record<string, ApiFieldError[]> | null
   onClose: () => void
   onSubmit: (values: AddBookingSheetValues) => Promise<void>
 }
@@ -33,6 +38,7 @@ export function AddBookingSheet({
   dateLabel,
   endTime,
   error,
+  fieldErrors = null,
   isSubmitting,
   onClose,
   onSubmit,
@@ -42,6 +48,13 @@ export function AddBookingSheet({
   const [customerPhone, setCustomerPhone] = useState<Value | undefined>()
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const nameFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'customer_name',
+  )
+  const phoneFieldError =
+    getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
+    getFirstFieldErrorMessage(fieldErrors, 'phone_number')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -109,17 +122,30 @@ export function AddBookingSheet({
               value={customerName}
             />
           </label>
+          {nameFieldError ? (
+            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+              {nameFieldError}
+            </p>
+          ) : null}
 
           <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>رقم الهاتف</span>
 
             <SlotyPhoneNumberInput
               disabled={isSubmitting}
-              error={validationError === 'رقم الهاتف غير صحيح'}
+              error={
+                validationError === 'رقم الهاتف غير صحيح' ||
+                Boolean(phoneFieldError)
+              }
               onChange={setCustomerPhone}
               value={customerPhone}
             />
           </div>
+          {phoneFieldError ? (
+            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+              {phoneFieldError}
+            </p>
+          ) : null}
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>

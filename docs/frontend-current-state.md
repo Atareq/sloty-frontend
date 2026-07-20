@@ -31,6 +31,7 @@ Source-of-truth order:
 ## Current Implemented Modules
 
 - Auth/login foundation
+- Centralized API error handling with Arabic backend messages and field-error helpers
 - `/me` current-user hydration
 - Post-login club selection
 - No-club-access page
@@ -77,6 +78,12 @@ Source-of-truth order:
 - Platform admin: can access `/admin/clubs` without `selectedClubSlug`
 - Backend remains the source of truth for permissions
 
+## API Error Handling
+
+- `apiRequest` sends `Accept-Language: ar` by default while preserving explicit caller headers.
+- Backend localized `message`, stable `code`, `field_errors`, `details`, and `request_id` are preserved by `ApiClientError`.
+- UI logic must use code/status/field names rather than Arabic message text, and form pages should map backend `field_errors` near relevant inputs when practical.
+
 ## UI Rules
 
 - Use shared `PageHeader` by default for new pages
@@ -92,8 +99,9 @@ Source-of-truth order:
 
 ## Settlements
 
-- Sprint 6 settlement foundation is implemented for preview, create, history, and detail.
+- Sprint 6 settlement foundation is implemented for review, confirmation, history, and detail.
 - Settlement pages use `selectedClubSlug`; owner can settle, and manager access depends on `can_manage_settlements`.
+- Settlement review and confirmation both post to `clubs/{club_slug}/settlements/`: review sends `{ collected_by, dry_run: true }`, and confirmation sends `{ collected_by, dry_run: false, notes? }`.
 - Settled transactions are shown as locked/read-only. Cancelled transactions remain visible and are not manually counted in frontend totals.
 
 ## Dashboard, Reports, And Audit Logs

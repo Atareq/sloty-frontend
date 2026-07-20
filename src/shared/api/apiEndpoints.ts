@@ -56,7 +56,8 @@ export const apiEndpoints = {
       list: (clubSlug: string) => `clubs/${clubSlug}/settlements/`,
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/settlements/${id}/`,
-      preview: (clubSlug: string) => `clubs/${clubSlug}/settlements/preview/`,
+      markSettled: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/settlements/${id}/mark-settled/`,
     },
     transactions: {
       list: (clubSlug: string) => `clubs/${clubSlug}/transactions/`,
@@ -64,6 +65,9 @@ export const apiEndpoints = {
         `clubs/${clubSlug}/transactions/${id}/`,
       cancel: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/transactions/${id}/cancel/`,
+    },
+    users: {
+      list: (clubSlug: string) => `clubs/${clubSlug}/users/`,
     },
   },
   users: {

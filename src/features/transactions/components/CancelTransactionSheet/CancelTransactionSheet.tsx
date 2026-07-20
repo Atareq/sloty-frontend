@@ -1,4 +1,8 @@
 import { useState, type FormEvent } from 'react'
+import {
+  getFirstFieldErrorMessage,
+} from '../../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 
 export interface CancelTransactionValues {
@@ -8,18 +12,21 @@ export interface CancelTransactionValues {
 export interface CancelTransactionSheetProps {
   isSubmitting: boolean
   error: string | null
+  fieldErrors?: Record<string, ApiFieldError[]> | null
   onClose: () => void
   onSubmit: (values: CancelTransactionValues) => Promise<void> | void
 }
 
 export function CancelTransactionSheet({
   error,
+  fieldErrors = null,
   isSubmitting,
   onClose,
   onSubmit,
 }: CancelTransactionSheetProps) {
   const [reason, setReason] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const reasonFieldError = getFirstFieldErrorMessage(fieldErrors, 'reason')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -67,6 +74,11 @@ export function CancelTransactionSheet({
             value={reason}
           />
         </label>
+        {reasonFieldError ? (
+          <p className="mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+            {reasonFieldError}
+          </p>
+        ) : null}
 
         {validationError || error ? (
           <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">

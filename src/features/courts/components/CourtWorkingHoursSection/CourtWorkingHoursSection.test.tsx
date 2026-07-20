@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '../../../../core/api/apiClient'
 import {
   getCourtWorkingHours,
   saveCourtWorkingHours,
@@ -250,6 +251,39 @@ describe('CourtWorkingHoursSection', () => {
         state: { flashMessage: 'تم تحديث مواعيد العمل بنجاح' },
       })
     })
+  })
+
+  it('shows backend working-hours field error when save fails', async () => {
+    const user = userEvent.setup()
+
+    mockedSaveCourtWorkingHours.mockRejectedValueOnce(
+      new ApiClientError('يرجى مراجعة مواعيد العمل', 400, {
+        code: 'VALIDATION_ERROR',
+        fieldErrors: {
+          working_hours: [
+            {
+              code: 'INVALID_BLOCKS',
+              message: 'فترات العمل غير صحيحة',
+            },
+          ],
+        },
+      }),
+    )
+
+    render(
+      <CourtWorkingHoursSection
+        clubSlug="nasr-club"
+        courtId="7"
+        isCreateMode={false}
+      />,
+    )
+
+    await screen.findByText('السبت')
+    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+
+    expect(await screen.findByText('فترات العمل غير صحيحة'))
+      .toBeInTheDocument()
+    expect(mockedNavigate).not.toHaveBeenCalled()
   })
 
   it('rejects overlapping periods', async () => {

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
+import {
+  getApiErrorMessage,
+  getApiFieldErrors,
+  getFirstFieldErrorMessage,
+} from '../../../../core/api/apiError.helpers'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import {
@@ -220,9 +225,9 @@ export function CourtWorkingHoursSection({
           setDrafts(nextDrafts)
           setLastSavedDrafts(nextDrafts)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل مواعيد العمل')
+          setError(getApiErrorMessage(error, 'تعذر تحميل مواعيد العمل'))
         }
       } finally {
         if (isActive) {
@@ -420,8 +425,16 @@ export function CourtWorkingHoursSection({
       navigate('/dashboard', {
         state: { flashMessage: 'تم تحديث مواعيد العمل بنجاح' },
       })
-    } catch {
-      setError('تعذر حفظ مواعيد العمل')
+    } catch (error) {
+      const fieldErrors = getApiFieldErrors(error)
+      const backendFieldMessage =
+        getFirstFieldErrorMessage(fieldErrors, 'working_hours') ??
+        getFirstFieldErrorMessage(fieldErrors, 'blocks')
+
+      setError(
+        backendFieldMessage ??
+          getApiErrorMessage(error, 'تعذر حفظ مواعيد العمل'),
+      )
     } finally {
       setIsSaving(false)
     }

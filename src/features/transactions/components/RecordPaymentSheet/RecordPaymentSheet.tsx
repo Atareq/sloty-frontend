@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  getFirstFieldErrorMessage,
+} from '../../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type {
   PaymentMethod,
@@ -15,6 +19,7 @@ export type RecordPaymentSheetValues = Omit<
 export interface RecordPaymentSheetProps {
   bookingId: number | string
   error: string | null
+  fieldErrors?: Record<string, ApiFieldError[]> | null
   isSubmitting: boolean
   onClose: () => void
   onSubmit: (values: RecordPaymentSheetValues) => Promise<void> | void
@@ -29,6 +34,7 @@ export interface RecordPaymentSheetProps {
 export function RecordPaymentSheet({
   bookingId,
   error,
+  fieldErrors = null,
   isSubmitting,
   onClose,
   onSubmit,
@@ -38,6 +44,10 @@ export function RecordPaymentSheet({
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const amountFieldError = getFirstFieldErrorMessage(fieldErrors, 'amount')
+  const referenceFieldError =
+    getFirstFieldErrorMessage(fieldErrors, 'reference') ??
+    getFirstFieldErrorMessage(fieldErrors, 'payment_reference')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -104,6 +114,11 @@ export function RecordPaymentSheet({
               value={amount}
             />
           </label>
+          {amountFieldError ? (
+            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+              {amountFieldError}
+            </p>
+          ) : null}
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>طريقة الدفع</span>
@@ -132,6 +147,11 @@ export function RecordPaymentSheet({
               value={reference}
             />
           </label>
+          {referenceFieldError ? (
+            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+              {referenceFieldError}
+            </p>
+          ) : null}
           <p className="-mt-2 text-xs font-bold text-[var(--sloty-text-muted)]">
             اختياري حسب طريقة الدفع وسياسة الملعب
           </p>

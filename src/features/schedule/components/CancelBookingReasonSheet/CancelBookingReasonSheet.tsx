@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import {
+  getFirstFieldErrorMessage,
+} from '../../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 
 export interface CancelBookingReasonValues {
@@ -10,6 +14,7 @@ export interface CancelBookingReasonValues {
 export interface CancelBookingReasonSheetProps {
   isSubmitting: boolean
   error: string | null
+  fieldErrors?: Record<string, ApiFieldError[]> | null
   onClose: () => void
   onSubmit: (values: CancelBookingReasonValues) => Promise<void> | void
 }
@@ -29,6 +34,7 @@ const reasonOptions = [
 export function CancelBookingReasonSheet({
   isSubmitting,
   error,
+  fieldErrors = null,
   onClose,
   onSubmit,
 }: CancelBookingReasonSheetProps) {
@@ -36,6 +42,7 @@ export function CancelBookingReasonSheet({
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
   const requiresNotes = reason === 'أخرى'
+  const reasonFieldError = getFirstFieldErrorMessage(fieldErrors, 'reason')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -99,6 +106,11 @@ export function CancelBookingReasonSheet({
               ))}
             </select>
           </label>
+          {reasonFieldError ? (
+            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+              {reasonFieldError}
+            </p>
+          ) : null}
 
           {requiresNotes ? (
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">

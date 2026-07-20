@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -48,9 +49,9 @@ export function DashboardPage() {
 
     try {
       setSummary(await getDashboardSummary(selectedClubSlug, params))
-    } catch {
+    } catch (error) {
       setSummary(null)
-      setError('تعذر تحميل ملخص لوحة التحكم')
+      setError(getApiErrorMessage(error, 'تعذر تحميل ملخص لوحة التحكم'))
     } finally {
       setIsLoading(false)
     }
@@ -71,10 +72,10 @@ export function DashboardPage() {
         if (isActive) {
           setSummary(response)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           setSummary(null)
-          setError('تعذر تحميل ملخص لوحة التحكم')
+          setError(getApiErrorMessage(error, 'تعذر تحميل ملخص لوحة التحكم'))
         }
       }
     }

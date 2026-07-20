@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -54,9 +55,9 @@ export function AuditLogsPage() {
       const response = await listAuditLogs(selectedClubSlug, params)
 
       setEntries(response.results)
-    } catch {
+    } catch (error) {
       setEntries([])
-      setError('تعذر تحميل سجل النشاط')
+      setError(getApiErrorMessage(error, 'تعذر تحميل سجل النشاط'))
     } finally {
       setIsLoading(false)
     }
@@ -77,10 +78,10 @@ export function AuditLogsPage() {
         if (isActive) {
           setEntries(response.results)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           setEntries([])
-          setError('تعذر تحميل سجل النشاط')
+          setError(getApiErrorMessage(error, 'تعذر تحميل سجل النشاط'))
         }
       }
     }

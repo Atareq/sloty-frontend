@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  getApiErrorCode,
+  getApiErrorMessage,
+  getApiFieldErrors,
+} from '../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import type { CurrentUserMembershipClub } from '../../../core/auth/auth.types'
 import { getCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
@@ -61,6 +67,11 @@ const statusLegend = [
     className: 'border-[#D1D5DB] bg-[#F3F4F6]',
   },
 ]
+
+const bookingConflictCodes = new Set([
+  'BOOKING_SLOT_ALREADY_TAKEN',
+  'BOOKING_OVERLAP',
+])
 
 function getSummary(slots: ScheduleBooking[]) {
   return {
@@ -125,11 +136,19 @@ export function SchedulePage() {
   const [holdActionError, setHoldActionError] = useState<string | null>(null)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [createFieldErrors, setCreateFieldErrors] = useState<Record<
+    string,
+    ApiFieldError[]
+  > | null>(null)
   const [paymentBooking, setPaymentBooking] = useState<BookingListItem | null>(
     null,
   )
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [paymentFieldErrors, setPaymentFieldErrors] = useState<Record<
+    string,
+    ApiFieldError[]
+  > | null>(null)
   const [cancellingBooking, setCancellingBooking] =
     useState<BookingListItem | null>(null)
   const [completingBooking, setCompletingBooking] =
@@ -139,6 +158,10 @@ export function SchedulePage() {
   )
   const [isLifecycleSubmitting, setIsLifecycleSubmitting] = useState(false)
   const [lifecycleError, setLifecycleError] = useState<string | null>(null)
+  const [lifecycleFieldErrors, setLifecycleFieldErrors] = useState<Record<
+    string,
+    ApiFieldError[]
+  > | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const selectedDate =
     dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
@@ -196,9 +219,11 @@ export function SchedulePage() {
             firstActiveCourt ? null : 'لا توجد ملاعب نشطة لعرض جدول الحجز',
           )
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل إعدادات جدول الحجز')
+          setError(
+            getApiErrorMessage(error, 'تعذر تحميل إعدادات جدول الحجز'),
+          )
         }
       } finally {
         if (isActive) {
@@ -235,10 +260,12 @@ export function SchedulePage() {
         if (isActive) {
           setWorkingHours(response.working_hours)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           setWorkingHours([])
-          setError('تعذر تحميل مواعيد عمل الملعب')
+          setError(
+            getApiErrorMessage(error, 'تعذر تحميل مواعيد عمل الملعب'),
+          )
         }
       } finally {
         if (isActive) {
@@ -269,9 +296,9 @@ export function SchedulePage() {
 
     try {
       setBookings(await fetchBookingResults(clubSlug, courtId, date))
-    } catch {
+    } catch (error) {
       setBookings([])
-      setError('تعذر تحميل حجوزات اليوم')
+      setError(getApiErrorMessage(error, 'تعذر تحميل حجوزات اليوم'))
     } finally {
       setIsBookingsLoading(false)
     }
@@ -298,10 +325,10 @@ export function SchedulePage() {
         if (isActive) {
           setBookings(results)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           setBookings([])
-          setError('تعذر تحميل حجوزات اليوم')
+          setError(getApiErrorMessage(error, 'تعذر تحميل حجوزات اليوم'))
         }
       } finally {
         if (isActive) {
@@ -326,6 +353,7 @@ export function SchedulePage() {
 
     setIsCreateSubmitting(true)
     setCreateError(null)
+    setCreateFieldErrors(null)
 
     try {
       const slot = selectedSlot
@@ -350,8 +378,20 @@ export function SchedulePage() {
         })
         setHoldBooking(createdBooking)
       }
-    } catch {
-      setCreateError('تعذر إنشاء الحجز. تأكد من البيانات وحاول مرة أخرى')
+    } catch (error) {
+      const errorCode = getApiErrorCode(error)
+
+      setCreateError(
+        getApiErrorMessage(
+          error,
+          'تعذر إنشاء الحجز. تأكد من البيانات وحاول مرة أخرى',
+        ),
+      )
+      setCreateFieldErrors(getApiFieldErrors(error))
+
+      if (errorCode && bookingConflictCodes.has(errorCode)) {
+        await reloadBookings()
+      }
     } finally {
       setIsCreateSubmitting(false)
     }
@@ -366,14 +406,18 @@ export function SchedulePage() {
 
     setIsLifecycleSubmitting(true)
     setLifecycleError(null)
+    setLifecycleFieldErrors(null)
 
     try {
       await cancelBooking(selectedClubSlug, cancellingBooking.id, values)
       setCancellingBooking(null)
       setSelectedSlot(null)
       await reloadBookings()
-    } catch {
-      setLifecycleError('تعذر إلغاء الحجز. حاول مرة أخرى')
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
+      )
+      setLifecycleFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsLifecycleSubmitting(false)
     }
@@ -386,14 +430,17 @@ export function SchedulePage() {
 
     setIsLifecycleSubmitting(true)
     setLifecycleError(null)
+    setLifecycleFieldErrors(null)
 
     try {
       await completeBooking(selectedClubSlug, completingBooking.id)
       setCompletingBooking(null)
       setSelectedSlot(null)
       await reloadBookings()
-    } catch {
-      setLifecycleError('تعذر إكمال الحجز. حاول مرة أخرى')
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر إكمال الحجز. حاول مرة أخرى'),
+      )
     } finally {
       setIsLifecycleSubmitting(false)
     }
@@ -408,14 +455,17 @@ export function SchedulePage() {
 
     setIsLifecycleSubmitting(true)
     setLifecycleError(null)
+    setLifecycleFieldErrors(null)
 
     try {
       await markBookingNoShow(selectedClubSlug, noShowBooking.id, values)
       setNoShowBooking(null)
       setSelectedSlot(null)
       await reloadBookings()
-    } catch {
-      setLifecycleError('تعذر تسجيل عدم الحضور. حاول مرة أخرى')
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر تسجيل عدم الحضور. حاول مرة أخرى'),
+      )
     } finally {
       setIsLifecycleSubmitting(false)
     }
@@ -430,6 +480,7 @@ export function SchedulePage() {
 
     setIsPaymentSubmitting(true)
     setPaymentError(null)
+    setPaymentFieldErrors(null)
 
     try {
       await createTransaction(selectedClubSlug, {
@@ -444,8 +495,14 @@ export function SchedulePage() {
       setSelectedSlot(null)
       setSuccessMessage('تم تسجيل الدفعة بنجاح')
       await reloadBookings()
-    } catch {
-      setPaymentError('تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى')
+    } catch (error) {
+      setPaymentError(
+        getApiErrorMessage(
+          error,
+          'تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى',
+        ),
+      )
+      setPaymentFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsPaymentSubmitting(false)
     }
@@ -468,8 +525,10 @@ export function SchedulePage() {
       setSelectedSlot(null)
       setSuccessMessage('تم تحرير الموعد بنجاح')
       await reloadBookings()
-    } catch {
-      setHoldActionError('تعذر تحرير الموعد. حاول مرة أخرى')
+    } catch (error) {
+      setHoldActionError(
+        getApiErrorMessage(error, 'تعذر تحرير الموعد. حاول مرة أخرى'),
+      )
     } finally {
       setIsHoldActionSubmitting(false)
     }
@@ -478,8 +537,11 @@ export function SchedulePage() {
   function handleSelectSlot(slot: ScheduleBooking): void {
     setSuccessMessage(null)
     setCreateError(null)
+    setCreateFieldErrors(null)
     setPaymentError(null)
+    setPaymentFieldErrors(null)
     setLifecycleError(null)
+    setLifecycleFieldErrors(null)
     setHoldActionError(null)
 
     if (slot.status === 'available' || slot.status === 'cancelled') {
@@ -511,8 +573,11 @@ export function SchedulePage() {
     setCompletingBooking(null)
     setNoShowBooking(null)
     setCreateError(null)
+    setCreateFieldErrors(null)
     setPaymentError(null)
+    setPaymentFieldErrors(null)
     setLifecycleError(null)
+    setLifecycleFieldErrors(null)
     setHoldActionError(null)
     setSuccessMessage(null)
   }
@@ -526,8 +591,11 @@ export function SchedulePage() {
     setCompletingBooking(null)
     setNoShowBooking(null)
     setCreateError(null)
+    setCreateFieldErrors(null)
     setPaymentError(null)
+    setPaymentFieldErrors(null)
     setLifecycleError(null)
+    setLifecycleFieldErrors(null)
     setHoldActionError(null)
     setSuccessMessage(null)
   }
@@ -712,10 +780,12 @@ export function SchedulePage() {
           dateLabel={scheduleCourt.dateLabel}
           endTime={selectedSlot.endTime}
           error={createError}
+          fieldErrors={createFieldErrors}
           isSubmitting={isCreateSubmitting}
           onClose={() => {
             setSelectedSlot(null)
             setCreateError(null)
+            setCreateFieldErrors(null)
           }}
           onSubmit={handleCreateBooking}
           startTime={selectedSlot.startTime}
@@ -734,6 +804,7 @@ export function SchedulePage() {
             setHoldBooking(null)
             setSelectedSlot(null)
             setPaymentError(null)
+            setPaymentFieldErrors(null)
           }}
           onClose={() => {
             setSelectedSlot(null)
@@ -757,29 +828,35 @@ export function SchedulePage() {
           onAddPayment={(booking) => {
             setPaymentBooking(booking)
             setPaymentError(null)
+            setPaymentFieldErrors(null)
           }}
           onClose={() => {
             setSelectedSlot(null)
             setHoldBooking(null)
             setPaymentBooking(null)
             setPaymentError(null)
+            setPaymentFieldErrors(null)
             setCancellingBooking(null)
             setCompletingBooking(null)
             setNoShowBooking(null)
             setLifecycleError(null)
+            setLifecycleFieldErrors(null)
             setHoldActionError(null)
           }}
           onRequestCancel={(booking) => {
             setCancellingBooking(booking)
             setLifecycleError(null)
+            setLifecycleFieldErrors(null)
           }}
           onRequestComplete={(booking) => {
             setCompletingBooking(booking)
             setLifecycleError(null)
+            setLifecycleFieldErrors(null)
           }}
           onRequestNoShow={(booking) => {
             setNoShowBooking(booking)
             setLifecycleError(null)
+            setLifecycleFieldErrors(null)
           }}
           slot={selectedSlot}
         />
@@ -789,10 +866,12 @@ export function SchedulePage() {
         <RecordPaymentSheet
           bookingId={paymentBooking.id}
           error={paymentError}
+          fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
+            setPaymentFieldErrors(null)
           }}
           onSubmit={handleRecordPayment}
         />
@@ -801,10 +880,12 @@ export function SchedulePage() {
       {cancellingBooking ? (
         <CancelBookingReasonSheet
           error={lifecycleError}
+          fieldErrors={lifecycleFieldErrors}
           isSubmitting={isLifecycleSubmitting}
           onClose={() => {
             setCancellingBooking(null)
             setLifecycleError(null)
+            setLifecycleFieldErrors(null)
           }}
           onSubmit={handleCancelBooking}
         />

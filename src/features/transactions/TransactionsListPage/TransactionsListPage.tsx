@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import {
+  getApiErrorMessage,
+  getApiFieldErrors,
+} from '../../../core/api/apiError.helpers'
+import type { ApiFieldError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -56,6 +61,10 @@ export function TransactionsListPage() {
   const [cancelTarget, setCancelTarget] = useState<Transaction | null>(null)
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [cancelFieldErrors, setCancelFieldErrors] = useState<Record<
+    string,
+    ApiFieldError[]
+  > | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
@@ -92,10 +101,15 @@ export function TransactionsListPage() {
         if (isActive) {
           setTransactions(transactionsResponse.results)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
           setTransactions([])
-          setError('تعذر تحميل المعاملات. حاول مرة أخرى')
+          setError(
+            getApiErrorMessage(
+              error,
+              'تعذر تحميل المعاملات. حاول مرة أخرى',
+            ),
+          )
         }
       } finally {
         if (isActive) {
@@ -120,13 +134,17 @@ export function TransactionsListPage() {
 
     setIsCancelSubmitting(true)
     setCancelError(null)
+    setCancelFieldErrors(null)
 
     try {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
       await reloadTransactions()
-    } catch {
-      setCancelError('تعذر إلغاء الدفع. حاول مرة أخرى')
+    } catch (error) {
+      setCancelError(
+        getApiErrorMessage(error, 'تعذر إلغاء الدفع. حاول مرة أخرى'),
+      )
+      setCancelFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsCancelSubmitting(false)
     }
@@ -287,6 +305,7 @@ export function TransactionsListPage() {
                     onClick={() => {
                       setCancelTarget(transaction)
                       setCancelError(null)
+                      setCancelFieldErrors(null)
                     }}
                     variant="danger"
                   >
@@ -302,10 +321,12 @@ export function TransactionsListPage() {
       {cancelTarget ? (
         <CancelTransactionSheet
           error={cancelError}
+          fieldErrors={cancelFieldErrors}
           isSubmitting={isCancelSubmitting}
           onClose={() => {
             setCancelTarget(null)
             setCancelError(null)
+            setCancelFieldErrors(null)
           }}
           onSubmit={handleCancelTransaction}
         />

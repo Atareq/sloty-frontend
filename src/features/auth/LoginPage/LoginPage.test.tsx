@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '../../../core/api/apiClient'
 import { AuthProvider } from '../../../core/auth/AuthProvider'
 import { AuthLandingRedirect } from '../../../core/auth/AuthLandingRedirect'
 import {
@@ -160,6 +161,45 @@ describe('LoginPage', () => {
       await screen.findByText('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى'),
     ).toBeInTheDocument()
     expect(screen.queryByText('لوحة التحكم')).not.toBeInTheDocument()
+    expect(getAccessToken()).toBeNull()
+  })
+
+  it('shows backend login message and field errors when available', async () => {
+    const user = userEvent.setup()
+
+    mockedLoginWithPassword.mockRejectedValueOnce(
+      new ApiClientError('بيانات الدخول غير صحيحة', 400, {
+        code: 'VALIDATION_ERROR',
+        fieldErrors: {
+          username: [
+            {
+              code: 'INVALID_USERNAME',
+              message: 'اسم المستخدم غير صحيح',
+            },
+          ],
+          password: [
+            {
+              code: 'INVALID_PASSWORD',
+              message: 'كلمة المرور غير صحيحة',
+            },
+          ],
+        },
+      }),
+    )
+
+    renderLoginPageWithRoutes()
+
+    await user.type(
+      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      'wrong-user',
+    )
+    await user.type(screen.getByLabelText('كلمة المرور'), 'bad-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(await screen.findByText('بيانات الدخول غير صحيحة'))
+      .toBeInTheDocument()
+    expect(screen.getByText('اسم المستخدم غير صحيح')).toBeInTheDocument()
+    expect(screen.getByText('كلمة المرور غير صحيحة')).toBeInTheDocument()
     expect(getAccessToken()).toBeNull()
   })
 })

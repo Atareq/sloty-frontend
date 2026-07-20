@@ -16,10 +16,12 @@ export type AuditMetadataValue = string | number | boolean | null
 export interface AuditLogEntry {
   id: number
   action: string
+  action_label?: string | null
   actor?: AuditActor | null
   target_type?: string | null
   target_id?: number | string | null
   message?: string
-  metadata?: Record<string, AuditMetadataValue> | null
+  description?: string | null
+  metadata?: Record<string, unknown> | null
   created?: string
 }

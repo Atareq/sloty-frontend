@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -38,9 +39,9 @@ export function CourtsListPage() {
         if (isActive) {
           setCourts(response.results)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل قائمة الملاعب')
+          setError(getApiErrorMessage(error, 'تعذر تحميل قائمة الملاعب'))
         }
       } finally {
         if (isActive) {

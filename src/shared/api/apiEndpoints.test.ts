@@ -20,6 +20,12 @@ describe('apiEndpoints', () => {
     expect(apiEndpoints.clubs.courts.detail('nasr-club', 3)).toBe(
       'clubs/nasr-club/courts/3/',
     )
+    expect(apiEndpoints.clubs.users.list('nasr-club')).toBe(
+      'clubs/nasr-club/users/',
+    )
+    expect(apiEndpoints.clubs.settlements.markSettled('nasr-club', 9)).toBe(
+      'clubs/nasr-club/settlements/9/mark-settled/',
+    )
     expect(apiEndpoints.users.detail('staff-1')).toBe('users/staff-1/')
   })
 })

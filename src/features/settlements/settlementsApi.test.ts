@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
-  createSettlement,
+  confirmUserSettlement,
   getSettlement,
-  getSettlementPreview,
+  markSettlementSettled,
+  reviewUserSettlement,
   listSettlements,
 } from './settlementsApi'
 
@@ -15,40 +16,20 @@ vi.mock('../../core/api/apiClient', () => ({
 const mockedApiRequest = vi.mocked(apiRequest)
 
 describe('settlementsApi', () => {
-  it('gets settlement preview with query params', async () => {
+  it('reviews a user settlement with dry_run true on the list endpoint', async () => {
+    const payload = {
+      collected_by: 5,
+      dry_run: true as const,
+    }
+
     mockedApiRequest.mockResolvedValueOnce({
-      totals: {
-        cash: '0.00',
-        digital_wallet: '0.00',
-        bank_transfer: '0.00',
-        other: '0.00',
-        total: '0.00',
-      },
+      transaction_count: 0,
+      total_amount: '0.00',
+      totals_by_payment_method: {},
       transactions: [],
     })
 
-    await getSettlementPreview('nasr-club', {
-      staff: 5,
-      date_from: '2026-07-01',
-      date_to: '2026-07-15',
-    })
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.clubs.settlements.preview('nasr-club')}?staff=5&date_from=2026-07-01&date_to=2026-07-15`,
-    )
-  })
-
-  it('creates settlement through the settlements list endpoint', async () => {
-    const payload = {
-      staff: 5,
-      date_from: '2026-07-01',
-      date_to: '2026-07-15',
-      notes: 'Shift settlement',
-    }
-
-    mockedApiRequest.mockResolvedValueOnce({ id: 9 })
-
-    await createSettlement('nasr-club', payload)
+    await reviewUserSettlement('nasr-club', payload)
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       apiEndpoints.clubs.settlements.list('nasr-club'),
@@ -59,7 +40,27 @@ describe('settlementsApi', () => {
     )
   })
 
-  it('lists settlements through the settlements list endpoint', async () => {
+  it('confirms a user settlement with dry_run false and notes only', async () => {
+    const payload = {
+      collected_by: 5,
+      dry_run: false as const,
+      notes: 'Shift settlement',
+    }
+
+    mockedApiRequest.mockResolvedValueOnce({ id: 9 })
+
+    await confirmUserSettlement('nasr-club', payload)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.settlements.list('nasr-club'),
+      {
+        method: 'POST',
+        body: payload,
+      },
+    )
+  })
+
+  it('lists settlements with supported collected_by/status/court filters', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,
       next: null,
@@ -67,10 +68,14 @@ describe('settlementsApi', () => {
       results: [],
     })
 
-    await listSettlements('nasr-club')
+    await listSettlements('nasr-club', {
+      collected_by: 5,
+      status: 'PENDING',
+      court: 3,
+    })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.settlements.list('nasr-club'),
+      `${apiEndpoints.clubs.settlements.list('nasr-club')}?collected_by=5&status=PENDING&court=3`,
     )
   })
 
@@ -81,6 +86,19 @@ describe('settlementsApi', () => {
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       apiEndpoints.clubs.settlements.detail('nasr-club', 9),
+    )
+  })
+
+  it('marks one settlement as settled through the confirmed action endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ id: 9, status: 'SETTLED' })
+
+    await markSettlementSettled('nasr-club', 9)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.settlements.markSettled('nasr-club', 9),
+      {
+        method: 'POST',
+      },
     )
   })
 })

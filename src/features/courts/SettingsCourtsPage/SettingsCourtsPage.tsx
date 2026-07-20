@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -36,9 +37,9 @@ export function SettingsCourtsPage() {
         if (isActive) {
           setCourts(response.results)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
-          setError('تعذر تحميل الملاعب')
+          setError(getApiErrorMessage(error, 'تعذر تحميل الملاعب'))
         }
       } finally {
         if (isActive) {
