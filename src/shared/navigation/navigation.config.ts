@@ -91,6 +91,13 @@ export const navigationItems: NavigationItem[] = [
     showInMobile: false,
   },
   {
+    path: '/settings/users',
+    label: 'المستخدمون والصلاحيات',
+    marker: 'ص',
+    allowedRoles: ['OWNER'],
+    showInMobile: false,
+  },
+  {
     path: '/admin/clubs',
     label: 'الأندية',
     marker: 'أ',
@@ -153,6 +160,10 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   '/settings': {
     title: 'الإعدادات',
     subtitle: 'إعدادات النادي والصلاحيات',
+  },
+  '/settings/users': {
+    title: 'المستخدمون والصلاحيات',
+    subtitle: 'مراجعة أعضاء النادي وصلاحيات المديرين',
   },
   '/settings/courts': {
     title: 'إعدادات الملاعب',

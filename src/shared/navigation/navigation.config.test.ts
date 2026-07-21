@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canRoleAccessPath,
+  getPageHeaderMeta,
   getNavigationItemsForRole,
   navigationItems,
 } from './navigation.config'
@@ -22,6 +23,9 @@ describe('navigation config', () => {
     expect(canRoleAccessPath('STAFF', '/reports')).toBe(false)
     expect(canRoleAccessPath('OWNER', '/reports')).toBe(true)
     expect(canRoleAccessPath('STAFF', '/transactions')).toBe(false)
+    expect(canRoleAccessPath('STAFF', '/settings/users')).toBe(false)
+    expect(canRoleAccessPath('MANAGER', '/settings/users')).toBe(false)
+    expect(canRoleAccessPath('OWNER', '/settings/users')).toBe(true)
   })
 
   it('can return the three daily mobile footer items for each club role', () => {
@@ -53,6 +57,7 @@ describe('navigation config', () => {
       '/audit-logs',
       '/settings/courts',
       '/settings',
+      '/settings/users',
       '/admin/clubs',
       '/admin/users',
       '/admin/settings',
@@ -77,6 +82,7 @@ describe('navigation config', () => {
         'سجل النشاطات',
         'التقارير الاستهلاكية للملاعب',
         'الإعدادات',
+        'المستخدمون والصلاحيات',
       ]),
     )
     expect(labels).not.toEqual(
@@ -92,5 +98,12 @@ describe('navigation config', () => {
         'المزيد',
       ]),
     )
+  })
+
+  it('exposes settings users page metadata', () => {
+    expect(getPageHeaderMeta('/settings/users')).toEqual({
+      title: 'المستخدمون والصلاحيات',
+      subtitle: 'مراجعة أعضاء النادي وصلاحيات المديرين',
+    })
   })
 })

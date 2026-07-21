@@ -171,6 +171,14 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 - Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.
+- `/settings` is the Settings hub.
+- `/settings/users` is the read-only Users & Permissions page.
+- Permission flags are membership-level flags and must be displayed with business Arabic labels, never backend flag names.
+- OWNER has full settings and permissions access by default.
+- MANAGER permissions depend on `can_change_pricing`, `can_manage_working_hours`, and `can_manage_settlements`.
+- STAFF cannot manage permissions.
+- Users & Permissions remains read-only until a backend PATCH endpoint for editing permissions is confirmed.
+- Backend remains the authority for permission enforcement.
 - Authenticated pages use the reusable unified green header from `AppShell`; do not add duplicate visible page title cards inside shell pages.
 - Mobile footer contains only `لوحة التحكم`, `الجدول`, and `سجل الحجوزات`.
 - Finance, admin, history, reports, audit, settlements, and settings links live in the hamburger menu and desktop sidebar, not in the mobile footer.

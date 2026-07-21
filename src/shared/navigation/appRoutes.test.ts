@@ -8,6 +8,8 @@ describe('appRoutes', () => {
     expect(appRoutes.transactions).toBe('/transactions')
     expect(appRoutes.settlementPreview).toBe('/settlements/preview')
     expect(appRoutes.settlementDetail(5)).toBe('/settlements/5')
+    expect(appRoutes.settings).toBe('/settings')
+    expect(appRoutes.settingsUsers).toBe('/settings/users')
     expect(appRoutes.auditLogs).toBe('/audit-logs')
   })
 })

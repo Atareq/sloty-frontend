@@ -18,6 +18,8 @@ import { SettlementDetailPage } from '../features/settlements/SettlementDetailPa
 import { SettlementHistoryPage } from '../features/settlements/SettlementHistoryPage/SettlementHistoryPage'
 import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/SettlementsHubPage'
 import { SettlementPreviewPage } from '../features/settlements/SettlementPreviewPage/SettlementPreviewPage'
+import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHubPage'
+import { SettingsUsersPage } from '../features/settings/SettingsUsersPage/SettingsUsersPage'
 import { TransactionsListPage } from '../features/transactions/TransactionsListPage/TransactionsListPage'
 import { AuthLandingRedirect } from '../core/auth/AuthLandingRedirect'
 import { ProtectedRoute } from '../core/auth/ProtectedRoute'
@@ -162,10 +164,15 @@ export const router = createBrowserRouter([
         path: '/settings',
         element: (
           <RoleRoute allowedRoles={['OWNER']}>
-            <PlaceholderPage
-              description="مسار مؤقت لإعدادات النادي ضمن صلاحيات المالك."
-              title="الإعدادات"
-            />
+            <SettingsHubPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/settings/users',
+        element: (
+          <RoleRoute allowedRoles={['OWNER']}>
+            <SettingsUsersPage />
           </RoleRoute>
         ),
       },

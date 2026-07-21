@@ -34,7 +34,13 @@ const mobileMenuGroups: NavigationGroup[] = [
   },
   {
     title: 'الإدارة والمتابعة',
-    paths: ['/audit-logs', '/reports', '/settings/courts', '/settings'],
+    paths: [
+      '/audit-logs',
+      '/reports',
+      '/settings/courts',
+      '/settings/users',
+      '/settings',
+    ],
   },
 ]
 

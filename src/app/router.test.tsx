@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { RoleRoute } from '../core/auth/RoleRoute'
 import { SettlementPreviewPage } from '../features/settlements/SettlementPreviewPage/SettlementPreviewPage'
 import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/SettlementsHubPage'
+import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHubPage'
+import { SettingsUsersPage } from '../features/settings/SettingsUsersPage/SettingsUsersPage'
 import { router } from './router'
 
 function getProtectedChildRoute(path: string) {
@@ -31,5 +33,21 @@ describe('router settlement routes', () => {
 
     expect(routeElement?.type).toBe(RoleRoute)
     expect(routeElement?.props.children.type).toBe(SettlementPreviewPage)
+  })
+})
+
+describe('router settings routes', () => {
+  it('maps /settings to the real settings hub page', () => {
+    const routeElement = getProtectedChildRoute('/settings')
+
+    expect(routeElement?.type).toBe(RoleRoute)
+    expect(routeElement?.props.children.type).toBe(SettingsHubPage)
+  })
+
+  it('maps /settings/users to the users and permissions page', () => {
+    const routeElement = getProtectedChildRoute('/settings/users')
+
+    expect(routeElement?.type).toBe(RoleRoute)
+    expect(routeElement?.props.children.type).toBe(SettingsUsersPage)
   })
 })

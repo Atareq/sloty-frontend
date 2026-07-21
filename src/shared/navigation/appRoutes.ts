@@ -10,5 +10,7 @@ export const appRoutes = {
   settlementDetail: (id: AppRouteId) => `/settlements/${id}`,
   settlementPreview: '/settlements/preview',
   settlements: '/settlements',
+  settings: '/settings',
+  settingsUsers: '/settings/users',
   transactions: '/transactions',
 } as const
