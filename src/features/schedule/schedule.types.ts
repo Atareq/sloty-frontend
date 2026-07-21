@@ -6,8 +6,7 @@ export type BookingBoardSlotStatus =
   | 'confirmed'
   | 'completed'
   | 'cancelled'
-export type BookingBoardPeriod = 'day' | 'night'
-
+export type BookingBoardPeriod = 'am' | 'pm'
 export interface ScheduleStaff {
   name: string
   role: string

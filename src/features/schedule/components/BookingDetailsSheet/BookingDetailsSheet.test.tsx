@@ -20,7 +20,7 @@ const slot: ScheduleBooking = {
   status: 'confirmed',
   startTime: '07:00',
   endTime: '08:00',
-  period: 'day',
+  period: 'am',
   booking,
 }
 

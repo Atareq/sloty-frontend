@@ -186,8 +186,8 @@ export function SchedulePage() {
     : { slots: [], message: setupMessage }
   const slots = slotGeneration.slots
   const boardMessage = slotGeneration.message ?? setupMessage
-  const daySlots = slots.filter((booking) => booking.period === 'day')
-  const nightSlots = slots.filter((booking) => booking.period === 'night')
+  const amSlots = slots.filter((booking) => booking.period === 'am')
+  const pmSlots = slots.filter((booking) => booking.period === 'pm')
   const summary = getSummary(slots)
 
   useEffect(() => {
@@ -749,12 +749,12 @@ export function SchedulePage() {
                 <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
                   <div>
                     <p className="text-xs font-bold text-white/75">
-                       الفترة النهارية 
+                      الفترة الصباحية · AM
                     </p>
-                    <h3 className="text-lg font-black text-white">مواعيد النهار </h3>
+                    <h3 className="text-lg font-black text-white">مواعيد ص</h3>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
-                    {daySlots.map((booking) => (
+                    {amSlots.map((booking) => (
                       <BookingCard
                         booking={booking}
                         key={booking.id}
@@ -767,12 +767,12 @@ export function SchedulePage() {
                 <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
                   <div>
                     <p className="text-xs font-bold text-white/75">
-                      الفترة المسائية
+                     الفترة المسائية · PM
                     </p>
-                    <h3 className="text-lg font-black text-white">مواعيد المساء</h3>
+                    <h3 className="text-lg font-black text-white"> مواعيد م</h3>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
-                    {nightSlots.map((booking) => (
+                    {pmSlots.map((booking) => (
                       <BookingCard
                         booking={booking}
                         key={booking.id}

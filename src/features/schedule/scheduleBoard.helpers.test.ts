@@ -2,12 +2,26 @@ import { describe, expect, it } from 'vitest'
 import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
 import {
   formatBookingDateTime,
+  formatTime12Hour,
   generateSlotsFromWorkingHour,
   getEgyptDateValue,
   getSlotPeriod,
   getVisibleBookings,
 } from './scheduleBoard.helpers'
 import type { BookingListItem } from './scheduleApi.types'
+
+it('formats 24-hour time values as Arabic 12-hour display values', () => {
+  expect(formatTime12Hour('00:00')).toBe('12:00 ص')
+  expect(formatTime12Hour('06:00')).toBe('6:00 ص')
+  expect(formatTime12Hour('11:30')).toBe('11:30 ص')
+  expect(formatTime12Hour('12:00')).toBe('12:00 م')
+  expect(formatTime12Hour('18:30')).toBe('6:30 م')
+  expect(formatTime12Hour('23:45')).toBe('11:45 م')
+})
+
+it('returns invalid time values unchanged', () => {
+  expect(formatTime12Hour('bad-time')).toBe('bad-time')
+})
 
 const workingHour: CourtWorkingHour = {
   id: 1,
@@ -317,10 +331,13 @@ describe('scheduleBoard helpers', () => {
     ])
   })
 
-  it('uses Sloty business cutoffs for day and night periods', () => {
-    expect(getSlotPeriod(5 * 60)).toBe('night')
-    expect(getSlotPeriod(6 * 60)).toBe('day')
-    expect(getSlotPeriod(17 * 60 + 59)).toBe('day')
-    expect(getSlotPeriod(18 * 60)).toBe('night')
+  it('splits slots using standard AM and PM boundaries', () => {
+    expect(getSlotPeriod(0)).toBe('am')
+    expect(getSlotPeriod(6 * 60)).toBe('am')
+    expect(getSlotPeriod(11 * 60 + 59)).toBe('am')
+
+    expect(getSlotPeriod(12 * 60)).toBe('pm')
+    expect(getSlotPeriod(18 * 60)).toBe('pm')
+    expect(getSlotPeriod(23 * 60 + 59)).toBe('pm')
   })
 })

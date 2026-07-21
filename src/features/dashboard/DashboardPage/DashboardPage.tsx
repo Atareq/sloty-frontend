@@ -225,14 +225,14 @@ export function DashboardPage() {
                 <SummaryActionCard
                   helper={`${formatCount(
                     summary.summary.unsettled_transaction_count,
-                  )} دفعات · ${
+                  )} معاملات · ${
                     summary.summary.staff_with_unsettled_transactions_count
                   } موظفين`}
                   label="مبالغ غير مسواة حالياً"
                   to="/transactions?settlement_status=unsettled&is_cancelled=false"
                   tone="purple"
                   value={formatMoneyAmount(
-                    summary.summary.unsettled_transaction_amount,
+                    summary.summary.unsettled_transaction_total_amount,
                   )}
                 />
               </section>

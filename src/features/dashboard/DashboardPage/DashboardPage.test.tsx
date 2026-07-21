@@ -66,7 +66,7 @@ const baseSummaryResponse: DashboardSummaryResponse = {
     total_remaining_amount: null,
     transaction_count: 9,
     transaction_total: '900.00',
-    unsettled_transaction_amount: '700.00',
+    unsettled_transaction_total_amount: '700.00',
     unsettled_transaction_count: 7,
   },
 }
@@ -215,7 +215,7 @@ describe('DashboardPage', () => {
         staff_with_unsettled_transactions_count: 0,
         total_remaining_amount: null,
         transaction_total: '0',
-        unsettled_transaction_amount: null,
+        unsettled_transaction_total_amount: null,
         unsettled_transaction_count: 0,
       },
     })

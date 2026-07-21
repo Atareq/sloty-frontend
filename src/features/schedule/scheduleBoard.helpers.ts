@@ -32,8 +32,7 @@ const activeSlotStatusPriority = [
 ] as const
 
 const EGYPT_TIME_ZONE = 'Africa/Cairo'
-export const DAY_START_MINUTES = 6 * 60
-export const NIGHT_START_MINUTES = 18 * 60
+export const PM_START_MINUTES = 12 * 60
 
 function padTimePart(value: number): string {
   return String(value).padStart(2, '0')
@@ -117,6 +116,33 @@ export function isPastSlot(
   return slotEndMinutes === null || slotEndMinutes <= getEgyptCurrentMinutes(now)
 }
 
+/**
+ * Formats a backend 24-hour time value for Arabic UI display.
+ *
+ * Examples:
+ * 00:00 -> 12:00 ص
+ * 09:30 -> 9:30 ص
+ * 12:00 -> 12:00 م
+ * 18:30 -> 6:30 م
+ *
+ * This must only be used for display. API and calculation values remain
+ * in the original 24-hour format.
+ */
+export function formatTime12Hour(time: string): string {
+  const totalMinutes = timeToMinutes(time)
+
+  if (totalMinutes === null) {
+    return time
+  }
+
+  const hours24 = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  const hours12 = hours24 % 12 || 12
+  const period = hours24 < 12 ? 'ص' : 'م'
+
+  return `${hours12}:${padTimePart(minutes)} ${period}`
+}
+
 export function createDateFilterOptions(today = new Date()): DateFilterOption[] {
   return [
     { key: 'today', label: 'اليوم', date: getEgyptDateValueOffset(0, today) },
@@ -169,11 +195,8 @@ function minutesToTime(minutes: number): string {
 }
 
 export function getSlotPeriod(startMinutes: number): BookingBoardPeriod {
-  return startMinutes >= DAY_START_MINUTES && startMinutes < NIGHT_START_MINUTES
-    ? 'day'
-    : 'night'
+  return startMinutes < PM_START_MINUTES ? 'am' : 'pm'
 }
-
 function bookingOverlapsSlot(
   booking: BookingListItem,
   slotStart: number,
@@ -329,7 +352,7 @@ export function generateSlotsFromWorkingHour(
 
         if (selectedDate && isPastSlot(selectedDate, endTime, now)) {
           hiddenPastSlotCount += 1
-          return
+          continue
         }
 
         const booking = getSlotBooking(

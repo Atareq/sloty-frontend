@@ -1,6 +1,7 @@
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type { ScheduleBooking } from '../../schedule.types'
 import type { BookingListItem } from '../../scheduleApi.types'
+import { formatTime12Hour } from '../../scheduleBoard.helpers'
 
 export interface BookingDetailsSheetProps {
   booking: BookingListItem | undefined
@@ -53,6 +54,8 @@ export function BookingDetailsSheet({
     HOLD: 'هذا الحجز في انتظار التأكيد',
   }
   const lockedMessage = booking ? lockedMessageByStatus[booking.status] : null
+  const displayStartTime = formatTime12Hour(slot.startTime)
+  const displayEndTime = formatTime12Hour(slot.endTime)
 
   return (
     <div
@@ -75,7 +78,7 @@ export function BookingDetailsSheet({
             className="text-lg font-black text-[var(--sloty-primary-dark)]"
             dir="ltr"
           >
-            {slot.startTime} - {slot.endTime}
+            {displayStartTime} - {displayEndTime}
           </p>
         </div>
 

@@ -1,6 +1,7 @@
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type { ScheduleBooking } from '../../schedule.types'
 import type { BookingListItem } from '../../scheduleApi.types'
+import { formatTime12Hour } from '../../scheduleBoard.helpers'
 
 export interface HoldBookingActionSheetProps {
   booking: BookingListItem
@@ -31,6 +32,8 @@ export function HoldBookingActionSheet({
   onFreeSlot,
   slot,
 }: HoldBookingActionSheetProps) {
+  const displayStartTime = formatTime12Hour(slot.startTime)
+  const displayEndTime = formatTime12Hour(slot.endTime)
   return (
     <div
       aria-modal="true"
@@ -54,7 +57,7 @@ export function HoldBookingActionSheet({
             className="text-lg font-black text-amber-900"
             dir="ltr"
           >
-            {slot.startTime} - {slot.endTime}
+            {displayStartTime} - {displayEndTime}
           </p>
         </div>
 

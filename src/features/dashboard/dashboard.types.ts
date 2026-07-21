@@ -47,7 +47,7 @@ export interface DashboardSummaryResponse {
     transaction_total: string | null
 
     unsettled_transaction_count: number | null
-    unsettled_transaction_amount: string | null
+    unsettled_transaction_total_amount: string | null
 
     settled_transaction_count: number | null
     settled_transaction_amount: string | null

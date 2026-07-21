@@ -244,10 +244,10 @@ describe('SchedulePage', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('لوحة الحجز')).toBeInTheDocument()
     expect(
-      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+      await screen.findByRole('button', { name: '6:00 ص محجوز مؤقتًا' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: '09:00 متاح' }),
+      screen.getByRole('button', { name: '9:00 ص متاح' }),
     ).toBeInTheDocument()
     expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
     await waitFor(() => {
@@ -279,7 +279,7 @@ describe('SchedulePage', () => {
   it('renders HOLD as reserved and keeps lifecycle-only statuses off the board', async () => {
     render(<SchedulePage />)
 
-    expect(await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }))
+    expect(await screen.findByRole('button', { name: '6:00 ص محجوز مؤقتًا' }))
       .toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /مكتمل/ }),
@@ -310,7 +310,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '09:00 ملغي' }))
+    await user.click(await screen.findByRole('button', { name: '9:00 ص ملغي' }))
     expect(screen.getByRole('heading', { name: 'إضافة حجز' }))
       .toBeInTheDocument()
 
@@ -352,7 +352,7 @@ describe('SchedulePage', () => {
     render(<SchedulePage />)
 
     const completedSlot = await screen.findByRole('button', {
-      name: '09:00 مكتمل',
+      name: '9:00 ص مكتمل',
     })
 
     expect(completedSlot).toBeDisabled()
@@ -459,13 +459,13 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
 
     expect(screen.getByRole('heading', { name: 'إضافة حجز' }))
       .toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'إغلاق' }))
-    await user.click(screen.getByRole('button', { name: '08:00 ملغي' }))
+    await user.click(screen.getByRole('button', { name: '8:00 ص ملغي' }))
 
     expect(screen.getByRole('heading', { name: 'إضافة حجز' }))
       .toBeInTheDocument()
@@ -479,7 +479,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
     await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
     await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
@@ -515,7 +515,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
     await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
     await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
@@ -536,7 +536,7 @@ describe('SchedulePage', () => {
     render(<SchedulePage />)
 
     await user.click(
-      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+      await screen.findByRole('button', { name: '6:00 ص محجوز مؤقتًا' }),
     )
 
     expect(screen.getByRole('heading', { name: 'حجز مؤقت' }))
@@ -560,7 +560,7 @@ describe('SchedulePage', () => {
     render(<SchedulePage />)
 
     await user.click(
-      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+      await screen.findByRole('button', { name: '6:00 ص محجوز مؤقتًا' }),
     )
     await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
 
@@ -580,7 +580,7 @@ describe('SchedulePage', () => {
     render(<SchedulePage />)
 
     await user.click(
-      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+      await screen.findByRole('button', { name: '6:00 ص محجوز مؤقتًا' }),
     )
     await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
     await user.type(screen.getByLabelText('المبلغ'), '100')
@@ -608,7 +608,7 @@ describe('SchedulePage', () => {
     render(<SchedulePage />)
 
     await user.click(
-      await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }),
+      await screen.findByRole('button', { name: '6:00 ص محجوز مؤقتًا' }),
     )
     await user.click(screen.getByRole('button', { name: 'تحرير الموعد' }))
 
@@ -643,7 +643,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '09:00 متاح' }))
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
     await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
     await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
@@ -663,7 +663,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
 
     expect(screen.getByRole('heading', { name: 'حجز مؤكد' }))
       .toBeInTheDocument()
@@ -684,7 +684,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
     await user.type(screen.getByLabelText('المبلغ'), '150')
     await user.selectOptions(screen.getByLabelText('طريقة الدفع'), 'CASH')
@@ -716,7 +716,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
     await user.type(screen.getByLabelText('المبلغ'), '150')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
@@ -735,7 +735,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
     await user.selectOptions(screen.getByLabelText('سبب الإلغاء'), 'العميل ألغى')
     await user.click(
@@ -762,7 +762,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
     await user.click(
       screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
@@ -786,7 +786,7 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '07:00 مؤكد' }))
+    await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'تسجيل عدم حضور' }))
     await user.selectOptions(screen.getByLabelText('سبب عدم الحضور'), 'لم يحضر العميل')
     await user.click(

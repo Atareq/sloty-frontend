@@ -8,6 +8,7 @@ import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type { Value } from 'react-phone-number-input'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
+import { formatTime12Hour } from '../../scheduleBoard.helpers'
 
 export interface AddBookingSheetValues {
   customer_name: string
@@ -55,6 +56,9 @@ export function AddBookingSheet({
   const phoneFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')
+
+  const displayStartTime = formatTime12Hour(startTime)
+  const displayEndTime = formatTime12Hour(endTime)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -105,7 +109,7 @@ export function AddBookingSheet({
             className="text-lg font-black text-[var(--sloty-primary-dark)]"
             dir="ltr"
           >
-            {startTime} - {endTime}
+            {displayStartTime} - {displayEndTime}
           </p>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             بعد حفظ الحجز يمكنك تسجيل دفعة أو تحرير الموعد.

@@ -98,7 +98,7 @@ export function MoneySummarySection({ summary }: MoneySummarySectionProps) {
               </dt>
               <dd className="font-black text-[var(--sloty-text-primary)]">
                 {formatMoneyAmount(
-                  summary.summary.unsettled_transaction_amount,
+                  summary.summary.unsettled_transaction_total_amount,
                 )}
               </dd>
             </div>
