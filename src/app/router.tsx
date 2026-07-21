@@ -16,6 +16,7 @@ import { PlaceholderPage } from '../features/placeholders/PlaceholderPage/Placeh
 import { ReportsPage } from '../features/reports/ReportsPage/ReportsPage'
 import { SettlementDetailPage } from '../features/settlements/SettlementDetailPage/SettlementDetailPage'
 import { SettlementHistoryPage } from '../features/settlements/SettlementHistoryPage/SettlementHistoryPage'
+import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/SettlementsHubPage'
 import { SettlementPreviewPage } from '../features/settlements/SettlementPreviewPage/SettlementPreviewPage'
 import { TransactionsListPage } from '../features/transactions/TransactionsListPage/TransactionsListPage'
 import { AuthLandingRedirect } from '../core/auth/AuthLandingRedirect'
@@ -97,7 +98,7 @@ export const router = createBrowserRouter([
         path: '/settlements',
         element: (
           <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
-            <SettlementPreviewPage />
+            <SettlementsHubPage />
           </RoleRoute>
         ),
       },

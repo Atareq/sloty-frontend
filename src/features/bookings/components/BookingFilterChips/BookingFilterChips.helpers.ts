@@ -19,6 +19,7 @@ export type BookingFilterChipKey = (typeof chipFilterKeys)[number]
 function getChipLabel(
   key: BookingFilterChipKey,
   value: string | number | boolean,
+  courtLabels: Record<string, string>,
 ): string {
   if (key === 'date') {
     return `تاريخ ${value}`
@@ -33,7 +34,7 @@ function getChipLabel(
   }
 
   if (key === 'court') {
-    return `ملعب #${value}`
+    return courtLabels[String(value)] ?? `ملعب #${value}`
   }
 
   if (key === 'status') {
@@ -68,6 +69,7 @@ function getChipLabel(
 
 export function getActiveBookingFilterChips(
   params: BookingsQueryParams,
+  courtLabels: Record<string, string> = {},
 ): Array<{ key: BookingFilterChipKey; label: string }> {
   return chipFilterKeys.flatMap((key) => {
     const value = params[key]
@@ -76,6 +78,6 @@ export function getActiveBookingFilterChips(
       return []
     }
 
-    return [{ key, label: getChipLabel(key, value) }]
+    return [{ key, label: getChipLabel(key, value, courtLabels) }]
   })
 }

@@ -12,10 +12,9 @@ export interface MobileBottomNavProps {
 }
 
 const defaultStaffNavItems: MobileBottomNavItem[] = [
+  { key: 'dashboard', label: 'لوحة التحكم', marker: 'ل' },
   { key: 'schedule', label: 'الجدول', marker: 'ج' },
-  { key: 'bookings', label: 'الحجوزات', marker: 'ح' },
-  { key: 'payments', label: 'المدفوعات', marker: 'د' },
-  { key: 'more', label: 'المزيد', marker: 'م' },
+  { key: 'bookings', label: 'سجل الحجوزات', marker: 'ح' },
 ]
 
 /**

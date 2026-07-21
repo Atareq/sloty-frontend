@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { MobileBottomNav } from './MobileBottomNav'
 
 describe('MobileBottomNav', () => {
-  it('renders staff navigation labels', () => {
+  it('renders the three daily destination labels by default', () => {
     render(<MobileBottomNav />)
 
+    expect(screen.getByText('لوحة التحكم')).toBeInTheDocument()
     expect(screen.getByText('الجدول')).toBeInTheDocument()
-    expect(screen.getByText('الحجوزات')).toBeInTheDocument()
-    expect(screen.getByText('المدفوعات')).toBeInTheDocument()
-    expect(screen.getByText('المزيد')).toBeInTheDocument()
+    expect(screen.getByText('سجل الحجوزات')).toBeInTheDocument()
+    expect(screen.queryByText('المزيد')).not.toBeInTheDocument()
   })
 })

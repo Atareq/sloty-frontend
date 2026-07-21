@@ -1,10 +1,28 @@
-import type { ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 
 export interface PageHeaderProps {
   title: string
   description?: string
   actions?: ReactNode
   tone?: 'default' | 'brand'
+}
+
+const PageHeaderSuppressionContext = createContext(false)
+
+export interface PageHeaderSuppressionProviderProps {
+  children: ReactNode
+  suppress: boolean
+}
+
+export function PageHeaderSuppressionProvider({
+  children,
+  suppress,
+}: PageHeaderSuppressionProviderProps) {
+  return (
+    <PageHeaderSuppressionContext.Provider value={suppress}>
+      {children}
+    </PageHeaderSuppressionContext.Provider>
+  )
 }
 
 /**
@@ -19,6 +37,14 @@ export function PageHeader({
   actions,
   tone = 'default',
 }: PageHeaderProps) {
+  const suppressPageHeader = useContext(PageHeaderSuppressionContext)
+
+  if (suppressPageHeader) {
+    return actions ? (
+      <div className="flex flex-wrap justify-end gap-2">{actions}</div>
+    ) : null
+  }
+
   if (tone === 'brand') {
     return (
       <header className="sloty-green-surface relative overflow-hidden rounded-3xl border border-emerald-950/10 p-5 text-white shadow-[var(--sloty-shadow)] sm:flex sm:items-start sm:justify-between sm:gap-6 sm:p-6">

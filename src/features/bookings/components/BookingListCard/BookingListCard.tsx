@@ -1,5 +1,10 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
+import {
+  formatBookingDateTimeRangeWithWeekday,
+  getBookingCourtLabel,
+  hasRemainingAmount,
+} from '../../bookingDisplay.helpers'
 import type { Booking } from '../../bookings.types'
 import { bookingStatusLabels } from '../../bookings.types'
 
@@ -16,37 +21,6 @@ function getOptionalBookingField(
   return null
 }
 
-function getCourtLabel(booking: Booking): string {
-  const courtName = getOptionalBookingField(booking, 'court_name')
-
-  if (courtName) {
-    return String(courtName)
-  }
-
-  return `ملعب #${booking.court}`
-}
-
-function formatDateTimeRange(startTime: string, endTime: string): string {
-  const startDate = new Date(startTime)
-  const endDate = new Date(endTime)
-
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    return `${startTime} - ${endTime}`
-  }
-
-  const date = new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-  }).format(startDate)
-  const start = new Intl.DateTimeFormat('ar-EG', {
-    timeStyle: 'short',
-  }).format(startDate)
-  const end = new Intl.DateTimeFormat('ar-EG', {
-    timeStyle: 'short',
-  }).format(endDate)
-
-  return `${date}، ${start} - ${end}`
-}
-
 function statusClassName(status: Booking['status']): string {
   const classes: Record<Booking['status'], string> = {
     HOLD: 'bg-amber-100 text-amber-800',
@@ -60,25 +34,21 @@ function statusClassName(status: Booking['status']): string {
   return classes[status]
 }
 
-function hasRemainingAmount(booking: Booking): boolean {
-  const remaining = Number(booking.remaining_amount ?? 0)
-
-  return Number.isFinite(remaining) && remaining > 0
-}
-
 interface BookingListCardProps {
   booking: Booking
+  onSelect?: (booking: Booking) => void
 }
 
-export function BookingListCard({ booking }: BookingListCardProps) {
+export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
   const totalAmount = booking.total_price ?? getOptionalBookingField(booking, 'total_amount')
   const notes = getOptionalBookingField(booking, 'notes')
   const created = getOptionalBookingField(booking, 'created')
+  const isClickable = Boolean(onSelect)
   const showsFinancialWarning =
     booking.status === 'COMPLETED' && hasRemainingAmount(booking)
 
-  return (
-    <AppCard className="space-y-4">
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
@@ -117,14 +87,17 @@ export function BookingListCard({ booking }: BookingListCardProps) {
         <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
           <dt className="font-bold text-[var(--sloty-text-muted)]">الملعب</dt>
           <dd className="font-black text-[var(--sloty-text-primary)]">
-            {getCourtLabel(booking)}
+            {getBookingCourtLabel(booking)}
           </dd>
         </div>
 
         <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
           <dt className="font-bold text-[var(--sloty-text-muted)]">الوقت</dt>
           <dd className="font-black text-[var(--sloty-text-primary)]">
-            {formatDateTimeRange(booking.start_time, booking.end_time)}
+            {formatBookingDateTimeRangeWithWeekday(
+              booking.start_time,
+              booking.end_time,
+            )}
           </dd>
         </div>
 
@@ -176,6 +149,33 @@ export function BookingListCard({ booking }: BookingListCardProps) {
           حجز مكتمل به مبلغ متبقي — يحتاج مراجعة
         </p>
       ) : null}
+
+      <p className="text-xs font-black text-[var(--sloty-text-muted)]">
+        {booking.status === 'COMPLETED'
+          ? 'للعرض فقط'
+          : isClickable
+            ? 'اضغط للمراجعة'
+            : 'للعرض فقط'}
+      </p>
+    </>
+  )
+
+  if (isClickable && onSelect) {
+    return (
+      <button
+        aria-label={`مراجعة الحجز #${booking.id}`}
+        className="block h-full w-full rounded-2xl text-right transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30"
+        onClick={() => onSelect(booking)}
+        type="button"
+      >
+        <AppCard className="h-full space-y-4">{content}</AppCard>
+      </button>
+    )
+  }
+
+  return (
+    <AppCard className="space-y-4">
+      {content}
     </AppCard>
   )
 }

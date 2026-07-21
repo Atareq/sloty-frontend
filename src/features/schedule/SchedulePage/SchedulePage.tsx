@@ -15,7 +15,6 @@ import {
   AddBookingSheet,
   type AddBookingSheetValues,
 } from '../components/AddBookingSheet/AddBookingSheet'
-import { BookingDetailsSheet } from '../components/BookingDetailsSheet/BookingDetailsSheet'
 import { BookingCard } from '../components/BookingCard/BookingCard'
 import {
   CancelBookingReasonSheet,
@@ -27,7 +26,9 @@ import {
   type NoShowReasonValues,
 } from '../components/NoShowReasonSheet/NoShowReasonSheet'
 import { HoldBookingActionSheet } from '../components/HoldBookingActionSheet/HoldBookingActionSheet'
+import { ScheduleClosingSection } from '../components/ScheduleClosingSection/ScheduleClosingSection'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
+import { BookingActionSheet } from '../../bookings/components/BookingActionSheet/BookingActionSheet'
 import { createTransaction } from '../../transactions/transactionsApi'
 import {
   RecordPaymentSheet,
@@ -37,6 +38,7 @@ import {
   createDateFilterOptions,
   formatBookingDateTime,
   generateSlotsFromWorkingHour,
+  getScheduleClosingBookings,
   getWeekdayFromDateValue,
 } from '../scheduleBoard.helpers'
 import type { ScheduleBooking } from '../schedule.types'
@@ -136,6 +138,8 @@ export function SchedulePage() {
   const [isWorkingHoursLoading, setIsWorkingHoursLoading] = useState(false)
   const [isBookingsLoading, setIsBookingsLoading] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
+  const [selectedActionBooking, setSelectedActionBooking] =
+    useState<BookingListItem | null>(null)
   const [holdBooking, setHoldBooking] = useState<BookingListItem | null>(null)
   const [isHoldActionSubmitting, setIsHoldActionSubmitting] = useState(false)
   const [holdActionError, setHoldActionError] = useState<string | null>(null)
@@ -189,6 +193,7 @@ export function SchedulePage() {
   const amSlots = slots.filter((booking) => booking.period === 'am')
   const pmSlots = slots.filter((booking) => booking.period === 'pm')
   const summary = getSummary(slots)
+  const closingBookings = getScheduleClosingBookings(bookings, selectedDate)
 
   useEffect(() => {
     let isActive = true
@@ -415,6 +420,7 @@ export function SchedulePage() {
     try {
       await cancelBooking(selectedClubSlug, cancellingBooking.id, values)
       setCancellingBooking(null)
+      setSelectedActionBooking(null)
       setSelectedSlot(null)
       await reloadBookings()
     } catch (error) {
@@ -439,6 +445,7 @@ export function SchedulePage() {
     try {
       await completeBooking(selectedClubSlug, completingBooking.id)
       setCompletingBooking(null)
+      setSelectedActionBooking(null)
       setSelectedSlot(null)
       await reloadBookings()
     } catch (error) {
@@ -464,6 +471,7 @@ export function SchedulePage() {
     try {
       await markBookingNoShow(selectedClubSlug, noShowBooking.id, values)
       setNoShowBooking(null)
+      setSelectedActionBooking(null)
       setSelectedSlot(null)
       await reloadBookings()
     } catch (error) {
@@ -495,6 +503,7 @@ export function SchedulePage() {
         ...(values.notes ? { notes: values.notes } : {}),
       })
       setPaymentBooking(null)
+      setSelectedActionBooking(null)
       setHoldBooking(null)
       setSelectedSlot(null)
       setSuccessMessage('تم تسجيل الدفعة بنجاح')
@@ -525,6 +534,7 @@ export function SchedulePage() {
         reason: 'تحرير الحجز المؤقت',
         notes: 'تم تحرير الموعد من لوحة الحجز',
       })
+      setSelectedActionBooking(null)
       setHoldBooking(null)
       setSelectedSlot(null)
       setSuccessMessage('تم تحرير الموعد بنجاح')
@@ -540,6 +550,7 @@ export function SchedulePage() {
 
   function handleSelectSlot(slot: ScheduleBooking): void {
     setSuccessMessage(null)
+    setSelectedActionBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
     setPaymentError(null)
@@ -567,13 +578,28 @@ export function SchedulePage() {
     }
 
     if (slot.status === 'completed') {
-      setSelectedSlot(null)
+      setSelectedSlot(slot.booking ? slot : null)
       setHoldBooking(null)
     }
   }
 
+  function handleSelectClosingBooking(booking: BookingListItem): void {
+    setSuccessMessage(null)
+    setSelectedSlot(null)
+    setSelectedActionBooking(booking)
+    setHoldBooking(null)
+    setCreateError(null)
+    setCreateFieldErrors(null)
+    setPaymentError(null)
+    setPaymentFieldErrors(null)
+    setLifecycleError(null)
+    setLifecycleFieldErrors(null)
+    setHoldActionError(null)
+  }
+
   function clearScheduleSelection(): void {
     setSelectedSlot(null)
+    setSelectedActionBooking(null)
     setHoldBooking(null)
     setPaymentBooking(null)
     setCancellingBooking(null)
@@ -720,6 +746,13 @@ export function SchedulePage() {
           </div>
         </section>
 
+        <ScheduleClosingSection
+          bookings={closingBookings.items}
+          onSelectBooking={handleSelectClosingBooking}
+          selectedDate={selectedDate}
+          totalCount={closingBookings.totalCount}
+        />
+
         <section
           aria-label="لوحة فترات الملعب"
           className="relative overflow-hidden rounded-[28px] border border-[var(--sloty-border)] bg-cover bg-center shadow-[var(--sloty-shadow)]"
@@ -848,20 +881,41 @@ export function SchedulePage() {
         />
       ) : null}
 
-      {selectedSlot?.status === 'confirmed' ? (
-        <BookingDetailsSheet
-          booking={selectedSlot.booking}
+      {selectedActionBooking ||
+      (selectedSlot &&
+        (selectedSlot.status === 'confirmed' || selectedSlot.status === 'completed')) ? (
+        <BookingActionSheet
+          booking={selectedActionBooking ?? selectedSlot?.booking ?? null}
           courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
-          dateLabel={scheduleCourt.dateLabel}
-          error={null}
-          isSubmitting={isLifecycleSubmitting}
+          dateValue={selectedDate}
+          error={
+            (selectedActionBooking ?? selectedSlot?.booking)?.status === 'HOLD'
+              ? holdActionError
+              : lifecycleError
+          }
+          isOpen
+          isSubmitting={
+            (selectedActionBooking ?? selectedSlot?.booking)?.status === 'HOLD'
+              ? isHoldActionSubmitting
+              : isLifecycleSubmitting
+          }
           onAddPayment={(booking) => {
             setPaymentBooking(booking)
+            setSelectedActionBooking(null)
+            setSelectedSlot(null)
             setPaymentError(null)
             setPaymentFieldErrors(null)
           }}
+          onCancel={(booking) => {
+            setCancellingBooking(booking)
+            setSelectedActionBooking(null)
+            setSelectedSlot(null)
+            setLifecycleError(null)
+            setLifecycleFieldErrors(null)
+          }}
           onClose={() => {
             setSelectedSlot(null)
+            setSelectedActionBooking(null)
             setHoldBooking(null)
             setPaymentBooking(null)
             setPaymentError(null)
@@ -873,22 +927,23 @@ export function SchedulePage() {
             setLifecycleFieldErrors(null)
             setHoldActionError(null)
           }}
-          onRequestCancel={(booking) => {
-            setCancellingBooking(booking)
-            setLifecycleError(null)
-            setLifecycleFieldErrors(null)
-          }}
-          onRequestComplete={(booking) => {
+          onComplete={(booking) => {
             setCompletingBooking(booking)
+            setSelectedActionBooking(null)
+            setSelectedSlot(null)
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
           }}
-          onRequestNoShow={(booking) => {
+          onFreeHold={(booking) => {
+            void handleFreeHoldBooking(booking)
+          }}
+          onNoShow={(booking) => {
             setNoShowBooking(booking)
+            setSelectedActionBooking(null)
+            setSelectedSlot(null)
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
           }}
-          slot={selectedSlot}
         />
       ) : null}
 

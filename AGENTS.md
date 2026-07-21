@@ -103,6 +103,12 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Payment recording opens after booking through RecordPaymentSheet from confirmed details or the HOLD action sheet. Backend validates overpayment and permission rules.
 - HOLD slots open a focused action sheet for adding payment or freeing/cancelling the slot through the current cancel flow.
 - BookingCard click behavior must match slot status; available/cancelled open AddBookingSheet, HOLD opens the HOLD action sheet, and confirmed opens booking details.
+- Existing booking details/actions must follow one reusable interaction model: Schedule, the future Schedule closing section, and `سجل الحجوزات` should open the shared booking action/details sheet instead of separate edit flows.
+- Available/cancelled slots can create bookings; existing bookings open action/details. Completed bookings are locked/read-only and must never open AddBookingSheet.
+- Raw transaction editing is forbidden; payment correction remains cancel payment with a required reason.
+- Booking dates should include weekday plus date where operationally relevant.
+- Schedule has a compact `حجوزات تحتاج إغلاق` section for today only. It shows at most 3 bookings needing payment/status closure, excludes CANCELLED, EXPIRED, empty slots, and fully closed completed bookings, links to `سجل الحجوزات` with `needs_action=true` when more items exist, and row clicks must open the shared booking action/details flow.
+- The main schedule grid must not re-add past empty slots for the closing section.
 - After payment, reload bookings and trust the backend-returned status; the frontend must not fake a CONFIRMED status.
 - Booking Board remains availability-focused and must not show money on slot buttons.
 - Sprint 5 lifecycle actions stay inside confirmed booking details: cancellation requires a reason sheet, complete requires explicit confirmation, and no-show uses a confirmation/reason sheet.
@@ -113,6 +119,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Booking Board remains availability-focused and must not show lifecycle/payment details on slot buttons.
 - `/bookings` is a real filtered Bookings List page, separate from the Booking Board.
 - Bookings List supports URL query filters used by Summary cards, and Summary redirects must not be overwritten by default page filters.
+- Mobile filter UX uses quick filter buttons plus a `فلترة` button; advanced filters live in a sheet/drawer on mobile.
+- Active filter chips must remain URL-driven and removable.
+- Court filters must display court names instead of raw IDs while still sending numeric court IDs to the backend.
+- Bookings List cards are clickable review entries that open the shared `BookingActionSheet`; do not create a separate booking edit flow or raw transaction edit entry from booking history.
 - Booking Board remains availability-focused; Bookings List is for reviewing and filtering existing bookings.
 - Completed bookings are locked/read-only. Completed bookings with remaining amount are financial warnings, not normal daily actions.
 - The frontend must not calculate `needs_action`; backend summary/list filters own that action classification.
@@ -132,6 +142,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Transactions list supports URL query filters used by Summary cards, including date, date range, court, payment method, collected user, settlement status, cancellation status, and page.
 - Direct Transactions visits default to the last 7 days only when the URL has no transaction filters; Summary redirect filters must not be overwritten by default dates.
 - Transactions active filter chips must reflect the current URL/effective query params, and transaction filter links must be built with the shared query helper.
+- Transactions collector filters must display staff/user names instead of raw IDs while still sending numeric user IDs to the backend.
 - Frontend transaction lists must not calculate settlement totals; backend Summary endpoints own financial totals.
 - Sprint 7 implements backend-calculated dashboard, reports, and audit logs; these pages use `selectedClubSlug` from `useAuth()`.
 - Dashboard and report financial metrics must come from backend summary/report endpoints. Do not fake numbers or manually count cancelled transactions in totals; cancelled transactions remain visible while backend summaries decide accounting.
@@ -143,6 +154,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Settlement preview route is `/settlements/preview?collected_by=...` and uses `GET clubs/{club_slug}/settlements/preview/`.
 - Settlement preview is a read-only review of unsettled transactions; empty preview is an empty state, not a scary error.
 - Settlement preview UI must not use `dry_run` wording or backend technical phrases. Use "الموظف المحصل", "مراجعة التسوية", and "دفعات غير مسواة".
+- `/settlements` is the settlement hub/list page for `التسويات المالية والجرد`; `/settlements/preview` is only the selected collector review page.
+- Settlement hub shows actual settlement records and safe shortcuts to Summary/Transactions for reviewing live unsettled money.
+- Live unsettled money comes from Summary/Transactions, not pending settlement drafts; do not build pending settlement draft UI or use `dry_run` wording in settlement UI.
+- Staff cannot access settlement management; owner can settle and manager can settle only when `can_manage_settlements` allows it.
 - Completed bookings with remaining money are future financial warnings, not normal needs-action.
 - Do not show fake zeroes while Summary data is loading.
 - Summary action cards must build filtered links through `buildPathWithQuery`; do not hand-build query strings inside card components.
@@ -156,6 +171,13 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 - Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.
+- Authenticated pages use the reusable unified green header from `AppShell`; do not add duplicate visible page title cards inside shell pages.
+- Mobile footer contains only `لوحة التحكم`, `الجدول`, and `سجل الحجوزات`.
+- Finance, admin, history, reports, audit, settlements, and settings links live in the hamburger menu and desktop sidebar, not in the mobile footer.
+- Do not add a mobile footer item called `المزيد`; use the hamburger icon, not a three-dots icon.
+- Logout and change-club actions belong in the account menu, not the visible header area.
+- Default authenticated experience is mobile-style, and users can switch to Desktop View from the hamburger menu.
+- Navigation labels must use the approved Arabic wording: `لوحة التحكم`, `الجدول`, `سجل الحجوزات`, `سجل المعاملات المالية`, `التسويات المالية والجرد`, `سجل النشاطات`, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
 - Every new page must use the repo shared `PageHeader` by default unless there is a clear reason not to.
 - Do not create custom page headers when `PageHeader` fits the use case.
 - Keep one Sloty visual fingerprint across the project: Arabic-first, RTL-first, mobile-first, green brand system, rounded cards, shared `AppCard`/`AppButton` patterns, consistent spacing, and responsive layouts.

@@ -289,6 +289,79 @@ describe('SchedulePage', () => {
     expect(screen.queryByText('لم يحضر')).not.toBeInTheDocument()
   })
 
+  it('shows today closure bookings and opens the shared action flow from a row', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookingsForCourtDay.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 40,
+          court: 7,
+          customer_name: 'عميل يحتاج إغلاق',
+          customer_phone: '01022222222',
+          start_time: '03:00',
+          end_time: '04:00',
+          status: 'CONFIRMED',
+        },
+      ]),
+    )
+
+    render(<SchedulePage />)
+
+    expect(await screen.findByText('حجوزات تحتاج إغلاق')).toBeInTheDocument()
+    expect(screen.getByText('حجوزات اليوم التي تحتاج دفع أو إكمال'))
+      .toBeInTheDocument()
+    expect(screen.getByText('عميل يحتاج إغلاق')).toBeInTheDocument()
+    expect(screen.getByText('انتهت ولم تكتمل')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: /عميل يحتاج إغلاق/ }),
+    )
+
+    expect(screen.getByRole('heading', { name: 'حجز مؤكد' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'إضافة دفعة' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'إكمال الحجز' }))
+      .toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'إضافة حجز' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides the closure section when switching away from today', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookingsForCourtDay
+      .mockResolvedValueOnce(
+        paginatedResponse([
+          {
+            id: 40,
+            court: 7,
+            customer_name: 'عميل يحتاج إغلاق',
+            start_time: '03:00',
+            end_time: '04:00',
+            status: 'CONFIRMED',
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    render(<SchedulePage />)
+
+    expect(await screen.findByText('حجوزات تحتاج إغلاق')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'غداً' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('حجوزات تحتاج إغلاق')).not.toBeInTheDocument()
+    })
+  })
+
   it('reloads bookings and clears open sheets when date input changes', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
@@ -342,9 +415,13 @@ describe('SchedulePage', () => {
         {
           id: 30,
           court: 7,
+          customer_name: 'عميل مكتمل',
+          customer_phone: '01011111111',
           start_time: '09:00',
           end_time: '10:00',
           status: 'COMPLETED',
+          paid_amount: '250.00',
+          remaining_amount: '0.00',
         },
       ]),
     )
@@ -355,10 +432,17 @@ describe('SchedulePage', () => {
       name: '9:00 ص مكتمل',
     })
 
-    expect(completedSlot).toBeDisabled()
+    expect(completedSlot).toBeEnabled()
     await user.click(completedSlot)
+    expect(screen.getByRole('heading', { name: 'حجز مكتمل' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('هذا الحجز مكتمل ومغلق للعرض فقط'))
+      .toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'إضافة حجز' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'إضافة دفعة' }),
     ).not.toBeInTheDocument()
   })
 

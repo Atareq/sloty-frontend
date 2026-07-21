@@ -8,11 +8,19 @@ import type { ApiFieldError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
-import { getLastSevenDaysRange } from '../../../shared/utils/date'
+import {
+  formatDateInputValue,
+  getLastSevenDaysRange,
+} from '../../../shared/utils/date'
 import { toQueryObject } from '../../../shared/utils/queryParams'
+import { listClubUsers } from '../../clubUsers/clubUsersApi'
+import type { ClubUser } from '../../clubUsers/clubUsers.types'
+import { listCourts } from '../../courts/courtsApi'
+import type { Court } from '../../courts/courts.types'
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import { cancelTransaction, listTransactions } from '../transactionsApi'
@@ -32,6 +40,16 @@ interface FilterState {
   is_cancelled: string
   payment_method: PaymentMethod | ''
   settlement_status: TransactionSettlementStatus | ''
+}
+
+interface FilterOption {
+  value: string
+  label: string
+}
+
+interface FilterLabelMaps {
+  courtLabels: Record<string, string>
+  collectorLabels: Record<string, string>
 }
 
 const transactionFilterKeys = [
@@ -141,6 +159,7 @@ function getTransactionSearch(params: TransactionQueryParams): string {
 function getChipLabel(
   key: (typeof chipFilterKeys)[number],
   value: string | number | boolean,
+  labels: FilterLabelMaps,
 ): string {
   if (key === 'date') {
     return `تاريخ ${value}`
@@ -155,11 +174,11 @@ function getChipLabel(
   }
 
   if (key === 'court') {
-    return `ملعب #${value}`
+    return labels.courtLabels[String(value)] ?? `ملعب #${value}`
   }
 
   if (key === 'created_by') {
-    return `الموظف المحصل #${value}`
+    return labels.collectorLabels[String(value)] ?? `الموظف المحصل #${value}`
   }
 
   if (key === 'payment_method') {
@@ -177,7 +196,10 @@ function getChipLabel(
   return String(value)
 }
 
-function getActiveFilterChips(params: TransactionQueryParams): Array<{
+function getActiveFilterChips(
+  params: TransactionQueryParams,
+  labels: FilterLabelMaps,
+): Array<{
   key: (typeof chipFilterKeys)[number]
   label: string
 }> {
@@ -191,10 +213,25 @@ function getActiveFilterChips(params: TransactionQueryParams): Array<{
     return [
       {
         key,
-        label: getChipLabel(key, value),
+        label: getChipLabel(key, value, labels),
       },
     ]
   })
+}
+
+function normalizeClubUsersResponse(
+  response: ClubUser[] | { results: ClubUser[] },
+): ClubUser[] {
+  return Array.isArray(response) ? response : response.results
+}
+
+function getClubUserName(user: ClubUser): string {
+  const fullName = [user.first_name, user.last_name]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' ')
+
+  return fullName || user.username || `#${user.id}`
 }
 
 function formatTransactionDate(value: string | undefined): string | null {
@@ -235,15 +272,21 @@ function getActorName(
 }
 
 interface TransactionsFilterFormProps {
+  collectorOptions: FilterOption[]
+  courtOptions: FilterOption[]
   initialFilters: FilterState
   isLoading: boolean
+  onClose?: () => void
   onApply: (filters: FilterState) => void
   onReset: () => void
 }
 
 function TransactionsFilterForm({
+  collectorOptions,
+  courtOptions,
   initialFilters,
   isLoading,
+  onClose,
   onApply,
   onReset,
 }: TransactionsFilterFormProps) {
@@ -259,6 +302,7 @@ function TransactionsFilterForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     onApply(filters)
+    onClose?.()
   }
 
   return (
@@ -329,27 +373,44 @@ function TransactionsFilterForm({
       </label>
 
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>رقم الملعب</span>
-        <input
+        <span>الملعب</span>
+        <select
           className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          inputMode="numeric"
           onChange={(event) => updateFilter('court', event.target.value)}
-          placeholder="مثال: 3"
-          type="text"
           value={filters.court}
-        />
+        >
+          <option value="">كل الملاعب</option>
+          {filters.court && !courtOptions.some((option) => option.value === filters.court) ? (
+            <option value={filters.court}>ملعب #{filters.court}</option>
+          ) : null}
+          {courtOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>الموظف المحصل</span>
-        <input
+        <select
           className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          inputMode="numeric"
           onChange={(event) => updateFilter('created_by', event.target.value)}
-          placeholder="مثال: 15"
-          type="text"
           value={filters.created_by}
-        />
+        >
+          <option value="">كل الموظفين</option>
+          {filters.created_by
+          && !collectorOptions.some((option) => option.value === filters.created_by) ? (
+            <option value={filters.created_by}>
+              الموظف المحصل #{filters.created_by}
+            </option>
+          ) : null}
+          {collectorOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="flex flex-col gap-2 md:justify-end">
@@ -359,12 +420,20 @@ function TransactionsFilterForm({
         <AppButton
           disabled={isLoading}
           fullWidth
-          onClick={onReset}
+          onClick={() => {
+            onReset()
+            onClose?.()
+          }}
           type="button"
           variant="secondary"
         >
           إعادة ضبط
         </AppButton>
+        {onClose ? (
+          <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
+            إغلاق
+          </AppButton>
+        ) : null}
       </div>
     </form>
   )
@@ -406,9 +475,77 @@ export function TransactionsListPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
+  const [collectorOptions, setCollectorOptions] = useState<FilterOption[]>([])
+  const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
-  const activeFilterChips = getActiveFilterChips(effectiveParams)
+  const filterLabelMaps = useMemo<FilterLabelMaps>(
+    () => ({
+      collectorLabels: Object.fromEntries(
+        collectorOptions.map((option) => [option.value, option.label]),
+      ),
+      courtLabels: Object.fromEntries(
+        courtOptions.map((option) => [option.value, option.label]),
+      ),
+    }),
+    [collectorOptions, courtOptions],
+  )
+  const activeFilterChips = getActiveFilterChips(effectiveParams, filterLabelMaps)
   const hasActiveFilters = activeFilterChips.length > 0
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadFilterOptions(): Promise<void> {
+      if (!selectedClubSlug) {
+        setCourtOptions([])
+        setCollectorOptions([])
+        setFilterOptionsError(null)
+        return
+      }
+
+      setFilterOptionsError(null)
+
+      try {
+        const [courtsResponse, usersResponse] = await Promise.all([
+          listCourts(selectedClubSlug),
+          listClubUsers(selectedClubSlug, { is_active: true }),
+        ])
+
+        if (!isActive) {
+          return
+        }
+
+        setCourtOptions(
+          courtsResponse.results
+            .filter((court: Court) => court.is_active)
+            .map((court) => ({
+              value: String(court.id),
+              label: court.name,
+            })),
+        )
+        setCollectorOptions(
+          normalizeClubUsersResponse(usersResponse).map((user) => ({
+            value: String(user.id),
+            label: getClubUserName(user),
+          })),
+        )
+      } catch {
+        if (isActive) {
+          setCourtOptions([])
+          setCollectorOptions([])
+          setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
+        }
+      }
+    }
+
+    void loadFilterOptions()
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedClubSlug])
 
   async function reloadTransactions(
     nextParams = effectiveParams,
@@ -488,6 +625,37 @@ export function TransactionsListPage() {
     )
   }
 
+  function applyQuickParams(nextParams: TransactionQueryParams): void {
+    setUsesUnfilteredEmptyUrl(false)
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getTransactionSearch(nextParams),
+      },
+      { replace: false },
+    )
+  }
+
+  function handleQuickLastSevenDays(): void {
+    applyQuickParams(createDefaultQueryParams())
+  }
+
+  function handleQuickToday(): void {
+    const today = formatDateInputValue(new Date())
+
+    applyQuickParams({
+      date_from: today,
+      date_to: today,
+    })
+  }
+
+  function handleQuickUnsettled(): void {
+    applyQuickParams({
+      settlement_status: 'unsettled',
+      is_cancelled: 'false',
+    })
+  }
+
   function handleResetFilters(): void {
     const defaultParams = createDefaultQueryParams()
 
@@ -556,15 +724,55 @@ export function TransactionsListPage() {
         title="المعاملات"
       />
 
-      <AppCard>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        <AppButton onClick={handleQuickLastSevenDays} type="button" variant="secondary">
+          آخر 7 أيام
+        </AppButton>
+        <AppButton onClick={handleQuickToday} type="button" variant="secondary">
+          اليوم
+        </AppButton>
+        <AppButton onClick={handleQuickUnsettled} type="button" variant="secondary">
+          غير مسواة
+        </AppButton>
+        <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
+          فلترة
+        </AppButton>
+      </div>
+
+      {filterOptionsError ? (
+        <p className="text-xs font-bold text-[var(--sloty-danger)]">
+          {filterOptionsError}
+        </p>
+      ) : null}
+
+      <AppCard className="hidden md:block">
         <TransactionsFilterForm
+          collectorOptions={collectorOptions}
+          courtOptions={courtOptions}
           initialFilters={initialFilters}
           isLoading={isLoading}
-          key={getTransactionSearch(effectiveParams) || 'empty-filters'}
+          key={`desktop-${getTransactionSearch(effectiveParams) || 'empty-filters'}`}
           onApply={handleApplyFilters}
           onReset={handleResetFilters}
         />
       </AppCard>
+
+      <FilterSheet
+        isOpen={isFilterSheetOpen}
+        onClose={() => setIsFilterSheetOpen(false)}
+        title="فلترة المعاملات"
+      >
+        <TransactionsFilterForm
+          collectorOptions={collectorOptions}
+          courtOptions={courtOptions}
+          initialFilters={initialFilters}
+          isLoading={isLoading}
+          key={`mobile-${getTransactionSearch(effectiveParams) || 'empty-filters'}`}
+          onApply={handleApplyFilters}
+          onClose={() => setIsFilterSheetOpen(false)}
+          onReset={handleResetFilters}
+        />
+      </FilterSheet>
 
       {hasActiveFilters ? (
         <div className="flex flex-wrap gap-2">

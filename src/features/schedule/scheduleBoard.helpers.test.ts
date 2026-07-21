@@ -5,6 +5,7 @@ import {
   formatTime12Hour,
   generateSlotsFromWorkingHour,
   getEgyptDateValue,
+  getScheduleClosingBookings,
   getSlotPeriod,
   getVisibleBookings,
 } from './scheduleBoard.helpers'
@@ -36,6 +37,100 @@ const workingHour: CourtWorkingHour = {
 }
 
 describe('scheduleBoard helpers', () => {
+  const today = '2026-07-21'
+  const now = new Date('2026-07-21T12:00:00Z')
+
+  const closingBooking = (
+    id: number,
+    status: BookingListItem['status'],
+    endTime: string,
+    remainingAmount: string | null = null,
+  ): BookingListItem => ({
+    id,
+    court: 7,
+    customer_name: `عميل ${id}`,
+    start_time: '08:00',
+    end_time: endTime,
+    status,
+    remaining_amount: remainingAmount,
+  })
+
+  it('returns no closing bookings for a future selected date', () => {
+    expect(
+      getScheduleClosingBookings(
+        [closingBooking(1, 'CONFIRMED', '10:00')],
+        '2026-07-22',
+        now,
+      ),
+    ).toEqual({
+      items: [],
+      totalCount: 0,
+    })
+  })
+
+  it('returns no closing bookings for a past selected date', () => {
+    expect(
+      getScheduleClosingBookings(
+        [closingBooking(1, 'CONFIRMED', '10:00')],
+        '2026-07-20',
+        now,
+      ),
+    ).toEqual({
+      items: [],
+      totalCount: 0,
+    })
+  })
+
+  it('includes ended confirmed bookings and bookings with remaining amounts', () => {
+    const result = getScheduleClosingBookings(
+      [
+        closingBooking(1, 'CONFIRMED', '10:00'),
+        closingBooking(2, 'CONFIRMED', '15:00', '50.00'),
+        closingBooking(3, 'COMPLETED', '09:00', '20.00'),
+      ],
+      today,
+      now,
+    )
+
+    expect(result.totalCount).toBe(3)
+    expect(result.items.map((booking) => booking.id)).toEqual([1, 2, 3])
+  })
+
+  it('excludes cancelled, expired, and fully paid completed bookings', () => {
+    const result = getScheduleClosingBookings(
+      [
+        closingBooking(1, 'CANCELLED', '10:00', '100.00'),
+        closingBooking(2, 'EXPIRED', '10:00', '100.00'),
+        closingBooking(3, 'COMPLETED', '10:00', '0.00'),
+        closingBooking(4, 'COMPLETED', '10:00', null),
+      ],
+      today,
+      now,
+    )
+
+    expect(result).toEqual({
+      items: [],
+      totalCount: 0,
+    })
+  })
+
+  it('sorts by closure priority and end time, returning max three items', () => {
+    const result = getScheduleClosingBookings(
+      [
+        closingBooking(1, 'CONFIRMED', '09:00'),
+        closingBooking(2, 'CONFIRMED', '11:00'),
+        closingBooking(3, 'CONFIRMED', '16:00', '25.00'),
+        closingBooking(4, 'HOLD', '08:00'),
+        closingBooking(5, 'COMPLETED', '07:00', '10.00'),
+      ],
+      today,
+      now,
+    )
+
+    expect(result.totalCount).toBe(5)
+    expect(result.items.map((booking) => booking.id)).toEqual([2, 1, 4])
+  })
+
   it('returns setup message for missing working hours or blocks', () => {
     expect(generateSlotsFromWorkingHour(undefined, 60, [])).toEqual({
       slots: [],

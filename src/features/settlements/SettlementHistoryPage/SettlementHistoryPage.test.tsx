@@ -38,25 +38,33 @@ function paginatedResponse<T>(results: T[]) {
   }
 }
 
-function mockAuth(canManageSettlements = true) {
+function mockAuth(options: {
+  canManageSettlements?: boolean
+  selectedClubSlug?: string | null
+} = {}) {
+  const selectedClubSlug =
+    'selectedClubSlug' in options ? options.selectedClubSlug ?? null : 'nasr-club'
+
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
     currentUser: null,
-    selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role: 'MANAGER',
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: null,
-      can_manage_settlements: canManageSettlements,
-    },
+    selectedClubSlug,
+    selectedMembership: selectedClubSlug
+      ? {
+          id: 10,
+          role: 'MANAGER',
+          club: {
+            id: 1,
+            name: 'نادي النصر',
+            slug: selectedClubSlug,
+            city: 'ASSIUT',
+            is_active: true,
+          },
+          court: null,
+          can_manage_settlements: options.canManageSettlements ?? true,
+        }
+      : null,
     role: 'MANAGER',
     isAuthenticated: true,
     isLoadingSession: false,
@@ -126,10 +134,19 @@ describe('SettlementHistoryPage', () => {
     )
 
     expect(await screen.findByText('#9')).toBeInTheDocument()
+    expect(screen.getByText('التسويات المالية والجرد')).toBeInTheDocument()
+    expect(screen.getByText('مراجعة دفعات موظف')).toBeInTheDocument()
     expect(screen.getAllByText('Ahmed Staff').length).toBeGreaterThan(0)
     expect(screen.getByText('2000.00')).toBeInTheDocument()
     expect(screen.getByText('عدد المعاملات')).toBeInTheDocument()
     expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
+    expect(screen.getByRole('link', { name: 'عرض التفاصيل' })).toHaveAttribute(
+      'href',
+      '/settlements/9',
+    )
+    expect(screen.queryByText(/dry_run/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('تجربة')).not.toBeInTheDocument()
+    expect(screen.queryByText(/pending settlement draft/i)).not.toBeInTheDocument()
   })
 
   it('submits collected_by/status/court filters', async () => {
@@ -142,7 +159,7 @@ describe('SettlementHistoryPage', () => {
     )
 
     await screen.findByText('#9')
-    await user.selectOptions(screen.getByLabelText('المستخدم'), '5')
+    await user.selectOptions(screen.getAllByLabelText('الموظف المحصل')[1], '5')
     await user.selectOptions(screen.getByLabelText('الحالة'), 'PENDING')
     await user.selectOptions(screen.getByLabelText('الملعب'), '3')
     await user.click(screen.getByRole('button', { name: 'تحديث السجل' }))
@@ -157,7 +174,7 @@ describe('SettlementHistoryPage', () => {
   })
 
   it('blocks managers without can_manage_settlements', async () => {
-    mockAuth(false)
+    mockAuth({ canManageSettlements: false })
 
     render(
       <MemoryRouter>
@@ -166,8 +183,47 @@ describe('SettlementHistoryPage', () => {
     )
 
     expect(
-      await screen.findByText('ليس لديك صلاحية إدارة التسويات'),
+      await screen.findByText('ليس لديك صلاحية إدارة التسويات.'),
     ).toBeInTheDocument()
     expect(mockedListSettlements).not.toHaveBeenCalled()
+  })
+
+  it('shows no selected club message', async () => {
+    mockAuth({ selectedClubSlug: null })
+
+    render(
+      <MemoryRouter>
+        <SettlementHistoryPage />
+      </MemoryRouter>,
+    )
+
+    expect(
+      await screen.findByText('اختر ناديًا أولًا لعرض التسويات.'),
+    ).toBeInTheDocument()
+    expect(mockedListSettlements).not.toHaveBeenCalled()
+  })
+
+  it('renders helpful empty state actions', async () => {
+    mockedListSettlements.mockResolvedValueOnce(paginatedResponse([]))
+
+    render(
+      <MemoryRouter>
+        <SettlementHistoryPage />
+      </MemoryRouter>,
+    )
+
+    expect(
+      await screen.findByText('لا توجد تسويات مسجلة حتى الآن'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('عند تأكيد تسوية موظف ستظهر هنا كسجل مالي مغلق.'),
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'عرض لوحة التحكم' })[0])
+      .toHaveAttribute('href', '/dashboard')
+    expect(screen.getAllByRole('link', { name: 'عرض الدفعات غير المسواة' })[0])
+      .toHaveAttribute(
+        'href',
+        '/transactions?settlement_status=unsettled&is_cancelled=false',
+      )
   })
 })

@@ -45,7 +45,7 @@ describe('BookingCard', () => {
     ).toHaveClass('bg-amber-100')
   })
 
-  it('renders completed slots as locked and non-actionable', async () => {
+  it('allows completed slots to open read-only details', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
 
@@ -64,11 +64,11 @@ describe('BookingCard', () => {
       name: '9:00 ص مكتمل',
     })
 
-    expect(completedSlot).toBeDisabled()
+    expect(completedSlot).toBeEnabled()
 
     await user.click(completedSlot)
 
-    expect(onSelect).not.toHaveBeenCalled()
+    expect(onSelect).toHaveBeenCalled()
   })
 
   it('calls onSelect only when actionable', async () => {

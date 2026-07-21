@@ -19,6 +19,11 @@ export interface SlotGenerationResult {
   message: string | null
 }
 
+export interface ScheduleClosingBookingsResult {
+  items: BookingListItem[]
+  totalCount: number
+}
+
 const hiddenBookingStatuses = new Set([
   'NO_SHOW',
   'EXPIRED',
@@ -188,6 +193,96 @@ function timeToMinutes(time: string): number | null {
   }
 
   return hours * 60 + minutes
+}
+
+function hasPositiveRemainingAmount(booking: BookingListItem): boolean {
+  const remainingAmount = Number(booking.remaining_amount ?? 0)
+
+  return Number.isFinite(remainingAmount) && remainingAmount > 0
+}
+
+function getBookingEndMinutes(booking: BookingListItem): number {
+  return timeToMinutes(booking.end_time) ?? -1
+}
+
+function isEndedBooking(booking: BookingListItem, now = new Date()): boolean {
+  const endMinutes = timeToMinutes(booking.end_time)
+
+  return endMinutes !== null && endMinutes < getEgyptCurrentMinutes(now)
+}
+
+function getClosingBookingPriority(
+  booking: BookingListItem,
+  now = new Date(),
+): number {
+  if (booking.status === 'CONFIRMED' && isEndedBooking(booking, now)) {
+    return 0
+  }
+
+  if (booking.status === 'HOLD' && isEndedBooking(booking, now)) {
+    return 1
+  }
+
+  if (hasPositiveRemainingAmount(booking)) {
+    return 2
+  }
+
+  return 3
+}
+
+function shouldIncludeClosingBooking(
+  booking: BookingListItem,
+  now = new Date(),
+): boolean {
+  if (booking.status === 'CANCELLED' || booking.status === 'EXPIRED') {
+    return false
+  }
+
+  if (booking.status === 'CONFIRMED') {
+    return isEndedBooking(booking, now) || hasPositiveRemainingAmount(booking)
+  }
+
+  if (booking.status === 'HOLD') {
+    return isEndedBooking(booking, now) || hasPositiveRemainingAmount(booking)
+  }
+
+  if (booking.status === 'COMPLETED') {
+    return hasPositiveRemainingAmount(booking)
+  }
+
+  return hasPositiveRemainingAmount(booking)
+}
+
+export function getScheduleClosingBookings(
+  bookings: BookingListItem[],
+  selectedDate: string,
+  now = new Date(),
+): ScheduleClosingBookingsResult {
+  if (!isTodayInEgypt(selectedDate, now)) {
+    return {
+      items: [],
+      totalCount: 0,
+    }
+  }
+
+  const matchingBookings = bookings
+    .filter((booking) => shouldIncludeClosingBooking(booking, now))
+    .sort((firstBooking, secondBooking) => {
+      const priorityDifference =
+        getClosingBookingPriority(firstBooking, now) -
+        getClosingBookingPriority(secondBooking, now)
+
+      if (priorityDifference !== 0) {
+        return priorityDifference
+      }
+
+      return getBookingEndMinutes(secondBooking) - getBookingEndMinutes(firstBooking)
+    })
+
+  return {
+    items: matchingBookings.slice(0, 3),
+    totalCount: matchingBookings.length,
+  }
 }
 
 function minutesToTime(minutes: number): string {

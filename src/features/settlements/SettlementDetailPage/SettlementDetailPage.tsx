@@ -174,10 +174,7 @@ export function SettlementDetailPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Link to="/settlements">
-              <AppButton variant="secondary">تسوية جديدة</AppButton>
-            </Link>
-            <Link to="/settlements/history">
-              <AppButton variant="secondary">سجل التسويات</AppButton>
+              <AppButton variant="secondary">التسويات المالية والجرد</AppButton>
             </Link>
           </div>
         }
