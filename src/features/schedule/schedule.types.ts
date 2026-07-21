@@ -4,6 +4,7 @@ export type BookingBoardSlotStatus =
   | 'available'
   | 'hold'
   | 'confirmed'
+  | 'completed'
   | 'cancelled'
 export type BookingBoardPeriod = 'day' | 'night'
 
@@ -27,8 +28,8 @@ export interface ScheduleDateFilter {
  * UI-only shape for the staff schedule preview.
  *
  * Booking Board slots intentionally expose only availability state and their
- * time range. HOLD is visible because it blocks availability, while payment
- * and lifecycle details stay inside focused sheets.
+ * time range. HOLD and completed slots are visible because they block
+ * availability, while payment and lifecycle details stay inside focused sheets.
  */
 export interface ScheduleBooking {
   id: string

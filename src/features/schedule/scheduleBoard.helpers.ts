@@ -20,49 +20,129 @@ export interface SlotGenerationResult {
 }
 
 const hiddenBookingStatuses = new Set([
-  'COMPLETED',
   'NO_SHOW',
   'EXPIRED',
 ])
 
-const activeSlotStatusPriority = ['CONFIRMED', 'HOLD', 'CANCELLED'] as const
+const activeSlotStatusPriority = [
+  'COMPLETED',
+  'CONFIRMED',
+  'HOLD',
+  'CANCELLED',
+] as const
+
+const EGYPT_TIME_ZONE = 'Africa/Cairo'
+export const DAY_START_MINUTES = 6 * 60
+export const NIGHT_START_MINUTES = 18 * 60
 
 function padTimePart(value: number): string {
   return String(value).padStart(2, '0')
 }
 
-function toDateInputValue(date: Date): string {
+function getEgyptDateParts(
+  now: Date,
+): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: EGYPT_TIME_ZONE,
+    year: 'numeric',
+  }).formatToParts(now)
+  const getPart = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value)
+
+  return {
+    year: getPart('year'),
+    month: getPart('month'),
+    day: getPart('day'),
+  }
+}
+
+export function getEgyptDateValue(now = new Date()): string {
+  const { year, month, day } = getEgyptDateParts(now)
+
   return [
-    date.getFullYear(),
-    padTimePart(date.getMonth() + 1),
-    padTimePart(date.getDate()),
+    year,
+    padTimePart(month),
+    padTimePart(day),
   ].join('-')
 }
 
-function addDays(date: Date, days: number): Date {
-  const nextDate = new Date(date)
-  nextDate.setDate(date.getDate() + days)
+export function getEgyptDateValueOffset(
+  daysOffset: number,
+  now = new Date(),
+): string {
+  const { year, month, day } = getEgyptDateParts(now)
+  const offsetDate = new Date(Date.UTC(year, month - 1, day + daysOffset, 12))
 
-  return nextDate
+  return getEgyptDateValue(offsetDate)
+}
+
+export function getEgyptCurrentMinutes(now = new Date()): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    timeZone: EGYPT_TIME_ZONE,
+  }).formatToParts(now)
+  const getPart = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value)
+
+  return getPart('hour') * 60 + getPart('minute')
+}
+
+export function isPastEgyptDate(dateValue: string, now = new Date()): boolean {
+  return dateValue < getEgyptDateValue(now)
+}
+
+export function isTodayInEgypt(dateValue: string, now = new Date()): boolean {
+  return dateValue === getEgyptDateValue(now)
+}
+
+export function isPastSlot(
+  selectedDate: string,
+  slotEndTime: string,
+  now = new Date(),
+): boolean {
+  if (isPastEgyptDate(selectedDate, now)) {
+    return true
+  }
+
+  if (!isTodayInEgypt(selectedDate, now)) {
+    return false
+  }
+
+  const slotEndMinutes = timeToMinutes(slotEndTime)
+
+  return slotEndMinutes === null || slotEndMinutes <= getEgyptCurrentMinutes(now)
 }
 
 export function createDateFilterOptions(today = new Date()): DateFilterOption[] {
   return [
-    { key: 'today', label: 'اليوم', date: toDateInputValue(today) },
-    { key: 'tomorrow', label: 'غداً', date: toDateInputValue(addDays(today, 1)) },
+    { key: 'today', label: 'اليوم', date: getEgyptDateValueOffset(0, today) },
+    {
+      key: 'tomorrow',
+      label: 'غداً',
+      date: getEgyptDateValueOffset(1, today),
+    },
     {
       key: 'afterTomorrow',
       label: 'بعد غد',
-      date: toDateInputValue(addDays(today, 2)),
+      date: getEgyptDateValueOffset(2, today),
     },
   ]
 }
 
-export function getWeekdayFromDateValue(dateValue: string): CourtWorkingHour['weekday'] {
+export function getWeekdayFromDateValue(
+  dateValue: string,
+): CourtWorkingHour['weekday'] {
   return getCourtWeekdayFromDate(dateValue)
 }
 
-export function formatBookingDateTime(dateValue: string, timeValue: string): string {
+export function formatBookingDateTime(
+  dateValue: string,
+  timeValue: string,
+): string {
   return `${dateValue}T${timeValue}:00`
 }
 
@@ -88,8 +168,10 @@ function minutesToTime(minutes: number): string {
   return `${padTimePart(Math.floor(minutes / 60))}:${padTimePart(minutes % 60)}`
 }
 
-function getPeriod(startMinutes: number): BookingBoardPeriod {
-  return startMinutes < 18 * 60 ? 'day' : 'night'
+export function getSlotPeriod(startMinutes: number): BookingBoardPeriod {
+  return startMinutes >= DAY_START_MINUTES && startMinutes < NIGHT_START_MINUTES
+    ? 'day'
+    : 'night'
 }
 
 function bookingOverlapsSlot(
@@ -118,6 +200,10 @@ function getSlotStatus(
 ): ScheduleBooking['status'] {
   const visibleBookings = getVisibleBookings(bookings)
   const overlappingBooking = getSlotBooking(visibleBookings, slotStart, slotEnd)
+
+  if (overlappingBooking?.status === 'COMPLETED') {
+    return 'completed'
+  }
 
   if (overlappingBooking?.status === 'CONFIRMED') {
     return 'confirmed'
@@ -171,7 +257,16 @@ export function generateSlotsFromWorkingHour(
   workingHour: CourtWorkingHour | undefined,
   slotDurationMinutes: number,
   bookings: BookingListItem[] = [],
+  selectedDate?: string,
+  now = new Date(),
 ): SlotGenerationResult {
+  if (selectedDate && isPastEgyptDate(selectedDate, now)) {
+    return {
+      slots: [],
+      message: 'لا يمكن حجز مواعيد سابقة',
+    }
+  }
+
   if (!workingHour) {
     return {
       slots: [],
@@ -208,6 +303,7 @@ export function generateSlotsFromWorkingHour(
       : 60
 
   const slots: ScheduleBooking[] = []
+  let hiddenPastSlotCount = 0
 
   sortBlocksByStartTime(safeBlocks).forEach(
     (block, blockIndex) => {
@@ -231,6 +327,11 @@ export function generateSlotsFromWorkingHour(
         const startTime = minutesToTime(slotStart)
         const endTime = minutesToTime(slotEnd)
 
+        if (selectedDate && isPastSlot(selectedDate, endTime, now)) {
+          hiddenPastSlotCount += 1
+          return
+        }
+
         const booking = getSlotBooking(
           safeBookings,
           slotStart,
@@ -250,7 +351,7 @@ export function generateSlotsFromWorkingHour(
           ),
           startTime,
           endTime,
-          period: getPeriod(slotStart),
+          period: getSlotPeriod(slotStart),
           ...(booking ? { booking } : {}),
         })
       }
@@ -260,7 +361,12 @@ export function generateSlotsFromWorkingHour(
   if (slots.length === 0) {
     return {
       slots,
-      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
+      message:
+        selectedDate &&
+        hiddenPastSlotCount > 0 &&
+        isTodayInEgypt(selectedDate, now)
+          ? 'لا توجد مواعيد متاحة بعد الوقت الحالي'
+          : 'لم يتم ضبط مواعيد العمل لهذا اليوم',
     }
   }
 

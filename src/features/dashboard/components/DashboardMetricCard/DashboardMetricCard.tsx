@@ -2,7 +2,7 @@ import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 
 export interface DashboardMetricCardProps {
   label: string
-  value: number | string | undefined
+  value: number | string | null | undefined
   suffix?: string
 }
 

@@ -8,8 +8,8 @@ export const settlementPaymentMethodLabels: Record<
   SettlementPaymentMethod,
   string
 > = {
-  CASH: 'نقدي',
-  DIGITAL_WALLET: 'محفظة رقمية',
+  CASH: 'كاش',
+  DIGITAL_WALLET: 'محفظة إلكترونية',
   BANK_TRANSFER: 'تحويل بنكي',
   OTHER: 'أخرى',
 }
@@ -32,6 +32,8 @@ export interface SettlementPreview {
   club: number
   collected_by: number
   collected_by_name: string
+  court?: number | null
+  court_name?: string | null
   is_self_preview?: boolean
   can_approve?: boolean
   approval_required?: boolean
@@ -41,6 +43,18 @@ export interface SettlementPreview {
   total_amount: string
   totals_by_payment_method: Partial<Record<SettlementPaymentMethod, string>>
   transactions: SettlementPreviewTransaction[]
+}
+
+export interface SettlementPreviewQueryParams {
+  collected_by: number | string
+  court?: number | string
+  page?: number | string
+}
+
+export interface CreateSettlementPayload {
+  collected_by: number
+  court?: number
+  notes?: string
 }
 
 export interface ReviewSettlementRequest {

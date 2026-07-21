@@ -11,7 +11,7 @@ export interface ScheduleHeaderProps {
   staff: ScheduleStaff
   summary: ScheduleSummary
   dateFilters: ScheduleDateFilter[]
-  activeDateKey: string
+  activeDateKey: string | null
   onDateChange?: (key: string) => void
 }
 

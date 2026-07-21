@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { getCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
@@ -226,7 +226,13 @@ function mockScheduleApiData(): void {
 describe('SchedulePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-07-20T02:00:00Z'))
     mockScheduleApiData()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('renders the Arabic schedule header from API setup data', async () => {
@@ -275,14 +281,91 @@ describe('SchedulePage', () => {
 
     expect(await screen.findByRole('button', { name: '06:00 محجوز مؤقتًا' }))
       .toBeInTheDocument()
-    expect(screen.queryByText('مكتمل')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /مكتمل/ }),
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('انتظار الدفع')).not.toBeInTheDocument()
     expect(screen.queryByText('منتهي')).not.toBeInTheDocument()
     expect(screen.queryByText('لم يحضر')).not.toBeInTheDocument()
   })
 
+  it('reloads bookings and clears open sheets when date input changes', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookingsForCourtDay
+      .mockResolvedValueOnce(
+        paginatedResponse([
+          {
+            id: 20,
+            court: 7,
+            start_time: '09:00',
+            end_time: '10:00',
+            status: 'CANCELLED',
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '09:00 ملغي' }))
+    expect(screen.getByRole('heading', { name: 'إضافة حجز' }))
+      .toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('تاريخ الحجز'), {
+      target: { value: '2026-07-21' },
+    })
+
+    await waitFor(() => {
+      expect(mockedListBookingsForCourtDay).toHaveBeenLastCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: '2026-07-21',
+        },
+      )
+    })
+    expect(
+      screen.queryByRole('heading', { name: 'إضافة حجز' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders completed slots as locked and does not open add booking', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookingsForCourtDay.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 30,
+          court: 7,
+          start_time: '09:00',
+          end_time: '10:00',
+          status: 'COMPLETED',
+        },
+      ]),
+    )
+
+    render(<SchedulePage />)
+
+    const completedSlot = await screen.findByRole('button', {
+      name: '09:00 مكتمل',
+    })
+
+    expect(completedSlot).toBeDisabled()
+    await user.click(completedSlot)
+    expect(
+      screen.queryByRole('heading', { name: 'إضافة حجز' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('reloads working hours when selected court changes', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     mockedListCourts.mockResolvedValueOnce(
       paginatedResponse([
@@ -370,7 +453,9 @@ describe('SchedulePage', () => {
   })
 
   it('opens add booking sheet from available and cancelled slots', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -387,7 +472,9 @@ describe('SchedulePage', () => {
   })
 
   it('creates a manual booking from an available slot and reloads bookings', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
     const today = createDateFilterOptions()[0].date
 
     render(<SchedulePage />)
@@ -416,7 +503,9 @@ describe('SchedulePage', () => {
   })
 
   it('shows backend booking conflict message and reloads bookings', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     mockedCreateBooking.mockRejectedValueOnce(
       new ApiClientError('هذا الموعد محجوز بالفعل', 409, {
@@ -440,7 +529,9 @@ describe('SchedulePage', () => {
   })
 
   it('opens the HOLD action sheet instead of add booking for held slots', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -462,7 +553,9 @@ describe('SchedulePage', () => {
   })
 
   it('opens payment recording from a HOLD booking', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -480,7 +573,9 @@ describe('SchedulePage', () => {
   })
 
   it('records a payment for a HOLD booking and reloads bookings', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -506,7 +601,9 @@ describe('SchedulePage', () => {
   })
 
   it('frees a HOLD slot through the cancel booking endpoint', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -529,7 +626,9 @@ describe('SchedulePage', () => {
   })
 
   it('opens the HOLD action sheet after creating a booking that returns HOLD', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
     const today = createDateFilterOptions()[0].date
 
     mockedCreateBooking.mockResolvedValueOnce({
@@ -558,7 +657,9 @@ describe('SchedulePage', () => {
   })
 
   it('opens booking details from confirmed slots', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -577,7 +678,9 @@ describe('SchedulePage', () => {
   })
 
   it('records a payment for a confirmed booking and reloads bookings', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -606,7 +709,9 @@ describe('SchedulePage', () => {
   })
 
   it('shows an Arabic error when payment recording fails', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
     mockedCreateTransaction.mockRejectedValueOnce(new Error('Bad request'))
 
     render(<SchedulePage />)
@@ -624,7 +729,9 @@ describe('SchedulePage', () => {
   })
 
   it('cancels a confirmed booking and reloads bookings', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -649,7 +756,9 @@ describe('SchedulePage', () => {
   })
 
   it('completes a confirmed booking and reloads bookings', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 
@@ -671,7 +780,9 @@ describe('SchedulePage', () => {
   })
 
   it('marks a confirmed booking as no-show and reloads bookings', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     render(<SchedulePage />)
 

@@ -1,11 +1,17 @@
 import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
+import {
+  buildPathWithQuery,
+  type QueryParamValue,
+} from '../../shared/utils/buildPathWithQuery'
 import type {
   ConfirmSettlementRequest,
+  CreateSettlementPayload,
   ReviewSettlementRequest,
   Settlement,
   SettlementPreview,
+  SettlementPreviewQueryParams,
   SettlementQueryParams,
 } from './settlements.types'
 
@@ -31,6 +37,49 @@ function buildQueryString(params?: SettlementQueryParams): string {
   const queryString = searchParams.toString()
 
   return queryString ? `?${queryString}` : ''
+}
+
+function buildPreviewPath(
+  clubSlug: string,
+  params: SettlementPreviewQueryParams,
+): string {
+  const query: Record<string, QueryParamValue> = {
+    collected_by: params.collected_by,
+    court: params.court,
+    page: params.page,
+  }
+
+  return buildPathWithQuery(
+    apiEndpoints.clubs.settlements.preview(clubSlug),
+    query,
+  )
+}
+
+/**
+ * Loads a read-only settlement preview for currently unsettled transactions.
+ */
+export function getSettlementPreview(
+  clubSlug: string,
+  params: SettlementPreviewQueryParams,
+): Promise<SettlementPreview> {
+  return apiRequest<SettlementPreview>(buildPreviewPath(clubSlug, params))
+}
+
+/**
+ * Confirms the current unsettled transactions for one collector.
+ */
+export function createSettlement(
+  clubSlug: string,
+  payload: CreateSettlementPayload,
+): Promise<Settlement> {
+  return apiRequest<Settlement>(apiEndpoints.clubs.settlements.list(clubSlug), {
+    method: 'POST',
+    body: {
+      collected_by: payload.collected_by,
+      ...(payload.court !== undefined ? { court: payload.court } : {}),
+      ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
+    },
+  })
 }
 
 /**

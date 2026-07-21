@@ -14,6 +14,8 @@ const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
     'border-amber-400 bg-amber-100 text-amber-900 shadow-amber-950/10 hover:-translate-y-0.5 hover:bg-amber-50',
   confirmed:
     'sloty-green-surface-button border-[var(--sloty-primary-dark)] text-white shadow-emerald-900/20 hover:-translate-y-0.5 hover:bg-[var(--sloty-primary-dark)]',
+  completed:
+    'border-slate-400 bg-slate-200 text-slate-700 shadow-slate-950/10',
 }
 
 const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
@@ -21,6 +23,7 @@ const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
   cancelled: 'ملغي',
   hold: 'محجوز مؤقتًا',
   confirmed: 'مؤكد',
+  completed: 'مكتمل',
 }
 
 /**
@@ -30,7 +33,7 @@ const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
  * amounts, and booking actions belong in the focused sheets opened by status.
  */
 export function BookingCard({ booking, onSelect }: BookingCardProps) {
-  const isActionable = Boolean(onSelect)
+  const isActionable = Boolean(onSelect) && booking.status !== 'completed'
 
   return (
     <button
@@ -41,7 +44,11 @@ export function BookingCard({ booking, onSelect }: BookingCardProps) {
         slotClassesByStatus[booking.status],
       ].join(' ')}
       disabled={!isActionable}
-      onClick={() => onSelect?.(booking)}
+      onClick={() => {
+        if (isActionable) {
+          onSelect?.(booking)
+        }
+      }}
       type="button"
     >
       <span dir="ltr">{booking.startTime}</span>

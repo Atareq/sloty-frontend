@@ -54,6 +54,8 @@ export const apiEndpoints = {
     },
     settlements: {
       list: (clubSlug: string) => `clubs/${clubSlug}/settlements/`,
+      preview: (clubSlug: string) =>
+        `clubs/${clubSlug}/settlements/preview/`,
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/settlements/${id}/`,
       markSettled: (clubSlug: string, id: ApiId) =>

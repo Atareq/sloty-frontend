@@ -1,31 +1,39 @@
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import type { DashboardQueryParams, DashboardSummary } from './dashboard.types'
+import {
+  buildPathWithQuery,
+  type QueryParamValue,
+} from '../../shared/utils/buildPathWithQuery'
+import type {
+  DashboardSummaryQuery,
+  DashboardSummaryResponse,
+} from './dashboard.types'
 
-function buildQueryString(params?: DashboardQueryParams): string {
-  const searchParams = new URLSearchParams()
-
-  if (params?.date_from) {
-    searchParams.set('date_from', params.date_from)
+function buildDashboardSummaryPath(
+  clubSlug: string,
+  params: DashboardSummaryQuery = {},
+): string {
+  const query: Record<string, QueryParamValue> = {
+    collected_by: params.collected_by,
+    court: params.court,
+    date: params.date,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    payment_method: params.payment_method,
+    settlement_status: params.settlement_status,
   }
 
-  if (params?.date_to) {
-    searchParams.set('date_to', params.date_to)
-  }
-
-  const queryString = searchParams.toString()
-
-  return queryString ? `?${queryString}` : ''
+  return buildPathWithQuery(apiEndpoints.clubs.dashboard.summary(clubSlug), query)
 }
 
 /**
- * Loads backend-calculated dashboard metrics for the selected club.
+ * Loads backend-calculated Summary / Owner Home metrics for the selected club.
  */
 export function getDashboardSummary(
   clubSlug: string,
-  params?: DashboardQueryParams,
-): Promise<DashboardSummary> {
-  return apiRequest<DashboardSummary>(
-    `${apiEndpoints.clubs.dashboard.summary(clubSlug)}${buildQueryString(params)}`,
+  params: DashboardSummaryQuery = {},
+): Promise<DashboardSummaryResponse> {
+  return apiRequest<DashboardSummaryResponse>(
+    buildDashboardSummaryPath(clubSlug, params),
   )
 }

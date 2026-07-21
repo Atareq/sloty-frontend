@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router'
 import { useAuth } from '../../../core/auth/useAuth'
 import { cancelTransaction, listTransactions } from '../transactionsApi'
 import { TransactionsListPage } from './TransactionsListPage'
@@ -17,6 +18,10 @@ vi.mock('../transactionsApi', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedCancelTransaction = vi.mocked(cancelTransaction)
 const mockedListTransactions = vi.mocked(listTransactions)
+const defaultFilters = {
+  date_from: '2026-07-13',
+  date_to: '2026-07-20',
+}
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -27,9 +32,19 @@ function paginatedResponse<T>(results: T[]) {
   }
 }
 
+function renderTransactionsPage(initialEntry = '/transactions') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <TransactionsListPage />
+    </MemoryRouter>,
+  )
+}
+
 describe('TransactionsListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-07-20T10:00:00Z'))
     mockedUseAuth.mockReturnValue({
       accessToken: 'token',
       claims: { user_id: 1 },
@@ -85,6 +100,10 @@ describe('TransactionsListPage', () => {
     })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('loads transactions for the selected club slug', async () => {
     mockedListTransactions.mockResolvedValueOnce(
       paginatedResponse([
@@ -99,13 +118,16 @@ describe('TransactionsListPage', () => {
       ]),
     )
 
-    render(<TransactionsListPage />)
+    renderTransactionsPage()
 
     expect(await screen.findByText('150.00')).toBeInTheDocument()
-    expect(screen.getByText('محفظة رقمية')).toBeInTheDocument()
+    expect(screen.getAllByText('محفظة رقمية')).toHaveLength(2)
     expect(screen.getByText('#10')).toBeInTheDocument()
     expect(screen.getByText('REF-123')).toBeInTheDocument()
-    expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club')
+    expect(mockedListTransactions).toHaveBeenCalledWith(
+      'nasr-club',
+      defaultFilters,
+    )
     expect(
       screen.getByText('سجل المدفوعات المسجلة داخل نادي النصر'),
     ).toBeInTheDocument()
@@ -114,10 +136,10 @@ describe('TransactionsListPage', () => {
   it('shows an empty state when the selected club has no transactions', async () => {
     mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
 
-    render(<TransactionsListPage />)
+    renderTransactionsPage()
 
     expect(
-      await screen.findByText('لا توجد معاملات مسجلة حتى الآن'),
+      await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية'),
     ).toBeInTheDocument()
   })
 
@@ -128,7 +150,7 @@ describe('TransactionsListPage', () => {
       selectedMembership: null,
     })
 
-    render(<TransactionsListPage />)
+    renderTransactionsPage()
 
     expect(
       await screen.findByText('اختر ناديًا أولًا لعرض المعاملات'),
@@ -151,7 +173,7 @@ describe('TransactionsListPage', () => {
       ]),
     )
 
-    render(<TransactionsListPage />)
+    renderTransactionsPage()
 
     expect(await screen.findByText('ملغي')).toBeInTheDocument()
     expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
@@ -162,7 +184,9 @@ describe('TransactionsListPage', () => {
   })
 
   it('cancels an active payment and reloads transactions', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
 
     mockedListTransactions
       .mockResolvedValueOnce(
@@ -185,7 +209,9 @@ describe('TransactionsListPage', () => {
       is_cancelled: true,
     })
 
-    render(<TransactionsListPage />)
+    renderTransactionsPage(
+      '/transactions?settlement_status=unsettled&is_cancelled=false',
+    )
 
     await user.click(await screen.findByRole('button', { name: 'إلغاء الدفع' }))
     await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الدفع' }))
@@ -199,5 +225,122 @@ describe('TransactionsListPage', () => {
       reason: 'مبلغ خاطئ',
     })
     expect(mockedListTransactions).toHaveBeenCalledTimes(2)
+    expect(mockedListTransactions).toHaveBeenLastCalledWith(
+      'nasr-club',
+      {
+        is_cancelled: 'false',
+        settlement_status: 'unsettled',
+      },
+    )
+    expect(await screen.findByText('تم إلغاء الدفع بنجاح')).toBeInTheDocument()
+  })
+
+  it('respects summary redirect filters without adding default dates', async () => {
+    mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage(
+      '/transactions?settlement_status=unsettled&is_cancelled=false',
+    )
+
+    expect(
+      await screen.findByRole('button', { name: 'إزالة فلتر غير مسواة' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'إزالة فلتر غير ملغية' }),
+    ).toBeInTheDocument()
+    expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
+      is_cancelled: 'false',
+      settlement_status: 'unsettled',
+    })
+    expect(screen.getByLabelText('من تاريخ')).toHaveValue('')
+    expect(screen.getByLabelText('إلى تاريخ')).toHaveValue('')
+  })
+
+  it('removes active chips and reloads with remaining URL filters', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage(
+      '/transactions?settlement_status=unsettled&is_cancelled=false',
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: 'إزالة فلتر غير مسواة' }),
+    )
+
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      is_cancelled: 'false',
+    })
+    expect(
+      screen.queryByRole('button', { name: 'إزالة فلتر غير مسواة' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'إزالة فلتر غير ملغية' }),
+    ).toBeInTheDocument()
+  })
+
+  it('applies selected filters through the URL query params', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage()
+
+    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await user.clear(screen.getByLabelText('من تاريخ'))
+    await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
+    await user.clear(screen.getByLabelText('إلى تاريخ'))
+    await user.type(screen.getByLabelText('إلى تاريخ'), '2026-07-15')
+    await user.selectOptions(screen.getByLabelText('حالة التسوية'), 'settled')
+    await user.selectOptions(screen.getByLabelText('حالة الإلغاء'), 'false')
+    await user.selectOptions(screen.getByLabelText('طريقة الدفع'), 'CASH')
+    await user.type(screen.getByLabelText('رقم الملعب'), '3')
+    await user.type(screen.getByLabelText('الموظف المحصل'), '15')
+    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      court: '3',
+      created_by: '15',
+      date_from: '2026-07-01',
+      date_to: '2026-07-15',
+      is_cancelled: 'false',
+      payment_method: 'CASH',
+      settlement_status: 'settled',
+    })
+  })
+
+  it('resets filters to the default last seven days', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage('/transactions?settlement_status=unsettled')
+
+    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await user.clear(screen.getByLabelText('من تاريخ'))
+    await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
+    await user.selectOptions(screen.getByLabelText('حالة التسوية'), 'settled')
+    await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
+
+    expect(screen.getByLabelText('من تاريخ')).toHaveValue('2026-07-13')
+    expect(screen.getByLabelText('إلى تاريخ')).toHaveValue('2026-07-20')
+    expect(screen.getByLabelText('حالة التسوية')).toHaveValue('')
+    expect(mockedListTransactions).toHaveBeenLastCalledWith(
+      'nasr-club',
+      defaultFilters,
+    )
   })
 })

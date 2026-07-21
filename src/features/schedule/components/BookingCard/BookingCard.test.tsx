@@ -40,6 +40,28 @@ describe('BookingCard', () => {
     ).toHaveClass('bg-amber-100')
   })
 
+  it('renders completed slots as locked and non-actionable', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+
+    render(
+      <BookingCard
+        booking={{
+          ...confirmedBooking,
+          status: 'completed',
+          startTime: '09:00',
+        }}
+        onSelect={onSelect}
+      />,
+    )
+
+    const completedSlot = screen.getByRole('button', { name: '09:00 مكتمل' })
+
+    expect(completedSlot).toBeDisabled()
+    await user.click(completedSlot)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('calls onSelect only when actionable', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()

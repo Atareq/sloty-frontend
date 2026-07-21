@@ -1,81 +1,49 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
-import { listClubUsers } from '../../clubUsers/clubUsersApi'
-import { listCourts } from '../../courts/courtsApi'
-import {
-  confirmUserSettlement,
-  reviewUserSettlement,
-} from '../settlementsApi'
+import { createSettlement, getSettlementPreview } from '../settlementsApi'
 import { SettlementPreviewPage } from './SettlementPreviewPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
   useAuth: vi.fn(),
 }))
 
-vi.mock('../../clubUsers/clubUsersApi', () => ({
-  listClubUsers: vi.fn(),
-}))
-
-vi.mock('../../courts/courtsApi', () => ({
-  listCourts: vi.fn(),
-}))
-
 vi.mock('../settlementsApi', () => ({
-  confirmUserSettlement: vi.fn(),
-  reviewUserSettlement: vi.fn(),
+  createSettlement: vi.fn(),
+  getSettlementPreview: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
-const mockedListClubUsers = vi.mocked(listClubUsers)
-const mockedListCourts = vi.mocked(listCourts)
-const mockedReviewUserSettlement = vi.mocked(reviewUserSettlement)
-const mockedConfirmUserSettlement = vi.mocked(confirmUserSettlement)
+const mockedCreateSettlement = vi.mocked(createSettlement)
+const mockedGetSettlementPreview = vi.mocked(getSettlementPreview)
 
-const clubUser = {
-  id: 5,
-  membership_id: 50,
-  username: 'staff_ahmed',
-  first_name: 'Ahmed',
-  last_name: 'Staff',
-  phone_number: '+201000000000',
-  role: 'STAFF' as const,
-  court: 3,
-  court_name: 'Court A',
-  membership_is_active: true,
-}
-
-function paginatedResponse<T>(results: T[]) {
-  return {
-    count: results.length,
-    next: null,
-    previous: null,
-    results,
-  }
-}
-
-function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF' = 'OWNER') {
+function mockAuth(
+  role: 'OWNER' | 'MANAGER' | 'STAFF' = 'OWNER',
+  selectedClubSlug: string | null = 'nasr-club',
+) {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
     currentUser: null,
-    selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role,
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: null,
-      can_manage_settlements: role === 'MANAGER',
-    },
+    selectedClubSlug,
+    selectedMembership: selectedClubSlug
+      ? {
+          id: 10,
+          role,
+          club: {
+            id: 1,
+            name: 'نادي النصر',
+            slug: selectedClubSlug,
+            city: 'ASSIUT',
+            is_active: true,
+          },
+          court: null,
+          can_manage_settlements: role === 'MANAGER',
+        }
+      : null,
     role,
     isAuthenticated: true,
     isLoadingSession: false,
@@ -90,10 +58,17 @@ function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF' = 'OWNER') {
   })
 }
 
-function renderPage() {
+function renderPage(initialEntry = '/settlements/preview?collected_by=15') {
+  function LocationProbe() {
+    const location = useLocation()
+
+    return <span data-testid="location">{location.pathname}</span>
+  }
+
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <SettlementPreviewPage />
+      <LocationProbe />
     </MemoryRouter>,
   )
 }
@@ -102,138 +77,110 @@ describe('SettlementPreviewPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuth()
-    mockedListClubUsers.mockResolvedValue(paginatedResponse([clubUser]))
-    mockedListCourts.mockResolvedValue(
-      paginatedResponse([
-        {
-          id: 3,
-          club: 1,
-          name: 'Court A',
-          sport_type: 'FOOTBALL',
-          default_price: '300.00',
-          slot_duration_minutes: 60,
-          is_active: true,
-          requires_digital_payment_reference: false,
-          internal_hold_expiry_hours: 12,
-        },
-      ]),
-    )
-    mockedReviewUserSettlement.mockResolvedValue({
+    mockedGetSettlementPreview.mockResolvedValue({
       club: 1,
-      collected_by: 5,
-      collected_by_name: 'Ahmed Staff',
-      transaction_count: 1,
-      total_amount: '2000.00',
+      collected_by: 15,
+      collected_by_name: 'أحمد المحصل',
+      court: 3,
+      court_name: 'ملعب 3',
+      transaction_count: 2,
+      total_amount: '700.00',
       totals_by_payment_method: {
-        CASH: '1200.00',
-        DIGITAL_WALLET: '500.00',
-        BANK_TRANSFER: '300.00',
-        OTHER: '0.00',
+        CASH: '500.00',
+        DIGITAL_WALLET: '200.00',
       },
       transactions: [
         {
-          id: 10,
-          booking: 55,
+          id: 11,
+          booking: 123,
           court: 3,
-          court_name: 'Court A',
-          amount: '300.00',
+          court_name: 'ملعب 3',
+          amount: '500.00',
           payment_method: 'CASH',
-          payment_reference: '',
-          created: '2026-07-19T10:00:00Z',
+          payment_reference: 'REF-1',
+          created: '2026-07-21T10:00:00Z',
+        },
+        {
+          id: 12,
+          booking: null,
+          court: 3,
+          court_name: 'ملعب 3',
+          amount: '200.00',
+          payment_method: 'DIGITAL_WALLET',
+          reference: 'REF-2',
         },
       ],
     })
-    mockedConfirmUserSettlement.mockResolvedValue({ id: 99 })
+    mockedCreateSettlement.mockResolvedValue({
+      id: 99,
+      collected_by: 15,
+      court: 3,
+      total_amount: '700.00',
+      transaction_count: 2,
+    })
+  })
+
+  it('shows missing collected_by instruction state', async () => {
+    renderPage('/settlements/preview')
+
+    expect(
+      await screen.findByText('اختر الموظف المحصل لمراجعة التسوية.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('العودة إلى التسويات').closest('a')).toHaveAttribute(
+      'href',
+      '/settlements',
+    )
+    expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
 
   it('shows no selected club message', async () => {
-    mockAuth()
-    mockedUseAuth.mockReturnValue({
-      ...mockedUseAuth(),
-      selectedClubSlug: null,
-      selectedMembership: null,
-    })
+    mockAuth('OWNER', null)
 
     renderPage()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لعرض التسويات'),
+      await screen.findByText('اختر ناديًا أولًا لمراجعة التسوية'),
     ).toBeInTheDocument()
-    expect(mockedListClubUsers).not.toHaveBeenCalled()
-    expect(mockedReviewUserSettlement).not.toHaveBeenCalled()
+    expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
 
-  it('blocks managers without the settlement permission flag', async () => {
-    mockAuth('MANAGER')
-    mockedUseAuth.mockReturnValue({
-      ...mockedUseAuth(),
-      selectedMembership: {
-        ...mockedUseAuth().selectedMembership!,
-        can_manage_settlements: false,
-      },
-    })
+  it('blocks users without settlement permission', async () => {
+    mockAuth('STAFF')
 
     renderPage()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية إدارة التسويات'),
+      await screen.findByText('ليس لديك صلاحية إنشاء التسويات.'),
     ).toBeInTheDocument()
-    expect(mockedListClubUsers).not.toHaveBeenCalled()
+    expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
 
-  it('renders user cards and sends role/search/active filters', async () => {
-    const user = userEvent.setup()
+  it('loads preview from URL params and renders review sections', async () => {
+    renderPage('/settlements/preview?collected_by=15&court=3')
 
-    renderPage()
-
-    expect(await screen.findByText('Ahmed Staff')).toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('بحث عن مستخدم'), 'ahmed')
-    await user.selectOptions(screen.getByLabelText('الدور'), 'STAFF')
-    await user.selectOptions(screen.getByLabelText('حالة العضوية'), 'true')
-    await user.click(screen.getByRole('button', { name: 'تحديث المستخدمين' }))
-
-    await waitFor(() => {
-      expect(mockedListClubUsers).toHaveBeenLastCalledWith('nasr-club', {
-        search: 'ahmed',
-        role: 'STAFF',
-        is_active: 'true',
-      })
+    expect(await screen.findByText('مراجعة التسوية')).toBeInTheDocument()
+    expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
+      collected_by: '15',
+      court: '3',
     })
+    expect(screen.getAllByText('أحمد المحصل')).not.toHaveLength(0)
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('700.00 جنيه')).toBeInTheDocument()
+    expect(screen.getByText('تفصيل طرق الدفع')).toBeInTheDocument()
+    expect(screen.getAllByText('500.00 جنيه')).not.toHaveLength(0)
+    expect(screen.getAllByText('كاش')).not.toHaveLength(0)
+    expect(screen.getAllByText('محفظة إلكترونية')).not.toHaveLength(0)
+    expect(screen.getByText('الدفعات غير المسواة')).toBeInTheDocument()
+    expect(screen.getByText('حجز #123')).toBeInTheDocument()
+    expect(screen.getAllByText('رقم العملية')).not.toHaveLength(0)
+    expect(screen.getByText('REF-1')).toBeInTheDocument()
   })
 
-  it('requires explicit review before rendering backend review totals', async () => {
-    const user = userEvent.setup()
-
-    renderPage()
-
-    await user.click(await screen.findByRole('button', {
-      name: 'اختيار للتسوية',
-    }))
-
-    expect(mockedReviewUserSettlement).not.toHaveBeenCalled()
-    expect(
-      await screen.findByRole('button', { name: 'مراجعة التسوية' }),
-    ).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'مراجعة التسوية' }))
-
-    expect(mockedReviewUserSettlement).toHaveBeenCalledWith('nasr-club', {
-      collected_by: 5,
-      dry_run: true,
-    })
-    expect(await screen.findByText('2000.00')).toBeInTheDocument()
-    expect(screen.getByText('عدد المعاملات: 1')).toBeInTheDocument()
-    expect(screen.getByText('1200.00')).toBeInTheDocument()
-    expect(screen.getAllByText('300.00')).toHaveLength(2)
-  })
-
-  it('does not show confirm action when selected user has no unsettled transactions', async () => {
-    const user = userEvent.setup()
-    mockedReviewUserSettlement.mockResolvedValueOnce({
+  it('shows friendly empty state for zero transactions', async () => {
+    mockedGetSettlementPreview.mockResolvedValueOnce({
       club: 1,
-      collected_by: 5,
-      collected_by_name: 'Ahmed Staff',
+      collected_by: 15,
+      collected_by_name: 'أحمد المحصل',
       transaction_count: 0,
       total_amount: '0.00',
       totals_by_payment_method: {},
@@ -242,63 +189,118 @@ describe('SettlementPreviewPage', () => {
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', {
-      name: 'اختيار للتسوية',
-    }))
-    await user.click(screen.getByRole('button', { name: 'مراجعة التسوية' }))
-
     expect(
-      await screen.findAllByText('لا توجد معاملات غير مسواة لهذا المستخدم.'),
-    ).toHaveLength(2)
-    expect(
-      screen.queryByRole('button', { name: 'تأكيد التسوية' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows backend no-unsettled settlement error message', async () => {
-    const user = userEvent.setup()
-
-    mockedReviewUserSettlement.mockRejectedValueOnce(
-      new ApiClientError('لا توجد معاملات غير مسواة لهذا المستخدم.', 400, {
-        code: 'NO_UNSETTLED_TRANSACTIONS',
-      }),
-    )
-
-    renderPage()
-
-    await user.click(await screen.findByRole('button', {
-      name: 'اختيار للتسوية',
-    }))
-    await user.click(screen.getByRole('button', { name: 'مراجعة التسوية' }))
-
-    expect(
-      await screen.findByText('لا توجد معاملات غير مسواة لهذا المستخدم.'),
+      await screen.findByText('لا توجد معاملات غير مسواة لهذا الموظف'),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'تأكيد التسوية' }),
     ).not.toBeInTheDocument()
   })
 
-  it('confirms a reviewed settlement with selected user, dry_run false, and notes only', async () => {
-    const user = userEvent.setup()
+  it('normalizes no-unsettled backend errors into a friendly empty state', async () => {
+    mockedGetSettlementPreview.mockRejectedValueOnce(
+      new ApiClientError('No unsettled transactions', 404, {
+        code: 'NO_UNSETTLED_TRANSACTIONS',
+      }),
+    )
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', {
-      name: 'اختيار للتسوية',
-    }))
-    await user.click(screen.getByRole('button', { name: 'مراجعة التسوية' }))
-    await screen.findByText('2000.00')
-    await user.click(screen.getByRole('button', { name: 'تأكيد التسوية' }))
-    await user.type(screen.getByLabelText('ملاحظات'), 'Shift settlement')
-    await user.click(screen.getByRole('button', { name: 'تأكيد التسوية' }))
+    expect(
+      await screen.findByText('لا توجد دفعات غير مسواة حالياً لهذا الموظف'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No unsettled transactions')).not.toBeInTheDocument()
+  })
 
-    await waitFor(() => {
-      expect(mockedConfirmUserSettlement).toHaveBeenCalledWith('nasr-club', {
-        collected_by: 5,
-        dry_run: false,
-        notes: 'Shift settlement',
-      })
+  it('opens confirmation dialog and confirms with collected_by, court, and notes', async () => {
+    const user = userEvent.setup()
+
+    renderPage('/settlements/preview?collected_by=15&court=3')
+
+    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
+    const dialog = screen.getByRole('dialog')
+
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getAllByText('تأكيد التسوية')).not.toHaveLength(0)
+    expect(within(dialog).getByText(/أحمد المحصل/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/700.00 جنيه/)).toBeInTheDocument()
+    expect(within(dialog).getByText('عدد الدفعات: 2')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('ملاحظات اختيارية'), 'مراجعة الوردية')
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+
+    expect(mockedCreateSettlement).toHaveBeenCalledWith('nasr-club', {
+      collected_by: 15,
+      court: 3,
+      notes: 'مراجعة الوردية',
     })
+    expect(mockedCreateSettlement.mock.calls[0][1]).not.toHaveProperty('dry_run')
+    expect(await screen.findByTestId('location')).toHaveTextContent(
+      '/settlements/99',
+    )
+  })
+
+  it('redirects to settlements list when confirmation response has no id', async () => {
+    const user = userEvent.setup()
+
+    mockedCreateSettlement.mockResolvedValueOnce({ id: 0 })
+
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+
+    expect(await screen.findByTestId('location')).toHaveTextContent(
+      '/settlements',
+    )
+  })
+
+  it('handles no-unsettled confirmation concurrency as a friendly empty state', async () => {
+    const user = userEvent.setup()
+
+    mockedCreateSettlement.mockRejectedValueOnce(
+      new ApiClientError('Already settled', 409, {
+        code: 'SETTLEMENT_ALREADY_DONE',
+      }),
+    )
+    mockedGetSettlementPreview
+      .mockResolvedValueOnce({
+        club: 1,
+        collected_by: 15,
+        collected_by_name: 'أحمد المحصل',
+        transaction_count: 2,
+        total_amount: '700.00',
+        totals_by_payment_method: {
+          CASH: '700.00',
+        },
+        transactions: [
+          {
+            id: 11,
+            amount: '700.00',
+            payment_method: 'CASH',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        club: 1,
+        collected_by: 15,
+        collected_by_name: 'أحمد المحصل',
+        transaction_count: 0,
+        total_amount: '0.00',
+        totals_by_payment_method: {},
+        transactions: [],
+      })
+
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+
+    expect(
+      await screen.findByText('لا توجد معاملات غير مسواة لهذا الموظف'),
+    ).toBeInTheDocument()
+    expect(mockedGetSettlementPreview).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('Already settled')).not.toBeInTheDocument()
   })
 })

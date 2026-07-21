@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
 import { getDashboardSummary } from '../dashboardApi'
+import type { DashboardSummaryResponse } from '../dashboard.types'
 import { DashboardPage } from './DashboardPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -15,10 +17,61 @@ vi.mock('../dashboardApi', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetDashboardSummary = vi.mocked(getDashboardSummary)
 
-function mockAuth(
-  selectedClubSlug: string | null = 'nasr-club',
-  role: 'OWNER' | 'STAFF' = 'OWNER',
-) {
+const baseSummaryResponse: DashboardSummaryResponse = {
+  context: {
+    club_id: 1,
+    club_name: 'نادي النصر',
+    date_from: '2026-07-21',
+    date_to: '2026-07-21',
+  },
+  needs_action_breakdown: {
+    expiring_hold_count: 1,
+    hold_waiting_payment_count: 2,
+    overdue_confirmed_count: 3,
+    remaining_after_slot_end_count: 4,
+  },
+  payment_method_totals: {
+    CASH: {
+      amount: '500.00',
+      count: 5,
+    },
+  },
+  staff_unsettled_money: [
+    {
+      collected_by: 15,
+      collected_by_name: 'أحمد المحصل',
+      court: 3,
+      court_name: 'ملعب 3',
+      total_unsettled_amount: '700.00',
+      unsettled_transaction_count: 7,
+      totals_by_payment_method: {
+        CASH: '700.00',
+      },
+    },
+  ],
+  summary: {
+    cancelled_bookings: 1,
+    completed_bookings: 6,
+    confirmed_bookings: 8,
+    expired_bookings: 0,
+    hold_bookings: 2,
+    needs_action_count: 10,
+    no_show_bookings: 1,
+    settled_transaction_amount: '300.00',
+    settled_transaction_count: 3,
+    staff_with_unsettled_transactions_count: 1,
+    total_booking_value: '1200.00',
+    total_bookings: 18,
+    total_paid_amount: '900.00',
+    total_remaining_amount: null,
+    transaction_count: 9,
+    transaction_total: '900.00',
+    unsettled_transaction_amount: '700.00',
+    unsettled_transaction_count: 7,
+  },
+}
+
+function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
@@ -27,7 +80,7 @@ function mockAuth(
     selectedMembership: selectedClubSlug
       ? {
           id: 10,
-          role,
+          role: 'OWNER',
           club: {
             id: 1,
             name: 'نادي النصر',
@@ -38,7 +91,7 @@ function mockAuth(
           court: null,
         }
       : null,
-    role,
+    role: 'OWNER',
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,
@@ -52,85 +105,130 @@ function mockAuth(
   })
 }
 
+function renderDashboard() {
+  return render(
+    <MemoryRouter>
+      <DashboardPage />
+    </MemoryRouter>,
+  )
+}
+
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-07-21T10:00:00Z'))
     mockAuth()
-    mockedGetDashboardSummary.mockResolvedValue({
-      bookings: {
-        today: 12,
-        week: 61,
-        confirmed: 20,
-        completed: 31,
-        cancelled: 5,
-        no_show: 2,
-      },
-      payments: {
-        paid_amount: '8500.00',
-        remaining_amount: '1200.00',
-        cancelled_amount: '500.00',
-      },
-      settlements: {
-        unsettled_amount: '2300.00',
-        settled_amount: '6200.00',
-      },
-      courts: [
-        {
-          id: 1,
-          name: 'Court A',
-          bookings_count: 20,
-          revenue: '3000.00',
-        },
-      ],
-      recent_activity: [
-        {
-          id: 1,
-          action: 'BOOKING_CREATED',
-          message: 'تم إنشاء حجز جديد',
-          actor: { id: 5, name: 'Ahmed Staff' },
-        },
-      ],
-    })
+    mockedGetDashboardSummary.mockResolvedValue(baseSummaryResponse)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('shows no selected club message', async () => {
     mockAuth(null)
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لعرض لوحة التحكم'),
+      await screen.findByText('اختر ناديًا أولًا لعرض الملخص'),
     ).toBeInTheDocument()
     expect(mockedGetDashboardSummary).not.toHaveBeenCalled()
   })
 
-  it('renders backend booking payment settlement metrics and activity', async () => {
-    render(<DashboardPage />)
+  it('shows loading skeletons without fake zeroes', () => {
+    mockedGetDashboardSummary.mockReturnValue(new Promise(() => {}))
 
-    expect(await screen.findByText('8500.00')).toBeInTheDocument()
-    expect(screen.getByText('1200.00')).toBeInTheDocument()
-    expect(screen.getByText('2300.00')).toBeInTheDocument()
-    expect(screen.getByText('Court A')).toBeInTheDocument()
-    expect(screen.getByText('تم إنشاء حجز جديد')).toBeInTheDocument()
-    expect(mockedGetDashboardSummary).toHaveBeenCalledWith('nasr-club', {})
+    renderDashboard()
+
+    expect(screen.getByText('جاري تحميل الملخص...')).toBeInTheDocument()
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 
-  it('blocks staff from financial dashboard metrics', async () => {
-    mockAuth('nasr-club', 'STAFF')
+  it('renders main KPI cards with filtered links', async () => {
+    renderDashboard()
 
-    render(<DashboardPage />)
+    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
+    expect(screen.getAllByText('تحتاج إجراء')).not.toHaveLength(0)
+    expect(screen.getByText('تحصيل اليوم')).toBeInTheDocument()
+    expect(screen.getAllByText('مبالغ غير مسواة حالياً')).not.toHaveLength(0)
+
+    expect(screen.getByText('حجوزات اليوم').closest('a')).toHaveAttribute(
+      'href',
+      '/bookings?date=2026-07-21',
+    )
+    expect(screen.getAllByText('تحتاج إجراء')[0].closest('a')).toHaveAttribute(
+      'href',
+      '/bookings?date=2026-07-21&needs_action=true',
+    )
+    expect(screen.getByText('تحصيل اليوم').closest('a')).toHaveAttribute(
+      'href',
+      '/transactions?date=2026-07-21&is_cancelled=false',
+    )
+    expect(
+      screen.getAllByText('مبالغ غير مسواة حالياً')[0].closest('a'),
+    ).toHaveAttribute(
+      'href',
+      '/transactions?settlement_status=unsettled&is_cancelled=false',
+    )
+  })
+
+  it('links booking status and money rows to filtered pages', async () => {
+    renderDashboard()
+
+    expect(await screen.findByText('حالات الحجوزات')).toBeInTheDocument()
+    expect(screen.getByText('انتظار الدفع').closest('a')).toHaveAttribute(
+      'href',
+      '/bookings?date=2026-07-21&status=HOLD',
+    )
+    expect(screen.getByText('كاش').closest('a')).toHaveAttribute(
+      'href',
+      '/transactions?date=2026-07-21&is_cancelled=false&payment_method=CASH',
+    )
+  })
+
+  it('links staff unsettled money cards to settlement preview', async () => {
+    renderDashboard()
+
+    expect(await screen.findByText('أحمد المحصل')).toBeInTheDocument()
+    expect(screen.getByText('مراجعة التسوية')).toHaveAttribute(
+      'href',
+      '/settlements/preview?collected_by=15&court=3',
+    )
+  })
+
+  it('renders friendly empty states and missing amount dashes', async () => {
+    mockedGetDashboardSummary.mockResolvedValueOnce({
+      ...baseSummaryResponse,
+      needs_action_breakdown: {
+        expiring_hold_count: 0,
+        hold_waiting_payment_count: 0,
+        overdue_confirmed_count: 0,
+        remaining_after_slot_end_count: 0,
+      },
+      payment_method_totals: {},
+      staff_unsettled_money: [],
+      summary: {
+        ...baseSummaryResponse.summary,
+        needs_action_count: 0,
+        staff_with_unsettled_transactions_count: 0,
+        total_remaining_amount: null,
+        transaction_total: '0',
+        unsettled_transaction_amount: null,
+        unsettled_transaction_count: 0,
+      },
+    })
+
+    renderDashboard()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية عرض لوحة التحكم'),
+      await screen.findByText('لا توجد حجوزات تحتاج إجراء'),
     ).toBeInTheDocument()
-    expect(mockedGetDashboardSummary).not.toHaveBeenCalled()
-  })
-
-  it('shows missing backend fields as dashes', async () => {
-    mockedGetDashboardSummary.mockResolvedValueOnce({})
-
-    render(<DashboardPage />)
-
-    expect(await screen.findAllByText('-')).not.toHaveLength(0)
+    expect(
+      screen.getByText('لا توجد مبالغ غير مسواة حالياً'),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('-')).not.toHaveLength(0)
+    expect(screen.getAllByText('0 جنيه')).not.toHaveLength(0)
   })
 })

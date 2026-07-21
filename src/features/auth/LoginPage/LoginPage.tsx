@@ -44,7 +44,6 @@ export function LoginPage() {
     getFirstFieldErrorMessage(fieldErrors, 'username') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')
   const passwordFieldError = getFirstFieldErrorMessage(fieldErrors, 'password')
-  const clubSlugFieldError = getFirstFieldErrorMessage(fieldErrors, 'club_slug')
 
   function updateField(field: keyof LoginFormState, value: string): void {
     setFormState((currentFormState) => ({
@@ -197,35 +196,6 @@ export function LoginPage() {
                 </p>
               ) : null}
             </div>
-
-            <div className="space-y-2">
-              <label
-                className="text-sm font-semibold text-[var(--sloty-text-primary)]"
-                htmlFor="clubSlug"
-              >
-                كود النادي
-                <span className="mr-1 text-xs font-medium text-[var(--sloty-text-muted)]">
-                  اختياري
-                </span>
-              </label>
-              <input
-                autoComplete="organization"
-                className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                id="clubSlug"
-                onChange={(event) =>
-                  updateField('clubSlug', event.target.value)
-                }
-                placeholder="مثال: nasr-club"
-                type="text"
-                value={formState.clubSlug}
-              />
-              {clubSlugFieldError ? (
-                <p className="text-xs font-bold text-[var(--sloty-danger)]">
-                  {clubSlugFieldError}
-                </p>
-              ) : null}
-            </div>
-
             {error ? (
               <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-medium text-[var(--sloty-danger)]">
                 {error}

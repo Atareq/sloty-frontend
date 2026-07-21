@@ -1,73 +1,113 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
-import { DashboardMetricCard } from '../components/DashboardMetricCard/DashboardMetricCard'
-import { DashboardRecentActivity } from '../components/DashboardRecentActivity/DashboardRecentActivity'
+import {
+  addDays,
+  formatDateInputValue,
+} from '../../../shared/utils/date'
+import { formatMoneyAmount } from '../../../shared/utils/money'
+import { BookingStatusBreakdown } from '../components/BookingStatusBreakdown/BookingStatusBreakdown'
+import { MoneySummarySection } from '../components/MoneySummarySection/MoneySummarySection'
+import { NeedsActionSection } from '../components/NeedsActionSection/NeedsActionSection'
+import { StaffUnsettledMoneySection } from '../components/StaffUnsettledMoneySection/StaffUnsettledMoneySection'
+import { SummaryActionCard } from '../components/SummaryActionCard/SummaryActionCard'
 import { getDashboardSummary } from '../dashboardApi'
-import type { DashboardQueryParams, DashboardSummary } from '../dashboard.types'
+import type {
+  DashboardSummaryQuery,
+  DashboardSummaryResponse,
+} from '../dashboard.types'
+import { buildSummaryLink } from '../summaryLinks'
 
-interface FilterState {
-  date_from: string
-  date_to: string
+type DateShortcut = 'today' | 'yesterday' | 'week'
+
+const dateShortcutLabels: Record<DateShortcut, string> = {
+  today: 'اليوم',
+  week: 'هذا الأسبوع',
+  yesterday: 'أمس',
 }
 
-const initialFilters: FilterState = {
-  date_from: '',
-  date_to: '',
-}
+function createShortcutQuery(shortcut: DateShortcut): DashboardSummaryQuery {
+  const today = new Date()
 
-function buildParams(filters: FilterState): DashboardQueryParams {
-  return {
-    ...(filters.date_from ? { date_from: filters.date_from } : {}),
-    ...(filters.date_to ? { date_to: filters.date_to } : {}),
+  if (shortcut === 'yesterday') {
+    return {
+      date: formatDateInputValue(addDays(today, -1)),
+    }
   }
+
+  if (shortcut === 'week') {
+    return {
+      date_from: formatDateInputValue(addDays(today, -6)),
+      date_to: formatDateInputValue(today),
+    }
+  }
+
+  return {
+    date: formatDateInputValue(today),
+  }
+}
+
+function getContextLabel(summary: DashboardSummaryResponse): string {
+  const { date_from, date_to } = summary.context
+
+  return date_from === date_to ? date_from : `${date_from} إلى ${date_to}`
+}
+
+function formatCount(value: number | null | undefined): string | number {
+  return value ?? '-'
+}
+
+function renderLoadingSkeletons() {
+  return (
+    <>
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {['bookings', 'action', 'collection', 'unsettled'].map((key) => (
+          <SummaryActionCard isLoading key={key} label="" value={null} />
+        ))}
+      </section>
+      <AppCard>
+        <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+          جاري تحميل الملخص...
+        </p>
+      </AppCard>
+    </>
+  )
 }
 
 /**
- * Backend-calculated operational dashboard for the selected club.
+ * Summary / Owner Home control center backed by the dashboard summary endpoint.
  */
 export function DashboardPage() {
-  const { role, selectedClubSlug, selectedMembership } = useAuth()
-  const [filters, setFilters] = useState<FilterState>(initialFilters)
-  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const { selectedClubSlug, selectedMembership } = useAuth()
+  const [activeShortcut, setActiveShortcut] = useState<DateShortcut>('today')
+  const [summary, setSummary] = useState<DashboardSummaryResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
-  const canViewFinancialSummary = role === 'OWNER' || role === 'MANAGER'
-
-  async function loadSummary(params: DashboardQueryParams = {}): Promise<void> {
-    if (!selectedClubSlug || !canViewFinancialSummary) {
-      setSummary(null)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      setSummary(await getDashboardSummary(selectedClubSlug, params))
-    } catch (error) {
-      setSummary(null)
-      setError(getApiErrorMessage(error, 'تعذر تحميل ملخص لوحة التحكم'))
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const activeQuery = useMemo(
+    () => createShortcutQuery(activeShortcut),
+    [activeShortcut],
+  )
 
   useEffect(() => {
-    if (!selectedClubSlug || !canViewFinancialSummary) {
-      return
-    }
-
     let isActive = true
-    const clubSlug = selectedClubSlug
 
-    async function loadInitialSummary(): Promise<void> {
+    async function loadSummary(): Promise<void> {
+      if (!selectedClubSlug) {
+        setSummary(null)
+        setError(null)
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setError(null)
+
       try {
-        const response = await getDashboardSummary(clubSlug, {})
+        const response = await getDashboardSummary(selectedClubSlug, activeQuery)
 
         if (isActive) {
           setSummary(response)
@@ -75,100 +115,76 @@ export function DashboardPage() {
       } catch (error) {
         if (isActive) {
           setSummary(null)
-          setError(getApiErrorMessage(error, 'تعذر تحميل ملخص لوحة التحكم'))
+          setError(getApiErrorMessage(error, 'تعذر تحميل الملخص'))
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
         }
       }
     }
 
-    void loadInitialSummary()
+    void loadSummary()
 
     return () => {
       isActive = false
     }
-  }, [canViewFinancialSummary, selectedClubSlug])
-
-  function updateFilter(field: keyof FilterState, value: string): void {
-    setFilters((current) => ({
-      ...current,
-      [field]: value,
-    }))
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    void loadSummary(buildParams(filters))
-  }
+  }, [activeQuery, selectedClubSlug])
 
   return (
     <div className="space-y-5">
       <PageHeader
         description={
           selectedClubName
-            ? `ملخص الحجوزات والمدفوعات داخل ${selectedClubName}`
-            : 'ملخص الحجوزات والمدفوعات داخل النادي المحدد'
+            ? `متابعة الحجوزات والتحصيل والمبالغ غير المسواة داخل ${selectedClubName}`
+            : 'متابعة الحجوزات والتحصيل والمبالغ غير المسواة'
         }
         tone="brand"
-        title="لوحة التحكم"
+        title="الملخص"
       />
 
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر ناديًا أولًا لعرض لوحة التحكم
+            اختر ناديًا أولًا لعرض الملخص
           </p>
         </AppCard>
       ) : null}
 
       {selectedClubSlug ? (
-        !canViewFinancialSummary ? (
-          <AppCard>
-            <p className="text-sm font-bold text-[var(--sloty-danger)]">
-              ليس لديك صلاحية عرض لوحة التحكم
-            </p>
-          </AppCard>
-        ) : (
         <>
           <AppCard>
-            <form className="grid gap-4 md:grid-cols-3" onSubmit={handleSubmit}>
-              <label className="space-y-2 text-sm font-semibold">
-                <span>من تاريخ</span>
-                <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  onChange={(event) =>
-                    updateFilter('date_from', event.target.value)
-                  }
-                  type="date"
-                  value={filters.date_from}
-                />
-              </label>
-              <label className="space-y-2 text-sm font-semibold">
-                <span>إلى تاريخ</span>
-                <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  onChange={(event) =>
-                    updateFilter('date_to', event.target.value)
-                  }
-                  type="date"
-                  value={filters.date_to}
-                />
-              </label>
-              <div className="flex items-end">
-                <AppButton disabled={isLoading} fullWidth type="submit">
-                  تحديث الملخص
-                </AppButton>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+                  فترة الملخص
+                </p>
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+                  {summary ? getContextLabel(summary) : 'حسب اختيار الفترة'}
+                </p>
               </div>
-            </form>
+
+              <div className="grid grid-cols-3 gap-2">
+                {(['today', 'yesterday', 'week'] as DateShortcut[]).map(
+                  (shortcut) => (
+                    <AppButton
+                      key={shortcut}
+                      onClick={() => setActiveShortcut(shortcut)}
+                      variant={
+                        activeShortcut === shortcut ? 'primary' : 'secondary'
+                      }
+                    >
+                      {dateShortcutLabels[shortcut]}
+                    </AppButton>
+                  ),
+                )}
+              </div>
+            </div>
           </AppCard>
 
-          {isLoading ? (
-            <AppCard>
-              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                جاري تحميل الملخص...
-              </p>
-            </AppCard>
-          ) : null}
+          {isLoading ? renderLoadingSkeletons() : null}
 
-          {error ? (
+          {!isLoading && error ? (
             <AppCard>
               <p className="text-sm font-bold text-[var(--sloty-danger)]">
                 {error}
@@ -176,126 +192,58 @@ export function DashboardPage() {
             </AppCard>
           ) : null}
 
-          {summary && !isLoading ? (
+          {!isLoading && summary ? (
             <>
-              <section className="space-y-3">
-                <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-                  الحجوزات
-                </h2>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-                  <DashboardMetricCard
-                    label="حجوزات اليوم"
-                    value={summary.bookings?.today}
-                  />
-                  <DashboardMetricCard
-                    label="حجوزات الأسبوع"
-                    value={summary.bookings?.week}
-                  />
-                  <DashboardMetricCard
-                    label="مؤكدة"
-                    value={summary.bookings?.confirmed}
-                  />
-                  <DashboardMetricCard
-                    label="مكتملة"
-                    value={summary.bookings?.completed}
-                  />
-                  <DashboardMetricCard
-                    label="ملغية"
-                    value={summary.bookings?.cancelled}
-                  />
-                  <DashboardMetricCard
-                    label="عدم حضور"
-                    value={summary.bookings?.no_show}
-                  />
-                </div>
-              </section>
+              <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <SummaryActionCard
+                  helper="مقرر لعبها خلال الفترة"
+                  label="حجوزات اليوم"
+                  to={buildSummaryLink('/bookings', summary.context)}
+                  value={summary.summary.total_bookings}
+                />
 
-              <section className="space-y-3">
-                <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-                  المدفوعات والتسويات
-                </h2>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                  <DashboardMetricCard
-                    label="المدفوع"
-                    suffix="جنيه"
-                    value={summary.payments?.paid_amount}
-                  />
-                  <DashboardMetricCard
-                    label="المتبقي"
-                    suffix="جنيه"
-                    value={summary.payments?.remaining_amount}
-                  />
-                  <DashboardMetricCard
-                    label="المدفوعات الملغية"
-                    suffix="جنيه"
-                    value={summary.payments?.cancelled_amount}
-                  />
-                  <DashboardMetricCard
-                    label="غير مسوى"
-                    suffix="جنيه"
-                    value={summary.settlements?.unsettled_amount}
-                  />
-                  <DashboardMetricCard
-                    label="تمت تسويته"
-                    suffix="جنيه"
-                    value={summary.settlements?.settled_amount}
-                  />
-                </div>
-              </section>
+                <SummaryActionCard
+                  helper="حجوزات تحتاج متابعة"
+                  label="تحتاج إجراء"
+                  to={buildSummaryLink('/bookings', summary.context, {
+                    needs_action: true,
+                  })}
+                  tone="amber"
+                  value={summary.summary.needs_action_count}
+                />
 
-              <section className="space-y-3">
-                <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-                  الملاعب
-                </h2>
-                {summary.courts && summary.courts.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {summary.courts.map((court) => (
-                      <AppCard className="space-y-2" key={court.id}>
-                        <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-                          {court.name}
-                        </p>
-                        <dl className="grid grid-cols-1 gap-2 text-sm">
-                          <div className="flex items-center justify-between rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                            <dt className="font-bold text-[var(--sloty-text-muted)]">
-                              الحجوزات
-                            </dt>
-                            <dd className="font-black">
-                              {court.bookings_count ?? '-'}
-                            </dd>
-                          </div>
-                          <div className="flex items-center justify-between rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                            <dt className="font-bold text-[var(--sloty-text-muted)]">
-                              الإيراد
-                            </dt>
-                            <dd className="font-black" dir="ltr">
-                              {court.revenue ?? court.paid_amount ?? '-'}
-                            </dd>
-                          </div>
-                        </dl>
-                      </AppCard>
-                    ))}
-                  </div>
-                ) : (
-                  <AppCard>
-                    <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                      لا توجد بيانات ملاعب في الملخص
-                    </p>
-                  </AppCard>
-                )}
-              </section>
+                <SummaryActionCard
+                  helper="دفعات تم تحصيلها خلال الفترة"
+                  label="تحصيل اليوم"
+                  to={buildSummaryLink('/transactions', summary.context, {
+                    is_cancelled: false,
+                  })}
+                  tone="green"
+                  value={formatMoneyAmount(summary.summary.transaction_total)}
+                />
 
-              <section className="space-y-3">
-                <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-                  النشاط الأخير
-                </h2>
-                <DashboardRecentActivity
-                  activities={summary.recent_activity ?? []}
+                <SummaryActionCard
+                  helper={`${formatCount(
+                    summary.summary.unsettled_transaction_count,
+                  )} دفعات · ${
+                    summary.summary.staff_with_unsettled_transactions_count
+                  } موظفين`}
+                  label="مبالغ غير مسواة حالياً"
+                  to="/transactions?settlement_status=unsettled&is_cancelled=false"
+                  tone="purple"
+                  value={formatMoneyAmount(
+                    summary.summary.unsettled_transaction_amount,
+                  )}
                 />
               </section>
+
+              <NeedsActionSection summary={summary} />
+              <BookingStatusBreakdown summary={summary} />
+              <MoneySummarySection summary={summary} />
+              <StaffUnsettledMoneySection summary={summary} />
             </>
           ) : null}
         </>
-        )
       ) : null}
     </div>
   )

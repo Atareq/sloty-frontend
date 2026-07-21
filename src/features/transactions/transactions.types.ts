@@ -11,6 +11,20 @@ export const paymentMethodLabels: Record<PaymentMethod, string> = {
   OTHER: 'أخرى',
 }
 
+export type TransactionSettlementStatus = 'settled' | 'unsettled'
+
+export interface TransactionQueryParams {
+  date?: string
+  date_from?: string
+  date_to?: string
+  court?: number | string
+  payment_method?: PaymentMethod | ''
+  created_by?: number | string
+  settlement_status?: TransactionSettlementStatus | ''
+  is_cancelled?: boolean | string | ''
+  page?: number | string
+}
+
 export interface Transaction {
   id: number
   booking?: number | null

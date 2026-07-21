@@ -94,7 +94,6 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('رقم الموبايل أو اسم المستخدم'))
       .toBeInTheDocument()
     expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
-    expect(screen.getByLabelText(/كود النادي/)).toBeInTheDocument()
   })
 
   it('toggles password visibility locally', async () => {
@@ -130,13 +129,11 @@ describe('LoginPage', () => {
       'staff-user',
     )
     await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
-    await user.type(screen.getByLabelText(/كود النادي/), 'nasr-club')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
 
     expect(mockedLoginWithPassword).toHaveBeenCalledWith({
       username: 'staff-user',
       password: 'secret-pass',
-      club_slug: 'nasr-club',
     })
     expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
     expect(getAccessToken()).toBe(accessToken)

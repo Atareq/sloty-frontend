@@ -30,6 +30,86 @@ describe('transactionsApi', () => {
     )
   })
 
+  it('lists transactions with date range query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions('nasr-club', {
+      date_from: '2026-07-13',
+      date_to: '2026-07-20',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.transactions.list(
+        'nasr-club',
+      )}?date_from=2026-07-13&date_to=2026-07-20`,
+    )
+  })
+
+  it('sends settlement status and keeps false query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions('nasr-club', {
+      settlement_status: 'unsettled',
+      is_cancelled: false,
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.transactions.list(
+        'nasr-club',
+      )}?is_cancelled=false&settlement_status=unsettled`,
+    )
+  })
+
+  it('keeps page, court, and created_by query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions('nasr-club', {
+      court: 3,
+      created_by: 15,
+      page: 2,
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.transactions.list(
+        'nasr-club',
+      )}?court=3&created_by=15&page=2`,
+    )
+  })
+
+  it('skips empty query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions('nasr-club', {
+      date_from: '',
+      payment_method: '',
+      settlement_status: '',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.transactions.list('nasr-club'),
+    )
+  })
+
   it('creates transactions through the shared list endpoint with POST', async () => {
     const payload = {
       booking: 10,

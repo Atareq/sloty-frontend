@@ -3,6 +3,8 @@ import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
 import {
   formatBookingDateTime,
   generateSlotsFromWorkingHour,
+  getEgyptDateValue,
+  getSlotPeriod,
   getVisibleBookings,
 } from './scheduleBoard.helpers'
 import type { BookingListItem } from './scheduleApi.types'
@@ -181,7 +183,7 @@ describe('scheduleBoard helpers', () => {
     expect(result.slots[1].booking).toEqual(bookings[0])
   })
 
-  it('keeps HOLD visible while hiding lifecycle-only backend statuses', () => {
+  it('keeps HOLD and COMPLETED visible while hiding lifecycle-only backend statuses', () => {
     const bookings: BookingListItem[] = [
       {
         id: 1,
@@ -214,15 +216,15 @@ describe('scheduleBoard helpers', () => {
     ]
     const result = generateSlotsFromWorkingHour(workingHour, 60, bookings)
 
-    expect(getVisibleBookings(bookings)).toEqual([bookings[0]])
+    expect(getVisibleBookings(bookings)).toEqual([bookings[0], bookings[1]])
     expect(result.slots.map((slot) => slot.status)).toEqual([
       'hold',
-      'available',
+      'completed',
       'available',
     ])
   })
 
-  it('prioritizes confirmed over hold and hold over cancelled overlaps', () => {
+  it('prioritizes completed before confirmed before hold before cancelled overlaps', () => {
     const result = generateSlotsFromWorkingHour(workingHour, 60, [
       {
         id: 1,
@@ -237,6 +239,13 @@ describe('scheduleBoard helpers', () => {
         start_time: '06:00',
         end_time: '07:00',
         status: 'HOLD',
+      },
+      {
+        id: 5,
+        court: 7,
+        start_time: '06:00',
+        end_time: '07:00',
+        status: 'COMPLETED',
       },
       {
         id: 3,
@@ -255,11 +264,63 @@ describe('scheduleBoard helpers', () => {
     ])
 
     expect(result.slots.map((slot) => slot.status)).toEqual([
-      'hold',
+      'completed',
       'confirmed',
       'available',
     ])
-    expect(result.slots[0].booking?.id).toBe(2)
+    expect(result.slots[0].booking?.id).toBe(5)
     expect(result.slots[1].booking?.id).toBe(4)
+  })
+
+  it('returns no slots for a past selected Egypt date', () => {
+    const now = new Date('2026-07-20T10:00:00Z')
+    const result = generateSlotsFromWorkingHour(
+      workingHour,
+      60,
+      [],
+      '2026-07-19',
+      now,
+    )
+
+    expect(result.slots).toEqual([])
+    expect(result.message).toBe('لا يمكن حجز مواعيد سابقة')
+  })
+
+  it('returns a message when all of today slots are before Egypt current time', () => {
+    const now = new Date('2026-07-20T06:30:00Z')
+    const result = generateSlotsFromWorkingHour(
+      workingHour,
+      60,
+      [],
+      getEgyptDateValue(now),
+      now,
+    )
+
+    expect(result.slots).toEqual([])
+    expect(result.message).toBe('لا توجد مواعيد متاحة بعد الوقت الحالي')
+  })
+
+  it('shows future selected date slots normally', () => {
+    const now = new Date('2026-07-20T20:00:00Z')
+    const result = generateSlotsFromWorkingHour(
+      workingHour,
+      60,
+      [],
+      '2026-07-21',
+      now,
+    )
+
+    expect(result.slots.map((slot) => slot.startTime)).toEqual([
+      '06:00',
+      '07:00',
+      '08:00',
+    ])
+  })
+
+  it('uses Sloty business cutoffs for day and night periods', () => {
+    expect(getSlotPeriod(5 * 60)).toBe('night')
+    expect(getSlotPeriod(6 * 60)).toBe('day')
+    expect(getSlotPeriod(17 * 60 + 59)).toBe('day')
+    expect(getSlotPeriod(18 * 60)).toBe('night')
   })
 })

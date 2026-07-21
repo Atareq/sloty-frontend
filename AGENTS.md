@@ -93,6 +93,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Booking Board must fetch working hours for the selected court only.
 - Booking Board must generate slots from working-hour blocks and defer backend validation authority to the API.
 - Booking Board must not show payment or lifecycle details.
+- Schedule page uses one selected `YYYY-MM-DD` date value, with quick date buttons plus a real date picker.
+- Booking Board hides/blocks past slots based on the current Africa/Cairo time; past selected dates are not bookable.
+- Booking Board day/night split currently uses Sloty business cutoffs: day is 06:00 to before 18:00, and night is 18:00 to before 06:00, until backend provides dynamic thresholds.
 - Sprint 3B creates bookings only from available/cancelled Booking Board slots; AddBookingSheet remains customer basics only.
 - Sprint 3C adds confirmed booking details and cancel action only.
 - Sprint 3D adds complete/no-show actions from confirmed booking details only.
@@ -106,19 +109,46 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Reschedule is deferred until a confirmed backend endpoint/contract exists; do not invent a PATCH flow or custom reschedule path.
 - Hold expiry is backend-driven; the frontend must not fake expiry transitions.
 - Completed, cancelled, no-show, and expired bookings are read-only when shown in booking details.
+- Completed bookings block their slots on Booking Board and must never open AddBookingSheet or be treated as available.
 - Booking Board remains availability-focused and must not show lifecycle/payment details on slot buttons.
+- `/bookings` is a real filtered Bookings List page, separate from the Booking Board.
+- Bookings List supports URL query filters used by Summary cards, and Summary redirects must not be overwritten by default page filters.
+- Booking Board remains availability-focused; Bookings List is for reviewing and filtering existing bookings.
+- Completed bookings are locked/read-only. Completed bookings with remaining amount are financial warnings, not normal daily actions.
+- The frontend must not calculate `needs_action`; backend summary/list filters own that action classification.
 - Sprint 6 implements user-based settlement foundation: settlement pages use `selectedClubSlug`, owner can settle, manager can settle only when `selectedMembership.can_manage_settlements` allows it, and staff cannot settle.
 - The new settlement flow selects a club user as `collected_by`; it must not use date-range settlement creation.
 - Club users load from `clubs/{club_slug}/users/` and may be filtered by `role`, `court`, `is_active`, and `search`.
-- Settlement review posts `{ collected_by, dry_run: true }` to `clubs/{club_slug}/settlements/`; do not use the legacy preview URL unless the backend contract changes.
-- Settlement confirmation posts `{ collected_by, dry_run: false, notes? }` to `clubs/{club_slug}/settlements/`; do not send `date_from`, `date_to`, `period_start`, or `period_end`.
+- Settlement preview uses `GET clubs/{club_slug}/settlements/preview/` with `collected_by` and optional `court`; do not use dry-run wording in the UI.
+- Settlement confirmation posts `{ collected_by, court?, notes? }` to `clubs/{club_slug}/settlements/`; do not send `dry_run`, `date_from`, `date_to`, `period_start`, or `period_end`.
+- Settlement confirmation must use a modal with clear money-safe wording. Empty/concurrency settlement results are friendly empty states, not scary errors.
+- After settlement success, redirect to detail when an ID is returned or to the settlements page otherwise, and rely on remount/refetch for fresh data.
 - The settlement UI must be a strict review-and-confirm flow: first action text is `مراجعة التسوية`, and final approval text is `تأكيد التسوية`.
 - `period_start` and `period_end` are backend-generated settlement coverage fields and are display-only in the frontend.
 - Backend remains the authority for settlement permissions; settled transactions are locked/read-only and the frontend must not offer raw transaction editing.
 - Transaction correction is cancel payment with a required reason through the transaction cancel endpoint; do not add edit/void payment flows.
 - Cancelled transactions remain visible and frontend code must not manually count them in payment totals.
+- Transactions list defaults to the last 7 days using Egypt-local dates and supports date/status filters using the existing transaction query fields.
+- Transactions list supports URL query filters used by Summary cards, including date, date range, court, payment method, collected user, settlement status, cancellation status, and page.
+- Direct Transactions visits default to the last 7 days only when the URL has no transaction filters; Summary redirect filters must not be overwritten by default dates.
+- Transactions active filter chips must reflect the current URL/effective query params, and transaction filter links must be built with the shared query helper.
+- Frontend transaction lists must not calculate settlement totals; backend Summary endpoints own financial totals.
 - Sprint 7 implements backend-calculated dashboard, reports, and audit logs; these pages use `selectedClubSlug` from `useAuth()`.
 - Dashboard and report financial metrics must come from backend summary/report endpoints. Do not fake numbers or manually count cancelled transactions in totals; cancelled transactions remain visible while backend summaries decide accounting.
+- `DashboardPage` is the Summary / Owner Home control center: lightweight, current, action-oriented, and backed by the backend dashboard summary response.
+- Every important Summary card should link to filtered Bookings, Transactions, or Settlement review pages using `buildPathWithQuery`.
+- The frontend must not calculate unsettled money or `needs_action_count`; backend Summary owns those counts and money values.
+- Unsettled transactions are live open money. Do not use pending settlement drafts as the dashboard money source.
+- Settlement preview is read-only review, and settlement confirmation closes transactions; do not build pending settlement draft UI.
+- Settlement preview route is `/settlements/preview?collected_by=...` and uses `GET clubs/{club_slug}/settlements/preview/`.
+- Settlement preview is a read-only review of unsettled transactions; empty preview is an empty state, not a scary error.
+- Settlement preview UI must not use `dry_run` wording or backend technical phrases. Use "الموظف المحصل", "مراجعة التسوية", and "دفعات غير مسواة".
+- Completed bookings with remaining money are future financial warnings, not normal needs-action.
+- Do not show fake zeroes while Summary data is loading.
+- Summary action cards must build filtered links through `buildPathWithQuery`; do not hand-build query strings inside card components.
+- Query params should be parsed through shared query helpers when practical, while keeping current `selectedClubSlug`/`useAuth()` club context unless a route explicitly requires otherwise.
+- Summary links are UX navigation helpers only; backend remains the permission and data authority.
+- Do not calculate unsettled money, needs-action counts, or financial dashboard totals in the frontend.
 - Audit logs are read-only. Reports and audit access are role/permission-gated UX helpers, with backend remaining the authority.
 - Charts are deferred unless an existing charting package is already available; payment gateway, marketplace, commission, and player app logic are deferred.
 - Expire and non-transaction financial actions are deferred to later sprints.

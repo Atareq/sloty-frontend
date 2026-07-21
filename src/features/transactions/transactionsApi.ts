@@ -1,11 +1,35 @@
 import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
+import {
+  buildPathWithQuery,
+  type QueryParamValue,
+} from '../../shared/utils/buildPathWithQuery'
 import type {
   Transaction,
   TransactionCancelPayload,
   TransactionCreatePayload,
+  TransactionQueryParams,
 } from './transactions.types'
+
+function buildTransactionListPath(
+  clubSlug: string,
+  params: TransactionQueryParams = {},
+): string {
+  const query: Record<string, QueryParamValue> = {
+    court: params.court,
+    created_by: params.created_by,
+    date: params.date,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    is_cancelled: params.is_cancelled,
+    page: params.page,
+    payment_method: params.payment_method,
+    settlement_status: params.settlement_status,
+  }
+
+  return buildPathWithQuery(apiEndpoints.clubs.transactions.list(clubSlug), query)
+}
 
 /**
  * Lists recorded payments for the selected club context.
@@ -15,9 +39,10 @@ import type {
  */
 export function listTransactions(
   clubSlug: string,
+  params: TransactionQueryParams = {},
 ): Promise<PaginatedResponse<Transaction>> {
   return apiRequest<PaginatedResponse<Transaction>>(
-    apiEndpoints.clubs.transactions.list(clubSlug),
+    buildTransactionListPath(clubSlug, params),
   )
 }
 

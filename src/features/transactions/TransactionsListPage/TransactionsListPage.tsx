@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
@@ -8,11 +9,193 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
+import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
+import { getLastSevenDaysRange } from '../../../shared/utils/date'
+import { toQueryObject } from '../../../shared/utils/queryParams'
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import { cancelTransaction, listTransactions } from '../transactionsApi'
-import type { Transaction } from '../transactions.types'
+import type {
+  PaymentMethod,
+  Transaction,
+  TransactionQueryParams,
+  TransactionSettlementStatus,
+} from '../transactions.types'
 import { paymentMethodLabels } from '../transactions.types'
+
+interface FilterState {
+  court: string
+  created_by: string
+  date_from: string
+  date_to: string
+  is_cancelled: string
+  payment_method: PaymentMethod | ''
+  settlement_status: TransactionSettlementStatus | ''
+}
+
+const transactionFilterKeys = [
+  'court',
+  'created_by',
+  'date',
+  'date_from',
+  'date_to',
+  'is_cancelled',
+  'page',
+  'payment_method',
+  'settlement_status',
+] as const
+
+const chipFilterKeys = transactionFilterKeys.filter((key) => key !== 'page')
+
+function createDefaultQueryParams(): TransactionQueryParams {
+  return getLastSevenDaysRange()
+}
+
+function isPaymentMethod(value: string): value is PaymentMethod {
+  return Object.keys(paymentMethodLabels).includes(value)
+}
+
+function parseTransactionQueryParams(search: string): TransactionQueryParams {
+  const queryObject = toQueryObject(search)
+  const params: TransactionQueryParams = {}
+
+  transactionFilterKeys.forEach((key) => {
+    const value = queryObject[key]
+
+    if (!value) {
+      return
+    }
+
+    if (key === 'payment_method') {
+      params.payment_method = isPaymentMethod(value) ? value : ''
+      return
+    }
+
+    if (key === 'settlement_status') {
+      params.settlement_status = value as TransactionSettlementStatus
+      return
+    }
+
+    if (key === 'is_cancelled') {
+      params.is_cancelled = value
+      return
+    }
+
+    if (key === 'court' || key === 'created_by' || key === 'page') {
+      params[key] = value
+      return
+    }
+
+    if (key === 'date' || key === 'date_from' || key === 'date_to') {
+      params[key] = value
+    }
+  })
+
+  return params
+}
+
+function hasTransactionFilters(params: TransactionQueryParams): boolean {
+  return transactionFilterKeys.some((key) => {
+    const value = params[key]
+
+    return value !== undefined && value !== ''
+  })
+}
+
+function filterStateFromParams(params: TransactionQueryParams): FilterState {
+  return {
+    court: params.court === undefined ? '' : String(params.court),
+    created_by:
+      params.created_by === undefined ? '' : String(params.created_by),
+    date_from: params.date_from ?? '',
+    date_to: params.date_to ?? '',
+    is_cancelled:
+      params.is_cancelled === undefined ? '' : String(params.is_cancelled),
+    payment_method: params.payment_method ?? '',
+    settlement_status: params.settlement_status ?? '',
+  }
+}
+
+function paramsFromFilterState(filters: FilterState): TransactionQueryParams {
+  return {
+    ...(filters.court ? { court: filters.court } : {}),
+    ...(filters.created_by ? { created_by: filters.created_by } : {}),
+    ...(filters.date_from ? { date_from: filters.date_from } : {}),
+    ...(filters.date_to ? { date_to: filters.date_to } : {}),
+    ...(filters.is_cancelled ? { is_cancelled: filters.is_cancelled } : {}),
+    ...(filters.payment_method ? { payment_method: filters.payment_method } : {}),
+    ...(filters.settlement_status
+      ? { settlement_status: filters.settlement_status }
+      : {}),
+  }
+}
+
+function getTransactionSearch(params: TransactionQueryParams): string {
+  return buildPathWithQuery(
+    '',
+    params as Record<string, QueryParamValue>,
+  ).replace(/^\?/, '?')
+}
+
+function getChipLabel(
+  key: (typeof chipFilterKeys)[number],
+  value: string | number | boolean,
+): string {
+  if (key === 'date') {
+    return `تاريخ ${value}`
+  }
+
+  if (key === 'date_from') {
+    return `من ${value}`
+  }
+
+  if (key === 'date_to') {
+    return `إلى ${value}`
+  }
+
+  if (key === 'court') {
+    return `ملعب #${value}`
+  }
+
+  if (key === 'created_by') {
+    return `الموظف المحصل #${value}`
+  }
+
+  if (key === 'payment_method') {
+    return paymentMethodLabels[value as PaymentMethod] ?? String(value)
+  }
+
+  if (key === 'settlement_status') {
+    return value === 'unsettled' ? 'غير مسواة' : 'مسواة'
+  }
+
+  if (key === 'is_cancelled') {
+    return String(value) === 'true' ? 'ملغية' : 'غير ملغية'
+  }
+
+  return String(value)
+}
+
+function getActiveFilterChips(params: TransactionQueryParams): Array<{
+  key: (typeof chipFilterKeys)[number]
+  label: string
+}> {
+  return chipFilterKeys.flatMap((key) => {
+    const value = params[key]
+
+    if (value === undefined || value === '') {
+      return []
+    }
+
+    return [
+      {
+        key,
+        label: getChipLabel(key, value),
+      },
+    ]
+  })
+}
 
 function formatTransactionDate(value: string | undefined): string | null {
   if (!value) {
@@ -51,11 +234,166 @@ function getActorName(
   return value.name ?? `#${value.id}`
 }
 
+interface TransactionsFilterFormProps {
+  initialFilters: FilterState
+  isLoading: boolean
+  onApply: (filters: FilterState) => void
+  onReset: () => void
+}
+
+function TransactionsFilterForm({
+  initialFilters,
+  isLoading,
+  onApply,
+  onReset,
+}: TransactionsFilterFormProps) {
+  const [filters, setFilters] = useState<FilterState>(initialFilters)
+
+  function updateFilter(field: keyof FilterState, value: string): void {
+    setFilters((currentFilters) => ({
+      ...currentFilters,
+      [field]: value,
+    }))
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault()
+    onApply(filters)
+  }
+
+  return (
+    <form
+      className="grid grid-cols-1 gap-3 md:grid-cols-4"
+      onSubmit={handleSubmit}
+    >
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>من تاريخ</span>
+        <input
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          onChange={(event) => updateFilter('date_from', event.target.value)}
+          type="date"
+          value={filters.date_from}
+        />
+      </label>
+
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>إلى تاريخ</span>
+        <input
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          onChange={(event) => updateFilter('date_to', event.target.value)}
+          type="date"
+          value={filters.date_to}
+        />
+      </label>
+
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>حالة التسوية</span>
+        <select
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          onChange={(event) => updateFilter('settlement_status', event.target.value)}
+          value={filters.settlement_status}
+        >
+          <option value="">الكل</option>
+          <option value="unsettled">غير مسواة</option>
+          <option value="settled">مسواة</option>
+        </select>
+      </label>
+
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>حالة الإلغاء</span>
+        <select
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          onChange={(event) => updateFilter('is_cancelled', event.target.value)}
+          value={filters.is_cancelled}
+        >
+          <option value="">الكل</option>
+          <option value="false">غير ملغية</option>
+          <option value="true">ملغية</option>
+        </select>
+      </label>
+
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>طريقة الدفع</span>
+        <select
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          onChange={(event) => updateFilter('payment_method', event.target.value)}
+          value={filters.payment_method}
+        >
+          <option value="">كل طرق الدفع</option>
+          {Object.entries(paymentMethodLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>رقم الملعب</span>
+        <input
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          inputMode="numeric"
+          onChange={(event) => updateFilter('court', event.target.value)}
+          placeholder="مثال: 3"
+          type="text"
+          value={filters.court}
+        />
+      </label>
+
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>الموظف المحصل</span>
+        <input
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          inputMode="numeric"
+          onChange={(event) => updateFilter('created_by', event.target.value)}
+          placeholder="مثال: 15"
+          type="text"
+          value={filters.created_by}
+        />
+      </label>
+
+      <div className="flex flex-col gap-2 md:justify-end">
+        <AppButton disabled={isLoading} fullWidth type="submit">
+          تطبيق الفلاتر
+        </AppButton>
+        <AppButton
+          disabled={isLoading}
+          fullWidth
+          onClick={onReset}
+          type="button"
+          variant="secondary"
+        >
+          إعادة ضبط
+        </AppButton>
+      </div>
+    </form>
+  )
+}
+
 /**
  * Basic transaction history for the currently selected club context.
  */
 export function TransactionsListPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const { currentUser, selectedClubSlug, selectedMembership } = useAuth()
+  const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
+  const urlParams = useMemo(
+    () => parseTransactionQueryParams(location.search),
+    [location.search],
+  )
+  const urlHasTransactionFilters = hasTransactionFilters(urlParams)
+  const effectiveParams = useMemo(() => {
+    if (urlHasTransactionFilters) {
+      return urlParams
+    }
+
+    return usesUnfilteredEmptyUrl ? {} : createDefaultQueryParams()
+  }, [urlHasTransactionFilters, urlParams, usesUnfilteredEmptyUrl])
+  const initialFilters = useMemo(
+    () => filterStateFromParams(effectiveParams),
+    [effectiveParams],
+  )
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [cancelTarget, setCancelTarget] = useState<Transaction | null>(null)
@@ -67,15 +405,23 @@ export function TransactionsListPage() {
   > | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
+  const activeFilterChips = getActiveFilterChips(effectiveParams)
+  const hasActiveFilters = activeFilterChips.length > 0
 
-  async function reloadTransactions(): Promise<void> {
+  async function reloadTransactions(
+    nextParams = effectiveParams,
+  ): Promise<void> {
     if (!selectedClubSlug) {
       setTransactions([])
       return
     }
 
-    const transactionsResponse = await listTransactions(selectedClubSlug)
+    const transactionsResponse = await listTransactions(
+      selectedClubSlug,
+      nextParams,
+    )
     setTransactions(transactionsResponse.results)
   }
 
@@ -96,7 +442,10 @@ export function TransactionsListPage() {
       setMessage(null)
 
       try {
-        const transactionsResponse = await listTransactions(selectedClubSlug)
+        const transactionsResponse = await listTransactions(
+          selectedClubSlug,
+          effectiveParams,
+        )
 
         if (isActive) {
           setTransactions(transactionsResponse.results)
@@ -123,7 +472,51 @@ export function TransactionsListPage() {
     return () => {
       isActive = false
     }
-  }, [selectedClubSlug])
+  }, [effectiveParams, selectedClubSlug])
+
+  function handleApplyFilters(nextFilters: FilterState): void {
+    const nextParams = paramsFromFilterState(nextFilters)
+    const nextSearch = getTransactionSearch(nextParams)
+
+    setUsesUnfilteredEmptyUrl(!nextSearch)
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch,
+      },
+      { replace: false },
+    )
+  }
+
+  function handleResetFilters(): void {
+    const defaultParams = createDefaultQueryParams()
+
+    setUsesUnfilteredEmptyUrl(false)
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getTransactionSearch(defaultParams),
+      },
+      { replace: false },
+    )
+  }
+
+  function handleRemoveFilter(key: (typeof chipFilterKeys)[number]): void {
+    const nextParams = { ...effectiveParams }
+
+    delete nextParams[key]
+
+    const nextSearch = getTransactionSearch(nextParams)
+
+    setUsesUnfilteredEmptyUrl(!nextSearch)
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch,
+      },
+      { replace: false },
+    )
+  }
 
   async function handleCancelTransaction(
     values: CancelTransactionValues,
@@ -139,6 +532,7 @@ export function TransactionsListPage() {
     try {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
+      setSuccessMessage('تم إلغاء الدفع بنجاح')
       await reloadTransactions()
     } catch (error) {
       setCancelError(
@@ -161,6 +555,52 @@ export function TransactionsListPage() {
         tone="brand"
         title="المعاملات"
       />
+
+      <AppCard>
+        <TransactionsFilterForm
+          initialFilters={initialFilters}
+          isLoading={isLoading}
+          key={getTransactionSearch(effectiveParams) || 'empty-filters'}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+        />
+      </AppCard>
+
+      {hasActiveFilters ? (
+        <div className="flex flex-wrap gap-2">
+          {activeFilterChips.map((chip) => (
+            <span
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]"
+              key={chip.key}
+            >
+              {chip.label}
+              <button
+                aria-label={`إزالة فلتر ${chip.label}`}
+                className="rounded-full px-1 text-sm leading-none hover:bg-white/70"
+                onClick={() => handleRemoveFilter(chip.key)}
+                type="button"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {successMessage ? (
+        <AppCard>
+          <div className="flex items-center justify-between gap-3 text-sm font-bold text-[var(--sloty-primary-dark)]">
+            <span>{successMessage}</span>
+            <button
+              className="rounded-lg px-2 py-1 text-xs hover:bg-[var(--sloty-soft-mint)]"
+              onClick={() => setSuccessMessage(null)}
+              type="button"
+            >
+              إغلاق
+            </button>
+          </div>
+        </AppCard>
+      ) : null}
 
       {isLoading ? (
         <AppCard>
@@ -188,7 +628,9 @@ export function TransactionsListPage() {
       {!isLoading && !error && !message && transactions.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            لا توجد معاملات مسجلة حتى الآن
+            {hasActiveFilters
+              ? 'لا توجد دفعات مطابقة للفلاتر الحالية'
+              : 'لا توجد معاملات مسجلة حتى الآن'}
           </p>
         </AppCard>
       ) : null}

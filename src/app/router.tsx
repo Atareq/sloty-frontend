@@ -3,6 +3,7 @@ import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { ClubSelectionPage } from '../features/auth/ClubSelectionPage/ClubSelectionPage'
 import { NoClubAccessPage } from '../features/auth/NoClubAccessPage/NoClubAccessPage'
 import { AuditLogsPage } from '../features/audit/AuditLogsPage/AuditLogsPage'
+import { BookingsListPage } from '../features/bookings/BookingsListPage/BookingsListPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage/DashboardPage'
 import { SchedulePage } from '../features/schedule/SchedulePage/SchedulePage'
 import { ClubFormPage } from '../features/clubs/ClubFormPage/ClubFormPage'
@@ -79,13 +80,8 @@ export const router = createBrowserRouter([
       {
         path: '/bookings',
         element: (
-          <RoleRoute
-            allowedRoles={['OWNER', 'MANAGER', 'STAFF']}
-          >
-            <PlaceholderPage
-              description="مسار مؤقت لقائمة الحجوزات داخل واجهة سلوتي التشغيلية."
-              title="الحجوزات"
-            />
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+            <BookingsListPage />
           </RoleRoute>
         ),
       },
@@ -110,6 +106,14 @@ export const router = createBrowserRouter([
         element: (
           <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
             <SettlementHistoryPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/settlements/preview',
+        element: (
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+            <SettlementPreviewPage />
           </RoleRoute>
         ),
       },

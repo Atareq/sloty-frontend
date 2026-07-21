@@ -63,6 +63,10 @@ const statusLegend = [
     className: 'sloty-green-surface-button border-[var(--sloty-primary-dark)]',
   },
   {
+    label: 'مكتمل',
+    className: 'border-slate-400 bg-slate-200',
+  },
+  {
     label: 'ملغي',
     className: 'border-[#D1D5DB] bg-[#F3F4F6]',
   },
@@ -118,7 +122,8 @@ async function fetchBookingResults(
 export function SchedulePage() {
   const { selectedClubSlug, selectedMembership } = useAuth()
   const dateFilters = useMemo(() => createDateFilterOptions(), [])
-  const [activeDateKey, setActiveDateKey] = useState('today')
+  const [selectedDate, setSelectedDate] = useState(dateFilters[0].date)
+  const [activeDateKey, setActiveDateKey] = useState<string | null>('today')
   const selectedClub: CurrentUserMembershipClub | null =
     selectedMembership?.club ?? null
   const [courts, setCourts] = useState<Court[]>([])
@@ -163,14 +168,12 @@ export function SchedulePage() {
     ApiFieldError[]
   > | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const selectedDate =
-    dateFilters.find((filter) => filter.key === activeDateKey)?.date ??
-    dateFilters[0].date
   const selectedCourt =
     courts.find((court) => court.id === selectedCourtId) ?? null
   const selectedWorkingHour = selectedCourt
     ? workingHours.find(
-        (workingHour) => workingHour.weekday === getWeekdayFromDateValue(selectedDate),
+        (workingHour) =>
+          workingHour.weekday === getWeekdayFromDateValue(selectedDate),
       )
     : undefined
   const slotGeneration = selectedCourt
@@ -178,6 +181,7 @@ export function SchedulePage() {
         selectedWorkingHour,
         selectedCourt.slot_duration_minutes,
         bookings,
+        selectedDate,
       )
     : { slots: [], message: setupMessage }
   const slots = slotGeneration.slots
@@ -559,45 +563,62 @@ export function SchedulePage() {
     if (slot.status === 'confirmed') {
       setSelectedSlot(slot)
       setHoldBooking(null)
+      return
     }
+
+    if (slot.status === 'completed') {
+      setSelectedSlot(null)
+      setHoldBooking(null)
+    }
+  }
+
+  function clearScheduleSelection(): void {
+    setSelectedSlot(null)
+    setHoldBooking(null)
+    setPaymentBooking(null)
+    setCancellingBooking(null)
+    setCompletingBooking(null)
+    setNoShowBooking(null)
+    setCreateError(null)
+    setCreateFieldErrors(null)
+    setPaymentError(null)
+    setPaymentFieldErrors(null)
+    setLifecycleError(null)
+    setLifecycleFieldErrors(null)
+    setHoldActionError(null)
+    setSuccessMessage(null)
   }
 
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
     setWorkingHours([])
     setBookings([])
-    setSelectedSlot(null)
-    setHoldBooking(null)
-    setPaymentBooking(null)
-    setCancellingBooking(null)
-    setCompletingBooking(null)
-    setNoShowBooking(null)
-    setCreateError(null)
-    setCreateFieldErrors(null)
-    setPaymentError(null)
-    setPaymentFieldErrors(null)
-    setLifecycleError(null)
-    setLifecycleFieldErrors(null)
-    setHoldActionError(null)
-    setSuccessMessage(null)
+    clearScheduleSelection()
   }
 
   function handleDateChange(nextDateKey: string): void {
+    const nextDate = dateFilters.find((filter) => filter.key === nextDateKey)
+      ?.date
+
+    if (!nextDate) {
+      return
+    }
+
     setActiveDateKey(nextDateKey)
-    setSelectedSlot(null)
-    setHoldBooking(null)
-    setPaymentBooking(null)
-    setCancellingBooking(null)
-    setCompletingBooking(null)
-    setNoShowBooking(null)
-    setCreateError(null)
-    setCreateFieldErrors(null)
-    setPaymentError(null)
-    setPaymentFieldErrors(null)
-    setLifecycleError(null)
-    setLifecycleFieldErrors(null)
-    setHoldActionError(null)
-    setSuccessMessage(null)
+    setSelectedDate(nextDate)
+    clearScheduleSelection()
+  }
+
+  function handleDateInputChange(nextDate: string): void {
+    if (!nextDate) {
+      return
+    }
+
+    setSelectedDate(nextDate)
+    setActiveDateKey(
+      dateFilters.find((filter) => filter.date === nextDate)?.key ?? null,
+    )
+    clearScheduleSelection()
   }
 
   const scheduleCourt = {
@@ -654,6 +675,15 @@ export function SchedulePage() {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+              <span>تاريخ الحجز</span>
+              <input
+                className="h-10 rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-bold text-[var(--sloty-text-primary)]"
+                onChange={(event) => handleDateInputChange(event.target.value)}
+                type="date"
+                value={selectedDate}
+              />
+            </label>
             {courts.length > 1 ? (
               <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
                 <span>الملعب</span>
@@ -719,9 +749,9 @@ export function SchedulePage() {
                 <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
                   <div>
                     <p className="text-xs font-bold text-white/75">
-                      الفترة الصباحيه
+                       الفترة النهارية 
                     </p>
-                    <h3 className="text-lg font-black text-white">اليوم</h3>
+                    <h3 className="text-lg font-black text-white">مواعيد النهار </h3>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                     {daySlots.map((booking) => (
@@ -739,7 +769,7 @@ export function SchedulePage() {
                     <p className="text-xs font-bold text-white/75">
                       الفترة المسائية
                     </p>
-                    <h3 className="text-lg font-black text-white">المساء</h3>
+                    <h3 className="text-lg font-black text-white">مواعيد المساء</h3>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                     {nightSlots.map((booking) => (
