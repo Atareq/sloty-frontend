@@ -16,6 +16,7 @@ function getProtectedChildRoute(path: string) {
   }
 
   return route.element as ReactElement<{
+    allowedRoles: string[]
     children: ReactElement
   }>
 }
@@ -41,6 +42,7 @@ describe('router settings routes', () => {
     const routeElement = getProtectedChildRoute('/settings')
 
     expect(routeElement?.type).toBe(RoleRoute)
+    expect(routeElement?.props.allowedRoles).toEqual(['OWNER', 'MANAGER'])
     expect(routeElement?.props.children.type).toBe(SettingsHubPage)
   })
 
@@ -48,6 +50,7 @@ describe('router settings routes', () => {
     const routeElement = getProtectedChildRoute('/settings/users')
 
     expect(routeElement?.type).toBe(RoleRoute)
+    expect(routeElement?.props.allowedRoles).toEqual(['OWNER'])
     expect(routeElement?.props.children.type).toBe(SettingsUsersPage)
   })
 })

@@ -65,7 +65,7 @@ export function SettingsHubPage() {
           <SettingsLinkCard
             actionLabel="عرض سجل النشاطات"
             description="متابعة الإجراءات والتعديلات داخل النادي."
-            title="المتابعة"
+            title="سجل النشاطات"
             to="/audit-logs"
           />
         ) : null}

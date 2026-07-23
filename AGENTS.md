@@ -180,8 +180,13 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Users & Permissions remains read-only until a backend PATCH endpoint for editing permissions is confirmed.
 - Backend remains the authority for permission enforcement.
 - Authenticated pages use the reusable unified green header from `AppShell`; do not add duplicate visible page title cards inside shell pages.
+- The unified header mobile hamburger is a right-side RTL menu button with three horizontal lines; hide it when desktop sidebar mode is active.
+- The hamburger and mobile drawer are mobile-only; the drawer opens from the right and must close or be hidden when switching to desktop view.
+- Desktop navigation uses the sidebar only; the mobile drawer must never render over the desktop sidebar.
 - Mobile footer contains only `لوحة التحكم`, `الجدول`, and `سجل الحجوزات`.
 - Finance, admin, history, reports, audit, settlements, and settings links live in the hamburger menu and desktop sidebar, not in the mobile footer.
+- Primary drawer/sidebar club navigation contains only direct hub pages: `لوحة التحكم`, `الجدول`, `سجل الحجوزات`, `سجل المعاملات المالية`, `التسويات المالية والجرد`, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
+- Settings sub-pages live inside Settings; keep detail links such as `إعدادات الملاعب`, `المستخدمون والصلاحيات`, and `سجل النشاطات` out of primary drawer/sidebar navigation.
 - Do not add a mobile footer item called `المزيد`; use the hamburger icon, not a three-dots icon.
 - Logout and change-club actions belong in the account menu, not the visible header area.
 - Default authenticated experience is mobile-style, and users can switch to Desktop View from the hamburger menu.

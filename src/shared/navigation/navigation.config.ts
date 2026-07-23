@@ -6,6 +6,7 @@ export interface NavigationItem {
   marker: string
   allowedRoles: AuthRole[]
   showInMobile: boolean
+  showInPrimaryNav: boolean
 }
 
 export interface PageHeaderMeta {
@@ -23,8 +24,8 @@ const allRoles: AuthRole[] = [
 /**
  * Single role-based navigation source for desktop and mobile shells.
  *
- * `showInMobile` keeps the bottom navigation focused on main actions while
- * desktop can expose the complete role menu.
+ * `showInMobile` keeps the bottom navigation focused on main actions.
+ * `showInPrimaryNav` keeps routable detail pages out of drawer/sidebar chrome.
  */
 export const navigationItems: NavigationItem[] = [
   {
@@ -33,6 +34,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ل',
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: true,
+    showInPrimaryNav: true,
   },
   {
     path: '/schedule',
@@ -40,6 +42,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ج',
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: true,
+    showInPrimaryNav: true,
   },
   {
     path: '/bookings',
@@ -47,6 +50,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ح',
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: true,
+    showInPrimaryNav: true,
   },
   {
     path: '/transactions',
@@ -54,6 +58,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'د',
     allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
+    showInPrimaryNav: true,
   },
   {
     path: '/settlements',
@@ -61,6 +66,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ت',
     allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
+    showInPrimaryNav: true,
   },
   {
     path: '/reports',
@@ -68,6 +74,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ق',
     allowedRoles: ['OWNER'],
     showInMobile: false,
+    showInPrimaryNav: true,
   },
   {
     path: '/audit-logs',
@@ -75,6 +82,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ن',
     allowedRoles: ['OWNER'],
     showInMobile: false,
+    showInPrimaryNav: false,
   },
   {
     path: '/settings/courts',
@@ -82,13 +90,15 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ع',
     allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
+    showInPrimaryNav: false,
   },
   {
     path: '/settings',
     label: 'الإعدادات',
     marker: 'ض',
-    allowedRoles: ['OWNER'],
+    allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
+    showInPrimaryNav: true,
   },
   {
     path: '/settings/users',
@@ -96,6 +106,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ص',
     allowedRoles: ['OWNER'],
     showInMobile: false,
+    showInPrimaryNav: false,
   },
   {
     path: '/admin/clubs',
@@ -103,6 +114,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'أ',
     allowedRoles: ['PLATFORM_ADMIN'],
     showInMobile: false,
+    showInPrimaryNav: true,
   },
   {
     path: '/admin/users',
@@ -110,6 +122,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'س',
     allowedRoles: ['PLATFORM_ADMIN'],
     showInMobile: false,
+    showInPrimaryNav: true,
   },
   {
     path: '/admin/settings',
@@ -117,6 +130,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ض',
     allowedRoles: ['PLATFORM_ADMIN'],
     showInMobile: false,
+    showInPrimaryNav: true,
   },
 ]
 
@@ -185,12 +199,13 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
 
 export function getNavigationItemsForRole(
   role: AuthRole,
-  options: { mobileOnly?: boolean } = {},
+  options: { mobileOnly?: boolean; primaryOnly?: boolean } = {},
 ): NavigationItem[] {
   return navigationItems.filter(
     (item) =>
       item.allowedRoles.includes(role) &&
-      (!options.mobileOnly || item.showInMobile),
+      (!options.mobileOnly || item.showInMobile) &&
+      (!options.primaryOnly || item.showInPrimaryNav),
   )
 }
 

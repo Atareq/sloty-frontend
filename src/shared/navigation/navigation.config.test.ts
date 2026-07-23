@@ -28,6 +28,29 @@ describe('navigation config', () => {
     expect(canRoleAccessPath('OWNER', '/settings/users')).toBe(true)
   })
 
+  it('returns only direct primary navigation items when requested', () => {
+    const ownerPrimaryLabels = getNavigationItemsForRole('OWNER', {
+      primaryOnly: true,
+    }).map((item) => item.label)
+
+    expect(ownerPrimaryLabels).toEqual([
+      'لوحة التحكم',
+      'الجدول',
+      'سجل الحجوزات',
+      'سجل المعاملات المالية',
+      'التسويات المالية والجرد',
+      'التقارير الاستهلاكية للملاعب',
+      'الإعدادات',
+    ])
+    expect(ownerPrimaryLabels).not.toEqual(
+      expect.arrayContaining([
+        'إعدادات الملاعب',
+        'المستخدمون والصلاحيات',
+        'سجل النشاطات',
+      ]),
+    )
+  })
+
   it('can return the three daily mobile footer items for each club role', () => {
     const expectedMobileLabels = [
       'لوحة التحكم',
@@ -66,6 +89,20 @@ describe('navigation config', () => {
     for (const path of hiddenMobilePaths) {
       expect(navigationItems.find((item) => item.path === path)?.showInMobile)
         .toBe(false)
+    }
+  })
+
+  it('keeps settings detail pages and audit log out of primary navigation', () => {
+    const hiddenPrimaryPaths = [
+      '/audit-logs',
+      '/settings/courts',
+      '/settings/users',
+    ]
+
+    for (const path of hiddenPrimaryPaths) {
+      expect(
+        navigationItems.find((item) => item.path === path)?.showInPrimaryNav,
+      ).toBe(false)
     }
   })
 

@@ -34,13 +34,7 @@ const mobileMenuGroups: NavigationGroup[] = [
   },
   {
     title: 'الإدارة والمتابعة',
-    paths: [
-      '/audit-logs',
-      '/reports',
-      '/settings/courts',
-      '/settings/users',
-      '/settings',
-    ],
+    paths: ['/reports', '/settings'],
   },
 ]
 
@@ -111,10 +105,12 @@ export function AppShell() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
   const pageHeaderMeta = getPageHeaderMeta(location.pathname)
+  const shouldUseDesktopNav = viewMode === 'desktop'
+  const shouldShowMobileMenu = !shouldUseDesktopNav
   const desktopItems = useMemo(
     () =>
       role
-        ? getNavigationItemsForRole(role).filter((item) =>
+        ? getNavigationItemsForRole(role, { primaryOnly: true }).filter((item) =>
             canShowNavigationItem(item, selectedMembership),
           )
         : [],
@@ -124,7 +120,7 @@ export function AppShell() {
   const selectedClubName = selectedMembership?.club.name ?? null
   const canChangeClub = (currentUser?.memberships.length ?? 0) > 1
   const flashMessage = getFlashMessage(location.state)
-  const shouldUseDesktopNav = viewMode === 'desktop'
+  const isDrawerAllowed = shouldShowMobileMenu
   const menuItems = useMemo(
     () =>
       desktopItems.reduce<Record<string, NavigationItem>>(
@@ -167,6 +163,14 @@ export function AppShell() {
     return () => window.clearTimeout(timeoutId)
   }, [clearFlashMessage, flashMessage])
 
+  function handleOpenMenu(): void {
+    if (!isDrawerAllowed) {
+      return
+    }
+
+    setIsMenuOpen(true)
+  }
+
   function handleLogout(): void {
     setIsMenuOpen(false)
     logout()
@@ -193,6 +197,9 @@ export function AppShell() {
       const nextViewMode = currentViewMode === 'desktop' ? 'mobile' : 'desktop'
 
       window.localStorage.setItem(viewModeStorageKey, nextViewMode)
+      if (nextViewMode === 'desktop') {
+        setIsMenuOpen(false)
+      }
 
       return nextViewMode
     })
@@ -262,7 +269,8 @@ export function AppShell() {
       >
         <UnifiedPageHeader
           clubName={selectedClubName}
-          onMenuClick={() => setIsMenuOpen(true)}
+          onMenuClick={handleOpenMenu}
+          showMenuButton={isDrawerAllowed}
           subtitle={pageHeaderMeta.subtitle}
           title={pageHeaderMeta.title}
         />
@@ -299,10 +307,10 @@ export function AppShell() {
         </main>
       </div>
 
-      {isMenuOpen ? (
+      {isMenuOpen && isDrawerAllowed ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-slate-950/45"
+          className="fixed inset-0 z-50 bg-slate-950/45 lg:hidden"
           role="dialog"
         >
           <button
@@ -321,13 +329,6 @@ export function AppShell() {
                   {displayName}
                 </p>
               </div>
-              <button
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--sloty-border)] text-sm font-black"
-                onClick={() => setIsMenuOpen(false)}
-                type="button"
-              >
-                إغلاق
-              </button>
             </div>
 
             <div className="flex flex-1 flex-col gap-5 py-5">
@@ -387,7 +388,7 @@ export function AppShell() {
                   onClick={handleToggleViewMode}
                   type="button"
                 >
-                  {viewMode === 'desktop' ? 'عرض الهاتف' : 'عرض سطح المكتب'}
+                  عرض سطح المكتب
                 </button>
                 <button
                   className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"

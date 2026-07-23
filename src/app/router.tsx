@@ -163,7 +163,7 @@ export const router = createBrowserRouter([
       {
         path: '/settings',
         element: (
-          <RoleRoute allowedRoles={['OWNER']}>
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
             <SettingsHubPage />
           </RoleRoute>
         ),

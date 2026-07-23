@@ -163,6 +163,98 @@ describe('AppShell', () => {
       .toBeGreaterThan(0)
   })
 
+  it('renders exactly the three approved mobile footer items', () => {
+    renderAppShell()
+
+    const footer = screen.getByRole('navigation', { name: 'تنقل الموظف' })
+    const footerItems = within(footer).getAllByRole('button')
+
+    expect(footerItems).toHaveLength(3)
+    expect(footerItems[0]).toHaveAccessibleName('لوحة التحكم')
+    expect(footerItems[1]).toHaveAccessibleName('الجدول')
+    expect(footerItems[2]).toHaveAccessibleName('سجل الحجوزات')
+
+    for (const hiddenLabel of [
+      'المزيد',
+      'سجل المعاملات المالية',
+      'التسويات المالية والجرد',
+      'التقارير الاستهلاكية للملاعب',
+      'الإعدادات',
+      'إعدادات الملاعب',
+      'المستخدمون والصلاحيات',
+      'سجل النشاطات',
+    ]) {
+      expect(within(footer).queryByRole('button', { name: hiddenLabel }))
+        .not.toBeInTheDocument()
+    }
+  })
+
+  it('keeps owner drawer navigation to direct primary items only', async () => {
+    const user = userEvent.setup()
+
+    mockedUseAuth.mockReturnValue(getAuthValue(2, { role: 'OWNER' }))
+
+    renderAppShell()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    const dialog = screen.getByRole('dialog')
+
+    for (const label of [
+      'لوحة التحكم',
+      'الجدول',
+      'سجل الحجوزات',
+      'سجل المعاملات المالية',
+      'التسويات المالية والجرد',
+      'التقارير الاستهلاكية للملاعب',
+      'الإعدادات',
+    ]) {
+      expect(within(dialog).getByRole('button', { name: label }))
+        .toBeInTheDocument()
+    }
+
+    expect(within(dialog).queryByRole('button', { name: 'إعدادات الملاعب' }))
+      .not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('button', {
+        name: 'المستخدمون والصلاحيات',
+      }),
+    ).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'سجل النشاطات' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('keeps desktop sidebar navigation to direct primary items only', () => {
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    mockedUseAuth.mockReturnValue(getAuthValue(2, { role: 'OWNER' }))
+
+    renderAppShell()
+
+    const sidebar = screen.getByRole('navigation', { name: 'تنقل التطبيق' })
+
+    for (const label of [
+      'لوحة التحكم',
+      'الجدول',
+      'سجل الحجوزات',
+      'سجل المعاملات المالية',
+      'التسويات المالية والجرد',
+      'التقارير الاستهلاكية للملاعب',
+      'الإعدادات',
+    ]) {
+      expect(within(sidebar).getByRole('link', { name: label }))
+        .toBeInTheDocument()
+    }
+
+    expect(within(sidebar).queryByRole('link', { name: /إعدادات الملاعب/ }))
+      .not.toBeInTheDocument()
+    expect(
+      within(sidebar).queryByRole('link', {
+        name: /المستخدمون والصلاحيات/,
+      }),
+    ).not.toBeInTheDocument()
+    expect(within(sidebar).queryByRole('link', { name: /سجل النشاطات/ }))
+      .not.toBeInTheDocument()
+  })
+
   it('opens the hamburger menu and closes it after navigation', async () => {
     const user = userEvent.setup()
 
@@ -210,6 +302,7 @@ describe('AppShell', () => {
     expect(within(dialog).queryByText('التقارير الاستهلاكية للملاعب'))
       .not.toBeInTheDocument()
     expect(within(dialog).queryByText('سجل النشاطات')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('الإعدادات')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'تسجيل الخروج' }))
       .toBeInTheDocument()
   })
@@ -248,6 +341,21 @@ describe('AppShell', () => {
     expect(window.localStorage.getItem('sloty:view-mode')).toBe('desktop')
     expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
       .toHaveAttribute('data-view-mode', 'desktop')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('hides the header menu button and drawer when desktop view is active', () => {
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+
+    renderAppShell()
+
+    expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
       .not.toBeInTheDocument()
   })

@@ -57,11 +57,14 @@ describe('SettingsHubPage', () => {
 
     expect(screen.getByText('إدارة الملاعب')).toBeInTheDocument()
     expect(screen.getByText('المستخدمون والصلاحيات')).toBeInTheDocument()
+    expect(screen.getByText('سجل النشاطات')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'إعدادات الملاعب' }))
       .toHaveAttribute('href', '/settings/courts')
     expect(
       screen.getByRole('link', { name: 'فتح المستخدمين والصلاحيات' }),
     ).toHaveAttribute('href', '/settings/users')
+    expect(screen.getByRole('link', { name: 'عرض سجل النشاطات' }))
+      .toHaveAttribute('href', '/audit-logs')
   })
 
   it('does not show owner-only permission link for non-owner rendering', () => {
