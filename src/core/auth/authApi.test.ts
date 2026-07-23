@@ -20,6 +20,27 @@ describe('authApi', () => {
       phone_number: null,
       is_active: true,
       is_platform_admin: false,
+      account_created_by: { id: 7, name: 'مالك النادي' },
+      requires_club_selection: false,
+      memberships: [],
+    })
+
+    await fetchCurrentUserProfile()
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(apiEndpoints.auth.me)
+  })
+
+  it('supports current user profiles without an account creator', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 1,
+      username: 'owner-user',
+      email: 'owner@example.com',
+      first_name: 'أحمد',
+      last_name: 'علي',
+      phone_number: null,
+      is_active: true,
+      is_platform_admin: false,
+      account_created_by: null,
       requires_club_selection: false,
       memberships: [],
     })

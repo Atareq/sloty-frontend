@@ -21,6 +21,7 @@ export const apiEndpoints = {
     },
     bookings: {
       list: (clubSlug: string) => `clubs/${clubSlug}/bookings/`,
+      slots: (clubSlug: string) => `clubs/${clubSlug}/bookings/slots/`,
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/`,
       cancel: (clubSlug: string, id: ApiId) =>
@@ -51,6 +52,8 @@ export const apiEndpoints = {
     },
     reports: {
       list: (clubSlug: string) => `clubs/${clubSlug}/reports/`,
+      courtUsage: (clubSlug: string) =>
+        `clubs/${clubSlug}/reports/court-usage/`,
     },
     settlements: {
       list: (clubSlug: string) => `clubs/${clubSlug}/settlements/`,

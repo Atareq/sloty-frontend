@@ -61,6 +61,7 @@ describe('AuthProvider', () => {
     phone_number: null,
     is_active: true,
     is_platform_admin: false,
+    account_created_by: null,
     requires_club_selection: false,
     memberships: [
       {

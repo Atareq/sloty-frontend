@@ -64,6 +64,11 @@ export interface CurrentUserMembership {
   can_manage_settlements?: boolean
 }
 
+export interface AccountCreator {
+  id: number
+  name: string
+}
+
 export interface CurrentUserProfile {
   id: number
   username: string
@@ -73,6 +78,7 @@ export interface CurrentUserProfile {
   phone_number: string | null
   is_active: boolean
   is_platform_admin: boolean
+  account_created_by: AccountCreator | null
   requires_club_selection: boolean
   memberships: CurrentUserMembership[]
 }

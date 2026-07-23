@@ -33,6 +33,7 @@ const currentUserProfile = {
   phone_number: null,
   is_active: true,
   is_platform_admin: false,
+  account_created_by: { id: 2, name: 'مالك النادي' },
   requires_club_selection: false,
   memberships: [
     {

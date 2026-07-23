@@ -1,10 +1,26 @@
-export type BackendBookingStatus =
-  | 'HOLD'
-  | 'CONFIRMED'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'NO_SHOW'
-  | 'EXPIRED'
+export const BACKEND_BOOKING_STATUSES = [
+  'HOLD',
+  'CONFIRMED',
+  'COMPLETED',
+  'CANCELLED',
+  'NO_SHOW',
+  'EXPIRED',
+] as const
+
+export const BOOKING_SLOT_STATUSES = [
+  'FREE',
+  'HOLD',
+  'CONFIRMED',
+  'COMPLETED',
+  'NO_SHOW',
+] as const
+
+export const BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT =
+  'BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT'
+
+export type BackendBookingStatus = (typeof BACKEND_BOOKING_STATUSES)[number]
+
+export type BookingSlotStatus = (typeof BOOKING_SLOT_STATUSES)[number]
 
 export interface BookingListItem {
   id: number
@@ -43,11 +59,55 @@ export interface BookingNoShowPayload {
   notes?: string
 }
 
-export interface BookingCompletePayload {
-  confirm_remaining_cash?: boolean
-}
-
 export interface BookingListParams {
   court: number | string
   date: string
 }
+
+export interface BookingSlotBookingSummary {
+  id: number
+  status: BackendBookingStatus
+  status_label: string
+  customer_name: string
+  total_booking_value: string
+  total_paid_amount: string
+  remaining_amount: string
+}
+
+export interface BookingSlot {
+  date: string
+  start_time: string
+  end_time: string
+  slot_status: BookingSlotStatus
+  is_available: boolean
+  booking: BookingSlotBookingSummary | null
+  label: string
+}
+
+export interface BookingSlotsResponse {
+  court: number
+  court_name: string
+  date_from: string
+  date_to: string
+  slot_duration_minutes: number
+  message?: string | null
+  slots: BookingSlot[]
+}
+
+export interface BookingSlotsSingleDayParams {
+  court: number | string
+  date: string
+  date_from?: never
+  date_to?: never
+}
+
+export interface BookingSlotsRangeParams {
+  court: number | string
+  date?: never
+  date_from: string
+  date_to: string
+}
+
+export type BookingSlotsParams =
+  | BookingSlotsSingleDayParams
+  | BookingSlotsRangeParams

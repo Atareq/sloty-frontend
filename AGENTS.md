@@ -73,6 +73,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `AuthProvider` owns session hydration and current-user profile loading from `apiEndpoints.auth.me`.
 - Components should use `useAuth().currentUser` for displayed user profile data when available.
 - `/me` is the post-login source of authenticated user context.
+- `/me` includes `account_created_by` as nullable `User.created_by` display information; do not derive it from memberships or the current user.
 - `/me` memberships are confirmed and used for frontend club-selection UX.
 - Store only `selectedClubSlug` persistently; do not store full memberships or permissions as trusted authority.
 - Manager permission flags live on the selected membership, not the club object: use `can_change_pricing`, `can_manage_working_hours`, and `can_manage_settlements`.
@@ -90,6 +91,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Working Hours V2 uses native time inputs for same-day `blocks` per weekday, not `opens_at`/`closes_at`. Multiple same-day blocks are supported, overnight/next-day blocks are not supported, and the frontend must not send `end_day_offset`, `included_hours`, raw selected hours, or selected cells.
 - Do not add holiday/Ramadan working-hour exceptions in MVP unless explicitly requested.
 - Booking Board integration uses clubs, courts, working-hours, and bookings APIs to generate availability slots.
+- Booking slots endpoint `clubs/{club_slug}/bookings/slots/` exists for future Schedule migration; `FREE` is response-only slot status and must not be added to actual `Booking.Status`.
+- Future Schedule slots integration should use `slot.is_available` for clickability and `slot.label` for localized display.
 - Booking Board must fetch working hours for the selected court only.
 - Booking Board must generate slots from working-hour blocks and defer backend validation authority to the API.
 - Booking Board must not show payment or lifecycle details.
@@ -110,6 +113,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Schedule has a compact `حجوزات تحتاج إغلاق` section for today only. It shows at most 3 bookings needing payment/status closure, excludes CANCELLED, EXPIRED, empty slots, and fully closed completed bookings, links to `سجل الحجوزات` with `needs_action=true` when more items exist, and row clicks must open the shared booking action/details flow.
 - The main schedule grid must not re-add past empty slots for the closing section.
 - After payment, reload bookings and trust the backend-returned status; the frontend must not fake a CONFIRMED status.
+- Complete booking requires the booking to be fully paid first; the frontend must not send `confirm_collect_remaining_cash` or `confirm_remaining_cash`.
 - Booking Board remains availability-focused and must not show money on slot buttons.
 - Sprint 5 lifecycle actions stay inside confirmed booking details: cancellation requires a reason sheet, complete requires explicit confirmation, and no-show uses a confirmation/reason sheet.
 - Reschedule is deferred until a confirmed backend endpoint/contract exists; do not invent a PATCH flow or custom reschedule path.
@@ -165,7 +169,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Summary links are UX navigation helpers only; backend remains the permission and data authority.
 - Do not calculate unsettled money, needs-action counts, or financial dashboard totals in the frontend.
 - Audit logs are read-only. Reports and audit access are role/permission-gated UX helpers, with backend remaining the authority.
+- Court Usage Report endpoint exists at `clubs/{club_slug}/reports/court-usage/`; it does not use `payment_method`.
 - Charts are deferred unless an existing charting package is already available; payment gateway, marketplace, commission, and player app logic are deferred.
+- Do not integrate `pricing_periods`, `slot_price`, `pricing_configured`, `minimum_slot_price`, or `maximum_slot_price` until the backend provides them.
 - Expire and non-transaction financial actions are deferred to later sprints.
 - Overnight working-hour ranges are deferred unless explicitly requested.
 - Backend permission logic is outside frontend scope; frontend route guards are UX helpers, not security boundaries.

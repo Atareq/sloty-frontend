@@ -2,13 +2,20 @@ import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
+  buildBookingSlotsPath,
   buildBookingListPath,
   cancelBooking,
   completeBooking,
   createBooking,
+  listBookingSlots,
   listBookingsForCourtDay,
   markBookingNoShow,
 } from './scheduleApi'
+import {
+  BACKEND_BOOKING_STATUSES,
+  BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
+  BOOKING_SLOT_STATUSES,
+} from './scheduleApi.types'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -38,6 +45,56 @@ describe('scheduleApi', () => {
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.bookings.list('nasr-club')}?court=3&date=2026-07-02`,
+    )
+  })
+
+  it('builds booking slots paths for a single day without range params', () => {
+    expect(
+      buildBookingSlotsPath('nasr-club', { court: 3, date: '2026-07-02' }),
+    ).toBe('clubs/nasr-club/bookings/slots/?court=3&date=2026-07-02')
+  })
+
+  it('builds booking slots paths for a date range without single-day date', () => {
+    expect(
+      buildBookingSlotsPath('nasr-club', {
+        court: 3,
+        date_from: '2026-07-02',
+        date_to: '2026-07-09',
+      }),
+    ).toBe(
+      'clubs/nasr-club/bookings/slots/?court=3&date_from=2026-07-02&date_to=2026-07-09',
+    )
+  })
+
+  it('lists booking slots through the slots endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      court: 3,
+      court_name: 'Court 1',
+      date_from: '2026-07-02',
+      date_to: '2026-07-02',
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [],
+    })
+
+    await listBookingSlots('nasr-club', {
+      court: 3,
+      date: '2026-07-02',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.bookings.slots('nasr-club')}?court=3&date=2026-07-02`,
+    )
+  })
+
+  it('keeps FREE as a slot-only response status', () => {
+    expect(BOOKING_SLOT_STATUSES).toContain('FREE')
+    expect(BACKEND_BOOKING_STATUSES).not.toContain('FREE')
+  })
+
+  it('exports the full-payment completion error code', () => {
+    expect(BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT).toBe(
+      'BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT',
     )
   })
 

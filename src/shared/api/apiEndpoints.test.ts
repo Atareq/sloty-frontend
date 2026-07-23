@@ -6,6 +6,9 @@ describe('apiEndpoints', () => {
     expect(apiEndpoints.clubs.bookings.list('nasr-club')).toBe(
       'clubs/nasr-club/bookings/',
     )
+    expect(apiEndpoints.clubs.bookings.slots('nasr-club')).toBe(
+      'clubs/nasr-club/bookings/slots/',
+    )
     expect(apiEndpoints.clubs.bookings.detail('nasr-club', 12)).toBe(
       'clubs/nasr-club/bookings/12/',
     )
@@ -25,6 +28,9 @@ describe('apiEndpoints', () => {
     )
     expect(apiEndpoints.clubs.settlements.markSettled('nasr-club', 9)).toBe(
       'clubs/nasr-club/settlements/9/mark-settled/',
+    )
+    expect(apiEndpoints.clubs.reports.courtUsage('nasr-club')).toBe(
+      'clubs/nasr-club/reports/court-usage/',
     )
     expect(apiEndpoints.users.detail('staff-1')).toBe('users/staff-1/')
   })

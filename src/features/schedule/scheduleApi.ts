@@ -3,12 +3,20 @@ import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
   BookingCancelPayload,
-  BookingCompletePayload,
   BookingCreatePayload,
   BookingListItem,
   BookingListParams,
+  BookingSlotsParams,
+  BookingSlotsRangeParams,
+  BookingSlotsResponse,
   BookingNoShowPayload,
 } from './scheduleApi.types'
+
+function isBookingSlotsRangeParams(
+  params: BookingSlotsParams,
+): params is BookingSlotsRangeParams {
+  return 'date_from' in params
+}
 
 export function buildBookingListPath(
   clubSlug: string,
@@ -22,6 +30,24 @@ export function buildBookingListPath(
   return `${apiEndpoints.clubs.bookings.list(clubSlug)}?${searchParams.toString()}`
 }
 
+export function buildBookingSlotsPath(
+  clubSlug: string,
+  params: BookingSlotsParams,
+): string {
+  const searchParams = new URLSearchParams()
+
+  searchParams.set('court', String(params.court))
+
+  if (isBookingSlotsRangeParams(params)) {
+    searchParams.set('date_from', params.date_from)
+    searchParams.set('date_to', params.date_to)
+  } else {
+    searchParams.set('date', params.date)
+  }
+
+  return `${apiEndpoints.clubs.bookings.slots(clubSlug)}?${searchParams.toString()}`
+}
+
 /**
  * Lists booking records for one court/day so the Booking Board can derive
  * availability without exposing lifecycle or payment details.
@@ -33,6 +59,19 @@ export function listBookingsForCourtDay(
   return apiRequest<PaginatedResponse<BookingListItem>>(
     buildBookingListPath(clubSlug, params),
   )
+}
+
+/**
+ * Lists backend-calculated availability slots without migrating Schedule yet.
+ *
+ * Future Schedule integration should use `slot.is_available` for clickability
+ * and `slot.label` for localized slot display text.
+ */
+export function listBookingSlots(
+  clubSlug: string,
+  params: BookingSlotsParams,
+): Promise<BookingSlotsResponse> {
+  return apiRequest<BookingSlotsResponse>(buildBookingSlotsPath(clubSlug, params))
 }
 
 /**
@@ -73,13 +112,11 @@ export function cancelBooking(
 export function completeBooking(
   clubSlug: string,
   bookingId: number | string,
-  payload?: BookingCompletePayload,
 ): Promise<BookingListItem> {
   return apiRequest<BookingListItem>(
     apiEndpoints.clubs.bookings.complete(clubSlug, bookingId),
     {
       method: 'POST',
-      ...(payload ? { body: payload } : {}),
     },
   )
 }
