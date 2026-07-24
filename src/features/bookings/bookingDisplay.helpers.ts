@@ -2,6 +2,7 @@ import type {
   BackendBookingStatus,
   BookingListItem,
 } from '../schedule/scheduleApi.types'
+import { hasPositiveRemainingAmount } from './bookingPayment.helpers'
 
 const arabicDateTimeFormatter = new Intl.DateTimeFormat('ar-EG', {
   day: 'numeric',
@@ -103,9 +104,7 @@ export function getBookingDateFallback(booking: BookingListItem): string | null 
 }
 
 export function hasRemainingAmount(booking: BookingListItem): boolean {
-  const remaining = Number(booking.remaining_amount ?? 0)
-
-  return Number.isFinite(remaining) && remaining > 0
+  return hasPositiveRemainingAmount(booking.remaining_amount)
 }
 
 export function isBookingReadOnlyStatus(status: BackendBookingStatus): boolean {

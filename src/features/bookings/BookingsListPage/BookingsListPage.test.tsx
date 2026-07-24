@@ -2,9 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { listCourts } from '../../courts/courtsApi'
-import { cancelBooking } from '../../schedule/scheduleApi'
+import { cancelBooking, completeBooking } from '../../schedule/scheduleApi'
 import { createTransaction } from '../../transactions/transactionsApi'
 import { listBookings } from '../bookingsApi'
 import { BookingsListPage } from './BookingsListPage'
@@ -35,6 +36,7 @@ const mockedUseAuth = vi.mocked(useAuth)
 const mockedListBookings = vi.mocked(listBookings)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedCancelBooking = vi.mocked(cancelBooking)
+const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedCreateTransaction = vi.mocked(createTransaction)
 const defaultFilters = {
   date: '2026-07-21',
@@ -414,6 +416,147 @@ describe('BookingsListPage', () => {
     expect(screen.getByRole('button', { name: 'إكمال الحجز' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'تسجيل عدم حضور' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'إلغاء الحجز' })).toBeInTheDocument()
+  })
+
+  it('opens payment flow instead of completing unpaid bookings', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookings.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 36,
+          court: 3,
+          customer_name: 'ليلى حسن',
+          start_time: '2026-07-21T18:00:00Z',
+          end_time: '2026-07-21T19:00:00Z',
+          status: 'CONFIRMED' as const,
+          paid_amount: '100.00',
+          remaining_amount: '200.00',
+        },
+      ]),
+    )
+
+    renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'مراجعة الحجز #36' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
+
+    expect(
+      screen.getByText(
+        'يوجد مبلغ متبقي على هذا الحجز. يجب تسجيل الدفعة أولًا قبل إكمال الحجز.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+      .toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+    expect(mockedCompleteBooking).not.toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: 'إضافة دفعة' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('حجز #36')).toBeInTheDocument()
+  })
+
+  it('completes fully paid bookings from the confirmation sheet', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookings
+      .mockResolvedValueOnce(
+        paginatedResponse([
+          {
+            id: 37,
+            court: 3,
+            customer_name: 'ليلى حسن',
+            start_time: '2026-07-21T18:00:00Z',
+            end_time: '2026-07-21T19:00:00Z',
+            status: 'CONFIRMED' as const,
+            paid_amount: '300.00',
+            remaining_amount: '0.00',
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(paginatedResponse([]))
+    mockedCompleteBooking.mockResolvedValueOnce({
+      id: 37,
+      court: 3,
+      customer_name: 'ليلى حسن',
+      start_time: '2026-07-21T18:00:00Z',
+      end_time: '2026-07-21T19:00:00Z',
+      status: 'COMPLETED' as const,
+    })
+
+    renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'مراجعة الحجز #37' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
+    await user.click(
+      screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
+    )
+
+    await waitFor(() => {
+      expect(mockedCompleteBooking).toHaveBeenCalledWith('nasr-club', 37)
+    })
+    await waitFor(() => {
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+        date: '2026-07-21',
+        status: 'CONFIRMED',
+      })
+    })
+  })
+
+  it('uses backend full-payment errors to guide users to payment', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookings.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 38,
+          court: 3,
+          customer_name: 'ليلى حسن',
+          start_time: '2026-07-21T18:00:00Z',
+          end_time: '2026-07-21T19:00:00Z',
+          status: 'CONFIRMED' as const,
+          paid_amount: '300.00',
+          remaining_amount: '0.00',
+        },
+      ]),
+    )
+    mockedCompleteBooking.mockRejectedValueOnce(
+      new ApiClientError('يجب تسجيل المتبقي أولًا', 409, {
+        code: 'BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT',
+        details: { booking_id: 38, remaining_amount: '50.00' },
+      }),
+    )
+
+    renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'مراجعة الحجز #38' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
+    await user.click(
+      screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
+    )
+
+    expect(await screen.findByText('يجب تسجيل المتبقي أولًا'))
+      .toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+      .toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+    expect(screen.getByRole('heading', { name: 'إضافة دفعة' }))
+      .toBeInTheDocument()
   })
 
   it('records a payment from the action sheet and reloads current filters', async () => {

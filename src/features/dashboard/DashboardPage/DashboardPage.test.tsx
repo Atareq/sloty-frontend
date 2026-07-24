@@ -1,7 +1,9 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
+import { listCourts } from '../../courts/courtsApi'
 import { getDashboardSummary } from '../dashboardApi'
 import type { DashboardSummaryResponse } from '../dashboard.types'
 import { DashboardPage } from './DashboardPage'
@@ -14,8 +16,13 @@ vi.mock('../dashboardApi', () => ({
   getDashboardSummary: vi.fn(),
 }))
 
+vi.mock('../../courts/courtsApi', () => ({
+  listCourts: vi.fn(),
+}))
+
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetDashboardSummary = vi.mocked(getDashboardSummary)
+const mockedListCourts = vi.mocked(listCourts)
 
 const baseSummaryResponse: DashboardSummaryResponse = {
   context: {
@@ -105,10 +112,17 @@ function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
   })
 }
 
-function renderDashboard() {
+function LocationProbe() {
+  const location = useLocation()
+
+  return <span data-testid="location">{location.pathname + location.search}</span>
+}
+
+function renderDashboard(initialEntry = '/dashboard') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <DashboardPage />
+      <LocationProbe />
     </MemoryRouter>,
   )
 }
@@ -120,6 +134,35 @@ describe('DashboardPage', () => {
     vi.setSystemTime(new Date('2026-07-21T10:00:00Z'))
     mockAuth()
     mockedGetDashboardSummary.mockResolvedValue(baseSummaryResponse)
+    mockedListCourts.mockResolvedValue({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: 3,
+          club: 1,
+          name: 'ملعب 3',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+        {
+          id: 4,
+          club: 1,
+          name: '',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+      ],
+    })
   })
 
   afterEach(() => {
@@ -135,6 +178,7 @@ describe('DashboardPage', () => {
       await screen.findByText('اختر ناديًا أولًا لعرض الملخص'),
     ).toBeInTheDocument()
     expect(mockedGetDashboardSummary).not.toHaveBeenCalled()
+    expect(mockedListCourts).not.toHaveBeenCalled()
   })
 
   it('shows loading skeletons without fake zeroes', () => {
@@ -144,6 +188,143 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('جاري تحميل الملخص...')).toBeInTheDocument()
     expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
+
+  it('loads and renders court scope options without blocking summary', async () => {
+    renderDashboard()
+
+    expect(await screen.findByText('نطاق الملعب')).toBeInTheDocument()
+    expect(screen.getAllByText('كل الملاعب').length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('ملعب 3')).length).toBeGreaterThan(0)
+    expect(screen.getByText('ملعب #4')).toBeInTheDocument()
+    expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
+    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
+  })
+
+  it('does not block summary when court options fail', async () => {
+    mockedListCourts.mockRejectedValueOnce(new Error('failed'))
+
+    renderDashboard()
+
+    expect(await screen.findByText('تعذر تحميل خيارات الملاعب'))
+      .toBeInTheDocument()
+    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
+    expect(mockedGetDashboardSummary).toHaveBeenCalled()
+  })
+
+  it('applies deep-linked court and preserves it through shortcut changes', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    renderDashboard('/dashboard?court=3')
+
+    await waitFor(() => {
+      expect(mockedGetDashboardSummary).toHaveBeenCalledWith('nasr-club', {
+        date: '2026-07-21',
+        court: '3',
+      })
+    })
+    expect((await screen.findAllByText('ملعب 3')).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'أمس' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/dashboard?court=3&shortcut=yesterday',
+      )
+    })
+    expect(mockedGetDashboardSummary).toHaveBeenLastCalledWith('nasr-club', {
+      date: '2026-07-20',
+      court: '3',
+    })
+  })
+
+  it('preserves unknown deep-linked court IDs with fallback labels', async () => {
+    renderDashboard('/dashboard?court=99')
+
+    expect(await screen.findByText('ملعب #99')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedGetDashboardSummary).toHaveBeenCalledWith('nasr-club', {
+        date: '2026-07-21',
+        court: '99',
+      })
+    })
+  })
+
+  it('changes and clears court scope through URL state', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    renderDashboard('/dashboard?shortcut=week')
+
+    await user.click(await screen.findByRole('button', { name: 'ملعب 3' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/dashboard?shortcut=week&court=3',
+      )
+    })
+    expect(mockedGetDashboardSummary).toHaveBeenLastCalledWith('nasr-club', {
+      date_from: '2026-07-15',
+      date_to: '2026-07-21',
+      court: '3',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'كل الملاعب' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/dashboard?shortcut=week',
+      )
+    })
+    expect(mockedGetDashboardSummary).toHaveBeenLastCalledWith('nasr-club', {
+      date_from: '2026-07-15',
+      date_to: '2026-07-21',
+    })
+  })
+
+  it('uses a simple one-court state and a dropdown for larger court lists', async () => {
+    const oneCourt = {
+      id: 3,
+      club: 1,
+      name: 'ملعب وحيد',
+      sport_type: 'FOOTBALL',
+      default_price: '250.00',
+      slot_duration_minutes: 60,
+      is_active: true,
+      requires_digital_payment_reference: false,
+      internal_hold_expiry_hours: 12,
+    }
+    mockedListCourts.mockResolvedValueOnce({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [oneCourt],
+    })
+    const { unmount } = renderDashboard()
+
+    expect((await screen.findAllByText('كل الملاعب')).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'ملعب وحيد' }))
+      .not.toBeInTheDocument()
+
+    unmount()
+    mockedListCourts.mockResolvedValueOnce({
+      count: 5,
+      next: null,
+      previous: null,
+      results: [1, 2, 3, 4, 5].map((id) => ({
+        ...oneCourt,
+        id,
+        name: `ملعب ${id}`,
+      })),
+    })
+    renderDashboard()
+
+    expect(await screen.findByLabelText('نطاق الملعب')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'نطاق الملعب' }))
+      .toBeInTheDocument()
   })
 
   it('renders main KPI cards with filtered links', async () => {
@@ -171,6 +352,28 @@ describe('DashboardPage', () => {
     ).toHaveAttribute(
       'href',
       '/transactions?settlement_status=unsettled&is_cancelled=false',
+    )
+  })
+
+  it('preserves selected court in supported Dashboard links only', async () => {
+    renderDashboard('/dashboard?court=3')
+
+    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
+    expect(screen.getByText('حجوزات اليوم').closest('a')).toHaveAttribute(
+      'href',
+      '/bookings?court=3&date=2026-07-21',
+    )
+    expect(screen.getAllByText('تحتاج إجراء')[0].closest('a')).toHaveAttribute(
+      'href',
+      '/bookings?court=3&date=2026-07-21&needs_action=true',
+    )
+    expect(screen.getByText('تحصيل اليوم').closest('a')).toHaveAttribute(
+      'href',
+      '/transactions?court=3&date=2026-07-21&is_cancelled=false',
+    )
+    expect(screen.getByText('مراجعة التسوية')).toHaveAttribute(
+      'href',
+      '/settlements/preview?collected_by=15&court=3',
     )
   })
 

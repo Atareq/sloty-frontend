@@ -1,11 +1,20 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
+import { toQueryObject } from '../../../shared/utils/queryParams'
+import { listClubUsers } from '../../clubUsers/clubUsersApi'
+import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { listAuditLogs } from '../auditApi'
 import type { AuditLogEntry, AuditQueryParams } from '../audit.types'
+import {
+  auditActionOptions,
+  getAuditActionLabel,
+} from '../auditActionLabels'
 import { AuditLogList } from '../components/AuditLogList/AuditLogList'
 
 interface FilterState {
@@ -15,11 +24,9 @@ interface FilterState {
   action: string
 }
 
-const initialFilters: FilterState = {
-  date_from: '',
-  date_to: '',
-  actor: '',
-  action: '',
+interface FilterOption {
+  value: string
+  label: string
 }
 
 function buildParams(filters: FilterState): AuditQueryParams {
@@ -31,37 +38,68 @@ function buildParams(filters: FilterState): AuditQueryParams {
   }
 }
 
+function getFiltersFromSearch(search: string): FilterState {
+  const query = toQueryObject(search)
+
+  return {
+    date_from: query.date_from ?? '',
+    date_to: query.date_to ?? '',
+    actor: query.actor ?? '',
+    action: query.action ?? '',
+  }
+}
+
+function getAuditSearch(params: AuditQueryParams): string {
+  const searchParams = new URLSearchParams()
+
+  if (params.date_from) {
+    searchParams.set('date_from', params.date_from)
+  }
+
+  if (params.date_to) {
+    searchParams.set('date_to', params.date_to)
+  }
+
+  if (params.actor) {
+    searchParams.set('actor', String(params.actor))
+  }
+
+  if (params.action) {
+    searchParams.set('action', params.action)
+  }
+
+  const queryString = searchParams.toString()
+
+  return queryString ? `?${queryString}` : ''
+}
+
+function normalizeClubUsersResponse(
+  response: ClubUser[] | { results: ClubUser[] },
+): ClubUser[] {
+  return Array.isArray(response) ? response : response.results
+}
+
 /**
  * Read-only sensitive activity log for club owners.
  */
 export function AuditLogsPage() {
   const { role, selectedClubSlug } = useAuth()
-  const [filters, setFilters] = useState<FilterState>(initialFilters)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const filtersFromSearch = useMemo(
+    () => getFiltersFromSearch(location.search),
+    [location.search],
+  )
+  const [filters, setFilters] = useState<FilterState>(filtersFromSearch)
+  const [userOptions, setUserOptions] = useState<FilterOption[]>([])
+  const [isUserOptionsLoading, setIsUserOptionsLoading] = useState(false)
+  const [filterOptionsError, setFilterOptionsError] = useState<string | null>(
+    null,
+  )
   const [entries, setEntries] = useState<AuditLogEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const canViewAuditLogs = role === 'OWNER'
-
-  async function loadLogs(params: AuditQueryParams = {}): Promise<void> {
-    if (!selectedClubSlug || !canViewAuditLogs) {
-      setEntries([])
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await listAuditLogs(selectedClubSlug, params)
-
-      setEntries(response.results)
-    } catch (error) {
-      setEntries([])
-      setError(getApiErrorMessage(error, 'تعذر تحميل سجل النشاط'))
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   useEffect(() => {
     if (!selectedClubSlug || !canViewAuditLogs) {
@@ -70,10 +108,14 @@ export function AuditLogsPage() {
 
     let isActive = true
     const clubSlug = selectedClubSlug
+    const params = buildParams(filtersFromSearch)
 
-    async function loadInitialLogs(): Promise<void> {
+    void Promise.resolve().then(async () => {
+      setIsLoading(true)
+      setError(null)
+
       try {
-        const response = await listAuditLogs(clubSlug, {})
+        const response = await listAuditLogs(clubSlug, params)
 
         if (isActive) {
           setEntries(response.results)
@@ -83,10 +125,58 @@ export function AuditLogsPage() {
           setEntries([])
           setError(getApiErrorMessage(error, 'تعذر تحميل سجل النشاط'))
         }
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    })
+
+    return () => {
+      isActive = false
+    }
+  }, [canViewAuditLogs, filtersFromSearch, selectedClubSlug])
+
+  useEffect(() => {
+    if (!selectedClubSlug || !canViewAuditLogs) {
+      return
+    }
+
+    let isActive = true
+    const clubSlug = selectedClubSlug
+
+    async function loadUserOptions(): Promise<void> {
+      setIsUserOptionsLoading(true)
+      setFilterOptionsError(null)
+
+      try {
+        const response = await listClubUsers(clubSlug, {
+          is_active: true,
+        })
+
+        if (!isActive) {
+          return
+        }
+
+        setUserOptions(
+          normalizeClubUsersResponse(response).map((clubUser) => ({
+            value: String(clubUser.id),
+            label: getClubUserDisplayName(clubUser),
+          })),
+        )
+      } catch {
+        if (isActive) {
+          setUserOptions([])
+          setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
+        }
+      } finally {
+        if (isActive) {
+          setIsUserOptionsLoading(false)
+        }
       }
     }
 
-    void loadInitialLogs()
+    void Promise.resolve().then(loadUserOptions)
 
     return () => {
       isActive = false
@@ -102,8 +192,18 @@ export function AuditLogsPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    void loadLogs(buildParams(filters))
+    navigate({
+      pathname: location.pathname,
+      search: getAuditSearch(buildParams(filters)),
+    })
   }
+
+  const shouldShowActorFallbackOption =
+    Boolean(filters.actor) &&
+    !userOptions.some((option) => option.value === filters.actor)
+  const shouldShowActionFallbackOption =
+    Boolean(filters.action) &&
+    !auditActionOptions.some((option) => option.value === filters.action)
 
   return (
     <div className="space-y-5">
@@ -132,6 +232,11 @@ export function AuditLogsPage() {
       {selectedClubSlug && canViewAuditLogs ? (
         <>
           <AppCard>
+            {filterOptionsError ? (
+              <p className="mb-3 text-xs font-bold text-[var(--sloty-danger)]">
+                {filterOptionsError}
+              </p>
+            ) : null}
             <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleSubmit}>
               <label className="space-y-2 text-sm font-semibold">
                 <span>من تاريخ</span>
@@ -156,21 +261,46 @@ export function AuditLogsPage() {
                 />
               </label>
               <label className="space-y-2 text-sm font-semibold">
-                <span>رقم المستخدم</span>
-                <input
+                <span>المستخدم</span>
+                <select
                   className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  inputMode="numeric"
+                  disabled={isUserOptionsLoading}
                   onChange={(event) => updateFilter('actor', event.target.value)}
                   value={filters.actor}
-                />
+                >
+                  <option value="">
+                    {isUserOptionsLoading
+                      ? 'جاري تحميل المستخدمين...'
+                      : 'كل المستخدمين'}
+                  </option>
+                  {shouldShowActorFallbackOption ? (
+                    <option value={filters.actor}>مستخدم #{filters.actor}</option>
+                  ) : null}
+                  {userOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="space-y-2 text-sm font-semibold">
-                <span>الإجراء</span>
-                <input
+                <span>نوع الإجراء</span>
+                <select
                   className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   onChange={(event) => updateFilter('action', event.target.value)}
                   value={filters.action}
-                />
+                >
+                  {shouldShowActionFallbackOption ? (
+                    <option value={filters.action}>
+                      {getAuditActionLabel(filters.action)}
+                    </option>
+                  ) : null}
+                  {auditActionOptions.map((option) => (
+                    <option key={option.value || 'all-actions'} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className="flex items-end">
                 <AppButton disabled={isLoading} fullWidth type="submit">

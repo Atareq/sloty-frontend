@@ -7,6 +7,8 @@ import {
 } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import {
+  getApiErrorCode,
+  getApiErrorDetails,
   getApiErrorMessage,
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
@@ -52,6 +54,7 @@ import {
   completeBooking,
   markBookingNoShow,
 } from '../../schedule/scheduleApi'
+import { BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT } from '../../schedule/scheduleApi.types'
 import {
   RecordPaymentSheet,
   type RecordPaymentSheetValues,
@@ -395,6 +398,10 @@ export function BookingsListPage() {
   const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null)
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null)
   const [completingBooking, setCompletingBooking] = useState<Booking | null>(null)
+  const [
+    completingBookingRemainingAmount,
+    setCompletingBookingRemainingAmount,
+  ] = useState<string | null>(null)
   const [noShowBooking, setNoShowBooking] = useState<Booking | null>(null)
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
@@ -589,6 +596,7 @@ export function BookingsListPage() {
     setPaymentBooking(null)
     setCancellingBooking(null)
     setCompletingBooking(null)
+    setCompletingBookingRemainingAmount(null)
     setNoShowBooking(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
@@ -695,9 +703,21 @@ export function BookingsListPage() {
     try {
       await completeBooking(selectedClubSlug, completingBooking.id)
       setCompletingBooking(null)
+      setCompletingBookingRemainingAmount(null)
       setSuccessMessage('تم إكمال الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
+      if (getApiErrorCode(error) === BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT) {
+        const remainingAmount = getApiErrorDetails(error)?.remaining_amount
+
+        if (
+          typeof remainingAmount === 'string' ||
+          typeof remainingAmount === 'number'
+        ) {
+          setCompletingBookingRemainingAmount(String(remainingAmount))
+        }
+      }
+
       setActionError(
         getApiErrorMessage(error, 'تعذر إكمال الحجز. حاول مرة أخرى'),
       )
@@ -884,6 +904,7 @@ export function BookingsListPage() {
         onClose={closeBookingSheets}
         onComplete={(booking) => {
           setCompletingBooking(booking)
+          setCompletingBookingRemainingAmount(null)
           setSelectedBooking(null)
           setActionError(null)
         }}
@@ -932,10 +953,26 @@ export function BookingsListPage() {
           isSubmitting={isActionSubmitting}
           onClose={() => {
             setCompletingBooking(null)
+            setCompletingBookingRemainingAmount(null)
             setActionError(null)
           }}
           onConfirm={handleCompleteBooking}
-          remainingAmount={completingBooking.remaining_amount}
+          onRequestPayment={() => {
+            setPaymentBooking({
+              ...completingBooking,
+              remaining_amount:
+                completingBookingRemainingAmount ??
+                completingBooking.remaining_amount,
+            })
+            setCompletingBooking(null)
+            setCompletingBookingRemainingAmount(null)
+            setActionError(null)
+            setPaymentError(null)
+            setPaymentFieldErrors(null)
+          }}
+          remainingAmount={
+            completingBookingRemainingAmount ?? completingBooking.remaining_amount
+          }
         />
       ) : null}
 

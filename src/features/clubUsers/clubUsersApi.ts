@@ -1,7 +1,11 @@
 import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import type { ClubUser, ClubUsersQueryParams } from './clubUsers.types'
+import type {
+  ClubUser,
+  ClubUsersQueryParams,
+  UpdateManagerPermissionsPayload,
+} from './clubUsers.types'
 
 function buildClubUsersQueryString(params?: ClubUsersQueryParams): string {
   const searchParams = new URLSearchParams()
@@ -39,5 +43,29 @@ export function listClubUsers(
 ): Promise<ClubUser[] | PaginatedResponse<ClubUser>> {
   return apiRequest<ClubUser[] | PaginatedResponse<ClubUser>>(
     `${apiEndpoints.clubs.users.list(clubSlug)}${buildClubUsersQueryString(params)}`,
+  )
+}
+
+/**
+ * Updates permission flags for an existing manager membership.
+ *
+ * This intentionally patches the membership endpoint, not the club endpoint,
+ * because manager permissions belong to the membership contract.
+ */
+export function updateManagerPermissions(
+  clubSlug: string,
+  membershipId: number | string,
+  payload: UpdateManagerPermissionsPayload,
+): Promise<ClubUser> {
+  return apiRequest<ClubUser>(
+    apiEndpoints.clubs.memberships.detail(clubSlug, membershipId),
+    {
+      method: 'PATCH',
+      body: {
+        manager_can_settle_transactions:
+          payload.manager_can_settle_transactions,
+        manager_can_change_pricing: payload.manager_can_change_pricing,
+      },
+    },
   )
 }

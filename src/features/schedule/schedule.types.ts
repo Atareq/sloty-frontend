@@ -5,6 +5,7 @@ export type BookingBoardSlotStatus =
   | 'hold'
   | 'confirmed'
   | 'completed'
+  | 'no_show'
   | 'cancelled'
 export type BookingBoardPeriod = 'am' | 'pm'
 export interface ScheduleStaff {
@@ -33,6 +34,8 @@ export interface ScheduleDateFilter {
 export interface ScheduleBooking {
   id: string
   status: BookingBoardSlotStatus
+  label?: string
+  isAvailable?: boolean
   startTime: string
   endTime: string
   period: BookingBoardPeriod

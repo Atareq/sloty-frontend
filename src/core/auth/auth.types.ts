@@ -54,11 +54,20 @@ export interface CurrentUserMembershipCourt {
   name: string
 }
 
+export interface MembershipPermissions {
+  can_change_pricing: boolean
+  can_manage_working_hours: boolean
+  can_manage_settlements: boolean
+}
+
 export interface CurrentUserMembership {
   id: number
   role: Exclude<AuthRole, 'PLATFORM_ADMIN'>
   club: CurrentUserMembershipClub
   court: CurrentUserMembershipCourt | null
+  permissions?: MembershipPermissions
+  manager_can_settle_transactions?: boolean
+  manager_can_change_pricing?: boolean
   can_change_pricing?: boolean
   can_manage_working_hours?: boolean
   can_manage_settlements?: boolean
@@ -123,50 +132,113 @@ export function getDefaultRouteForRole(role: AuthRole): string {
   return DEFAULT_ROLE_REDIRECTS[role]
 }
 
+const noMembershipPermissions: MembershipPermissions = {
+  can_change_pricing: false,
+  can_manage_working_hours: false,
+  can_manage_settlements: false,
+}
+
+const allMembershipPermissions: MembershipPermissions = {
+  can_change_pricing: true,
+  can_manage_working_hours: true,
+  can_manage_settlements: true,
+}
+
+function hasEffectiveTopLevelPermissions(
+  membership: CurrentUserMembership,
+): boolean {
+  return (
+    membership.can_change_pricing !== undefined ||
+    membership.can_manage_working_hours !== undefined ||
+    membership.can_manage_settlements !== undefined
+  )
+}
+
+function hasRawManagerPermissions(membership: CurrentUserMembership): boolean {
+  return (
+    membership.manager_can_change_pricing !== undefined ||
+    membership.manager_can_settle_transactions !== undefined
+  )
+}
+
+/**
+ * Resolves the selected membership's effective permission object.
+ *
+ * TODO: remove legacy top-level and raw manager permission fallbacks after the
+ * backend deployment is complete.
+ */
+export function resolveMembershipPermissions(
+  membership: CurrentUserMembership | null,
+): MembershipPermissions {
+  if (!membership) {
+    return noMembershipPermissions
+  }
+
+  if (membership.permissions) {
+    return membership.permissions
+  }
+
+  if (hasEffectiveTopLevelPermissions(membership)) {
+    return {
+      can_change_pricing: Boolean(membership.can_change_pricing),
+      can_manage_working_hours: Boolean(membership.can_manage_working_hours),
+      can_manage_settlements: Boolean(membership.can_manage_settlements),
+    }
+  }
+
+  if (membership.role === 'MANAGER' && hasRawManagerPermissions(membership)) {
+    return {
+      can_change_pricing: Boolean(membership.manager_can_change_pricing),
+      can_manage_working_hours: false,
+      can_manage_settlements: Boolean(
+        membership.manager_can_settle_transactions,
+      ),
+    }
+  }
+
+  return noMembershipPermissions
+}
+
+export function getActiveMembershipPermissions(
+  role: AuthRole | null,
+  membership: CurrentUserMembership | null,
+): MembershipPermissions {
+  if (role === 'PLATFORM_ADMIN' || membership?.role === 'OWNER') {
+    return allMembershipPermissions
+  }
+
+  if (!membership || membership.role === 'STAFF') {
+    return noMembershipPermissions
+  }
+
+  return resolveMembershipPermissions(membership)
+}
+
 export function canManagePricing(
   membership: CurrentUserMembership | null,
+  role: AuthRole | null = null,
 ): boolean {
-  if (!membership) {
-    return false
-  }
-
-  if (membership.role === 'OWNER') {
-    return true
-  }
-
-  return membership.role === 'MANAGER' && Boolean(membership.can_change_pricing)
+  return getActiveMembershipPermissions(role, membership).can_change_pricing
 }
+
+export const canChangePricing = canManagePricing
 
 export function canManageWorkingHours(
   membership: CurrentUserMembership | null,
+  role: AuthRole | null = null,
 ): boolean {
-  if (!membership) {
-    return false
-  }
-
-  if (membership.role === 'OWNER') {
-    return true
-  }
-
-  return (
-    membership.role === 'MANAGER' &&
-    Boolean(membership.can_manage_working_hours)
-  )
+  return getActiveMembershipPermissions(
+    role,
+    membership,
+  ).can_manage_working_hours
 }
 
 export function canManageSettlements(
   membership: CurrentUserMembership | null,
+  role: AuthRole | null = null,
 ): boolean {
-  if (!membership) {
-    return false
-  }
-
-  if (membership.role === 'OWNER') {
-    return true
-  }
-
-  return (
-    membership.role === 'MANAGER' &&
-    Boolean(membership.can_manage_settlements)
-  )
+  return getActiveMembershipPermissions(
+    role,
+    membership,
+  ).can_manage_settlements
 }

@@ -1,4 +1,6 @@
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { hasPositiveRemainingAmount } from '../../../bookings/bookingPayment.helpers'
 
 export interface CompleteBookingConfirmSheetProps {
   remainingAmount?: string | null
@@ -6,14 +8,7 @@ export interface CompleteBookingConfirmSheetProps {
   error: string | null
   onClose: () => void
   onConfirm: () => Promise<void> | void
-}
-
-function hasPositiveRemainingAmount(value: string | null | undefined): boolean {
-  if (!value) {
-    return false
-  }
-
-  return Number(value) > 0
+  onRequestPayment: () => void
 }
 
 /**
@@ -25,6 +20,7 @@ export function CompleteBookingConfirmSheet({
   error,
   onClose,
   onConfirm,
+  onRequestPayment,
 }: CompleteBookingConfirmSheetProps) {
   const hasRemaining = hasPositiveRemainingAmount(remainingAmount)
 
@@ -41,9 +37,22 @@ export function CompleteBookingConfirmSheet({
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {hasRemaining
-              ? `المتبقي ${remainingAmount}. تأكد أن المبلغ تم تحصيله قبل إكمال الحجز.`
+              ? 'يوجد مبلغ متبقي على هذا الحجز. يجب تسجيل الدفعة أولًا قبل إكمال الحجز.'
               : 'سيتم اعتبار الحجز مكتملاً بعد التأكيد.'}
           </p>
+          {hasRemaining ? (
+            <dl className="rounded-2xl bg-[var(--sloty-bg)] p-3 text-sm">
+              <dt className="font-bold text-[var(--sloty-text-muted)]">
+                المبلغ المتبقي
+              </dt>
+              <dd
+                className="mt-1 font-black text-[var(--sloty-primary-dark)]"
+                dir="ltr"
+              >
+                {formatMoneyAmount(remainingAmount)}
+              </dd>
+            </dl>
+          ) : null}
         </div>
 
         {error ? (
@@ -56,11 +65,15 @@ export function CompleteBookingConfirmSheet({
           <AppButton
             disabled={isSubmitting}
             fullWidth
-            onClick={onConfirm}
+            onClick={hasRemaining ? onRequestPayment : onConfirm}
             type="button"
             variant="primary"
           >
-            {isSubmitting ? 'جاري إكمال الحجز...' : 'تأكيد إكمال الحجز'}
+            {isSubmitting
+              ? 'جاري إكمال الحجز...'
+              : hasRemaining
+                ? 'تسجيل الدفعة'
+                : 'تأكيد إكمال الحجز'}
           </AppButton>
           <AppButton
             disabled={isSubmitting}

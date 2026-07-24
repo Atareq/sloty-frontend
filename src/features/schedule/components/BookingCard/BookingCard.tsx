@@ -17,6 +17,8 @@ const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
     'sloty-green-surface-button border-[var(--sloty-primary-dark)] text-white shadow-emerald-900/20 hover:-translate-y-0.5 hover:bg-[var(--sloty-primary-dark)]',
   completed:
     'border-slate-400 bg-slate-200 text-slate-700 shadow-slate-950/10',
+  no_show:
+    'border-rose-300 bg-rose-100 text-rose-900 shadow-rose-950/10',
 }
 
 const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
@@ -25,6 +27,7 @@ const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
   hold: 'محجوز مؤقتًا',
   confirmed: 'مؤكد',
   completed: 'مكتمل',
+  no_show: 'عدم حضور',
 }
 
 /**
@@ -36,10 +39,11 @@ const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
 export function BookingCard({ booking, onSelect }: BookingCardProps) {
   const displayStartTime = formatTime12Hour(booking.startTime)
   const isActionable = Boolean(onSelect)
+  const statusLabel = booking.label || statusLabelByStatus[booking.status]
 
   return (
     <button
-      aria-label={`${displayStartTime} ${statusLabelByStatus[booking.status]}`}
+      aria-label={`${displayStartTime} ${statusLabel}`}
       className={[
         'h-11 w-full max-w-[72px] justify-self-center rounded-xl border-2 px-1 text-center text-xs font-black shadow-lg transition focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--sloty-primary-dark)] sm:h-12 sm:max-w-[76px] sm:text-sm md:h-14 md:max-w-[96px] md:text-base lg:h-16 lg:max-w-[108px]',
         isActionable ? 'cursor-pointer' : 'cursor-not-allowed opacity-70',

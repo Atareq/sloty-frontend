@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
   canManageSettlements,
+  type AuthRole,
   type CurrentUserMembership,
   type CurrentUserProfile,
 } from '../../core/auth/auth.types'
@@ -53,9 +54,10 @@ function getUserDisplayName(
 function canShowNavigationItem(
   item: NavigationItem,
   selectedMembership: CurrentUserMembership | null,
+  role: AuthRole | null,
 ): boolean {
   if (item.path === '/settlements') {
-    return canManageSettlements(selectedMembership)
+    return canManageSettlements(selectedMembership, role)
   }
 
   return true
@@ -111,7 +113,7 @@ export function AppShell() {
     () =>
       role
         ? getNavigationItemsForRole(role, { primaryOnly: true }).filter((item) =>
-            canShowNavigationItem(item, selectedMembership),
+            canShowNavigationItem(item, selectedMembership, role),
           )
         : [],
     [role, selectedMembership],
@@ -135,7 +137,7 @@ export function AppShell() {
   )
   const mobileItems = role
     ? getNavigationItemsForRole(role, { mobileOnly: true })
-        .filter((item) => canShowNavigationItem(item, selectedMembership))
+        .filter((item) => canShowNavigationItem(item, selectedMembership, role))
         .map((item) => ({
           key: item.path,
           label: item.label,

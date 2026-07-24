@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   getApiErrorCode,
+  getApiErrorDetails,
   getApiErrorMessage,
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import type { CurrentUserMembershipClub } from '../../../core/auth/auth.types'
-import { getCourtWorkingHours } from '../../courts/courtWorkingHoursApi'
-import type { CourtWorkingHour } from '../../courts/courtWorkingHours.types'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import {
@@ -37,19 +36,22 @@ import {
 import {
   createDateFilterOptions,
   formatBookingDateTime,
-  generateSlotsFromWorkingHour,
+  getBookingSummariesFromScheduleSlots,
   getScheduleClosingBookings,
-  getWeekdayFromDateValue,
+  mapBookingSlotsResponseToScheduleBookings,
 } from '../scheduleBoard.helpers'
 import type { ScheduleBooking } from '../schedule.types'
 import {
   cancelBooking,
   completeBooking,
   createBooking,
-  listBookingsForCourtDay,
+  listBookingSlots,
   markBookingNoShow,
 } from '../scheduleApi'
-import type { BookingListItem } from '../scheduleApi.types'
+import {
+  BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
+  type BookingListItem,
+} from '../scheduleApi.types'
 
 const statusLegend = [
   {
@@ -69,8 +71,8 @@ const statusLegend = [
     className: 'border-slate-400 bg-slate-200',
   },
   {
-    label: 'ملغي',
-    className: 'border-[#D1D5DB] bg-[#F3F4F6]',
+    label: 'عدم حضور',
+    className: 'border-rose-300 bg-rose-100',
   },
 ]
 
@@ -83,7 +85,7 @@ function getSummary(slots: ScheduleBooking[]) {
   return {
     availableCount: slots.filter((slot) => slot.status === 'available').length,
     confirmedCount: slots.filter((slot) => slot.status === 'confirmed').length,
-    cancelledCount: slots.filter((slot) => slot.status === 'cancelled').length,
+    cancelledCount: 0,
     totalSlots: slots.length,
   }
 }
@@ -96,30 +98,12 @@ function getCourtDateLabel(date: string): string {
   }).format(new Date(`${date}T00:00:00`))
 }
 
-async function fetchBookingResults(
-  clubSlug: string,
-  courtId: number,
-  date: string,
-): Promise<BookingListItem[]> {
-  const response = await listBookingsForCourtDay(clubSlug, {
-    court: courtId,
-    date,
-  })
-
-  const results = Array.isArray(response)
-    ? response
-    : response?.results
-
-  return Array.isArray(results) ? results : []
-}
-
 /**
  * Booking Board for court availability and quick manual creation.
  *
- * It uses the selected club context, courts, working hours, and bookings to
- * generate availability slots. Available/cancelled slots create manual
- * bookings, HOLD slots show next-step actions, and confirmed slots show
- * booking details with focused lifecycle actions.
+ * It uses the backend booking slots endpoint as the schedule authority.
+ * FREE slots create manual bookings, while occupied slots open the existing
+ * booking action/details surfaces when the backend includes booking details.
  */
 export function SchedulePage() {
   const { selectedClubSlug, selectedMembership } = useAuth()
@@ -130,13 +114,11 @@ export function SchedulePage() {
     selectedMembership?.club ?? null
   const [courts, setCourts] = useState<Court[]>([])
   const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null)
-  const [workingHours, setWorkingHours] = useState<CourtWorkingHour[]>([])
-  const [bookings, setBookings] = useState<BookingListItem[]>([])
-  const [setupMessage, setSetupMessage] = useState<string | null>(null)
+  const [slots, setSlots] = useState<ScheduleBooking[]>([])
+  const [boardMessage, setBoardMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSetupLoading, setIsSetupLoading] = useState(true)
-  const [isWorkingHoursLoading, setIsWorkingHoursLoading] = useState(false)
-  const [isBookingsLoading, setIsBookingsLoading] = useState(false)
+  const [isSlotsLoading, setIsSlotsLoading] = useState(false)
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
   const [selectedActionBooking, setSelectedActionBooking] =
     useState<BookingListItem | null>(null)
@@ -162,6 +144,10 @@ export function SchedulePage() {
     useState<BookingListItem | null>(null)
   const [completingBooking, setCompletingBooking] =
     useState<BookingListItem | null>(null)
+  const [
+    completingBookingRemainingAmount,
+    setCompletingBookingRemainingAmount,
+  ] = useState<string | null>(null)
   const [noShowBooking, setNoShowBooking] = useState<BookingListItem | null>(
     null,
   )
@@ -174,26 +160,14 @@ export function SchedulePage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const selectedCourt =
     courts.find((court) => court.id === selectedCourtId) ?? null
-  const selectedWorkingHour = selectedCourt
-    ? workingHours.find(
-        (workingHour) =>
-          workingHour.weekday === getWeekdayFromDateValue(selectedDate),
-      )
-    : undefined
-  const slotGeneration = selectedCourt
-    ? generateSlotsFromWorkingHour(
-        selectedWorkingHour,
-        selectedCourt.slot_duration_minutes,
-        bookings,
-        selectedDate,
-      )
-    : { slots: [], message: setupMessage }
-  const slots = slotGeneration.slots
-  const boardMessage = slotGeneration.message ?? setupMessage
   const amSlots = slots.filter((booking) => booking.period === 'am')
   const pmSlots = slots.filter((booking) => booking.period === 'pm')
   const summary = getSummary(slots)
-  const closingBookings = getScheduleClosingBookings(bookings, selectedDate)
+  const bookingSummaries = getBookingSummariesFromScheduleSlots(slots)
+  const closingBookings = getScheduleClosingBookings(
+    bookingSummaries,
+    selectedDate,
+  )
 
   useEffect(() => {
     let isActive = true
@@ -202,9 +176,8 @@ export function SchedulePage() {
       if (!selectedClubSlug || !selectedClub) {
         setCourts([])
         setSelectedCourtId(null)
-        setWorkingHours([])
-        setBookings([])
-        setSetupMessage('اختر ناديًا أولًا لعرض جدول الحجز')
+        setSlots([])
+        setBoardMessage('اختر ناديًا أولًا لعرض الجدول')
         setError(null)
         setIsSetupLoading(false)
         return
@@ -212,7 +185,7 @@ export function SchedulePage() {
 
       setIsSetupLoading(true)
       setError(null)
-      setSetupMessage(null)
+      setBoardMessage(null)
 
       try {
         const courtsResponse = await listCourts(selectedClubSlug)
@@ -224,9 +197,11 @@ export function SchedulePage() {
         if (isActive) {
           setCourts(activeCourts)
           setSelectedCourtId(firstActiveCourt?.id ?? null)
-          setSetupMessage(
-            firstActiveCourt ? null : 'لا توجد ملاعب نشطة لعرض جدول الحجز',
-          )
+          const message = firstActiveCourt
+            ? null
+            : 'لا توجد ملاعب نشطة لعرض جدول الحجز'
+
+          setBoardMessage(message)
         }
       } catch (error) {
         if (isActive) {
@@ -248,51 +223,14 @@ export function SchedulePage() {
     }
   }, [selectedClub, selectedClubSlug])
 
-  useEffect(() => {
+  async function reloadScheduleSlots(): Promise<void> {
     if (!selectedClubSlug || !selectedCourt) {
-      queueMicrotask(() => setWorkingHours([]))
-      return
-    }
-
-    let isActive = true
-    const clubSlug = selectedClubSlug
-    const courtId = selectedCourt.id
-
-    async function loadWorkingHours(): Promise<void> {
-      setIsWorkingHoursLoading(true)
-      setWorkingHours([])
-      setError(null)
-
-      try {
-        const response = await getCourtWorkingHours(clubSlug, courtId)
-
-        if (isActive) {
-          setWorkingHours(response.working_hours)
-        }
-      } catch (error) {
-        if (isActive) {
-          setWorkingHours([])
-          setError(
-            getApiErrorMessage(error, 'تعذر تحميل مواعيد عمل الملعب'),
-          )
-        }
-      } finally {
-        if (isActive) {
-          setIsWorkingHoursLoading(false)
-        }
-      }
-    }
-
-    void loadWorkingHours()
-
-    return () => {
-      isActive = false
-    }
-  }, [selectedClubSlug, selectedCourt])
-
-  async function reloadBookings(): Promise<void> {
-    if (!selectedClubSlug || !selectedCourt) {
-      setBookings([])
+      setSlots([])
+      setBoardMessage(
+        selectedClubSlug
+          ? 'اختر ملعبًا لعرض الجدول'
+          : 'اختر ناديًا أولًا لعرض الجدول',
+      )
       return
     }
 
@@ -300,22 +238,39 @@ export function SchedulePage() {
     const courtId = selectedCourt.id
     const date = selectedDate
 
-    setIsBookingsLoading(true)
+    setIsSlotsLoading(true)
     setError(null)
 
     try {
-      setBookings(await fetchBookingResults(clubSlug, courtId, date))
+      const response = await listBookingSlots(clubSlug, {
+        court: courtId,
+        date,
+      })
+      setSlots(mapBookingSlotsResponseToScheduleBookings(response))
+      setBoardMessage(
+        response.slots.length === 0
+          ? response.message || 'لا توجد مواعيد متاحة لهذا اليوم'
+          : null,
+      )
     } catch (error) {
-      setBookings([])
-      setError(getApiErrorMessage(error, 'تعذر تحميل حجوزات اليوم'))
+      setSlots([])
+      setBoardMessage(null)
+      setError(getApiErrorMessage(error, 'تعذر تحميل مواعيد اليوم'))
     } finally {
-      setIsBookingsLoading(false)
+      setIsSlotsLoading(false)
     }
   }
 
   useEffect(() => {
     if (!selectedClubSlug || !selectedCourt) {
-      queueMicrotask(() => setBookings([]))
+      queueMicrotask(() => {
+        setSlots([])
+        setBoardMessage(
+          selectedClubSlug
+            ? 'اختر ملعبًا لعرض الجدول'
+            : 'اختر ناديًا أولًا لعرض الجدول',
+        )
+      })
       return
     }
 
@@ -324,29 +279,38 @@ export function SchedulePage() {
     const courtId = selectedCourt.id
     const date = selectedDate
 
-    async function loadBookings(): Promise<void> {
-      setIsBookingsLoading(true)
+    async function loadSlots(): Promise<void> {
+      setIsSlotsLoading(true)
       setError(null)
 
       try {
-        const results = await fetchBookingResults(clubSlug, courtId, date)
+        const response = await listBookingSlots(clubSlug, {
+          court: courtId,
+          date,
+        })
 
         if (isActive) {
-          setBookings(results)
+          setSlots(mapBookingSlotsResponseToScheduleBookings(response))
+          setBoardMessage(
+            response.slots.length === 0
+              ? response.message || 'لا توجد مواعيد متاحة لهذا اليوم'
+              : null,
+          )
         }
       } catch (error) {
         if (isActive) {
-          setBookings([])
-          setError(getApiErrorMessage(error, 'تعذر تحميل حجوزات اليوم'))
+          setSlots([])
+          setBoardMessage(null)
+          setError(getApiErrorMessage(error, 'تعذر تحميل مواعيد اليوم'))
         }
       } finally {
         if (isActive) {
-          setIsBookingsLoading(false)
+          setIsSlotsLoading(false)
         }
       }
     }
 
-    void loadBookings()
+    void loadSlots()
 
     return () => {
       isActive = false
@@ -377,7 +341,7 @@ export function SchedulePage() {
       })
 
       setSelectedSlot(null)
-      await reloadBookings()
+      await reloadScheduleSlots()
 
       if (createdBooking.status === 'HOLD') {
         setSelectedSlot({
@@ -399,7 +363,7 @@ export function SchedulePage() {
       setCreateFieldErrors(getApiFieldErrors(error))
 
       if (errorCode && bookingConflictCodes.has(errorCode)) {
-        await reloadBookings()
+        await reloadScheduleSlots()
       }
     } finally {
       setIsCreateSubmitting(false)
@@ -422,7 +386,7 @@ export function SchedulePage() {
       setCancellingBooking(null)
       setSelectedActionBooking(null)
       setSelectedSlot(null)
-      await reloadBookings()
+      await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
         getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
@@ -445,10 +409,22 @@ export function SchedulePage() {
     try {
       await completeBooking(selectedClubSlug, completingBooking.id)
       setCompletingBooking(null)
+      setCompletingBookingRemainingAmount(null)
       setSelectedActionBooking(null)
       setSelectedSlot(null)
-      await reloadBookings()
+      await reloadScheduleSlots()
     } catch (error) {
+      if (getApiErrorCode(error) === BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT) {
+        const remainingAmount = getApiErrorDetails(error)?.remaining_amount
+
+        if (
+          typeof remainingAmount === 'string' ||
+          typeof remainingAmount === 'number'
+        ) {
+          setCompletingBookingRemainingAmount(String(remainingAmount))
+        }
+      }
+
       setLifecycleError(
         getApiErrorMessage(error, 'تعذر إكمال الحجز. حاول مرة أخرى'),
       )
@@ -473,7 +449,7 @@ export function SchedulePage() {
       setNoShowBooking(null)
       setSelectedActionBooking(null)
       setSelectedSlot(null)
-      await reloadBookings()
+      await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
         getApiErrorMessage(error, 'تعذر تسجيل عدم الحضور. حاول مرة أخرى'),
@@ -507,7 +483,7 @@ export function SchedulePage() {
       setHoldBooking(null)
       setSelectedSlot(null)
       setSuccessMessage('تم تسجيل الدفعة بنجاح')
-      await reloadBookings()
+      await reloadScheduleSlots()
     } catch (error) {
       setPaymentError(
         getApiErrorMessage(
@@ -538,7 +514,7 @@ export function SchedulePage() {
       setHoldBooking(null)
       setSelectedSlot(null)
       setSuccessMessage('تم تحرير الموعد بنجاح')
-      await reloadBookings()
+      await reloadScheduleSlots()
     } catch (error) {
       setHoldActionError(
         getApiErrorMessage(error, 'تعذر تحرير الموعد. حاول مرة أخرى'),
@@ -559,7 +535,7 @@ export function SchedulePage() {
     setLifecycleFieldErrors(null)
     setHoldActionError(null)
 
-    if (slot.status === 'available' || slot.status === 'cancelled') {
+    if (slot.status === 'available' && slot.isAvailable) {
       setSelectedSlot(slot)
       setHoldBooking(null)
       return
@@ -577,7 +553,7 @@ export function SchedulePage() {
       return
     }
 
-    if (slot.status === 'completed') {
+    if (slot.status === 'completed' || slot.status === 'no_show') {
       setSelectedSlot(slot.booking ? slot : null)
       setHoldBooking(null)
     }
@@ -604,6 +580,7 @@ export function SchedulePage() {
     setPaymentBooking(null)
     setCancellingBooking(null)
     setCompletingBooking(null)
+    setCompletingBookingRemainingAmount(null)
     setNoShowBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
@@ -617,8 +594,8 @@ export function SchedulePage() {
 
   function handleCourtChange(nextCourtId: string): void {
     setSelectedCourtId(Number(nextCourtId))
-    setWorkingHours([])
-    setBookings([])
+    setSlots([])
+    setBoardMessage(null)
     clearScheduleSelection()
   }
 
@@ -662,22 +639,18 @@ export function SchedulePage() {
   }))
   const shouldShowBoardSlots =
     !isSetupLoading &&
-    !isWorkingHoursLoading &&
-    !isBookingsLoading &&
+    !isSlotsLoading &&
     !error &&
     slots.length > 0
   const shouldShowBoardMessage =
     !isSetupLoading &&
-    !isWorkingHoursLoading &&
-    !isBookingsLoading &&
+    !isSlotsLoading &&
     !error &&
     Boolean(boardMessage) &&
     slots.length === 0
   const loadingMessage = isSetupLoading
     ? 'جاري تحميل إعدادات جدول الحجز...'
-    : isWorkingHoursLoading
-      ? 'جاري تحميل مواعيد عمل الملعب...'
-    : 'جاري تحميل حجوزات اليوم...'
+    : 'جاري تحميل مواعيد الملعب...'
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
@@ -697,7 +670,7 @@ export function SchedulePage() {
               لوحة الحجز
             </h2>
             <p className="text-sm text-[var(--sloty-text-muted)]">
-              اختر فترة متاحة أو ملغية لإضافة حجز، أو فترة مؤكدة/مؤقتة لعرض الإجراء المناسب
+              اختر فترة متاحة لإضافة حجز، أو فترة مشغولة لعرض الإجراء المناسب
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -763,14 +736,13 @@ export function SchedulePage() {
           <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/30 via-emerald-900/10 to-slate-950/35" />
           <div className="relative z-10 grid min-h-[560px] grid-cols-1 gap-3 p-2 sm:min-h-[560px] sm:gap-4 sm:p-4 md:min-h-[480px] md:grid-cols-2 md:p-5 lg:min-h-[540px] lg:p-6">
             {isSetupLoading ||
-            isWorkingHoursLoading ||
-            isBookingsLoading ||
+            isSlotsLoading ||
             error ||
             shouldShowBoardMessage ? (
               <div className="flex items-center justify-center rounded-3xl border border-white/20 bg-white/88 p-5 text-center md:col-span-2">
                 <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
                   {error ??
-                    (isSetupLoading || isWorkingHoursLoading || isBookingsLoading
+                    (isSetupLoading || isSlotsLoading
                       ? loadingMessage
                       : boardMessage)}
                 </p>
@@ -791,7 +763,11 @@ export function SchedulePage() {
                       <BookingCard
                         booking={booking}
                         key={booking.id}
-                        onSelect={handleSelectSlot}
+                        onSelect={
+                          booking.isAvailable || booking.booking
+                            ? handleSelectSlot
+                            : undefined
+                        }
                       />
                     ))}
                   </div>
@@ -809,7 +785,11 @@ export function SchedulePage() {
                       <BookingCard
                         booking={booking}
                         key={booking.id}
-                        onSelect={handleSelectSlot}
+                        onSelect={
+                          booking.isAvailable || booking.booking
+                            ? handleSelectSlot
+                            : undefined
+                        }
                       />
                     ))}
                   </div>
@@ -836,7 +816,8 @@ export function SchedulePage() {
       ) : null}
 
       {selectedSlot &&
-      (selectedSlot.status === 'available' || selectedSlot.status === 'cancelled') &&
+      selectedSlot.status === 'available' &&
+      selectedSlot.isAvailable &&
       selectedCourt ? (
         <AddBookingSheet
           courtName={selectedCourt.name}
@@ -883,7 +864,9 @@ export function SchedulePage() {
 
       {selectedActionBooking ||
       (selectedSlot &&
-        (selectedSlot.status === 'confirmed' || selectedSlot.status === 'completed')) ? (
+        (selectedSlot.status === 'confirmed' ||
+          selectedSlot.status === 'completed' ||
+          selectedSlot.status === 'no_show')) ? (
         <BookingActionSheet
           booking={selectedActionBooking ?? selectedSlot?.booking ?? null}
           courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
@@ -929,6 +912,7 @@ export function SchedulePage() {
           }}
           onComplete={(booking) => {
             setCompletingBooking(booking)
+            setCompletingBookingRemainingAmount(null)
             setSelectedActionBooking(null)
             setSelectedSlot(null)
             setLifecycleError(null)
@@ -982,10 +966,26 @@ export function SchedulePage() {
           isSubmitting={isLifecycleSubmitting}
           onClose={() => {
             setCompletingBooking(null)
+            setCompletingBookingRemainingAmount(null)
             setLifecycleError(null)
           }}
           onConfirm={handleCompleteBooking}
-          remainingAmount={completingBooking.remaining_amount}
+          onRequestPayment={() => {
+            setPaymentBooking({
+              ...completingBooking,
+              remaining_amount:
+                completingBookingRemainingAmount ??
+                completingBooking.remaining_amount,
+            })
+            setCompletingBooking(null)
+            setCompletingBookingRemainingAmount(null)
+            setLifecycleError(null)
+            setPaymentError(null)
+            setPaymentFieldErrors(null)
+          }}
+          remainingAmount={
+            completingBookingRemainingAmount ?? completingBooking.remaining_amount
+          }
         />
       ) : null}
 

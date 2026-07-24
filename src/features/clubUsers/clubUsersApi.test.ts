@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import { listClubUsers } from './clubUsersApi'
+import { listClubUsers, updateManagerPermissions } from './clubUsersApi'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -32,6 +32,33 @@ describe('clubUsersApi', () => {
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.users.list('nasr-club')}?role=STAFF&court=3&is_active=true&search=ahmed`,
+    )
+  })
+
+  it('patches manager permissions through the membership detail endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ id: 1 })
+
+    await updateManagerPermissions('nasr-club', 102, {
+      manager_can_settle_transactions: true,
+      manager_can_change_pricing: false,
+      can_manage_settlements: true,
+      can_change_pricing: true,
+      role: 'MANAGER',
+    } as never)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.memberships.detail('nasr-club', 102),
+      {
+        method: 'PATCH',
+        body: {
+          manager_can_settle_transactions: true,
+          manager_can_change_pricing: false,
+        },
+      },
+    )
+    expect(mockedApiRequest).not.toHaveBeenCalledWith(
+      apiEndpoints.clubs.detail('nasr-club'),
+      expect.anything(),
     )
   })
 })

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from './AuthProvider'
 import { fetchCurrentUserProfile } from './authApi'
 import { clearAuthTokens, getAccessToken } from './authStorage'
+import { canManageSettlements } from './auth.types'
 import { createDevAccessToken } from './devAuth'
 import {
   clearSelectedClubSlug,
@@ -23,6 +24,8 @@ function AuthProviderHarness() {
     currentUser,
     login,
     logout,
+    role,
+    selectClub,
     selectedClubSlug,
     selectedMembership,
   } = useAuth()
@@ -32,6 +35,12 @@ function AuthProviderHarness() {
       <p>{currentUser?.username ?? 'لا يوجد مستخدم'}</p>
       <p>{selectedClubSlug ?? 'لا يوجد نادي محدد'}</p>
       <p>{selectedMembership?.club.name ?? 'لا توجد عضوية محددة'}</p>
+      <p>{role ?? 'لا يوجد دور محدد'}</p>
+      <p>
+        {canManageSettlements(selectedMembership, role)
+          ? 'يمكن إدارة التسويات'
+          : 'لا يمكن إدارة التسويات'}
+      </p>
       <button
         onClick={() => login(createDevAccessToken('STAFF'), 'refresh-token')}
         type="button"
@@ -40,6 +49,12 @@ function AuthProviderHarness() {
       </button>
       <button onClick={logout} type="button">
         خروج
+      </button>
+      <button onClick={() => selectClub('demo-football-club')} type="button">
+        اختيار النادي الأول
+      </button>
+      <button onClick={() => selectClub('second-club')} type="button">
+        اختيار النادي الثاني
       </button>
     </div>
   )
@@ -86,6 +101,11 @@ describe('AuthProvider', () => {
       {
         id: 11,
         role: 'MANAGER' as const,
+        permissions: {
+          can_change_pricing: false,
+          can_manage_working_hours: false,
+          can_manage_settlements: true,
+        },
         club: {
           id: 2,
           slug: 'second-club',
@@ -154,6 +174,36 @@ describe('AuthProvider', () => {
     expect(await screen.findByText('staff-user')).toBeInTheDocument()
     expect(screen.getByText('لا يوجد نادي محدد')).toBeInTheDocument()
     expect(getSelectedClubSlug()).toBeNull()
+  })
+
+  it('recalculates active membership, role, and permissions when selected club changes', async () => {
+    const user = userEvent.setup()
+    saveSelectedClubSlug('demo-football-club')
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(manyMembershipsProfile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    expect(await screen.findByText('Demo Football Club')).toBeInTheDocument()
+    expect(screen.getByText('STAFF')).toBeInTheDocument()
+    expect(screen.getByText('لا يمكن إدارة التسويات')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'اختيار النادي الثاني' }))
+
+    expect(screen.getByText('Second Club')).toBeInTheDocument()
+    expect(screen.getByText('MANAGER')).toBeInTheDocument()
+    expect(screen.getByText('يمكن إدارة التسويات')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'اختيار النادي الأول' }))
+
+    expect(screen.getByText('Demo Football Club')).toBeInTheDocument()
+    expect(screen.getByText('STAFF')).toBeInTheDocument()
+    expect(screen.getByText('لا يمكن إدارة التسويات')).toBeInTheDocument()
   })
 
   it('clears a stale selected club slug when memberships no longer include it', async () => {

@@ -6,7 +6,11 @@ import {
 } from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
 import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
 import type { BookingBoardPeriod, ScheduleBooking } from './schedule.types'
-import type { BookingListItem } from './scheduleApi.types'
+import type {
+  BookingListItem,
+  BookingSlot,
+  BookingSlotsResponse,
+} from './scheduleApi.types'
 
 interface DateFilterOption {
   key: string
@@ -22,6 +26,17 @@ export interface SlotGenerationResult {
 export interface ScheduleClosingBookingsResult {
   items: BookingListItem[]
   totalCount: number
+}
+
+const bookingSlotStatusToBoardStatus: Record<
+  BookingSlot['slot_status'],
+  ScheduleBooking['status']
+> = {
+  FREE: 'available',
+  HOLD: 'hold',
+  CONFIRMED: 'confirmed',
+  COMPLETED: 'completed',
+  NO_SHOW: 'no_show',
 }
 
 const hiddenBookingStatuses = new Set([
@@ -193,6 +208,70 @@ function timeToMinutes(time: string): number | null {
   }
 
   return hours * 60 + minutes
+}
+
+function getTimeValue(value: string): string {
+  const timePart = value.includes('T') ? value.split('T')[1] : value
+
+  return normalizeTimeString(timePart.slice(0, 5))
+}
+
+function getSlotBookingDateTime(dateValue: string, timeValue: string): string {
+  return timeValue.includes('T') ? timeValue : formatBookingDateTime(dateValue, timeValue)
+}
+
+export function mapBookingSlotToScheduleBooking(
+  slot: BookingSlot,
+  courtId: number,
+): ScheduleBooking {
+  const startTime = getTimeValue(slot.start_time)
+  const endTime = getTimeValue(slot.end_time)
+  const startMinutes = timeToMinutes(startTime) ?? 0
+  const booking = slot.booking
+    ? {
+        id: slot.booking.id,
+        court: courtId,
+        customer_name: slot.booking.customer_name,
+        start_time: getSlotBookingDateTime(slot.date, startTime),
+        end_time: getSlotBookingDateTime(slot.date, endTime),
+        status: slot.booking.status,
+        total_price: slot.booking.total_booking_value,
+        paid_amount: slot.booking.total_paid_amount,
+        remaining_amount: slot.booking.remaining_amount,
+      }
+    : undefined
+
+  return {
+    id: [
+      'backend-slot',
+      slot.date,
+      startTime.replace(':', ''),
+      endTime.replace(':', ''),
+    ].join('-'),
+    status: bookingSlotStatusToBoardStatus[slot.slot_status],
+    label: slot.label,
+    isAvailable: slot.is_available,
+    startTime,
+    endTime,
+    period: getSlotPeriod(startMinutes),
+    ...(booking ? { booking } : {}),
+  }
+}
+
+export function mapBookingSlotsResponseToScheduleBookings(
+  response: BookingSlotsResponse,
+): ScheduleBooking[] {
+  return response.slots.map((slot) =>
+    mapBookingSlotToScheduleBooking(slot, response.court),
+  )
+}
+
+export function getBookingSummariesFromScheduleSlots(
+  slots: ScheduleBooking[],
+): BookingListItem[] {
+  return slots
+    .map((slot) => slot.booking)
+    .filter((booking): booking is BookingListItem => Boolean(booking))
 }
 
 function hasPositiveRemainingAmount(booking: BookingListItem): boolean {

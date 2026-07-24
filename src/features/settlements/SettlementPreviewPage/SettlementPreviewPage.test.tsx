@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -235,9 +235,9 @@ describe('SettlementPreviewPage', () => {
       notes: 'مراجعة الوردية',
     })
     expect(mockedCreateSettlement.mock.calls[0][1]).not.toHaveProperty('dry_run')
-    expect(await screen.findByTestId('location')).toHaveTextContent(
-      '/settlements/99',
-    )
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/settlements/99')
+    })
   })
 
   it('redirects to settlements list when confirmation response has no id', async () => {

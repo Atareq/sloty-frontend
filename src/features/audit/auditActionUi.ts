@@ -1,17 +1,8 @@
 import type { AuditLogEntry } from './audit.types'
-
-export type SupportedAuditAction =
-  | 'BOOKING_CREATED'
-  | 'BOOKING_UPDATED'
-  | 'BOOKING_CANCELLED'
-  | 'BOOKING_COMPLETED'
-  | 'BOOKING_NO_SHOW'
-  | 'BOOKING_EXPIRED'
-  | 'BOOKING_RESCHEDULED'
-  | 'TRANSACTION_CREATED'
-  | 'TRANSACTION_CANCELLED'
-  | 'SETTLEMENT_CREATED'
-  | 'SETTLEMENT_MARKED_SETTLED'
+import {
+  getAuditActionLabel as getAuditActionFallbackLabel,
+  type SupportedAuditAction,
+} from './auditActionLabels'
 
 export interface AuditActionUiConfig {
   icon: string
@@ -99,20 +90,6 @@ export const neutralAuditActionUiConfig: AuditActionUiConfig = {
   accentBorderClass: 'border-r-slate-400',
 }
 
-export const auditActionLabelFallbacks: Record<SupportedAuditAction, string> = {
-  BOOKING_CREATED: 'تم إنشاء حجز',
-  BOOKING_UPDATED: 'تم تعديل حجز',
-  BOOKING_CANCELLED: 'تم إلغاء حجز',
-  BOOKING_COMPLETED: 'تم إكمال حجز',
-  BOOKING_NO_SHOW: 'تم تسجيل عدم حضور',
-  BOOKING_EXPIRED: 'انتهى حجز مؤقت',
-  BOOKING_RESCHEDULED: 'تم تغيير موعد حجز',
-  TRANSACTION_CREATED: 'تم تسجيل دفعة',
-  TRANSACTION_CANCELLED: 'تم إلغاء دفعة',
-  SETTLEMENT_CREATED: 'تم إنشاء تسوية',
-  SETTLEMENT_MARKED_SETTLED: 'تم تأكيد تسوية',
-}
-
 export function getAuditActionUiConfig(action: string): AuditActionUiConfig {
   return (
     auditActionUiConfig[action as SupportedAuditAction] ??
@@ -127,8 +104,5 @@ export function getAuditActionLabel(entry: AuditLogEntry): string {
     return actionLabel
   }
 
-  return (
-    auditActionLabelFallbacks[entry.action as SupportedAuditAction] ??
-    entry.action
-  )
+  return getAuditActionFallbackLabel(entry.action)
 }

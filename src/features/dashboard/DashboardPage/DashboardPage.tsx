@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import {
   addDays,
   formatDateInputValue,
 } from '../../../shared/utils/date'
+import { getCourtDisplayName } from '../../../shared/utils/displayNames'
 import { formatMoneyAmount } from '../../../shared/utils/money'
+import { toQueryObject } from '../../../shared/utils/queryParams'
+import { listCourts } from '../../courts/courtsApi'
+import type { Court } from '../../courts/courts.types'
 import { BookingStatusBreakdown } from '../components/BookingStatusBreakdown/BookingStatusBreakdown'
 import { MoneySummarySection } from '../components/MoneySummarySection/MoneySummarySection'
 import { NeedsActionSection } from '../components/NeedsActionSection/NeedsActionSection'
@@ -28,6 +34,8 @@ const dateShortcutLabels: Record<DateShortcut, string> = {
   week: 'هذا الأسبوع',
   yesterday: 'أمس',
 }
+
+const dateShortcuts: DateShortcut[] = ['today', 'yesterday', 'week']
 
 function createShortcutQuery(shortcut: DateShortcut): DashboardSummaryQuery {
   const today = new Date()
@@ -60,6 +68,28 @@ function formatCount(value: number | null | undefined): string | number {
   return value ?? '-'
 }
 
+function getShortcutFromSearch(search: string): DateShortcut {
+  const shortcut = toQueryObject(search).shortcut
+
+  return dateShortcuts.includes(shortcut as DateShortcut)
+    ? (shortcut as DateShortcut)
+    : 'today'
+}
+
+function getCourtFromSearch(search: string): string {
+  return toQueryObject(search).court ?? ''
+}
+
+function getCourtQueryValue(court: string): number | undefined {
+  if (!court) {
+    return undefined
+  }
+
+  const numericCourt = Number(court)
+
+  return Number.isFinite(numericCourt) ? numericCourt : undefined
+}
+
 function renderLoadingSkeletons() {
   return (
     <>
@@ -82,15 +112,68 @@ function renderLoadingSkeletons() {
  */
 export function DashboardPage() {
   const { selectedClubSlug, selectedMembership } = useAuth()
-  const [activeShortcut, setActiveShortcut] = useState<DateShortcut>('today')
+  const location = useLocation()
+  const navigate = useNavigate()
   const [summary, setSummary] = useState<DashboardSummaryResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [courts, setCourts] = useState<Court[]>([])
+  const [isCourtsLoading, setIsCourtsLoading] = useState(false)
+  const [courtOptionsError, setCourtOptionsError] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
-  const activeQuery = useMemo(
-    () => createShortcutQuery(activeShortcut),
-    [activeShortcut],
+  const activeShortcut = useMemo(
+    () => getShortcutFromSearch(location.search),
+    [location.search],
   )
+  const selectedCourt = useMemo(
+    () => getCourtFromSearch(location.search),
+    [location.search],
+  )
+  const activeQuery = useMemo(
+    () => ({
+      ...createShortcutQuery(activeShortcut),
+      ...(selectedCourt ? { court: selectedCourt } : {}),
+    }),
+    [activeShortcut, selectedCourt],
+  )
+  const selectedCourtOption = courts.find(
+    (court) => String(court.id) === selectedCourt,
+  )
+  const selectedCourtLabel = selectedCourt
+    ? selectedCourtOption
+      ? getCourtDisplayName(selectedCourtOption)
+      : `ملعب #${selectedCourt}`
+    : 'كل الملاعب'
+  const linkContext = summary
+    ? {
+        ...summary.context,
+        court: getCourtQueryValue(selectedCourt) ?? summary.context.court,
+      }
+    : null
+  const scopedSummary = summary && linkContext
+    ? {
+        ...summary,
+        context: linkContext,
+      }
+    : summary
+
+  function updateDashboardQuery(nextValues: {
+    shortcut?: DateShortcut
+    court?: string
+  }): void {
+    const query = toQueryObject(location.search)
+    const nextShortcut = nextValues.shortcut ?? activeShortcut
+    const nextCourt =
+      nextValues.court !== undefined ? nextValues.court : selectedCourt
+
+    navigate(
+      buildPathWithQuery('/dashboard', {
+        ...query,
+        shortcut: nextShortcut === 'today' ? undefined : nextShortcut,
+        court: nextCourt || undefined,
+      }),
+    )
+  }
 
   useEffect(() => {
     let isActive = true
@@ -115,7 +198,7 @@ export function DashboardPage() {
       } catch (error) {
         if (isActive) {
           setSummary(null)
-          setError(getApiErrorMessage(error, 'تعذر تحميل الملخص'))
+          setError(getApiErrorMessage(error, 'تعذر تحميل ملخص النادي'))
         }
       } finally {
         if (isActive) {
@@ -130,6 +213,45 @@ export function DashboardPage() {
       isActive = false
     }
   }, [activeQuery, selectedClubSlug])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadCourts(): Promise<void> {
+      if (!selectedClubSlug) {
+        setCourts([])
+        setCourtOptionsError(null)
+        setIsCourtsLoading(false)
+        return
+      }
+
+      setIsCourtsLoading(true)
+      setCourtOptionsError(null)
+
+      try {
+        const response = await listCourts(selectedClubSlug)
+
+        if (isActive) {
+          setCourts(response.results.filter((court) => court.is_active))
+        }
+      } catch {
+        if (isActive) {
+          setCourts([])
+          setCourtOptionsError('تعذر تحميل خيارات الملاعب')
+        }
+      } finally {
+        if (isActive) {
+          setIsCourtsLoading(false)
+        }
+      }
+    }
+
+    void loadCourts()
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedClubSlug])
 
   return (
     <div className="space-y-5">
@@ -165,20 +287,94 @@ export function DashboardPage() {
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                {(['today', 'yesterday', 'week'] as DateShortcut[]).map(
-                  (shortcut) => (
+                {dateShortcuts.map((shortcut) => (
+                  <AppButton
+                    key={shortcut}
+                    onClick={() => updateDashboardQuery({ shortcut })}
+                    variant={
+                      activeShortcut === shortcut ? 'primary' : 'secondary'
+                    }
+                  >
+                    {dateShortcutLabels[shortcut]}
+                  </AppButton>
+                ))}
+              </div>
+            </div>
+          </AppCard>
+
+          <AppCard>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+                  نطاق الملعب
+                </p>
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+                  {isCourtsLoading ? 'جاري تحميل الملاعب...' : selectedCourtLabel}
+                </p>
+                {courtOptionsError ? (
+                  <p className="mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                    {courtOptionsError}
+                  </p>
+                ) : null}
+              </div>
+
+              {courts.length === 1 && !selectedCourt ? (
+                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-black text-[var(--sloty-text-primary)]">
+                  كل الملاعب
+                </div>
+              ) : courts.length <= 4 ? (
+                <div className="flex flex-wrap gap-2">
+                  <AppButton
+                    onClick={() => updateDashboardQuery({ court: '' })}
+                    type="button"
+                    variant={!selectedCourt ? 'primary' : 'secondary'}
+                  >
+                    كل الملاعب
+                  </AppButton>
+                  {courts.map((court) => (
                     <AppButton
-                      key={shortcut}
-                      onClick={() => setActiveShortcut(shortcut)}
+                      key={court.id}
+                      onClick={() =>
+                        updateDashboardQuery({ court: String(court.id) })
+                      }
+                      type="button"
                       variant={
-                        activeShortcut === shortcut ? 'primary' : 'secondary'
+                        selectedCourt === String(court.id)
+                          ? 'primary'
+                          : 'secondary'
                       }
                     >
-                      {dateShortcutLabels[shortcut]}
+                      {getCourtDisplayName(court)}
                     </AppButton>
-                  ),
-                )}
-              </div>
+                  ))}
+                  {selectedCourt && !selectedCourtOption ? (
+                    <AppButton type="button" variant="primary">
+                      {selectedCourtLabel}
+                    </AppButton>
+                  ) : null}
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+                  <span>نطاق الملعب</span>
+                  <select
+                    className="h-11 rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-bold text-[var(--sloty-text-primary)]"
+                    onChange={(event) =>
+                      updateDashboardQuery({ court: event.target.value })
+                    }
+                    value={selectedCourt}
+                  >
+                    <option value="">كل الملاعب</option>
+                    {courts.map((court) => (
+                      <option key={court.id} value={court.id}>
+                        {getCourtDisplayName(court)}
+                      </option>
+                    ))}
+                    {selectedCourt && !selectedCourtOption ? (
+                      <option value={selectedCourt}>{selectedCourtLabel}</option>
+                    ) : null}
+                  </select>
+                </label>
+              )}
             </div>
           </AppCard>
 
@@ -198,16 +394,24 @@ export function DashboardPage() {
                 <SummaryActionCard
                   helper="مقرر لعبها خلال الفترة"
                   label="حجوزات اليوم"
-                  to={buildSummaryLink('/bookings', summary.context)}
+                  to={
+                    linkContext
+                      ? buildSummaryLink('/bookings', linkContext)
+                      : undefined
+                  }
                   value={summary.summary.total_bookings}
                 />
 
                 <SummaryActionCard
                   helper="حجوزات تحتاج متابعة"
                   label="تحتاج إجراء"
-                  to={buildSummaryLink('/bookings', summary.context, {
-                    needs_action: true,
-                  })}
+                  to={
+                    linkContext
+                      ? buildSummaryLink('/bookings', linkContext, {
+                          needs_action: true,
+                        })
+                      : undefined
+                  }
                   tone="amber"
                   value={summary.summary.needs_action_count}
                 />
@@ -215,9 +419,13 @@ export function DashboardPage() {
                 <SummaryActionCard
                   helper="دفعات تم تحصيلها خلال الفترة"
                   label="تحصيل اليوم"
-                  to={buildSummaryLink('/transactions', summary.context, {
-                    is_cancelled: false,
-                  })}
+                  to={
+                    linkContext
+                      ? buildSummaryLink('/transactions', linkContext, {
+                          is_cancelled: false,
+                        })
+                      : undefined
+                  }
                   tone="green"
                   value={formatMoneyAmount(summary.summary.transaction_total)}
                 />
@@ -229,7 +437,11 @@ export function DashboardPage() {
                     summary.summary.staff_with_unsettled_transactions_count
                   } موظفين`}
                   label="مبالغ غير مسواة حالياً"
-                  to="/transactions?settlement_status=unsettled&is_cancelled=false"
+                  to={buildPathWithQuery('/transactions', {
+                    settlement_status: 'unsettled',
+                    is_cancelled: false,
+                    court: linkContext?.court ?? undefined,
+                  })}
                   tone="purple"
                   value={formatMoneyAmount(
                     summary.summary.unsettled_transaction_total_amount,
@@ -237,10 +449,10 @@ export function DashboardPage() {
                 />
               </section>
 
-              <NeedsActionSection summary={summary} />
-              <BookingStatusBreakdown summary={summary} />
-              <MoneySummarySection summary={summary} />
-              <StaffUnsettledMoneySection summary={summary} />
+              <NeedsActionSection summary={scopedSummary ?? summary} />
+              <BookingStatusBreakdown summary={scopedSummary ?? summary} />
+              <MoneySummarySection summary={scopedSummary ?? summary} />
+              <StaffUnsettledMoneySection summary={scopedSummary ?? summary} />
             </>
           ) : null}
         </>

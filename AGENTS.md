@@ -40,9 +40,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Use responsive Tailwind classes such as `sm:`, `md:`, `lg:`, and `xl:` intentionally.
 - Do not blindly copy V0/Vercel prototype layout. Convert it into a real responsive web layout.
 - Background images are decorative only. Dynamic booking slots must always be real React components.
-- Booking Board shows only availability-related states: available, HOLD/reserved, confirmed/reserved, and cancelled-but-bookable.
+- Booking Board shows backend slot availability states: FREE/available, HOLD/reserved, CONFIRMED/reserved, COMPLETED/locked, and NO_SHOW/consumed.
 - HOLD slots are visible reserved slots; they are not available and must not open the AddBookingSheet.
-- Completed, payment, no-show, expired, and lifecycle statuses do not belong on Booking Board.
+- Payment details, expired records, and lifecycle controls do not belong on Booking Board slot buttons.
 - Booking Board slot buttons must remain compact and show only the start time.
 
 ## Architecture Rules
@@ -76,7 +76,12 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `/me` includes `account_created_by` as nullable `User.created_by` display information; do not derive it from memberships or the current user.
 - `/me` memberships are confirmed and used for frontend club-selection UX.
 - Store only `selectedClubSlug` persistently; do not store full memberships or permissions as trusted authority.
-- Manager permission flags live on the selected membership, not the club object: use `can_change_pricing`, `can_manage_working_hours`, and `can_manage_settlements`.
+- Manager permission flags live on the selected membership, not the club object: use nested membership `permissions.can_change_pricing`, `permissions.can_manage_working_hours`, and `permissions.can_manage_settlements` when returned by `/me`.
+- Do not store or send `manager_can_settle_transactions` or `manager_can_change_pricing` on Club create/update payloads.
+- Owner edits to existing Manager permissions use `PATCH clubs/{club_slug}/memberships/{membership_id}/` with only `manager_can_settle_transactions` and `manager_can_change_pricing`.
+- Do not update manager permissions through Club update, and do not send manager permission fields for Staff or Owner memberships.
+- After updating manager permissions, refresh the club users list and refresh `/me` when the active membership may be affected; on 403, refresh `/me` and do not retry the mutation automatically.
+- During the membership-permission backend rollout, fallback compatibility for older permission shapes must stay centralized in auth helpers, with no direct component reads from club-level permission fields.
 - If `/me` returns one membership, auto-select its club slug.
 - If `/me` returns multiple memberships, show `/select-club`.
 - If `/me` returns no memberships and the user is not platform admin, show `/no-club-access`.
@@ -90,16 +95,17 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Working hours are weekly recurring rows for one court, saved as a full-week PUT; one court has up to seven numeric weekday rows (`0` Monday through `6` Sunday).
 - Working Hours V2 uses native time inputs for same-day `blocks` per weekday, not `opens_at`/`closes_at`. Multiple same-day blocks are supported, overnight/next-day blocks are not supported, and the frontend must not send `end_day_offset`, `included_hours`, raw selected hours, or selected cells.
 - Do not add holiday/Ramadan working-hour exceptions in MVP unless explicitly requested.
-- Booking Board integration uses clubs, courts, working-hours, and bookings APIs to generate availability slots.
-- Booking slots endpoint `clubs/{club_slug}/bookings/slots/` exists for future Schedule migration; `FREE` is response-only slot status and must not be added to actual `Booking.Status`.
-- Future Schedule slots integration should use `slot.is_available` for clickability and `slot.label` for localized display.
-- Booking Board must fetch working hours for the selected court only.
-- Booking Board must generate slots from working-hour blocks and defer backend validation authority to the API.
+- Booking Board integration uses clubs, courts, and the backend booking slots API for daily availability.
+- Schedule Board uses `clubs/{club_slug}/bookings/slots/` with `court` and `date` for the selected daily board.
+- Schedule Board must use `slot.is_available` for clickability, `slot.slot_status` for styling/business state, and `slot.label` for localized display when available.
+- `FREE` is response-only slot status and must not be added to actual `Booking.Status`; `CANCELLED` and `EXPIRED` release slots and should not be shown as blocking board states.
+- Refetch backend booking slots after booking creation, payment recording, cancellation, completion, no-show, hold release, or any action that changes slot/payment state.
+- Backend still uses working hours to generate slots; do not remove working-hours settings pages.
 - Booking Board must not show payment or lifecycle details.
 - Schedule page uses one selected `YYYY-MM-DD` date value, with quick date buttons plus a real date picker.
 - Booking Board hides/blocks past slots based on the current Africa/Cairo time; past selected dates are not bookable.
-- Booking Board day/night split currently uses Sloty business cutoffs: day is 06:00 to before 18:00, and night is 18:00 to before 06:00, until backend provides dynamic thresholds.
-- Sprint 3B creates bookings only from available/cancelled Booking Board slots; AddBookingSheet remains customer basics only.
+- Booking Board keeps the AM/PM split: AM before 12:00 and PM from 12:00 onward.
+- Sprint 3B creates bookings only from backend-available Booking Board slots; AddBookingSheet remains customer basics only.
 - Sprint 3C adds confirmed booking details and cancel action only.
 - Sprint 3D adds complete/no-show actions from confirmed booking details only.
 - Sprint 4 adds basic transaction listing and confirmed-booking payment recording through `apiEndpoints.clubs.transactions`; transaction API calls go through `src/features/transactions/transactionsApi.ts`.
@@ -113,7 +119,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Schedule has a compact `حجوزات تحتاج إغلاق` section for today only. It shows at most 3 bookings needing payment/status closure, excludes CANCELLED, EXPIRED, empty slots, and fully closed completed bookings, links to `سجل الحجوزات` with `needs_action=true` when more items exist, and row clicks must open the shared booking action/details flow.
 - The main schedule grid must not re-add past empty slots for the closing section.
 - After payment, reload bookings and trust the backend-returned status; the frontend must not fake a CONFIRMED status.
-- Complete booking requires the booking to be fully paid first; the frontend must not send `confirm_collect_remaining_cash` or `confirm_remaining_cash`.
+- Completing a booking requires `remaining_amount = 0`; the completion endpoint must be called with empty/no body.
+- The frontend must not send `confirm_collect_remaining_cash` or `confirm_remaining_cash`; record remaining payments through the transactions flow before completion.
+- If the backend returns `BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT`, guide the user to the payment flow and keep the backend as the authority for remaining amount.
 - Booking Board remains availability-focused and must not show money on slot buttons.
 - Sprint 5 lifecycle actions stay inside confirmed booking details: cancellation requires a reason sheet, complete requires explicit confirmation, and no-show uses a confirmation/reason sheet.
 - Reschedule is deferred until a confirmed backend endpoint/contract exists; do not invent a PATCH flow or custom reschedule path.
@@ -130,7 +138,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Booking Board remains availability-focused; Bookings List is for reviewing and filtering existing bookings.
 - Completed bookings are locked/read-only. Completed bookings with remaining amount are financial warnings, not normal daily actions.
 - The frontend must not calculate `needs_action`; backend summary/list filters own that action classification.
-- Sprint 6 implements user-based settlement foundation: settlement pages use `selectedClubSlug`, owner can settle, manager can settle only when `selectedMembership.can_manage_settlements` allows it, and staff cannot settle.
+- Sprint 6 implements user-based settlement foundation: settlement pages use `selectedClubSlug`, owner can settle, manager can settle only when the active membership permissions allow it, and staff cannot settle.
 - The new settlement flow selects a club user as `collected_by`; it must not use date-range settlement creation.
 - Club users load from `clubs/{club_slug}/users/` and may be filtered by `role`, `court`, `is_active`, and `search`.
 - Settlement preview uses `GET clubs/{club_slug}/settlements/preview/` with `collected_by` and optional `court`; do not use dry-run wording in the UI.
@@ -151,6 +159,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Sprint 7 implements backend-calculated dashboard, reports, and audit logs; these pages use `selectedClubSlug` from `useAuth()`.
 - Dashboard and report financial metrics must come from backend summary/report endpoints. Do not fake numbers or manually count cancelled transactions in totals; cancelled transactions remain visible while backend summaries decide accounting.
 - `DashboardPage` is the Summary / Owner Home control center: lightweight, current, action-oriented, and backed by the backend dashboard summary response.
+- Dashboard Summary supports optional court scope; all-courts is the default and must omit `court`, while a selected court sends `court={id}`.
+- Dashboard court option loading failures must show a local warning and must not block loading the main Summary data.
+- Dashboard KPI links should preserve the selected court only for supported targets such as Bookings and Transactions.
 - Every important Summary card should link to filtered Bookings, Transactions, or Settlement review pages using `buildPathWithQuery`.
 - The frontend must not calculate unsettled money or `needs_action_count`; backend Summary owns those counts and money values.
 - Unsettled transactions are live open money. Do not use pending settlement drafts as the dashboard money source.
@@ -169,7 +180,14 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Summary links are UX navigation helpers only; backend remains the permission and data authority.
 - Do not calculate unsettled money, needs-action counts, or financial dashboard totals in the frontend.
 - Audit logs are read-only. Reports and audit access are role/permission-gated UX helpers, with backend remaining the authority.
-- Court Usage Report endpoint exists at `clubs/{club_slug}/reports/court-usage/`; it does not use `payment_method`.
+- Do not expose manual ID inputs for business entities; use named select/search fields for users, staff, courts, and actions while keeping backend IDs/enums as internal option values.
+- Audit log action filters and displays must use Arabic business labels instead of raw enum values.
+- Deep-linked ID/enum query params should remain supported with graceful fallback labels such as `مستخدم #id` or the unknown action value.
+- Filter option loading failures must show a local warning and must not block the main page data.
+- Reports page uses the Court Usage Report endpoint `clubs/{club_slug}/reports/court-usage/`.
+- Court Usage Report requires `date_from` and `date_to`; optional filters are `court`, `period`, `hour_from`/`hour_to` for `custom`, `staff`, and `status`.
+- Court Usage Report does not use `payment_method`, raw court/staff ID inputs, or frontend-calculated money totals; render backend-calculated totals as returned.
+- Court Usage Report status filter options are `HOLD`, `CONFIRMED`, `COMPLETED`, and `NO_SHOW`; `CANCELLED` and `EXPIRED` are not valid report status filters.
 - Charts are deferred unless an existing charting package is already available; payment gateway, marketplace, commission, and player app logic are deferred.
 - Do not integrate `pricing_periods`, `slot_price`, `pricing_configured`, `minimum_slot_price`, or `maximum_slot_price` until the backend provides them.
 - Expire and non-transaction financial actions are deferred to later sprints.
@@ -180,10 +198,11 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `/settings` is the Settings hub.
 - `/settings/users` is the read-only Users & Permissions page.
 - Permission flags are membership-level flags and must be displayed with business Arabic labels, never backend flag names.
-- OWNER has full settings and permissions access by default.
-- MANAGER permissions depend on `can_change_pricing`, `can_manage_working_hours`, and `can_manage_settlements`.
-- STAFF cannot manage permissions.
-- Users & Permissions remains read-only until a backend PATCH endpoint for editing permissions is confirmed.
+- Platform Admin and OWNER have pricing, working-hours, and settlement permissions by default.
+- MANAGER permissions depend on the active selected club membership; never reuse permissions from a previously selected club.
+- STAFF has no manager permissions.
+- Users & Permissions may edit existing Manager permission flags only; it must not create users, assign users, edit Staff/Owner permissions, or call membership POST until those backend contracts are explicitly confirmed.
+- Users & Permissions badges use effective club-users fields (`can_change_pricing`, `can_manage_working_hours`, `can_manage_settlements`) and never raw backend field names.
 - Backend remains the authority for permission enforcement.
 - Authenticated pages use the reusable unified green header from `AppShell`; do not add duplicate visible page title cards inside shell pages.
 - The unified header mobile hamburger is a right-side RTL menu button with three horizontal lines; hide it when desktop sidebar mode is active.

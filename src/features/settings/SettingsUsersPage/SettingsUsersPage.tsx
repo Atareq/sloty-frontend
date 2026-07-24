@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
+import {
+  getApiErrorMessage,
+  getApiFieldErrors,
+  getFirstFieldErrorMessage,
+  isApiClientError,
+} from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -11,11 +16,15 @@ import {
   type QueryParamValue,
 } from '../../../shared/utils/buildPathWithQuery'
 import { toQueryObject } from '../../../shared/utils/queryParams'
-import { listClubUsers } from '../../clubUsers/clubUsersApi'
+import {
+  listClubUsers,
+  updateManagerPermissions,
+} from '../../clubUsers/clubUsersApi'
 import type {
   ClubUser,
   ClubUserRole,
   ClubUsersQueryParams,
+  UpdateManagerPermissionsPayload,
 } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
@@ -111,6 +120,10 @@ function getUserDisplayName(user: ClubUser): string {
     .join(' ')
 
   return fullName || user.username
+}
+
+function getManagerIdentity(user: ClubUser): string {
+  return getUserDisplayName(user) || user.phone_number || user.username
 }
 
 function getUserCourtName(user: ClubUser, courts: Court[]): string | null {
@@ -258,25 +271,11 @@ function ActiveBadge({ isActive }: { isActive: boolean | undefined }) {
   )
 }
 
-function PermissionBadge({
-  enabled,
-  label,
-}: {
-  enabled: boolean
-  label: string
-}) {
+function PermissionBadge({ label }: { label: string }) {
   return (
-    <span
-      className={[
-        'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black',
-        enabled
-          ? 'bg-emerald-100 text-emerald-800'
-          : 'bg-slate-100 text-slate-700',
-      ].join(' ')}
-    >
-      <span aria-hidden="true">{enabled ? '✓' : '×'}</span>
+    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
+      <span aria-hidden="true">✓</span>
       {label}
-      <span>{enabled ? 'مفعل' : 'غير مفعل'}</span>
     </span>
   )
 }
@@ -298,28 +297,192 @@ function UserPermissions({ user }: { user: ClubUser }) {
     )
   }
 
+  const enabledPermissions = permissionLabels.filter((permission) =>
+    Boolean(user[permission.key]),
+  )
+
   return (
     <div className="space-y-2">
       <p className="text-sm font-black text-[var(--sloty-text-primary)]">
         الصلاحيات
       </p>
-      <div className="flex flex-wrap gap-2">
-        {permissionLabels.map((permission) => (
-          <PermissionBadge
-            enabled={Boolean(user[permission.key])}
-            key={permission.key}
-            label={permission.label}
-          />
-        ))}
-      </div>
-      <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-        تعديل الصلاحيات سيتم في خطوة لاحقة بعد تأكيد Endpoint التحديث.
-      </p>
+      {enabledPermissions.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {enabledPermissions.map((permission) => (
+            <PermissionBadge key={permission.key} label={permission.label} />
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+          لا توجد صلاحيات إضافية
+        </p>
+      )}
     </div>
   )
 }
 
-function UserCard({ courts, user }: { courts: Court[]; user: ClubUser }) {
+function getInitialManagerPermissionValues(
+  user: ClubUser,
+): Required<UpdateManagerPermissionsPayload> {
+  return {
+    manager_can_settle_transactions:
+      user.manager_can_settle_transactions ?? Boolean(user.can_manage_settlements),
+    manager_can_change_pricing:
+      user.manager_can_change_pricing ??
+      Boolean(user.can_change_pricing || user.can_manage_working_hours),
+  }
+}
+
+interface EditManagerPermissionsSheetProps {
+  fieldErrors: Partial<Record<keyof UpdateManagerPermissionsPayload, string>>
+  generalError: string | null
+  isSubmitting: boolean
+  onClose: () => void
+  onSubmit: (payload: UpdateManagerPermissionsPayload) => Promise<void>
+  user: ClubUser
+}
+
+function EditManagerPermissionsSheet({
+  fieldErrors,
+  generalError,
+  isSubmitting,
+  onClose,
+  onSubmit,
+  user,
+}: EditManagerPermissionsSheetProps) {
+  const initialValues = useMemo(
+    () => getInitialManagerPermissionValues(user),
+    [user],
+  )
+  const [values, setValues] = useState(initialValues)
+
+  function updateValue(
+    field: keyof UpdateManagerPermissionsPayload,
+    value: boolean,
+  ): void {
+    setValues((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+    await onSubmit(values)
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 sm:items-center sm:justify-center"
+      role="dialog"
+    >
+      <form
+        className="w-full max-w-lg space-y-4 rounded-2xl bg-[var(--sloty-surface)] p-4 shadow-xl"
+        onSubmit={handleSubmit}
+      >
+        <div className="space-y-1">
+          <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+            تعديل صلاحيات المدير
+          </h2>
+          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+            {getManagerIdentity(user)} · مدير
+          </p>
+        </div>
+
+        {generalError ? (
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+            {generalError}
+          </p>
+        ) : null}
+
+        <label className="block space-y-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3">
+          <span className="flex items-start gap-3">
+            <input
+              checked={values.manager_can_settle_transactions}
+              className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
+              disabled={isSubmitting}
+              onChange={(event) =>
+                updateValue(
+                  'manager_can_settle_transactions',
+                  event.target.checked,
+                )
+              }
+              type="checkbox"
+            />
+            <span>
+              <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
+                إدارة التسويات المالية والجرد
+              </span>
+              <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                يسمح للمدير بمراجعة التسويات المالية والجرد وإنشاء أو اعتماد التسويات المسموح بها.
+              </span>
+            </span>
+          </span>
+          {fieldErrors.manager_can_settle_transactions ? (
+            <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+              {fieldErrors.manager_can_settle_transactions}
+            </span>
+          ) : null}
+        </label>
+
+        <label className="block space-y-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3">
+          <span className="flex items-start gap-3">
+            <input
+              checked={values.manager_can_change_pricing}
+              className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
+              disabled={isSubmitting}
+              onChange={(event) =>
+                updateValue('manager_can_change_pricing', event.target.checked)
+              }
+              type="checkbox"
+            />
+            <span>
+              <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
+                تعديل الأسعار ومواعيد العمل
+              </span>
+              <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                يسمح للمدير بتعديل أسعار الملاعب ومواعيد العمل المرتبطة بها.
+              </span>
+            </span>
+          </span>
+          {fieldErrors.manager_can_change_pricing ? (
+            <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+              {fieldErrors.manager_can_change_pricing}
+            </span>
+          ) : null}
+        </label>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <AppButton disabled={isSubmitting} fullWidth type="submit">
+            حفظ الصلاحيات
+          </AppButton>
+          <AppButton
+            disabled={isSubmitting}
+            fullWidth
+            onClick={onClose}
+            type="button"
+            variant="secondary"
+          >
+            إلغاء
+          </AppButton>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function UserCard({
+  canEditPermissions,
+  courts,
+  onEditPermissions,
+  user,
+}: {
+  canEditPermissions: boolean
+  courts: Court[]
+  onEditPermissions: (user: ClubUser) => void
+  user: ClubUser
+}) {
   const courtName = getUserCourtName(user, courts)
 
   return (
@@ -367,6 +530,17 @@ function UserCard({ courts, user }: { courts: Court[]; user: ClubUser }) {
       </dl>
 
       <UserPermissions user={user} />
+
+      {canEditPermissions && user.role === 'MANAGER' ? (
+        <AppButton
+          fullWidth
+          onClick={() => onEditPermissions(user)}
+          type="button"
+          variant="secondary"
+        >
+          تعديل الصلاحيات
+        </AppButton>
+      ) : null}
     </AppCard>
   )
 }
@@ -377,11 +551,18 @@ function UserCard({ courts, user }: { courts: Court[]; user: ClubUser }) {
 export function SettingsUsersPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const { refreshCurrentUser, selectedClubSlug, selectedMembership } = useAuth()
   const [users, setUsers] = useState<ClubUser[]>([])
   const [courts, setCourts] = useState<Court[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [usersReloadKey, setUsersReloadKey] = useState(0)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [editingManager, setEditingManager] = useState<ClubUser | null>(null)
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false)
+  const [permissionsError, setPermissionsError] = useState<string | null>(null)
+  const [permissionsFieldErrors, setPermissionsFieldErrors] = useState<
+    Partial<Record<keyof UpdateManagerPermissionsPayload, string>>
+  >({})
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
@@ -480,7 +661,7 @@ export function SettingsUsersPage() {
     return () => {
       isActive = false
     }
-  }, [isOwner, queryParams, selectedClubSlug])
+  }, [isOwner, queryParams, selectedClubSlug, usersReloadKey])
 
   function applyFilters(nextFilters: UsersFilterState): void {
     navigate(
@@ -520,6 +701,64 @@ export function SettingsUsersPage() {
       },
       { replace: true },
     )
+  }
+
+  async function handleUpdateManagerPermissions(
+    payload: UpdateManagerPermissionsPayload,
+  ): Promise<void> {
+    if (!selectedClubSlug || !editingManager) {
+      return
+    }
+
+    setIsSavingPermissions(true)
+    setPermissionsError(null)
+    setPermissionsFieldErrors({})
+
+    try {
+      await updateManagerPermissions(
+        selectedClubSlug,
+        editingManager.membership_id,
+        {
+          manager_can_settle_transactions:
+            payload.manager_can_settle_transactions,
+          manager_can_change_pricing: payload.manager_can_change_pricing,
+        },
+      )
+      setEditingManager(null)
+      setUsersReloadKey((current) => current + 1)
+
+      if (selectedMembership?.id === editingManager.membership_id) {
+        await refreshCurrentUser()
+      }
+    } catch (error) {
+      const fieldErrors = getApiFieldErrors(error)
+      const nextFieldErrors: Partial<
+        Record<keyof UpdateManagerPermissionsPayload, string>
+      > = {
+        manager_can_settle_transactions: getFirstFieldErrorMessage(
+          fieldErrors,
+          'manager_can_settle_transactions',
+        ) ?? undefined,
+        manager_can_change_pricing: getFirstFieldErrorMessage(
+          fieldErrors,
+          'manager_can_change_pricing',
+        ) ?? undefined,
+      }
+
+      setPermissionsFieldErrors(nextFieldErrors)
+      setPermissionsError(
+        getApiErrorMessage(
+          error,
+          'تعذر تحديث صلاحيات المدير. حاول مرة أخرى',
+        ),
+      )
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
+    } finally {
+      setIsSavingPermissions(false)
+    }
   }
 
   return (
@@ -608,9 +847,34 @@ export function SettingsUsersPage() {
       {!isLoading && !error && users.length > 0 ? (
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {users.map((user) => (
-            <UserCard courts={courts} key={user.membership_id} user={user} />
+            <UserCard
+              canEditPermissions={isOwner}
+              courts={courts}
+              key={user.membership_id}
+              onEditPermissions={(user) => {
+                setPermissionsError(null)
+                setPermissionsFieldErrors({})
+                setEditingManager(user)
+              }}
+              user={user}
+            />
           ))}
         </section>
+      ) : null}
+
+      {editingManager ? (
+        <EditManagerPermissionsSheet
+          fieldErrors={permissionsFieldErrors}
+          generalError={permissionsError}
+          isSubmitting={isSavingPermissions}
+          onClose={() => {
+            if (!isSavingPermissions) {
+              setEditingManager(null)
+            }
+          }}
+          onSubmit={handleUpdateManagerPermissions}
+          user={editingManager}
+        />
       ) : null}
     </div>
   )

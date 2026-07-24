@@ -22,11 +22,38 @@ describe('dashboardApi', () => {
     )
   })
 
-  it('builds court, payment, and settlement status query params', async () => {
+  it('includes court when selected', async () => {
     mockedApiRequest.mockResolvedValueOnce({})
 
     await getDashboardSummary('nasr-club', {
       court: 3,
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.dashboard.summary('nasr-club')}?court=3`,
+    )
+  })
+
+  it('preserves date and range params with court', async () => {
+    mockedApiRequest.mockResolvedValueOnce({})
+
+    await getDashboardSummary('nasr-club', {
+      court: 3,
+      date_from: '2026-07-15',
+      date_to: '2026-07-21',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.dashboard.summary(
+        'nasr-club',
+      )}?court=3&date_from=2026-07-15&date_to=2026-07-21`,
+    )
+  })
+
+  it('builds payment and settlement status query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({})
+
+    await getDashboardSummary('nasr-club', {
       payment_method: 'CASH',
       settlement_status: 'unsettled',
     })
@@ -34,7 +61,7 @@ describe('dashboardApi', () => {
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.dashboard.summary(
         'nasr-club',
-      )}?court=3&payment_method=CASH&settlement_status=unsettled`,
+      )}?payment_method=CASH&settlement_status=unsettled`,
     )
   })
 
@@ -43,6 +70,7 @@ describe('dashboardApi', () => {
 
     await getDashboardSummary('nasr-club', {
       collected_by: '',
+      court: '',
       payment_method: '',
       settlement_status: '',
     })

@@ -6,6 +6,7 @@ export function getContextDateQuery(
   context: DashboardSummaryResponse['context'],
 ): Record<string, QueryParamValue> {
   return {
+    court: context.court ?? undefined,
     date: context.date_from === context.date_to ? context.date_from : undefined,
     date_from:
       context.date_from !== context.date_to ? context.date_from : undefined,

@@ -14,9 +14,16 @@ export interface ClubUser {
   court?: number | null
   court_name?: string | null
   membership_is_active?: boolean
+  manager_can_settle_transactions?: boolean
+  manager_can_change_pricing?: boolean
   can_change_pricing?: boolean
   can_manage_working_hours?: boolean
   can_manage_settlements?: boolean
+}
+
+export interface UpdateManagerPermissionsPayload {
+  manager_can_settle_transactions?: boolean
+  manager_can_change_pricing?: boolean
 }
 
 export interface ClubUsersQueryParams {

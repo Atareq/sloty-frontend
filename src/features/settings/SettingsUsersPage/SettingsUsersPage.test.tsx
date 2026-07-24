@@ -2,8 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
-import { listClubUsers } from '../../clubUsers/clubUsersApi'
+import {
+  listClubUsers,
+  updateManagerPermissions,
+} from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
 import { SettingsUsersPage } from './SettingsUsersPage'
 
@@ -13,6 +17,7 @@ vi.mock('../../../core/auth/useAuth', () => ({
 
 vi.mock('../../clubUsers/clubUsersApi', () => ({
   listClubUsers: vi.fn(),
+  updateManagerPermissions: vi.fn(),
 }))
 
 vi.mock('../../courts/courtsApi', () => ({
@@ -21,6 +26,7 @@ vi.mock('../../courts/courtsApi', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListClubUsers = vi.mocked(listClubUsers)
+const mockedUpdateManagerPermissions = vi.mocked(updateManagerPermissions)
 const mockedListCourts = vi.mocked(listCourts)
 
 function paginatedResponse<T>(results: T[]) {
@@ -52,9 +58,25 @@ const managerUser = {
   phone_number: '+201000000002',
   role: 'MANAGER' as const,
   membership_is_active: false,
+  manager_can_settle_transactions: true,
+  manager_can_change_pricing: true,
   can_change_pricing: true,
   can_manage_working_hours: false,
   can_manage_settlements: true,
+}
+
+const managerWithoutPermissions = {
+  ...managerUser,
+  id: 4,
+  membership_id: 104,
+  username: 'restricted-manager',
+  first_name: 'سارة',
+  last_name: 'محدود',
+  manager_can_settle_transactions: false,
+  manager_can_change_pricing: false,
+  can_change_pricing: false,
+  can_manage_working_hours: false,
+  can_manage_settlements: false,
 }
 
 const staffUser = {
@@ -84,10 +106,12 @@ function LocationProbe() {
 function mockAuth(options: {
   role?: 'OWNER' | 'MANAGER' | 'STAFF'
   selectedClubSlug?: string | null
+  selectedMembershipId?: number
 } = {}) {
   const role = options.role ?? 'OWNER'
   const selectedClubSlug =
     'selectedClubSlug' in options ? options.selectedClubSlug ?? null : 'nasr-club'
+  const refreshCurrentUser = vi.fn()
 
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
@@ -96,7 +120,7 @@ function mockAuth(options: {
     selectedClubSlug,
     selectedMembership: selectedClubSlug
       ? {
-          id: 10,
+          id: options.selectedMembershipId ?? 10,
           role,
           club: {
             id: 1,
@@ -117,9 +141,11 @@ function mockAuth(options: {
     logout: vi.fn(),
     selectClub: vi.fn(),
     clearSelectedClub: vi.fn(),
-    refreshCurrentUser: vi.fn(),
+    refreshCurrentUser,
     setTokens: vi.fn(),
   })
+
+  return { refreshCurrentUser }
 }
 
 function renderUsersPage(initialEntry = '/settings/users') {
@@ -145,6 +171,7 @@ describe('SettingsUsersPage', () => {
     vi.clearAllMocks()
     mockAuth()
     mockedListClubUsers.mockResolvedValue([ownerUser, managerUser, staffUser])
+    mockedUpdateManagerPermissions.mockResolvedValue(managerUser)
     mockedListCourts.mockResolvedValue(
       paginatedResponse([
         {
@@ -213,13 +240,11 @@ describe('SettingsUsersPage', () => {
     expect(screen.getByText('صلاحيات كاملة كمالك')).toBeInTheDocument()
     expect(screen.getByText('موظف تشغيل')).toBeInTheDocument()
     expect(screen.getByText('تعديل أسعار الملاعب')).toBeInTheDocument()
-    expect(screen.getByText('إدارة مواعيد العمل')).toBeInTheDocument()
+    expect(screen.queryByText('إدارة مواعيد العمل')).not.toBeInTheDocument()
     expect(screen.getByText('إدارة التسويات المالية والجرد')).toBeInTheDocument()
-    expect(screen.getAllByText('مفعل').length).toBeGreaterThan(0)
-    expect(screen.getByText('غير مفعل')).toBeInTheDocument()
   })
 
-  it('does not render backend permission flag names or editable controls', async () => {
+  it('shows manager-only edit action without backend permission flag names', async () => {
     renderUsersPage()
 
     await screen.findByText('منى مدير')
@@ -228,8 +253,190 @@ describe('SettingsUsersPage', () => {
     expect(screen.queryByText('can_manage_working_hours')).not.toBeInTheDocument()
     expect(screen.queryByText('can_manage_settlements')).not.toBeInTheDocument()
     expect(
+      screen.getAllByRole('button', { name: 'تعديل الصلاحيات' }),
+    ).toHaveLength(1)
+  })
+
+  it('does not show manager permission edit action for unauthorized roles', async () => {
+    mockAuth({ role: 'MANAGER' })
+
+    renderUsersPage()
+
+    expect(
+      await screen.findByText('ليس لديك صلاحية إدارة المستخدمين والصلاحيات'),
+    ).toBeInTheDocument()
+    expect(
       screen.queryByRole('button', { name: 'تعديل الصلاحيات' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows no permissions state when a manager has no effective permissions', async () => {
+    mockedListClubUsers.mockResolvedValueOnce([managerWithoutPermissions])
+
+    renderUsersPage()
+
+    expect(await screen.findByText('سارة محدود')).toBeInTheDocument()
+    expect(screen.getByText('لا توجد صلاحيات إضافية')).toBeInTheDocument()
+    expect(screen.queryByText('تعديل أسعار الملاعب')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('إدارة التسويات المالية والجرد'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens edit sheet with manager identity and current permissions', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    await screen.findByText('منى مدير')
+    await user.click(screen.getByRole('button', { name: 'تعديل الصلاحيات' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('تعديل صلاحيات المدير')).toBeInTheDocument()
+    expect(screen.getByText('منى مدير · مدير')).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
+    ).toBeChecked()
+    expect(
+      screen.getByRole('checkbox', { name: /تعديل الأسعار ومواعيد العمل/ }),
+    ).toBeChecked()
+  })
+
+  it('defaults manager edit permissions to false when no permission exists', async () => {
+    const user = userEvent.setup()
+    mockedListClubUsers.mockResolvedValueOnce([managerWithoutPermissions])
+
+    renderUsersPage()
+
+    await screen.findByText('سارة محدود')
+    await user.click(screen.getByRole('button', { name: 'تعديل الصلاحيات' }))
+
+    expect(
+      screen.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
+    ).not.toBeChecked()
+    expect(
+      screen.getByRole('checkbox', { name: /تعديل الأسعار ومواعيد العمل/ }),
+    ).not.toBeChecked()
+  })
+
+  it('submits only membership-level manager permission fields and refreshes users', async () => {
+    const user = userEvent.setup()
+    mockedListClubUsers
+      .mockResolvedValueOnce([managerWithoutPermissions])
+      .mockResolvedValueOnce([{ ...managerWithoutPermissions, can_manage_settlements: true }])
+
+    renderUsersPage()
+
+    await screen.findByText('سارة محدود')
+    await user.click(screen.getByRole('button', { name: 'تعديل الصلاحيات' }))
+    await user.click(
+      screen.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
+    )
+    await user.click(
+      screen.getByRole('checkbox', { name: /تعديل الأسعار ومواعيد العمل/ }),
+    )
+    await user.click(screen.getByRole('button', { name: 'حفظ الصلاحيات' }))
+
+    await waitFor(() => {
+      expect(mockedUpdateManagerPermissions).toHaveBeenCalledWith(
+        'nasr-club',
+        104,
+        {
+          manager_can_settle_transactions: true,
+          manager_can_change_pricing: true,
+        },
+      )
+    })
+    expect(mockedUpdateManagerPermissions).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        role: expect.anything(),
+        court: expect.anything(),
+        user: expect.anything(),
+        can_manage_settlements: expect.anything(),
+        can_change_pricing: expect.anything(),
+      }),
+    )
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(mockedListClubUsers).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes current user after updating the active selected membership', async () => {
+    const user = userEvent.setup()
+    const { refreshCurrentUser } = mockAuth({
+      role: 'OWNER',
+      selectedMembershipId: 102,
+    })
+    mockedListClubUsers
+      .mockResolvedValueOnce([managerUser])
+      .mockResolvedValueOnce([managerUser])
+
+    renderUsersPage()
+
+    await screen.findByText('منى مدير')
+    await user.click(screen.getByRole('button', { name: 'تعديل الصلاحيات' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ الصلاحيات' }))
+
+    await waitFor(() => {
+      expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('shows backend field errors near matching manager permission toggles', async () => {
+    const user = userEvent.setup()
+    mockedUpdateManagerPermissions.mockRejectedValueOnce(
+      new ApiClientError('راجع صلاحيات المدير', 400, {
+        fieldErrors: {
+          manager_can_change_pricing: [
+            {
+              code: 'MANAGER_PERMISSION_REQUIRES_MANAGER_ROLE',
+              message: 'صلاحية الأسعار متاحة للمدير فقط',
+            },
+          ],
+          manager_can_settle_transactions: [
+            {
+              code: 'MANAGER_PERMISSION_REQUIRES_MANAGER_ROLE',
+              message: 'صلاحية التسويات متاحة للمدير فقط',
+            },
+          ],
+        },
+      }),
+    )
+
+    renderUsersPage()
+
+    await screen.findByText('منى مدير')
+    await user.click(screen.getByRole('button', { name: 'تعديل الصلاحيات' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ الصلاحيات' }))
+
+    expect(await screen.findByText('راجع صلاحيات المدير')).toBeInTheDocument()
+    expect(screen.getByText('صلاحية الأسعار متاحة للمدير فقط')).toBeInTheDocument()
+    expect(screen.getByText('صلاحية التسويات متاحة للمدير فقط')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(mockedUpdateManagerPermissions).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows 403 error, refreshes current user, and does not retry automatically', async () => {
+    const user = userEvent.setup()
+    const { refreshCurrentUser } = mockAuth()
+    mockedUpdateManagerPermissions.mockRejectedValueOnce(
+      new ApiClientError('ليس لديك صلاحية لهذا الإجراء.', 403),
+    )
+
+    renderUsersPage()
+
+    await screen.findByText('منى مدير')
+    await user.click(screen.getByRole('button', { name: 'تعديل الصلاحيات' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ الصلاحيات' }))
+
+    expect(
+      await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),
+    ).toBeInTheDocument()
+    expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    expect(mockedUpdateManagerPermissions).toHaveBeenCalledTimes(1)
   })
 
   it('updates URL query params and sends filter values to listClubUsers', async () => {

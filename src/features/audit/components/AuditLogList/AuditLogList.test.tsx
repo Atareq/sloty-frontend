@@ -115,7 +115,7 @@ describe('AuditLogList', () => {
           action_label: '   ',
         }),
       ),
-    ).toBe('تم تعديل حجز')
+    ).toBe('تعديل حجز')
     expect(
       getAuditActionLabel(
         entry({
@@ -137,7 +137,7 @@ describe('AuditLogList', () => {
       }),
     ])
 
-    expect(screen.getAllByText('تم تعديل حجز')).toHaveLength(2)
+    expect(screen.getAllByText('تعديل حجز')).toHaveLength(2)
     expect(screen.getAllByText('UNKNOWN_ACTION')).toHaveLength(2)
   })
 
