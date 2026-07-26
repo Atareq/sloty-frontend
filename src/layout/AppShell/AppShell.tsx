@@ -82,9 +82,21 @@ function getStoredViewMode(): ViewMode {
     return 'mobile'
   }
 
-  return window.localStorage.getItem(viewModeStorageKey) === 'desktop'
-    ? 'desktop'
-    : 'mobile'
+  const storedViewMode = window.localStorage.getItem(viewModeStorageKey)
+
+  if (storedViewMode === 'desktop') {
+    return 'desktop'
+  }
+
+  if (storedViewMode !== null && storedViewMode !== 'mobile') {
+    window.localStorage.setItem(viewModeStorageKey, 'mobile')
+  }
+
+  return 'mobile'
+}
+
+function getViewModeToggleLabel(currentViewMode: ViewMode): string {
+  return currentViewMode === 'desktop' ? 'عرض الهاتف' : 'عرض سطح المكتب'
 }
 
 /**
@@ -194,14 +206,18 @@ export function AppShell() {
     navigate(nextPath)
   }
 
+  function handleSetViewMode(nextViewMode: ViewMode): void {
+    window.localStorage.setItem(viewModeStorageKey, nextViewMode)
+    setIsMenuOpen(false)
+    setViewMode(nextViewMode)
+  }
+
   function handleToggleViewMode(): void {
     setViewMode((currentViewMode) => {
       const nextViewMode = currentViewMode === 'desktop' ? 'mobile' : 'desktop'
 
       window.localStorage.setItem(viewModeStorageKey, nextViewMode)
-      if (nextViewMode === 'desktop') {
-        setIsMenuOpen(false)
-      }
+      setIsMenuOpen(false)
 
       return nextViewMode
     })
@@ -261,6 +277,21 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
+
+        {shouldUseDesktopNav ? (
+          <section className="border-t border-[var(--sloty-border)] pt-4">
+            <p className="px-1 text-xs font-black text-[var(--sloty-text-muted)]">
+              العرض
+            </p>
+            <button
+              className="mt-2 min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-primary-dark)] transition hover:bg-[var(--sloty-bg)]"
+              onClick={() => handleSetViewMode('mobile')}
+              type="button"
+            >
+              عرض الهاتف
+            </button>
+          </section>
+        ) : null}
       </aside>
 
       <div
@@ -390,7 +421,7 @@ export function AppShell() {
                   onClick={handleToggleViewMode}
                   type="button"
                 >
-                  عرض سطح المكتب
+                  {getViewModeToggleLabel(viewMode)}
                 </button>
                 <button
                   className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"

@@ -131,7 +131,7 @@ export const router = createBrowserRouter([
       {
         path: '/reports',
         element: (
-          <RoleRoute allowedRoles={['OWNER']}>
+          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
             <ReportsPage />
           </RoleRoute>
         ),

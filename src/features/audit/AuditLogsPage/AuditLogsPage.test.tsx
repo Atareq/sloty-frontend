@@ -131,7 +131,7 @@ describe('AuditLogsPage', () => {
     renderAuditLogsPage()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لعرض سجل النشاط'),
+      await screen.findByText('اختر ناديًا أولًا لعرض سجل النشاطات'),
     ).toBeInTheDocument()
     expect(mockedListAuditLogs).not.toHaveBeenCalled()
   })
@@ -142,7 +142,7 @@ describe('AuditLogsPage', () => {
     renderAuditLogsPage()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية عرض سجل النشاط'),
+      await screen.findByText('ليس لديك صلاحية عرض سجل النشاطات'),
     ).toBeInTheDocument()
     expect(mockedListAuditLogs).not.toHaveBeenCalled()
   })

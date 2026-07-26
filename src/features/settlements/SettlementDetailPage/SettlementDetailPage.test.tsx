@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import {
   getSettlement,
@@ -21,6 +22,7 @@ vi.mock('../settlementsApi', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetSettlement = vi.mocked(getSettlement)
 const mockedMarkSettlementSettled = vi.mocked(markSettlementSettled)
+const refreshCurrentUser = vi.fn()
 
 function mockAuth() {
   mockedUseAuth.mockReturnValue({
@@ -49,7 +51,7 @@ function mockAuth() {
     logout: vi.fn(),
     selectClub: vi.fn(),
     clearSelectedClub: vi.fn(),
-    refreshCurrentUser: vi.fn(),
+    refreshCurrentUser,
     setTokens: vi.fn(),
   })
 }
@@ -70,6 +72,7 @@ function renderPage() {
 describe('SettlementDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    refreshCurrentUser.mockReset()
     mockAuth()
     mockedGetSettlement.mockResolvedValue({
       id: 9,
@@ -138,5 +141,25 @@ describe('SettlementDetailPage', () => {
     })
     expect(await screen.findByText('تم تحديث حالة التسوية')).toBeInTheDocument()
     expect(screen.getByText('مسواة')).toBeInTheDocument()
+  })
+
+  it('shows 403 mark-settled error, refreshes current user, and does not retry', async () => {
+    const user = userEvent.setup()
+
+    mockedMarkSettlementSettled.mockRejectedValueOnce(
+      new ApiClientError('ليس لديك صلاحية لهذا الإجراء.', 403),
+    )
+
+    renderPage()
+
+    await user.click(await screen.findByRole('button', {
+      name: 'تأكيد الاستلام',
+    }))
+
+    expect(
+      await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),
+    ).toBeInTheDocument()
+    expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    expect(mockedMarkSettlementSettled).toHaveBeenCalledTimes(1)
   })
 })

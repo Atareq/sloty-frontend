@@ -1,4 +1,5 @@
 export type ClubUserRole = 'OWNER' | 'MANAGER' | 'STAFF'
+export type CreateMembershipRole = Exclude<ClubUserRole, 'OWNER'>
 
 export interface ClubUser {
   id: number
@@ -25,6 +26,35 @@ export interface UpdateManagerPermissionsPayload {
   manager_can_settle_transactions?: boolean
   manager_can_change_pricing?: boolean
 }
+
+export interface CreateMembershipUserPayload {
+  username: string
+  email?: string
+  password: string
+  first_name: string
+  last_name: string
+  phone_number?: string
+}
+
+export interface CreateMembershipNewUserPayload {
+  user: CreateMembershipUserPayload
+  role: CreateMembershipRole
+  court?: number | null
+  manager_can_settle_transactions?: boolean
+  manager_can_change_pricing?: boolean
+}
+
+export interface CreateMembershipExistingUserPayload {
+  user_id: number
+  role: CreateMembershipRole
+  court?: number | null
+  manager_can_settle_transactions?: boolean
+  manager_can_change_pricing?: boolean
+}
+
+export type CreateMembershipPayload =
+  | CreateMembershipNewUserPayload
+  | CreateMembershipExistingUserPayload
 
 export interface ClubUsersQueryParams {
   role?: ClubUserRole | ''

@@ -56,7 +56,7 @@ export function getReports(
 }
 
 /**
- * Loads the backend court-usage analytics contract without migrating Reports UI.
+ * Loads the active backend court-usage analytics contract for ReportsPage.
  */
 export function getCourtUsageReport(
   clubSlug: string,

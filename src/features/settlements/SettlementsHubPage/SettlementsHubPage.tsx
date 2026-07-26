@@ -264,7 +264,7 @@ function SettlementFiltersForm({
 export function SettlementsHubPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const { role, selectedClubSlug, selectedMembership } = useAuth()
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [users, setUsers] = useState<ClubUser[]>([])
   const [courts, setCourts] = useState<Court[]>([])
@@ -275,7 +275,7 @@ export function SettlementsHubPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
-  const canSettle = canManageSettlements(selectedMembership)
+  const canSettle = canManageSettlements(selectedMembership, role)
   const queryParams = useMemo(
     () => parseSettlementQuery(location.search),
     [location.search],

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorCode,
   getApiErrorMessage,
+  isApiClientError,
 } from '../../../core/api/apiError.helpers'
 import { canManageSettlements } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
@@ -93,8 +94,9 @@ function EmptyPreviewState({ message, onRefresh }: EmptyPreviewStateProps) {
 export function SettlementPreviewPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { selectedClubSlug, selectedMembership } = useAuth()
-  const canSettle = canManageSettlements(selectedMembership)
+  const { refreshCurrentUser, role, selectedClubSlug, selectedMembership } =
+    useAuth()
+  const canSettle = canManageSettlements(selectedMembership, role)
   const queryParams = useMemo(
     () => parsePreviewQuery(location.search),
     [location.search],
@@ -214,6 +216,10 @@ export function SettlementPreviewPage() {
         setConfirmError(
           getApiErrorMessage(error, 'تعذر تأكيد التسوية. حاول مرة أخرى'),
         )
+
+        if (isApiClientError(error) && error.status === 403) {
+          await refreshCurrentUser()
+        }
       }
     } finally {
       setIsConfirmSubmitting(false)

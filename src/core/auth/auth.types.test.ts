@@ -108,7 +108,7 @@ describe('membership permission helpers', () => {
 
     expect(resolveMembershipPermissions(manager)).toEqual({
       can_change_pricing: true,
-      can_manage_working_hours: false,
+      can_manage_working_hours: true,
       can_manage_settlements: true,
     })
     expect(resolveMembershipPermissions(staff)).toEqual({

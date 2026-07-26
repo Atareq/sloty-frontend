@@ -187,9 +187,11 @@ export function resolveMembershipPermissions(
   }
 
   if (membership.role === 'MANAGER' && hasRawManagerPermissions(membership)) {
+    const canChangePricing = Boolean(membership.manager_can_change_pricing)
+
     return {
-      can_change_pricing: Boolean(membership.manager_can_change_pricing),
-      can_manage_working_hours: false,
+      can_change_pricing: canChangePricing,
+      can_manage_working_hours: canChangePricing,
       can_manage_settlements: Boolean(
         membership.manager_can_settle_transactions,
       ),

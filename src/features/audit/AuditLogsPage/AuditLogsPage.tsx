@@ -210,13 +210,13 @@ export function AuditLogsPage() {
       <PageHeader
         description="متابعة التغييرات المهمة داخل النادي"
         tone="brand"
-        title="سجل النشاط"
+        title="سجل النشاطات"
       />
 
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر ناديًا أولًا لعرض سجل النشاط
+            اختر ناديًا أولًا لعرض سجل النشاطات
           </p>
         </AppCard>
       ) : null}
@@ -224,7 +224,7 @@ export function AuditLogsPage() {
       {selectedClubSlug && !canViewAuditLogs ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-danger)]">
-            ليس لديك صلاحية عرض سجل النشاط
+            ليس لديك صلاحية عرض سجل النشاطات
           </p>
         </AppCard>
       ) : null}
@@ -313,7 +313,7 @@ export function AuditLogsPage() {
           {isLoading ? (
             <AppCard>
               <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                جاري تحميل سجل النشاط...
+                جاري تحميل سجل النشاطات...
               </p>
             </AppCard>
           ) : null}

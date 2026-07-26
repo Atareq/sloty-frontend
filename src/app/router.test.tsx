@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
 import { RoleRoute } from '../core/auth/RoleRoute'
+import { ReportsPage } from '../features/reports/ReportsPage/ReportsPage'
 import { SettlementPreviewPage } from '../features/settlements/SettlementPreviewPage/SettlementPreviewPage'
 import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/SettlementsHubPage'
 import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHubPage'
@@ -52,5 +53,15 @@ describe('router settings routes', () => {
     expect(routeElement?.type).toBe(RoleRoute)
     expect(routeElement?.props.allowedRoles).toEqual(['OWNER'])
     expect(routeElement?.props.children.type).toBe(SettingsUsersPage)
+  })
+})
+
+describe('router report routes', () => {
+  it('allows owner and manager roles to reach reports', () => {
+    const routeElement = getProtectedChildRoute('/reports')
+
+    expect(routeElement?.type).toBe(RoleRoute)
+    expect(routeElement?.props.allowedRoles).toEqual(['OWNER', 'MANAGER'])
+    expect(routeElement?.props.children.type).toBe(ReportsPage)
   })
 })

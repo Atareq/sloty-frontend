@@ -72,7 +72,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/reports',
     label: 'التقارير الاستهلاكية للملاعب',
     marker: 'ق',
-    allowedRoles: ['OWNER'],
+    allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
     showInPrimaryNav: true,
   },

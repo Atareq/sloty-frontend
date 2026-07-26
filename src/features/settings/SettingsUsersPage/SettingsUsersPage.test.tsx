@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import {
+  createClubMembership,
   listClubUsers,
   updateManagerPermissions,
 } from '../../clubUsers/clubUsersApi'
@@ -16,6 +17,7 @@ vi.mock('../../../core/auth/useAuth', () => ({
 }))
 
 vi.mock('../../clubUsers/clubUsersApi', () => ({
+  createClubMembership: vi.fn(),
   listClubUsers: vi.fn(),
   updateManagerPermissions: vi.fn(),
 }))
@@ -25,6 +27,7 @@ vi.mock('../../courts/courtsApi', () => ({
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedCreateClubMembership = vi.mocked(createClubMembership)
 const mockedListClubUsers = vi.mocked(listClubUsers)
 const mockedUpdateManagerPermissions = vi.mocked(updateManagerPermissions)
 const mockedListCourts = vi.mocked(listCourts)
@@ -166,11 +169,19 @@ function renderUsersPage(initialEntry = '/settings/users') {
   )
 }
 
+async function openAddUserSheet(testUser: ReturnType<typeof userEvent.setup>) {
+  await screen.findByText('أحمد مالك')
+  await testUser.click(screen.getByRole('button', { name: 'إضافة مستخدم' }))
+
+  return within(screen.getByRole('dialog'))
+}
+
 describe('SettingsUsersPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuth()
     mockedListClubUsers.mockResolvedValue([ownerUser, managerUser, staffUser])
+    mockedCreateClubMembership.mockResolvedValue(managerUser)
     mockedUpdateManagerPermissions.mockResolvedValue(managerUser)
     mockedListCourts.mockResolvedValue(
       paginatedResponse([
@@ -268,6 +279,255 @@ describe('SettingsUsersPage', () => {
     expect(
       screen.queryByRole('button', { name: 'تعديل الصلاحيات' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows owner-only add user action and opens the add user sheet', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+
+    expect(dialog.getByText('إضافة مستخدم')).toBeInTheDocument()
+    expect(dialog.getByLabelText('الدور')).toBeInTheDocument()
+    expect(dialog.getByRole('option', { name: 'مدير' })).toBeInTheDocument()
+    expect(dialog.getByRole('option', { name: 'موظف' })).toBeInTheDocument()
+    expect(dialog.queryByRole('option', { name: 'مالك' })).not.toBeInTheDocument()
+    expect(dialog.getByText('مستخدم جديد')).toBeInTheDocument()
+    expect(dialog.getByText('مستخدم موجود')).toBeInTheDocument()
+    expect(
+      dialog.getByText(
+        'اختيار مستخدم موجود غير متاح حتى يتم تأكيد Endpoint البحث عن المستخدمين.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('does not show add user action for unauthorized roles', async () => {
+    mockAuth({ role: 'MANAGER' })
+
+    renderUsersPage()
+
+    expect(
+      await screen.findByText('ليس لديك صلاحية إدارة المستخدمين والصلاحيات'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'إضافة مستخدم' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows new user fields in add user sheet', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+
+    expect(dialog.getByLabelText('الاسم الأول')).toBeInTheDocument()
+    expect(dialog.getByLabelText('اسم العائلة')).toBeInTheDocument()
+    expect(dialog.getByLabelText('رقم الهاتف')).toBeInTheDocument()
+    expect(dialog.getByLabelText('البريد الإلكتروني')).toBeInTheDocument()
+    expect(dialog.getByLabelText('اسم المستخدم')).toBeInTheDocument()
+    expect(dialog.getByLabelText('كلمة المرور')).toBeInTheDocument()
+  })
+
+  it('shows manager permission toggles defaulted false for add manager', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+
+    expect(dialog.getByText('صلاحيات المدير')).toBeInTheDocument()
+    expect(
+      dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
+    ).not.toBeChecked()
+    expect(
+      dialog.getByRole('checkbox', { name: /تعديل الأسعار ومواعيد العمل/ }),
+    ).not.toBeChecked()
+    expect(dialog.queryByLabelText('الملعب المسؤول عنه')).not.toBeInTheDocument()
+  })
+
+  it('shows staff court selector, hides manager toggles, and clears manager permissions', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await user.click(
+      dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
+    )
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+
+    expect(dialog.getByLabelText('الملعب المسؤول عنه')).toBeInTheDocument()
+    expect(dialog.queryByText('صلاحيات المدير')).not.toBeInTheDocument()
+    expect(
+      dialog.queryByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('requires staff court before submit', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'staff-new')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    expect(dialog.getAllByText('اختر ملعبًا للموظف').length).toBeGreaterThan(1)
+    expect(mockedCreateClubMembership).not.toHaveBeenCalled()
+  })
+
+  it('creates a new manager membership with membership-level manager permissions', async () => {
+    const user = userEvent.setup()
+    mockedListClubUsers
+      .mockResolvedValueOnce([ownerUser, managerUser, staffUser])
+      .mockResolvedValueOnce([ownerUser, managerUser, staffUser])
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
+    await user.type(dialog.getByLabelText('اسم العائلة'), 'مدير')
+    await user.type(dialog.getByLabelText('رقم الهاتف'), '+201111111111')
+    await user.type(dialog.getByLabelText('البريد الإلكتروني'), 'manager@example.com')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.click(
+      dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
+    )
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    await waitFor(() => {
+      expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
+        user: {
+          username: 'new-manager',
+          email: 'manager@example.com',
+          password: 'secret123',
+          first_name: 'ليلى',
+          last_name: 'مدير',
+          phone_number: '+201111111111',
+        },
+        role: 'MANAGER',
+        court: null,
+        manager_can_settle_transactions: true,
+        manager_can_change_pricing: false,
+      })
+    })
+    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        can_change_pricing: expect.anything(),
+        can_manage_working_hours: expect.anything(),
+        can_manage_settlements: expect.anything(),
+      }),
+    )
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+    expect(mockedListClubUsers).toHaveBeenCalledTimes(2)
+  })
+
+  it('creates a new staff membership with court and no manager permissions', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.selectOptions(dialog.getByLabelText('الملعب المسؤول عنه'), '7')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    await waitFor(() => {
+      expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
+        user: {
+          username: 'new-staff',
+          email: undefined,
+          password: 'secret123',
+          first_name: 'سامي',
+          last_name: '',
+          phone_number: undefined,
+        },
+        role: 'STAFF',
+        court: 7,
+      })
+    })
+    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        manager_can_settle_transactions: expect.anything(),
+        manager_can_change_pricing: expect.anything(),
+      }),
+    )
+  })
+
+  it('shows backend add-user field errors and duplicate validation message', async () => {
+    const user = userEvent.setup()
+    mockedCreateClubMembership.mockRejectedValueOnce(
+      new ApiClientError('هذا المستخدم عضو بالفعل في النادي', 400, {
+        fieldErrors: {
+          username: [
+            {
+              code: 'DUPLICATE',
+              message: 'اسم المستخدم مستخدم بالفعل',
+            },
+          ],
+          manager_can_change_pricing: [
+            {
+              code: 'MANAGER_PERMISSION_REQUIRES_MANAGER_ROLE',
+              message: 'صلاحية الأسعار متاحة للمدير فقط',
+            },
+          ],
+        },
+      }),
+    )
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    expect(
+      await screen.findByText('هذا المستخدم عضو بالفعل في النادي'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('اسم المستخدم مستخدم بالفعل')).toBeInTheDocument()
+    expect(screen.getByText('صلاحية الأسعار متاحة للمدير فقط')).toBeInTheDocument()
+  })
+
+  it('shows 403 add-user error, refreshes current user, and does not retry', async () => {
+    const user = userEvent.setup()
+    const { refreshCurrentUser } = mockAuth()
+    mockedCreateClubMembership.mockRejectedValueOnce(
+      new ApiClientError('ليس لديك صلاحية لهذا الإجراء.', 403),
+    )
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    expect(
+      await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),
+    ).toBeInTheDocument()
+    expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    expect(mockedCreateClubMembership).toHaveBeenCalledTimes(1)
   })
 
   it('shows no permissions state when a manager has no effective permissions', async () => {

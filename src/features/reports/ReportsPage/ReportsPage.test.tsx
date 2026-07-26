@@ -277,6 +277,42 @@ describe('ReportsPage', () => {
       .not.toBeInTheDocument()
   })
 
+  it('allows report loading when staff filter options fail', async () => {
+    mockAuth('MANAGER')
+    mockedListCourts.mockResolvedValueOnce({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: 3,
+          club: 1,
+          name: 'ملعب 1',
+          sport_type: 'FOOTBALL',
+          default_price: '300.00',
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 2,
+        },
+      ],
+    })
+    mockedListClubUsers.mockRejectedValueOnce(new Error('forbidden'))
+
+    renderReportsPage('/reports?date_from=2026-07-01&date_to=2026-07-15')
+
+    expect(await screen.findByText('تعذر تحميل خيارات الموظفين'))
+      .toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedGetCourtUsageReport).toHaveBeenCalled()
+    })
+    expect(mockedGetCourtUsageReport).toHaveBeenCalledWith('nasr-club', {
+      date_from: '2026-07-01',
+      date_to: '2026-07-15',
+      period: 'all_day',
+    })
+  })
+
   it('requires date_from and date_to before loading a report', async () => {
     const user = userEvent.setup()
 

@@ -331,7 +331,8 @@ export function ReportsPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
-  const canViewReports = role === 'OWNER' || role === 'MANAGER'
+  const canViewReports =
+    role === 'PLATFORM_ADMIN' || role === 'OWNER' || role === 'MANAGER'
 
   useEffect(() => {
     if (!selectedClubSlug || !canViewReports) {
@@ -344,36 +345,39 @@ export function ReportsPage() {
     void Promise.resolve().then(async () => {
       setFilterOptionsError(null)
 
-      try {
-        const [courtsResponse, usersResponse] = await Promise.all([
+      const [courtsResult, usersResult] = await Promise.allSettled([
           listCourts(clubSlug),
           listClubUsers(clubSlug, { is_active: true }),
-        ])
+      ])
 
-        if (!isActive) {
-          return
-        }
+      if (!isActive) {
+        return
+      }
 
+      if (courtsResult.status === 'fulfilled') {
         setCourtOptions(
-          courtsResponse.results
+          courtsResult.value.results
             .filter((court) => court.is_active)
             .map((court) => ({
               value: String(court.id),
               label: getCourtDisplayName(court),
             })),
         )
+      } else {
+        setCourtOptions([])
+        setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
+      }
+
+      if (usersResult.status === 'fulfilled') {
         setStaffOptions(
-          normalizeClubUsersResponse(usersResponse).map((clubUser) => ({
+          normalizeClubUsersResponse(usersResult.value).map((clubUser) => ({
             value: String(clubUser.id),
             label: getClubUserDisplayName(clubUser),
           })),
         )
-      } catch {
-        if (isActive) {
-          setCourtOptions([])
-          setStaffOptions([])
-          setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
-        }
+      } else {
+        setStaffOptions([])
+        setFilterOptionsError('تعذر تحميل خيارات الموظفين')
       }
     })
 

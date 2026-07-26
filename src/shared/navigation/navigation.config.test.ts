@@ -22,6 +22,7 @@ describe('navigation config', () => {
   it('keeps owner-only routes out of staff navigation', () => {
     expect(canRoleAccessPath('STAFF', '/reports')).toBe(false)
     expect(canRoleAccessPath('OWNER', '/reports')).toBe(true)
+    expect(canRoleAccessPath('MANAGER', '/reports')).toBe(true)
     expect(canRoleAccessPath('STAFF', '/transactions')).toBe(false)
     expect(canRoleAccessPath('STAFF', '/settings/users')).toBe(false)
     expect(canRoleAccessPath('MANAGER', '/settings/users')).toBe(false)

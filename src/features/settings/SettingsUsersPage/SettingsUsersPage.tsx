@@ -17,6 +17,7 @@ import {
 } from '../../../shared/utils/buildPathWithQuery'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import {
+  createClubMembership,
   listClubUsers,
   updateManagerPermissions,
 } from '../../clubUsers/clubUsersApi'
@@ -24,6 +25,8 @@ import type {
   ClubUser,
   ClubUserRole,
   ClubUsersQueryParams,
+  CreateMembershipPayload,
+  CreateMembershipRole,
   UpdateManagerPermissionsPayload,
 } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
@@ -35,6 +38,39 @@ interface UsersFilterState {
   is_active: string
   search: string
 }
+
+type AddUserMode = 'new' | 'existing'
+
+interface AddUserFormState {
+  mode: AddUserMode
+  role: CreateMembershipRole | ''
+  first_name: string
+  last_name: string
+  phone_number: string
+  email: string
+  username: string
+  password: string
+  existingUserId: string
+  court: string
+  manager_can_settle_transactions: boolean
+  manager_can_change_pricing: boolean
+}
+
+type AddUserFieldName =
+  | 'mode'
+  | 'role'
+  | 'first_name'
+  | 'last_name'
+  | 'phone_number'
+  | 'email'
+  | 'username'
+  | 'password'
+  | 'user_id'
+  | 'court'
+  | 'manager_can_settle_transactions'
+  | 'manager_can_change_pricing'
+
+type AddUserFieldErrors = Partial<Record<AddUserFieldName, string>>
 
 const usersFilterKeys = ['role', 'court', 'is_active', 'search'] as const
 
@@ -58,6 +94,21 @@ const permissionLabels = [
     label: 'إدارة التسويات المالية والجرد',
   },
 ] as const
+
+const emptyAddUserForm: AddUserFormState = {
+  mode: 'new',
+  role: '',
+  first_name: '',
+  last_name: '',
+  phone_number: '',
+  email: '',
+  username: '',
+  password: '',
+  existingUserId: '',
+  court: '',
+  manager_can_settle_transactions: false,
+  manager_can_change_pricing: false,
+}
 
 function isClubUserRole(value: string): value is ClubUserRole {
   return value === 'OWNER' || value === 'MANAGER' || value === 'STAFF'
@@ -333,6 +384,414 @@ function getInitialManagerPermissionValues(
   }
 }
 
+function getTrimmedOptional(value: string): string | undefined {
+  const trimmedValue = value.trim()
+
+  return trimmedValue ? trimmedValue : undefined
+}
+
+function validateAddUserForm(values: AddUserFormState): AddUserFieldErrors {
+  const errors: AddUserFieldErrors = {}
+
+  if (!values.mode) {
+    errors.mode = 'اختر نوع المستخدم'
+  }
+
+  if (!values.role) {
+    errors.role = 'اختر الدور'
+  }
+
+  if (values.mode === 'new') {
+    if (!values.first_name.trim()) {
+      errors.first_name = 'الاسم الأول مطلوب'
+    }
+
+    if (!values.username.trim()) {
+      errors.username = 'اسم المستخدم مطلوب'
+    }
+
+    if (!values.password) {
+      errors.password = 'كلمة المرور مطلوبة'
+    }
+  } else if (!values.existingUserId) {
+    errors.user_id = 'اختر المستخدم'
+  }
+
+  if (values.role === 'STAFF' && !values.court) {
+    errors.court = 'اختر ملعبًا للموظف'
+  }
+
+  return errors
+}
+
+function buildCreateMembershipPayload(
+  values: AddUserFormState,
+): CreateMembershipPayload {
+  const basePayload =
+    values.mode === 'new'
+      ? {
+          user: {
+            username: values.username.trim(),
+            email: getTrimmedOptional(values.email),
+            password: values.password,
+            first_name: values.first_name.trim(),
+            last_name: values.last_name.trim(),
+            phone_number: getTrimmedOptional(values.phone_number),
+          },
+        }
+      : {
+          user_id: Number(values.existingUserId),
+        }
+
+  if (values.role === 'STAFF') {
+    return {
+      ...basePayload,
+      role: 'STAFF',
+      court: Number(values.court),
+    }
+  }
+
+  return {
+    ...basePayload,
+    role: 'MANAGER',
+    court: null,
+    manager_can_settle_transactions:
+      values.manager_can_settle_transactions,
+    manager_can_change_pricing: values.manager_can_change_pricing,
+  }
+}
+
+interface AddUserSheetProps {
+  courts: Court[]
+  fieldErrors: AddUserFieldErrors
+  generalError: string | null
+  isSubmitting: boolean
+  onClose: () => void
+  onSubmit: (values: AddUserFormState) => Promise<void>
+}
+
+function AddUserSheet({
+  courts,
+  fieldErrors,
+  generalError,
+  isSubmitting,
+  onClose,
+  onSubmit,
+}: AddUserSheetProps) {
+  const [values, setValues] = useState<AddUserFormState>(emptyAddUserForm)
+
+  function updateValue<Field extends keyof AddUserFormState>(
+    field: Field,
+    value: AddUserFormState[Field],
+  ): void {
+    setValues((current) => {
+      const nextValues = {
+        ...current,
+        [field]: value,
+      }
+
+      if (field === 'role' && value === 'STAFF') {
+        return {
+          ...nextValues,
+          manager_can_settle_transactions: false,
+          manager_can_change_pricing: false,
+        }
+      }
+
+      return nextValues
+    })
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+    await onSubmit(values)
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 sm:items-center sm:justify-center"
+      role="dialog"
+    >
+      <form
+        className="max-h-[92vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-[var(--sloty-surface)] p-4 shadow-xl"
+        onSubmit={handleSubmit}
+      >
+        <div className="space-y-1">
+          <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+            إضافة مستخدم
+          </h2>
+          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+            إنشاء عضوية مدير أو موظف داخل النادي
+          </p>
+        </div>
+
+        {generalError ? (
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+            {generalError}
+          </p>
+        ) : null}
+
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-black text-[var(--sloty-text-primary)]">
+            نوع المستخدم
+          </legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold">
+              <input
+                checked={values.mode === 'new'}
+                className="accent-[var(--sloty-primary)]"
+                disabled={isSubmitting}
+                name="add-user-mode"
+                onChange={() => updateValue('mode', 'new')}
+                type="radio"
+              />
+              مستخدم جديد
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+              <input
+                checked={values.mode === 'existing'}
+                className="accent-[var(--sloty-primary)]"
+                disabled
+                name="add-user-mode"
+                onChange={() => updateValue('mode', 'existing')}
+                type="radio"
+              />
+              مستخدم موجود
+            </label>
+          </div>
+          <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+            اختيار مستخدم موجود غير متاح حتى يتم تأكيد Endpoint البحث عن المستخدمين.
+          </p>
+          {fieldErrors.mode || fieldErrors.user_id ? (
+            <p className="text-xs font-bold text-[var(--sloty-danger)]">
+              {fieldErrors.mode ?? fieldErrors.user_id}
+            </p>
+          ) : null}
+        </fieldset>
+
+        <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+          <span>الدور</span>
+          <select
+            className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+            disabled={isSubmitting}
+            onChange={(event) =>
+              updateValue('role', event.target.value as CreateMembershipRole | '')
+            }
+            value={values.role}
+          >
+            <option value="">اختر الدور</option>
+            <option value="MANAGER">مدير</option>
+            <option value="STAFF">موظف</option>
+          </select>
+          {fieldErrors.role ? (
+            <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+              {fieldErrors.role}
+            </span>
+          ) : null}
+        </label>
+
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+            <span>الاسم الأول</span>
+            <input
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              disabled={isSubmitting}
+              onChange={(event) => updateValue('first_name', event.target.value)}
+              value={values.first_name}
+            />
+            {fieldErrors.first_name ? (
+              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                {fieldErrors.first_name}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+            <span>اسم العائلة</span>
+            <input
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              disabled={isSubmitting}
+              onChange={(event) => updateValue('last_name', event.target.value)}
+              value={values.last_name}
+            />
+          </label>
+
+          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+            <span>رقم الهاتف</span>
+            <input
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              disabled={isSubmitting}
+              dir="ltr"
+              onChange={(event) => updateValue('phone_number', event.target.value)}
+              value={values.phone_number}
+            />
+            {fieldErrors.phone_number ? (
+              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                {fieldErrors.phone_number}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+            <span>البريد الإلكتروني</span>
+            <input
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              disabled={isSubmitting}
+              dir="ltr"
+              onChange={(event) => updateValue('email', event.target.value)}
+              type="email"
+              value={values.email}
+            />
+            {fieldErrors.email ? (
+              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                {fieldErrors.email}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+            <span>اسم المستخدم</span>
+            <input
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              disabled={isSubmitting}
+              dir="ltr"
+              onChange={(event) => updateValue('username', event.target.value)}
+              value={values.username}
+            />
+            {fieldErrors.username ? (
+              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                {fieldErrors.username}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+            <span>كلمة المرور</span>
+            <input
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              disabled={isSubmitting}
+              onChange={(event) => updateValue('password', event.target.value)}
+              type="password"
+              value={values.password}
+            />
+            {fieldErrors.password ? (
+              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                {fieldErrors.password}
+              </span>
+            ) : null}
+          </label>
+        </section>
+
+        {values.role === 'STAFF' ? (
+          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+            <span>الملعب المسؤول عنه</span>
+            <select
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              disabled={isSubmitting}
+              onChange={(event) => updateValue('court', event.target.value)}
+              value={values.court}
+            >
+              <option value="">اختر ملعبًا للموظف</option>
+              {courts.map((court) => (
+                <option key={court.id} value={court.id}>
+                  {court.name || `ملعب #${court.id}`}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.court ? (
+              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                {fieldErrors.court}
+              </span>
+            ) : null}
+          </label>
+        ) : null}
+
+        {values.role === 'MANAGER' ? (
+          <section className="space-y-3 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3">
+            <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
+              صلاحيات المدير
+            </h3>
+            <label className="block space-y-2">
+              <span className="flex items-start gap-3">
+                <input
+                  checked={values.manager_can_settle_transactions}
+                  className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
+                  disabled={isSubmitting}
+                  onChange={(event) =>
+                    updateValue(
+                      'manager_can_settle_transactions',
+                      event.target.checked,
+                    )
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
+                    إدارة التسويات المالية والجرد
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                    يسمح للمدير بمراجعة التسويات المالية والجرد وإنشاء أو اعتماد التسويات المسموح بها.
+                  </span>
+                </span>
+              </span>
+              {fieldErrors.manager_can_settle_transactions ? (
+                <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                  {fieldErrors.manager_can_settle_transactions}
+                </span>
+              ) : null}
+            </label>
+            <label className="block space-y-2">
+              <span className="flex items-start gap-3">
+                <input
+                  checked={values.manager_can_change_pricing}
+                  className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
+                  disabled={isSubmitting}
+                  onChange={(event) =>
+                    updateValue(
+                      'manager_can_change_pricing',
+                      event.target.checked,
+                    )
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
+                    تعديل الأسعار ومواعيد العمل
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                    يسمح للمدير بتعديل أسعار الملاعب ومواعيد العمل المرتبطة بها.
+                  </span>
+                </span>
+              </span>
+              {fieldErrors.manager_can_change_pricing ? (
+                <span className="block text-xs font-bold text-[var(--sloty-danger)]">
+                  {fieldErrors.manager_can_change_pricing}
+                </span>
+              ) : null}
+            </label>
+          </section>
+        ) : null}
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <AppButton disabled={isSubmitting} fullWidth type="submit">
+            حفظ المستخدم
+          </AppButton>
+          <AppButton
+            disabled={isSubmitting}
+            fullWidth
+            onClick={onClose}
+            type="button"
+            variant="secondary"
+          >
+            إلغاء
+          </AppButton>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 interface EditManagerPermissionsSheetProps {
   fieldErrors: Partial<Record<keyof UpdateManagerPermissionsPayload, string>>
   generalError: string | null
@@ -557,6 +1016,11 @@ export function SettingsUsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [usersReloadKey, setUsersReloadKey] = useState(0)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [isAddUserSheetOpen, setIsAddUserSheetOpen] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [addUserError, setAddUserError] = useState<string | null>(null)
+  const [addUserFieldErrors, setAddUserFieldErrors] =
+    useState<AddUserFieldErrors>({})
   const [editingManager, setEditingManager] = useState<ClubUser | null>(null)
   const [isSavingPermissions, setIsSavingPermissions] = useState(false)
   const [permissionsError, setPermissionsError] = useState<string | null>(null)
@@ -761,6 +1225,61 @@ export function SettingsUsersPage() {
     }
   }
 
+  async function handleCreateMembership(values: AddUserFormState): Promise<void> {
+    const localErrors = validateAddUserForm(values)
+
+    if (Object.keys(localErrors).length > 0) {
+      setAddUserFieldErrors(localErrors)
+      setAddUserError(null)
+      return
+    }
+
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsCreatingUser(true)
+    setAddUserError(null)
+    setAddUserFieldErrors({})
+
+    try {
+      await createClubMembership(selectedClubSlug, buildCreateMembershipPayload(values))
+      setIsAddUserSheetOpen(false)
+      setUsersReloadKey((current) => current + 1)
+      setMessage('تم إضافة المستخدم بنجاح')
+    } catch (error) {
+      const fieldErrors = getApiFieldErrors(error)
+
+      setAddUserFieldErrors({
+        username: getFirstFieldErrorMessage(fieldErrors, 'username') ?? undefined,
+        email: getFirstFieldErrorMessage(fieldErrors, 'email') ?? undefined,
+        password: getFirstFieldErrorMessage(fieldErrors, 'password') ?? undefined,
+        phone_number:
+          getFirstFieldErrorMessage(fieldErrors, 'phone_number') ?? undefined,
+        user_id: getFirstFieldErrorMessage(fieldErrors, 'user_id') ?? undefined,
+        role: getFirstFieldErrorMessage(fieldErrors, 'role') ?? undefined,
+        court: getFirstFieldErrorMessage(fieldErrors, 'court') ?? undefined,
+        manager_can_settle_transactions:
+          getFirstFieldErrorMessage(
+            fieldErrors,
+            'manager_can_settle_transactions',
+          ) ?? undefined,
+        manager_can_change_pricing:
+          getFirstFieldErrorMessage(fieldErrors, 'manager_can_change_pricing') ??
+          undefined,
+      })
+      setAddUserError(
+        getApiErrorMessage(error, 'تعذر إضافة المستخدم. حاول مرة أخرى'),
+      )
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
+    } finally {
+      setIsCreatingUser(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       {selectedClubSlug && isOwner ? (
@@ -775,6 +1294,16 @@ export function SettingsUsersPage() {
             />
             <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
               فلترة
+            </AppButton>
+            <AppButton
+              onClick={() => {
+                setAddUserError(null)
+                setAddUserFieldErrors({})
+                setIsAddUserSheetOpen(true)
+              }}
+              type="button"
+            >
+              إضافة مستخدم
             </AppButton>
           </form>
 
@@ -874,6 +1403,21 @@ export function SettingsUsersPage() {
           }}
           onSubmit={handleUpdateManagerPermissions}
           user={editingManager}
+        />
+      ) : null}
+
+      {isAddUserSheetOpen ? (
+        <AddUserSheet
+          courts={courts}
+          fieldErrors={addUserFieldErrors}
+          generalError={addUserError}
+          isSubmitting={isCreatingUser}
+          onClose={() => {
+            if (!isCreatingUser) {
+              setIsAddUserSheetOpen(false)
+            }
+          }}
+          onSubmit={handleCreateMembership}
         />
       ) : null}
     </div>

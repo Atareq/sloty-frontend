@@ -4,6 +4,7 @@ import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
   ClubUser,
   ClubUsersQueryParams,
+  CreateMembershipPayload,
   UpdateManagerPermissionsPayload,
 } from './clubUsers.types'
 
@@ -31,6 +32,48 @@ function buildClubUsersQueryString(params?: ClubUsersQueryParams): string {
   return queryString ? `?${queryString}` : ''
 }
 
+function optionalText(value: string | undefined): string | undefined {
+  const trimmedValue = value?.trim()
+
+  return trimmedValue ? trimmedValue : undefined
+}
+
+function normalizeCreateMembershipPayload(
+  payload: CreateMembershipPayload,
+): CreateMembershipPayload {
+  const userPayload =
+    'user' in payload
+      ? {
+          user: {
+            username: payload.user.username.trim(),
+            email: optionalText(payload.user.email),
+            password: payload.user.password,
+            first_name: payload.user.first_name.trim(),
+            last_name: payload.user.last_name.trim(),
+            phone_number: optionalText(payload.user.phone_number),
+          },
+        }
+      : { user_id: payload.user_id }
+
+  if (payload.role === 'STAFF') {
+    return {
+      ...userPayload,
+      role: 'STAFF',
+      court: payload.court ?? null,
+    }
+  }
+
+  return {
+    ...userPayload,
+    role: 'MANAGER',
+    court: null,
+    manager_can_settle_transactions: Boolean(
+      payload.manager_can_settle_transactions,
+    ),
+    manager_can_change_pricing: Boolean(payload.manager_can_change_pricing),
+  }
+}
+
 /**
  * Lists users attached to one selected club.
  *
@@ -44,6 +87,22 @@ export function listClubUsers(
   return apiRequest<ClubUser[] | PaginatedResponse<ClubUser>>(
     `${apiEndpoints.clubs.users.list(clubSlug)}${buildClubUsersQueryString(params)}`,
   )
+}
+
+/**
+ * Creates a manager or staff membership in the selected club.
+ *
+ * The wrapper keeps the create payload on the membership contract and strips
+ * fields that do not belong to the chosen role.
+ */
+export function createClubMembership(
+  clubSlug: string,
+  payload: CreateMembershipPayload,
+): Promise<ClubUser> {
+  return apiRequest<ClubUser>(apiEndpoints.clubs.memberships.list(clubSlug), {
+    method: 'POST',
+    body: normalizeCreateMembershipPayload(payload),
+  })
 }
 
 /**

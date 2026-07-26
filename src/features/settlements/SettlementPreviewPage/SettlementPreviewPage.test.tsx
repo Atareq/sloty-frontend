@@ -19,6 +19,7 @@ vi.mock('../settlementsApi', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedCreateSettlement = vi.mocked(createSettlement)
 const mockedGetSettlementPreview = vi.mocked(getSettlementPreview)
+const refreshCurrentUser = vi.fn()
 
 function mockAuth(
   role: 'OWNER' | 'MANAGER' | 'STAFF' = 'OWNER',
@@ -53,7 +54,7 @@ function mockAuth(
     logout: vi.fn(),
     selectClub: vi.fn(),
     clearSelectedClub: vi.fn(),
-    refreshCurrentUser: vi.fn(),
+    refreshCurrentUser,
     setTokens: vi.fn(),
   })
 }
@@ -76,6 +77,7 @@ function renderPage(initialEntry = '/settlements/preview?collected_by=15') {
 describe('SettlementPreviewPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    refreshCurrentUser.mockReset()
     mockAuth()
     mockedGetSettlementPreview.mockResolvedValue({
       club: 1,
@@ -302,5 +304,24 @@ describe('SettlementPreviewPage', () => {
     expect(mockedGetSettlementPreview).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByText('Already settled')).not.toBeInTheDocument()
+  })
+
+  it('shows 403 confirmation error, refreshes current user, and does not retry', async () => {
+    const user = userEvent.setup()
+
+    mockedCreateSettlement.mockRejectedValueOnce(
+      new ApiClientError('ليس لديك صلاحية لهذا الإجراء.', 403),
+    )
+
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+
+    expect(
+      await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),
+    ).toBeInTheDocument()
+    expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    expect(mockedCreateSettlement).toHaveBeenCalledTimes(1)
   })
 })

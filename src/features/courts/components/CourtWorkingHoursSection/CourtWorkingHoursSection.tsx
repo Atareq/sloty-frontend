@@ -4,7 +4,9 @@ import {
   getApiErrorMessage,
   getApiFieldErrors,
   getFirstFieldErrorMessage,
+  isApiClientError,
 } from '../../../../core/api/apiError.helpers'
+import { useAuth } from '../../../../core/auth/useAuth'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import {
@@ -161,6 +163,7 @@ export function CourtWorkingHoursSection({
   canEdit = true,
   isCreateMode,
 }: CourtWorkingHoursSectionProps) {
+  const { refreshCurrentUser } = useAuth()
   const navigate = useNavigate()
   const numericCourtId = Number(courtId)
   const canLoadWorkingHours =
@@ -435,6 +438,10 @@ export function CourtWorkingHoursSection({
         backendFieldMessage ??
           getApiErrorMessage(error, 'تعذر حفظ مواعيد العمل'),
       )
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
     } finally {
       setIsSaving(false)
     }

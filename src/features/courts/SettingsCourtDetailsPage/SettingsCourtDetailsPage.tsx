@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
+import {
+  getApiErrorMessage,
+  isApiClientError,
+} from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -12,15 +15,20 @@ import type { Court } from '../courts.types'
 
 export function SettingsCourtDetailsPage() {
   const { courtId } = useParams()
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const {
+    refreshCurrentUser,
+    role,
+    selectedClubSlug,
+    selectedMembership,
+  } = useAuth()
   const [court, setCourt] = useState<Court | null>(null)
   const [price, setPrice] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingPrice, setIsSavingPrice] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [priceMessage, setPriceMessage] = useState<string | null>(null)
-  const canEditPrice = canManagePricing(selectedMembership)
-  const canEditWorkingHours = canManageWorkingHours(selectedMembership)
+  const canEditPrice = canManagePricing(selectedMembership, role)
+  const canEditWorkingHours = canManageWorkingHours(selectedMembership, role)
 
   useEffect(() => {
     let isActive = true
@@ -93,6 +101,10 @@ export function SettingsCourtDetailsPage() {
       setPriceMessage('تم حفظ سعر الملعب')
     } catch (error) {
       setPriceMessage(getApiErrorMessage(error, 'تعذر حفظ سعر الملعب'))
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
     } finally {
       setIsSavingPrice(false)
     }

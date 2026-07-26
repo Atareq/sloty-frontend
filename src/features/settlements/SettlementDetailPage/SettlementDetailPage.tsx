@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import {
   getApiErrorCode,
   getApiErrorMessage,
+  isApiClientError,
 } from '../../../core/api/apiError.helpers'
 import { canManageSettlements } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
@@ -64,13 +65,14 @@ function getTransactions(settlement: Settlement) {
  */
 export function SettlementDetailPage() {
   const { settlementId } = useParams()
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const { refreshCurrentUser, role, selectedClubSlug, selectedMembership } =
+    useAuth()
   const [settlement, setSettlement] = useState<Settlement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMarkingSettled, setIsMarkingSettled] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const canSettle = canManageSettlements(selectedMembership)
+  const canSettle = canManageSettlements(selectedMembership, role)
 
   useEffect(() => {
     let isActive = true
@@ -157,6 +159,10 @@ export function SettlementDetailPage() {
         } catch {
           setSettlement(null)
         }
+      }
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
       }
     } finally {
       setIsMarkingSettled(false)

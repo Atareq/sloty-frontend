@@ -349,16 +349,109 @@ describe('AppShell', () => {
       .not.toBeInTheDocument()
   })
 
-  it('hides the header menu button and drawer when desktop view is active', () => {
+  it('defaults to mobile view when no saved view mode exists', () => {
+    renderAppShell()
+
+    expect(window.localStorage.getItem('sloty:view-mode')).toBeNull()
+    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
+      .toHaveAttribute('data-view-mode', 'mobile')
+    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'تنقل الموظف' }))
+      .toBeInTheDocument()
+  })
+
+  it('ignores invalid saved view mode values and resets them to mobile', () => {
+    window.localStorage.setItem('sloty:view-mode', 'tablet')
+
+    renderAppShell()
+
+    expect(window.localStorage.getItem('sloty:view-mode')).toBe('mobile')
+    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
+      .toHaveAttribute('data-view-mode', 'mobile')
+    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
+      .toBeInTheDocument()
+  })
+
+  it('respects an explicit desktop view preference', () => {
     window.localStorage.setItem('sloty:view-mode', 'desktop')
 
     renderAppShell()
 
+    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
+      .toHaveAttribute('data-view-mode', 'desktop')
     expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
       .not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
       .not.toBeInTheDocument()
+  })
+
+  it('renders a visible mobile recovery action in desktop view', () => {
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+
+    renderAppShell()
+
+    expect(screen.getByRole('button', { name: 'عرض الهاتف' }))
+      .toBeInTheDocument()
+  })
+
+  it('switches desktop view back to mobile and stores the mobile preference', async () => {
+    const user = userEvent.setup()
+
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+
+    renderAppShell()
+
+    await user.click(screen.getByRole('button', { name: 'عرض الهاتف' }))
+
+    expect(window.localStorage.getItem('sloty:view-mode')).toBe('mobile')
+    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
+      .toHaveAttribute('data-view-mode', 'mobile')
+    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'تنقل الموظف' }))
+      .toBeInTheDocument()
+  })
+
+  it('never traps desktop view without a visible way back to mobile', () => {
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+
+    renderAppShell()
+
+    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
+      .toHaveAttribute('data-view-mode', 'desktop')
+    expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'عرض الهاتف' }))
+      .toBeInTheDocument()
+  })
+
+  it('keeps the desktop view toggle inside the mobile drawer in mobile mode', async () => {
+    const user = userEvent.setup()
+
+    renderAppShell()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).getByRole('button', { name: 'عرض سطح المكتب' }))
+      .toBeInTheDocument()
+  })
+
+  it('opens the owner overview dashboard in mobile view on a fresh load', () => {
+    mockedUseAuth.mockReturnValue(getAuthValue(2, { role: 'OWNER' }))
+
+    renderAppShell('/dashboard')
+
+    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
+      .toHaveAttribute('data-view-mode', 'mobile')
+    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'تنقل الموظف' }))
+      .toBeInTheDocument()
   })
 
   it('shows and dismisses a route-state flash message', async () => {

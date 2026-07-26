@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../../core/api/apiClient'
+import { useAuth } from '../../../../core/auth/useAuth'
 import {
   getCourtWorkingHours,
   saveCourtWorkingHours,
@@ -23,6 +24,10 @@ vi.mock('react-router', () => ({
   useNavigate: () => mockedNavigate,
 }))
 
+vi.mock('../../../../core/auth/useAuth', () => ({
+  useAuth: vi.fn(),
+}))
+
 vi.mock('../../courtWorkingHoursApi', () => ({
   getCourtWorkingHours: vi.fn(),
   saveCourtWorkingHours: vi.fn(),
@@ -30,6 +35,8 @@ vi.mock('../../courtWorkingHoursApi', () => ({
 
 const mockedGetCourtWorkingHours = vi.mocked(getCourtWorkingHours)
 const mockedSaveCourtWorkingHours = vi.mocked(saveCourtWorkingHours)
+const mockedUseAuth = vi.mocked(useAuth)
+const refreshCurrentUser = vi.fn()
 
 describe('CourtWorkingHoursSection helpers', () => {
   it('maps backend weekdays to Arabic labels starting from Saturday', () => {
@@ -75,6 +82,24 @@ describe('CourtWorkingHoursSection helpers', () => {
 describe('CourtWorkingHoursSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockedUseAuth.mockReturnValue({
+      accessToken: 'token',
+      claims: { user_id: 1, role: 'OWNER' },
+      currentUser: null,
+      selectedClubSlug: 'nasr-club',
+      selectedMembership: null,
+      role: 'OWNER',
+      isAuthenticated: true,
+      isLoadingSession: false,
+      isTokenExpired: false,
+      sessionError: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+      selectClub: vi.fn(),
+      clearSelectedClub: vi.fn(),
+      refreshCurrentUser,
+      setTokens: vi.fn(),
+    })
     mockedGetCourtWorkingHours.mockResolvedValue({
       court: 7,
       court_name: 'ملعب 1',
@@ -284,6 +309,30 @@ describe('CourtWorkingHoursSection', () => {
     expect(await screen.findByText('فترات العمل غير صحيحة'))
       .toBeInTheDocument()
     expect(mockedNavigate).not.toHaveBeenCalled()
+  })
+
+  it('shows 403 save error, refreshes current user, and does not retry', async () => {
+    const user = userEvent.setup()
+
+    mockedSaveCourtWorkingHours.mockRejectedValueOnce(
+      new ApiClientError('ليس لديك صلاحية لهذا الإجراء.', 403),
+    )
+
+    render(
+      <CourtWorkingHoursSection
+        clubSlug="nasr-club"
+        courtId="7"
+        isCreateMode={false}
+      />,
+    )
+
+    await screen.findByText('السبت')
+    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+
+    expect(await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'))
+      .toBeInTheDocument()
+    expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
+    expect(mockedSaveCourtWorkingHours).toHaveBeenCalledTimes(1)
   })
 
   it('rejects overlapping periods', async () => {

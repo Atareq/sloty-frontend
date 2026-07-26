@@ -79,6 +79,11 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Manager permission flags live on the selected membership, not the club object: use nested membership `permissions.can_change_pricing`, `permissions.can_manage_working_hours`, and `permissions.can_manage_settlements` when returned by `/me`.
 - Do not store or send `manager_can_settle_transactions` or `manager_can_change_pricing` on Club create/update payloads.
 - Owner edits to existing Manager permissions use `PATCH clubs/{club_slug}/memberships/{membership_id}/` with only `manager_can_settle_transactions` and `manager_can_change_pricing`.
+- Add User creates club memberships with `POST clubs/{club_slug}/memberships/`; normal UI can create or assign `MANAGER` and `STAFF` only.
+- Manager permissions default false on creation and send `manager_can_settle_transactions` and `manager_can_change_pricing` only for `MANAGER`.
+- Staff membership creation requires court assignment and must not send manager permission fields.
+- Existing-user assignment must use a named selector/search when available; do not ask users to type raw backend user IDs.
+- Refresh club users after creating a membership, and keep backend validation/errors authoritative.
 - Do not update manager permissions through Club update, and do not send manager permission fields for Staff or Owner memberships.
 - After updating manager permissions, refresh the club users list and refresh `/me` when the active membership may be affected; on 403, refresh `/me` and do not retry the mutation automatically.
 - During the membership-permission backend rollout, fallback compatibility for older permission shapes must stay centralized in auth helpers, with no direct component reads from club-level permission fields.
@@ -87,6 +92,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - If `/me` returns no memberships and the user is not platform admin, show `/no-club-access`.
 - Backend remains the source of truth for permissions; do not trust frontend-selected club context without backend verification.
 - Club-scoped pages should use `selectedClubSlug` and the current `selectedMembership` from `useAuth()`.
+- Active role, court scope, and permissions must be recalculated from the selected club membership whenever `selectedClubSlug` changes; never carry permissions from a previous club.
 - Do not fetch all clubs just to pick the first active club for normal club users.
 - Sprint 2A clubs/courts setup API calls must go through feature wrappers such as `clubsApi` and `courtsApi`.
 - Sprint 2B court working-hours setup lives inside the courts feature; keep it separate from booking-slot generation.
@@ -173,6 +179,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Settlement hub shows actual settlement records and safe shortcuts to Summary/Transactions for reviewing live unsettled money.
 - Live unsettled money comes from Summary/Transactions, not pending settlement drafts; do not build pending settlement draft UI or use `dry_run` wording in settlement UI.
 - Staff cannot access settlement management; owner can settle and manager can settle only when `can_manage_settlements` allows it.
+- Settlement management navigation and actions must use the centralized settlement permission helper; refresh `/me` after 403 settlement mutations and do not retry automatically.
 - Completed bookings with remaining money are future financial warnings, not normal needs-action.
 - Do not show fake zeroes while Summary data is loading.
 - Summary action cards must build filtered links through `buildPathWithQuery`; do not hand-build query strings inside card components.
@@ -180,6 +187,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Summary links are UX navigation helpers only; backend remains the permission and data authority.
 - Do not calculate unsettled money, needs-action counts, or financial dashboard totals in the frontend.
 - Audit logs are read-only. Reports and audit access are role/permission-gated UX helpers, with backend remaining the authority.
+- Reports access is role-based for allowed report roles and must not depend on settlement permission.
 - Do not expose manual ID inputs for business entities; use named select/search fields for users, staff, courts, and actions while keeping backend IDs/enums as internal option values.
 - Audit log action filters and displays must use Arabic business labels instead of raw enum values.
 - Deep-linked ID/enum query params should remain supported with graceful fallback labels such as `مستخدم #id` or the unknown action value.
@@ -196,12 +204,14 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Do not create backend auth, refresh, or permission assumptions beyond the agreed frontend token claims.
 - Role navigation must be generated from `src/shared/navigation/navigation.config.ts` so desktop and mobile menus stay consistent.
 - `/settings` is the Settings hub.
-- `/settings/users` is the read-only Users & Permissions page.
+- `/settings/users` is the Users & Permissions page for Owner user management and Manager permission edits.
 - Permission flags are membership-level flags and must be displayed with business Arabic labels, never backend flag names.
 - Platform Admin and OWNER have pricing, working-hours, and settlement permissions by default.
 - MANAGER permissions depend on the active selected club membership; never reuse permissions from a previously selected club.
 - STAFF has no manager permissions.
-- Users & Permissions may edit existing Manager permission flags only; it must not create users, assign users, edit Staff/Owner permissions, or call membership POST until those backend contracts are explicitly confirmed.
+- Club Settings must not contain manager permission controls or send manager permission fields through Club create/update payloads.
+- Pricing edit actions must use the centralized pricing permission helper, and working-hours edit actions must use the centralized working-hours permission helper.
+- Users & Permissions may add Manager/Staff memberships and edit existing Manager permission flags; it must not create Owner users or edit Staff/Owner permissions.
 - Users & Permissions badges use effective club-users fields (`can_change_pricing`, `can_manage_working_hours`, `can_manage_settlements`) and never raw backend field names.
 - Backend remains the authority for permission enforcement.
 - Authenticated pages use the reusable unified green header from `AppShell`; do not add duplicate visible page title cards inside shell pages.
@@ -215,6 +225,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Do not add a mobile footer item called `المزيد`; use the hamburger icon, not a three-dots icon.
 - Logout and change-club actions belong in the account menu, not the visible header area.
 - Default authenticated experience is mobile-style, and users can switch to Desktop View from the hamburger menu.
+- Sloty defaults to mobile view unless `sloty:view-mode` explicitly stores `desktop`; invalid saved view-mode values fall back to mobile.
+- Desktop view must always expose a visible `عرض الهاتف` recovery action outside hidden mobile-only UI surfaces.
+- Do not place the only mobile/desktop view toggle inside a drawer or surface hidden by the current view mode.
 - Navigation labels must use the approved Arabic wording: `لوحة التحكم`, `الجدول`, `سجل الحجوزات`, `سجل المعاملات المالية`, `التسويات المالية والجرد`, `سجل النشاطات`, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
 - Every new page must use the repo shared `PageHeader` by default unless there is a clear reason not to.
 - Do not create custom page headers when `PageHeader` fits the use case.

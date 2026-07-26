@@ -10,13 +10,13 @@ import { listCourts } from '../courtsApi'
 import type { Court } from '../courts.types'
 
 export function SettingsCourtsPage() {
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const { role, selectedClubSlug, selectedMembership } = useAuth()
   const [courts, setCourts] = useState<Court[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const canOpenSettings =
-    canManagePricing(selectedMembership) ||
-    canManageWorkingHours(selectedMembership)
+    canManagePricing(selectedMembership, role) ||
+    canManageWorkingHours(selectedMembership, role)
 
   useEffect(() => {
     let isActive = true

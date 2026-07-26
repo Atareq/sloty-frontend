@@ -62,10 +62,10 @@ export function listBookingsForCourtDay(
 }
 
 /**
- * Lists backend-calculated availability slots without migrating Schedule yet.
+ * Lists backend-calculated availability slots for the active Schedule board.
  *
- * Future Schedule integration should use `slot.is_available` for clickability
- * and `slot.label` for localized slot display text.
+ * Schedule uses `slot.is_available` for clickability and `slot.label` for
+ * localized slot display text while keeping booking lifecycle status separate.
  */
 export function listBookingSlots(
   clubSlug: string,
