@@ -3,6 +3,9 @@ import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { ClubSelectionPage } from '../features/auth/ClubSelectionPage/ClubSelectionPage'
 import { NoClubAccessPage } from '../features/auth/NoClubAccessPage/NoClubAccessPage'
 import { AuditLogsPage } from '../features/audit/AuditLogsPage/AuditLogsPage'
+import { AdminUserDetailsPage } from '../features/adminUsers/AdminUserDetailsPage/AdminUserDetailsPage'
+import { AdminUserFormPage } from '../features/adminUsers/AdminUserFormPage/AdminUserFormPage'
+import { AdminUsersPage } from '../features/adminUsers/AdminUsersPage/AdminUsersPage'
 import { BookingsListPage } from '../features/bookings/BookingsListPage/BookingsListPage'
 import { DashboardPage } from '../features/dashboard/DashboardPage/DashboardPage'
 import { SchedulePage } from '../features/schedule/SchedulePage/SchedulePage'
@@ -239,10 +242,23 @@ export const router = createBrowserRouter([
         path: '/admin/users',
         element: (
           <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
-            <PlaceholderPage
-              description="مسار مؤقت لإدارة مستخدمي المنصة."
-              title="المستخدمون"
-            />
+            <AdminUsersPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/users/new',
+        element: (
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+            <AdminUserFormPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/admin/users/:userId',
+        element: (
+          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+            <AdminUserDetailsPage />
           </RoleRoute>
         ),
       },

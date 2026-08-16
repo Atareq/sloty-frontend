@@ -173,4 +173,39 @@ describe('clubUsersApi', () => {
       expect.anything(),
     )
   })
+
+  it('creates an owner membership without court or manager permission fields', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ id: 4 })
+
+    await createClubMembership('nasr-club', {
+      user: {
+        username: 'owner',
+        password: 'secret123',
+        first_name: 'علي',
+        last_name: 'مالك',
+      },
+      role: 'OWNER',
+      court: 7,
+      manager_can_settle_transactions: true,
+      manager_can_change_pricing: true,
+    } as never)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.memberships.list('nasr-club'),
+      {
+        method: 'POST',
+        body: {
+          user: {
+            username: 'owner',
+            email: undefined,
+            password: 'secret123',
+            first_name: 'علي',
+            last_name: 'مالك',
+            phone_number: undefined,
+          },
+          role: 'OWNER',
+        },
+      },
+    )
+  })
 })

@@ -67,6 +67,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Do not add a global toast for every API error; forms need local message and field-error handling.
 - Egypt governorates/cities must come from `GET /egypt-locations/`; club forms must submit governorate/city codes, not Arabic or English labels, and must not hardcode Egypt location lists. Club address forms use governorate, city, and optional address; do not reintroduce `area`.
 - Phone country/region selection is frontend UI only. Backend payloads must send one E.164 phone field such as `customer_phone` or `phone_number`; do not send `phone_region`, `country`, or calling-code fields.
+- Reuse `SlotyPhoneNumberInput` for user/customer phone entry, and do not create duplicate phone parsers, regex validators, or E.164 formatters.
 - JWT role claims are used by the frontend for UX, navigation, and route protection.
 - Components must use `useAuth()` instead of decoding tokens directly.
 - Decode access tokens in the auth utility/provider layer only.
@@ -80,9 +81,24 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Do not store or send `manager_can_settle_transactions` or `manager_can_change_pricing` on Club create/update payloads.
 - Owner edits to existing Manager permissions use `PATCH clubs/{club_slug}/memberships/{membership_id}/` with only `manager_can_settle_transactions` and `manager_can_change_pricing`.
 - Add User creates club memberships with `POST clubs/{club_slug}/memberships/`; normal UI can create or assign `MANAGER` and `STAFF` only.
+- Add User phone entry must reuse the shared country-aware phone input and send only one E.164 `phone_number` value when present.
+- Reuse shared Manager permission fields where Manager create/edit forms need the same settlement and pricing/working-hours toggles.
+- Owner Settings user creation supports `MANAGER` and `STAFF` only; Platform Admin `OWNER` membership creation belongs to the future Platform Admin Users flow.
+- Platform Admin Users live under `/admin/users`; use one data/request flow for mobile cards and desktop tables.
+- `/admin/users/:userId` uses the global user detail response for account data and any returned membership summaries.
+- Do not request every club's membership list to reconstruct Platform Admin user detail membership data; missing summaries render a calm unavailable state.
+- Platform Admin creates Platform Admin accounts with `POST users/` and club memberships with `POST clubs/{club_slug}/memberships/`.
+- Platform Admin club-user creation may create `OWNER`, `MANAGER`, and `STAFF`; Owner Settings user creation remains limited to `MANAGER` and `STAFF`.
+- Platform Admin account activation/deactivation uses `PATCH users/{userId}/` only when a confirmed account status field such as `is_active` is present.
+- Membership activation/deactivation must use membership PATCH only when a confirmed activation request field exists; do not infer it from response-only status fields.
 - Manager permissions default false on creation and send `manager_can_settle_transactions` and `manager_can_change_pricing` only for `MANAGER`.
+- Working-hours permission is currently represented through the pricing/working-hours manager toggle; do not add a separate manager working-hours payload field.
 - Staff membership creation requires court assignment and must not send manager permission fields.
 - Existing-user assignment must use a named selector/search when available; do not ask users to type raw backend user IDs.
+- Existing-user linking uses a named/searchable selector and internal `user_id` payloads only; never expose raw numeric ID inputs.
+- Existing memberships must not expose scope reassignment UI for `role`, `court`, `user`, or `club`.
+- Manager permission editing remains membership-level and must reuse the shared manager-permission fields/dialog.
+- Do not request every club membership list to build the global Platform Admin users list; render membership summaries only when the global users endpoint returns them.
 - Refresh club users after creating a membership, and keep backend validation/errors authoritative.
 - Do not update manager permissions through Club update, and do not send manager permission fields for Staff or Owner memberships.
 - After updating manager permissions, refresh the club users list and refresh `/me` when the active membership may be affected; on 403, refresh `/me` and do not retry the mutation automatically.
@@ -218,6 +234,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - The unified header mobile hamburger is a right-side RTL menu button with three horizontal lines; hide it when desktop sidebar mode is active.
 - The hamburger and mobile drawer are mobile-only; the drawer opens from the right and must close or be hidden when switching to desktop view.
 - Desktop navigation uses the sidebar only; the mobile drawer must never render over the desktop sidebar.
+- Platform Admin does not use the club-user bottom navigation.
+- Mobile Overview must hide the desktop sidebar even on wide screens and keep the hamburger/drawer available.
+- Desktop Overview must expose logout in the sidebar.
 - Mobile footer contains only `لوحة التحكم`, `الجدول`, and `سجل الحجوزات`.
 - Finance, admin, history, reports, audit, settlements, and settings links live in the hamburger menu and desktop sidebar, not in the mobile footer.
 - Primary drawer/sidebar club navigation contains only direct hub pages: `لوحة التحكم`, `الجدول`, `سجل الحجوزات`, `سجل المعاملات المالية`, `التسويات المالية والجرد`, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
@@ -233,6 +252,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Do not create custom page headers when `PageHeader` fits the use case.
 - Keep one Sloty visual fingerprint across the project: Arabic-first, RTL-first, mobile-first, green brand system, rounded cards, shared `AppCard`/`AppButton` patterns, consistent spacing, and responsive layouts.
 - Any new page must look like part of the same product, not a separate prototype.
+- Do not create separate mobile and desktop business pages for the same workflow; share data/request flow and vary presentation only.
+- Mobile/desktop view switches must change presentation only, not route, filters, data, or API behavior.
 
 ## Change Review
 

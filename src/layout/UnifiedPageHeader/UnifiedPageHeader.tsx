@@ -28,7 +28,7 @@ export function UnifiedPageHeader({
         {showMenuButton ? (
           <button
             aria-label="فتح القائمة"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/12 text-white transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white/70 lg:hidden"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/12 text-white transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white/70"
             onClick={onMenuClick}
             type="button"
           >

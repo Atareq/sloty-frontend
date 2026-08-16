@@ -15,9 +15,9 @@ import {
   type NavigationItem,
 } from '../../shared/navigation/navigation.config'
 import { UnifiedPageHeader } from '../UnifiedPageHeader/UnifiedPageHeader'
+import { AppViewModeContext, type ViewMode } from './AppShell.viewMode'
 
 const viewModeStorageKey = 'sloty:view-mode'
-type ViewMode = 'mobile' | 'desktop'
 
 interface NavigationGroup {
   title: string
@@ -36,6 +36,10 @@ const mobileMenuGroups: NavigationGroup[] = [
   {
     title: 'الإدارة والمتابعة',
     paths: ['/reports', '/settings'],
+  },
+  {
+    title: 'إدارة المنصة',
+    paths: ['/admin/clubs', '/admin/users'],
   },
 ]
 
@@ -232,7 +236,7 @@ export function AppShell() {
       <aside
         className={[
           'fixed bottom-0 right-0 top-0 z-40 w-72 flex-col border-l border-[var(--sloty-border)] bg-[var(--sloty-surface)] px-4 py-5 shadow-[var(--sloty-shadow)]',
-          shouldUseDesktopNav ? 'flex' : 'hidden lg:flex',
+          shouldUseDesktopNav ? 'flex' : 'hidden',
         ].join(' ')}
       >
         <div className="sloty-green-surface rounded-3xl p-4 text-white">
@@ -290,13 +294,20 @@ export function AppShell() {
             >
               عرض الهاتف
             </button>
+            <button
+              className="mt-2 min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
+              onClick={handleLogout}
+              type="button"
+            >
+              تسجيل الخروج
+            </button>
           </section>
         ) : null}
       </aside>
 
       <div
         className={[
-          shouldUseDesktopNav ? 'pr-72' : 'lg:pr-72',
+          shouldUseDesktopNav ? 'pr-72' : '',
           'transition-[padding]',
         ].join(' ')}
       >
@@ -333,9 +344,11 @@ export function AppShell() {
                 </div>
               </div>
             ) : null}
-            <PageHeaderSuppressionProvider suppress>
-              <Outlet />
-            </PageHeaderSuppressionProvider>
+            <AppViewModeContext.Provider value={viewMode}>
+              <PageHeaderSuppressionProvider suppress>
+                <Outlet />
+              </PageHeaderSuppressionProvider>
+            </AppViewModeContext.Provider>
           </div>
         </main>
       </div>
@@ -343,7 +356,7 @@ export function AppShell() {
       {isMenuOpen && isDrawerAllowed ? (
         <div
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-slate-950/45 lg:hidden"
+          className="fixed inset-0 z-50 bg-slate-950/45"
           role="dialog"
         >
           <button

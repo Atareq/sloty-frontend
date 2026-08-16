@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import type { Value } from 'react-phone-number-input'
 import { useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
@@ -11,16 +12,26 @@ import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
+import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import {
   buildPathWithQuery,
   type QueryParamValue,
 } from '../../../shared/utils/buildPathWithQuery'
 import { toQueryObject } from '../../../shared/utils/queryParams'
+import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
 import {
   createClubMembership,
   listClubUsers,
   updateManagerPermissions,
 } from '../../clubUsers/clubUsersApi'
+import {
+  getClubUserDisplayName,
+  getManagerIdentity,
+  getUserCourtName,
+} from '../../clubUsers/clubUsers.display'
+import { EditManagerPermissionsDialog } from '../../clubUsers/components/EditManagerPermissionsDialog/EditManagerPermissionsDialog'
+import { ManagerPermissionFields } from '../../clubUsers/components/ManagerPermissionFields/ManagerPermissionFields'
+import { UserPermissions } from '../../clubUsers/components/UserPermissions/UserPermissions'
 import type {
   ClubUser,
   ClubUserRole,
@@ -46,7 +57,7 @@ interface AddUserFormState {
   role: CreateMembershipRole | ''
   first_name: string
   last_name: string
-  phone_number: string
+  phone_number: Value | undefined
   email: string
   username: string
   password: string
@@ -80,27 +91,12 @@ const roleLabels: Record<ClubUserRole, string> = {
   STAFF: 'موظف',
 }
 
-const permissionLabels = [
-  {
-    key: 'can_change_pricing',
-    label: 'تعديل أسعار الملاعب',
-  },
-  {
-    key: 'can_manage_working_hours',
-    label: 'إدارة مواعيد العمل',
-  },
-  {
-    key: 'can_manage_settlements',
-    label: 'إدارة التسويات المالية والجرد',
-  },
-] as const
-
 const emptyAddUserForm: AddUserFormState = {
   mode: 'new',
   role: '',
   first_name: '',
   last_name: '',
-  phone_number: '',
+  phone_number: undefined,
   email: '',
   username: '',
   password: '',
@@ -162,31 +158,6 @@ function normalizeClubUsersResponse(
   response: ClubUser[] | PaginatedResponse<ClubUser>,
 ): ClubUser[] {
   return Array.isArray(response) ? response : response.results
-}
-
-function getUserDisplayName(user: ClubUser): string {
-  const fullName = [user.first_name, user.last_name]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(' ')
-
-  return fullName || user.username
-}
-
-function getManagerIdentity(user: ClubUser): string {
-  return getUserDisplayName(user) || user.phone_number || user.username
-}
-
-function getUserCourtName(user: ClubUser, courts: Court[]): string | null {
-  if (user.court_name) {
-    return user.court_name
-  }
-
-  if (!user.court) {
-    return null
-  }
-
-  return courts.find((court) => court.id === user.court)?.name ?? `ملعب #${user.court}`
 }
 
 interface UsersFilterFormProps {
@@ -322,56 +293,6 @@ function ActiveBadge({ isActive }: { isActive: boolean | undefined }) {
   )
 }
 
-function PermissionBadge({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
-      <span aria-hidden="true">✓</span>
-      {label}
-    </span>
-  )
-}
-
-function UserPermissions({ user }: { user: ClubUser }) {
-  if (user.role === 'OWNER') {
-    return (
-      <p className="rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-sm font-black text-[var(--sloty-primary-dark)]">
-        صلاحيات كاملة كمالك
-      </p>
-    )
-  }
-
-  if (user.role === 'STAFF') {
-    return (
-      <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-        موظف تشغيل
-      </p>
-    )
-  }
-
-  const enabledPermissions = permissionLabels.filter((permission) =>
-    Boolean(user[permission.key]),
-  )
-
-  return (
-    <div className="space-y-2">
-      <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-        الصلاحيات
-      </p>
-      {enabledPermissions.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {enabledPermissions.map((permission) => (
-            <PermissionBadge key={permission.key} label={permission.label} />
-          ))}
-        </div>
-      ) : (
-        <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-          لا توجد صلاحيات إضافية
-        </p>
-      )}
-    </div>
-  )
-}
-
 function getInitialManagerPermissionValues(
   user: ClubUser,
 ): Required<UpdateManagerPermissionsPayload> {
@@ -384,8 +305,8 @@ function getInitialManagerPermissionValues(
   }
 }
 
-function getTrimmedOptional(value: string): string | undefined {
-  const trimmedValue = value.trim()
+function getTrimmedOptional(value: string | undefined): string | undefined {
+  const trimmedValue = value?.trim()
 
   return trimmedValue ? trimmedValue : undefined
 }
@@ -412,6 +333,10 @@ function validateAddUserForm(values: AddUserFormState): AddUserFieldErrors {
 
     if (!values.password) {
       errors.password = 'كلمة المرور مطلوبة'
+    }
+
+    if (values.phone_number && !isValidSlotyPhoneNumber(values.phone_number)) {
+      errors.phone_number = 'أدخل رقم هاتف صحيح'
     }
   } else if (!values.existingUserId) {
     errors.user_id = 'اختر المستخدم'
@@ -617,13 +542,13 @@ function AddUserSheet({
             />
           </label>
 
-          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+          <div className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>رقم الهاتف</span>
-            <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+
+            <SlotyPhoneNumberInput
               disabled={isSubmitting}
-              dir="ltr"
-              onChange={(event) => updateValue('phone_number', event.target.value)}
+              error={Boolean(fieldErrors.phone_number)}
+              onChange={(value) => updateValue('phone_number', value)}
               value={values.phone_number}
             />
             {fieldErrors.phone_number ? (
@@ -631,7 +556,7 @@ function AddUserSheet({
                 {fieldErrors.phone_number}
               </span>
             ) : null}
-          </label>
+          </div>
 
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>البريد الإلكتروني</span>
@@ -712,209 +637,18 @@ function AddUserSheet({
             <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
               صلاحيات المدير
             </h3>
-            <label className="block space-y-2">
-              <span className="flex items-start gap-3">
-                <input
-                  checked={values.manager_can_settle_transactions}
-                  className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
-                  disabled={isSubmitting}
-                  onChange={(event) =>
-                    updateValue(
-                      'manager_can_settle_transactions',
-                      event.target.checked,
-                    )
-                  }
-                  type="checkbox"
-                />
-                <span>
-                  <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
-                    إدارة التسويات المالية والجرد
-                  </span>
-                  <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                    يسمح للمدير بمراجعة التسويات المالية والجرد وإنشاء أو اعتماد التسويات المسموح بها.
-                  </span>
-                </span>
-              </span>
-              {fieldErrors.manager_can_settle_transactions ? (
-                <span className="block text-xs font-bold text-[var(--sloty-danger)]">
-                  {fieldErrors.manager_can_settle_transactions}
-                </span>
-              ) : null}
-            </label>
-            <label className="block space-y-2">
-              <span className="flex items-start gap-3">
-                <input
-                  checked={values.manager_can_change_pricing}
-                  className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
-                  disabled={isSubmitting}
-                  onChange={(event) =>
-                    updateValue(
-                      'manager_can_change_pricing',
-                      event.target.checked,
-                    )
-                  }
-                  type="checkbox"
-                />
-                <span>
-                  <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
-                    تعديل الأسعار ومواعيد العمل
-                  </span>
-                  <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                    يسمح للمدير بتعديل أسعار الملاعب ومواعيد العمل المرتبطة بها.
-                  </span>
-                </span>
-              </span>
-              {fieldErrors.manager_can_change_pricing ? (
-                <span className="block text-xs font-bold text-[var(--sloty-danger)]">
-                  {fieldErrors.manager_can_change_pricing}
-                </span>
-              ) : null}
-            </label>
+            <ManagerPermissionFields
+              fieldErrors={fieldErrors}
+              isSubmitting={isSubmitting}
+              onChange={updateValue}
+              values={values}
+            />
           </section>
         ) : null}
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <AppButton disabled={isSubmitting} fullWidth type="submit">
             حفظ المستخدم
-          </AppButton>
-          <AppButton
-            disabled={isSubmitting}
-            fullWidth
-            onClick={onClose}
-            type="button"
-            variant="secondary"
-          >
-            إلغاء
-          </AppButton>
-        </div>
-      </form>
-    </div>
-  )
-}
-
-interface EditManagerPermissionsSheetProps {
-  fieldErrors: Partial<Record<keyof UpdateManagerPermissionsPayload, string>>
-  generalError: string | null
-  isSubmitting: boolean
-  onClose: () => void
-  onSubmit: (payload: UpdateManagerPermissionsPayload) => Promise<void>
-  user: ClubUser
-}
-
-function EditManagerPermissionsSheet({
-  fieldErrors,
-  generalError,
-  isSubmitting,
-  onClose,
-  onSubmit,
-  user,
-}: EditManagerPermissionsSheetProps) {
-  const initialValues = useMemo(
-    () => getInitialManagerPermissionValues(user),
-    [user],
-  )
-  const [values, setValues] = useState(initialValues)
-
-  function updateValue(
-    field: keyof UpdateManagerPermissionsPayload,
-    value: boolean,
-  ): void {
-    setValues((current) => ({
-      ...current,
-      [field]: value,
-    }))
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault()
-    await onSubmit(values)
-  }
-
-  return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 sm:items-center sm:justify-center"
-      role="dialog"
-    >
-      <form
-        className="w-full max-w-lg space-y-4 rounded-2xl bg-[var(--sloty-surface)] p-4 shadow-xl"
-        onSubmit={handleSubmit}
-      >
-        <div className="space-y-1">
-          <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-            تعديل صلاحيات المدير
-          </h2>
-          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            {getManagerIdentity(user)} · مدير
-          </p>
-        </div>
-
-        {generalError ? (
-          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-            {generalError}
-          </p>
-        ) : null}
-
-        <label className="block space-y-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3">
-          <span className="flex items-start gap-3">
-            <input
-              checked={values.manager_can_settle_transactions}
-              className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
-              disabled={isSubmitting}
-              onChange={(event) =>
-                updateValue(
-                  'manager_can_settle_transactions',
-                  event.target.checked,
-                )
-              }
-              type="checkbox"
-            />
-            <span>
-              <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
-                إدارة التسويات المالية والجرد
-              </span>
-              <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                يسمح للمدير بمراجعة التسويات المالية والجرد وإنشاء أو اعتماد التسويات المسموح بها.
-              </span>
-            </span>
-          </span>
-          {fieldErrors.manager_can_settle_transactions ? (
-            <span className="block text-xs font-bold text-[var(--sloty-danger)]">
-              {fieldErrors.manager_can_settle_transactions}
-            </span>
-          ) : null}
-        </label>
-
-        <label className="block space-y-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3">
-          <span className="flex items-start gap-3">
-            <input
-              checked={values.manager_can_change_pricing}
-              className="mt-1 h-5 w-5 accent-[var(--sloty-primary)]"
-              disabled={isSubmitting}
-              onChange={(event) =>
-                updateValue('manager_can_change_pricing', event.target.checked)
-              }
-              type="checkbox"
-            />
-            <span>
-              <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
-                تعديل الأسعار ومواعيد العمل
-              </span>
-              <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                يسمح للمدير بتعديل أسعار الملاعب ومواعيد العمل المرتبطة بها.
-              </span>
-            </span>
-          </span>
-          {fieldErrors.manager_can_change_pricing ? (
-            <span className="block text-xs font-bold text-[var(--sloty-danger)]">
-              {fieldErrors.manager_can_change_pricing}
-            </span>
-          ) : null}
-        </label>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <AppButton disabled={isSubmitting} fullWidth type="submit">
-            حفظ الصلاحيات
           </AppButton>
           <AppButton
             disabled={isSubmitting}
@@ -949,7 +683,7 @@ function UserCard({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-            {getUserDisplayName(user)}
+            {getClubUserDisplayName(user)}
           </h2>
           <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
             {roleLabels[user.role]} · @{user.username}
@@ -1392,9 +1126,11 @@ export function SettingsUsersPage() {
       ) : null}
 
       {editingManager ? (
-        <EditManagerPermissionsSheet
+        <EditManagerPermissionsDialog
           fieldErrors={permissionsFieldErrors}
           generalError={permissionsError}
+          identity={getManagerIdentity(editingManager)}
+          initialValues={getInitialManagerPermissionValues(editingManager)}
           isSubmitting={isSavingPermissions}
           onClose={() => {
             if (!isSavingPermissions) {
@@ -1402,7 +1138,6 @@ export function SettingsUsersPage() {
             }
           }}
           onSubmit={handleUpdateManagerPermissions}
-          user={editingManager}
         />
       ) : null}
 

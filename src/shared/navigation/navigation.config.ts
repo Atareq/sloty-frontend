@@ -188,8 +188,8 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
     subtitle: 'إدارة أندية المنصة',
   },
   '/admin/users': {
-    title: 'المستخدمون',
-    subtitle: 'إدارة مستخدمي المنصة',
+    title: 'إدارة المستخدمين',
+    subtitle: 'إدارة حسابات المنصة وعضويات الأندية',
   },
   '/admin/settings': {
     title: 'إعدادات المنصة',
@@ -238,6 +238,20 @@ export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
     return {
       title: 'إعدادات الملعب',
       subtitle: 'إدارة بيانات الملعب ومواعيد العمل',
+    }
+  }
+
+  if (pathname === '/admin/users/new') {
+    return {
+      title: 'إضافة مستخدم',
+      subtitle: 'إنشاء حساب منصة أو عضوية نادي',
+    }
+  }
+
+  if (pathname.startsWith('/admin/users/')) {
+    return {
+      title: 'تفاصيل المستخدم',
+      subtitle: 'مراجعة بيانات الحساب والعضويات المتاحة',
     }
   }
 

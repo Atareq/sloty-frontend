@@ -55,6 +55,13 @@ function normalizeCreateMembershipPayload(
         }
       : { user_id: payload.user_id }
 
+  if (payload.role === 'OWNER') {
+    return {
+      ...userPayload,
+      role: 'OWNER',
+    }
+  }
+
   if (payload.role === 'STAFF') {
     return {
       ...userPayload,

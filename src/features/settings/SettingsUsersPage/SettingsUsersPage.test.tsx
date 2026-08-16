@@ -325,6 +325,7 @@ describe('SettingsUsersPage', () => {
     expect(dialog.getByLabelText('الاسم الأول')).toBeInTheDocument()
     expect(dialog.getByLabelText('اسم العائلة')).toBeInTheDocument()
     expect(dialog.getByLabelText('رقم الهاتف')).toBeInTheDocument()
+    expect(dialog.getByLabelText('الدولة أو المنطقة')).toHaveValue('EG')
     expect(dialog.getByLabelText('البريد الإلكتروني')).toBeInTheDocument()
     expect(dialog.getByLabelText('اسم المستخدم')).toBeInTheDocument()
     expect(dialog.getByLabelText('كلمة المرور')).toBeInTheDocument()
@@ -383,7 +384,7 @@ describe('SettingsUsersPage', () => {
     expect(mockedCreateClubMembership).not.toHaveBeenCalled()
   })
 
-  it('creates a new manager membership with membership-level manager permissions', async () => {
+  it('creates a new manager membership with E.164 phone and membership-level manager permissions', async () => {
     const user = userEvent.setup()
     mockedListClubUsers
       .mockResolvedValueOnce([ownerUser, managerUser, staffUser])
@@ -395,7 +396,7 @@ describe('SettingsUsersPage', () => {
     await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم العائلة'), 'مدير')
-    await user.type(dialog.getByLabelText('رقم الهاتف'), '+201111111111')
+    await user.type(dialog.getByLabelText('رقم الهاتف'), '01111111111')
     await user.type(dialog.getByLabelText('البريد الإلكتروني'), 'manager@example.com')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
@@ -423,6 +424,14 @@ describe('SettingsUsersPage', () => {
     expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
+        user: expect.objectContaining({
+          phone_number: '01111111111',
+        }),
+      }),
+    )
+    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
         can_change_pricing: expect.anything(),
         can_manage_working_hours: expect.anything(),
         can_manage_settlements: expect.anything(),
@@ -434,7 +443,7 @@ describe('SettingsUsersPage', () => {
     expect(mockedListClubUsers).toHaveBeenCalledTimes(2)
   })
 
-  it('creates a new staff membership with court and no manager permissions', async () => {
+  it('creates a new staff membership with E.164 phone, court, and no manager permissions', async () => {
     const user = userEvent.setup()
 
     renderUsersPage()
@@ -442,6 +451,7 @@ describe('SettingsUsersPage', () => {
     const dialog = await openAddUserSheet(user)
     await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
+    await user.type(dialog.getByLabelText('رقم الهاتف'), '01012345678')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
     await user.selectOptions(dialog.getByLabelText('الملعب المسؤول عنه'), '7')
@@ -455,7 +465,7 @@ describe('SettingsUsersPage', () => {
           password: 'secret123',
           first_name: 'سامي',
           last_name: '',
-          phone_number: undefined,
+          phone_number: '+201012345678',
         },
         role: 'STAFF',
         court: 7,
@@ -468,6 +478,57 @@ describe('SettingsUsersPage', () => {
         manager_can_change_pricing: expect.anything(),
       }),
     )
+    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        user: expect.objectContaining({
+          phone_number: '01012345678',
+        }),
+      }),
+    )
+  })
+
+  it('blocks invalid add-user phone numbers with an Arabic message', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
+    await user.type(dialog.getByLabelText('رقم الهاتف'), '01012')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.selectOptions(dialog.getByLabelText('الملعب المسؤول عنه'), '7')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    expect(dialog.getByText('أدخل رقم هاتف صحيح')).toBeInTheDocument()
+    expect(mockedCreateClubMembership).not.toHaveBeenCalled()
+  })
+
+  it('omits optional empty phone for new staff users', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.selectOptions(dialog.getByLabelText('الملعب المسؤول عنه'), '7')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    await waitFor(() => {
+      expect(mockedCreateClubMembership).toHaveBeenCalledWith(
+        'nasr-club',
+        expect.objectContaining({
+          user: expect.objectContaining({
+            phone_number: undefined,
+          }),
+        }),
+      )
+    })
   })
 
   it('shows backend add-user field errors and duplicate validation message', async () => {

@@ -16,13 +16,14 @@ function getAuthValue(
   membershipCount = 2,
   options: {
     canManageSettlements?: boolean
-    role?: 'OWNER' | 'MANAGER' | 'STAFF'
+    role?: 'OWNER' | 'MANAGER' | 'STAFF' | 'PLATFORM_ADMIN'
   } = {},
 ) {
   const role = options.role ?? 'MANAGER'
+  const membershipRole = role === 'PLATFORM_ADMIN' ? 'OWNER' : role
   const selectedMembership = {
     id: 10,
-    role,
+    role: membershipRole,
     club: {
       id: 1,
       name: 'Demo Football Club',
@@ -33,6 +34,17 @@ function getAuthValue(
     court: null,
     can_manage_settlements: options.canManageSettlements ?? false,
   }
+  const memberships = Array.from({ length: membershipCount }, (_, index) => ({
+    ...selectedMembership,
+    id: selectedMembership.id + index,
+    club: {
+      ...selectedMembership.club,
+      id: selectedMembership.club.id + index,
+      slug:
+        index === 0 ? selectedMembership.club.slug : `second-club-${index}`,
+    },
+  }))
+  const isPlatformAdmin = role === 'PLATFORM_ADMIN'
 
   return {
     accessToken: 'token',
@@ -45,24 +57,13 @@ function getAuthValue(
       last_name: 'User',
       phone_number: null,
       is_active: true,
-      is_platform_admin: false,
+      is_platform_admin: isPlatformAdmin,
       account_created_by: null,
-      requires_club_selection: membershipCount > 1,
-      memberships: Array.from({ length: membershipCount }, (_, index) => ({
-        ...selectedMembership,
-        id: selectedMembership.id + index,
-        club: {
-          ...selectedMembership.club,
-          id: selectedMembership.club.id + index,
-          slug:
-            index === 0
-              ? selectedMembership.club.slug
-              : `second-club-${index}`,
-        },
-      })),
+      requires_club_selection: !isPlatformAdmin && membershipCount > 1,
+      memberships: isPlatformAdmin ? [] : memberships,
     },
-    selectedClubSlug: selectedMembership.club.slug,
-    selectedMembership,
+    selectedClubSlug: isPlatformAdmin ? null : selectedMembership.club.slug,
+    selectedMembership: isPlatformAdmin ? null : selectedMembership,
     role,
     isAuthenticated: true,
     isLoadingSession: false,
@@ -88,6 +89,8 @@ function renderAppShell(
         <Route element={<AppShell />}>
           <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
           <Route element={<p>سجل المعاملات المالية</p>} path="/transactions" />
+          <Route element={<p>الأندية</p>} path="/admin/clubs" />
+          <Route element={<p>المستخدمون</p>} path="/admin/users" />
         </Route>
         <Route element={<p>اختيار النادي</p>} path="/select-club" />
         <Route element={<p>تسجيل الدخول</p>} path="/login" />
@@ -426,6 +429,56 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'عرض الهاتف' }))
       .toBeInTheDocument()
+  })
+
+  it('shows platform admin drawer links and hides the club-user bottom nav', async () => {
+    const user = userEvent.setup()
+
+    mockedUseAuth.mockReturnValue(getAuthValue(0, { role: 'PLATFORM_ADMIN' }))
+
+    renderAppShell('/admin/users')
+
+    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
+      .toHaveAttribute('data-view-mode', 'mobile')
+    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
+      .not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).getByText('إدارة المنصة')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'الأندية' }))
+      .toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'المستخدمون' }))
+      .toBeInTheDocument()
+  })
+
+  it('shows platform admin desktop sidebar logout', async () => {
+    const user = userEvent.setup()
+    const logout = vi.fn()
+
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    mockedUseAuth.mockReturnValue({
+      ...getAuthValue(0, { role: 'PLATFORM_ADMIN' }),
+      logout,
+    })
+
+    renderAppShell('/admin/users')
+
+    const sidebar = screen.getByRole('navigation', { name: 'تنقل التطبيق' })
+
+    expect(within(sidebar).getByRole('link', { name: /الأندية/ }))
+      .toBeInTheDocument()
+    expect(within(sidebar).getByRole('link', { name: /المستخدمون/ }))
+      .toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل الخروج' }))
+
+    expect(logout).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('تسجيل الدخول')).toBeInTheDocument()
   })
 
   it('keeps the desktop view toggle inside the mobile drawer in mobile mode', async () => {

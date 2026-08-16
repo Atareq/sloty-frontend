@@ -4,6 +4,8 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { appRoutes } from '../../../shared/navigation/appRoutes'
+import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
 import {
   getCityLabel,
@@ -146,6 +148,15 @@ export function ClubsListPage() {
                 <Link to={`/admin/clubs/${club.slug}/courts`}>
                   <AppButton fullWidth variant="secondary">
                     الملاعب
+                  </AppButton>
+                </Link>
+                <Link
+                  to={buildPathWithQuery(appRoutes.adminUsers, {
+                    club: club.id,
+                  })}
+                >
+                  <AppButton fullWidth variant="secondary">
+                    المستخدمون
                   </AppButton>
                 </Link>
               </div>
