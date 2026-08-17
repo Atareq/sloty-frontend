@@ -12,6 +12,9 @@ describe('apiEndpoints', () => {
     expect(apiEndpoints.clubs.bookings.detail('nasr-club', 12)).toBe(
       'clubs/nasr-club/bookings/12/',
     )
+    expect(apiEndpoints.clubs.bookings.cancellationPreview('nasr-club', 12)).toBe(
+      'clubs/nasr-club/bookings/12/cancellation-preview/',
+    )
     expect(apiEndpoints.clubs.bookings.noShow('nasr-club', 'bk-9')).toBe(
       'clubs/nasr-club/bookings/bk-9/no-show/',
     )

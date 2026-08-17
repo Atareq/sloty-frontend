@@ -66,14 +66,14 @@ const reportStatusOptions: Array<{
   label: string
 }> = [
   { value: '', label: 'الحالة الافتراضية' },
-  { value: 'HOLD', label: 'انتظار الدفع / حجز مؤقت' },
+  { value: 'HOLD', label: 'بانتظار العربون' },
   { value: 'CONFIRMED', label: 'مؤكد' },
   { value: 'COMPLETED', label: 'مكتمل' },
   { value: 'NO_SHOW', label: 'عدم حضور' },
 ]
 
 const reportStatusLabels: Record<CourtUsageReportStatus, string> = {
-  HOLD: 'حجز مؤقت',
+  HOLD: 'بانتظار العربون',
   CONFIRMED: 'مؤكد',
   COMPLETED: 'مكتمل',
   NO_SHOW: 'عدم حضور',

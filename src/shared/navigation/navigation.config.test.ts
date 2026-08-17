@@ -16,6 +16,9 @@ describe('navigation config', () => {
       '/dashboard',
       '/schedule',
       '/bookings',
+      '/recurring-agreements',
+      '/transactions',
+      '/settlements',
     ])
   })
 
@@ -23,7 +26,8 @@ describe('navigation config', () => {
     expect(canRoleAccessPath('STAFF', '/reports')).toBe(false)
     expect(canRoleAccessPath('OWNER', '/reports')).toBe(true)
     expect(canRoleAccessPath('MANAGER', '/reports')).toBe(true)
-    expect(canRoleAccessPath('STAFF', '/transactions')).toBe(false)
+    expect(canRoleAccessPath('STAFF', '/transactions')).toBe(true)
+    expect(canRoleAccessPath('STAFF', '/settlements')).toBe(true)
     expect(canRoleAccessPath('STAFF', '/settings/users')).toBe(false)
     expect(canRoleAccessPath('MANAGER', '/settings/users')).toBe(false)
     expect(canRoleAccessPath('OWNER', '/settings/users')).toBe(true)
@@ -38,6 +42,7 @@ describe('navigation config', () => {
       'لوحة التحكم',
       'الجدول',
       'سجل الحجوزات',
+      'الحجوزات الأسبوعية',
       'سجل المعاملات المالية',
       'التسويات المالية والجرد',
       'التقارير الاستهلاكية للملاعب',
@@ -76,6 +81,7 @@ describe('navigation config', () => {
   it('keeps finance, admin, history, and settings pages out of the footer', () => {
     const hiddenMobilePaths = [
       '/transactions',
+      '/recurring-agreements',
       '/settlements',
       '/reports',
       '/audit-logs',
@@ -98,6 +104,7 @@ describe('navigation config', () => {
       '/audit-logs',
       '/settings/courts',
       '/settings/users',
+      '/admin/settings',
     ]
 
     for (const path of hiddenPrimaryPaths) {

@@ -228,7 +228,7 @@ describe('AuditLogsPage', () => {
     expect(await screen.findByLabelText('نوع الإجراء')).toHaveValue(
       'NEW_BACKEND_ACTION',
     )
-    expect(screen.getByRole('option', { name: 'NEW_BACKEND_ACTION' }))
+    expect(screen.getByRole('option', { name: 'New Backend Action' }))
       .toHaveValue('NEW_BACKEND_ACTION')
     expect(mockedListAuditLogs).toHaveBeenCalledWith('nasr-club', {
       action: 'NEW_BACKEND_ACTION',

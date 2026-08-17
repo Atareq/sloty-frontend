@@ -5,6 +5,10 @@ import {
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
+import {
+  canChooseOperationalCourt,
+  getAssignedOperationalCourtId,
+} from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -30,7 +34,12 @@ import type {
   TransactionQueryParams,
   TransactionSettlementStatus,
 } from '../transactions.types'
-import { paymentMethodLabels } from '../transactions.types'
+import {
+  getTransactionType,
+  isRefundTransaction,
+  paymentMethodLabels,
+  transactionTypeLabels,
+} from '../transactions.types'
 
 interface FilterState {
   court: string
@@ -272,6 +281,7 @@ function getActorName(
 }
 
 interface TransactionsFilterFormProps {
+  canChooseCourt: boolean
   collectorOptions: FilterOption[]
   courtOptions: FilterOption[]
   initialFilters: FilterState
@@ -282,6 +292,7 @@ interface TransactionsFilterFormProps {
 }
 
 function TransactionsFilterForm({
+  canChooseCourt,
   collectorOptions,
   courtOptions,
   initialFilters,
@@ -372,24 +383,33 @@ function TransactionsFilterForm({
         </select>
       </label>
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الملعب</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('court', event.target.value)}
-          value={filters.court}
-        >
-          <option value="">كل الملاعب</option>
-          {filters.court && !courtOptions.some((option) => option.value === filters.court) ? (
-            <option value={filters.court}>ملعب #{filters.court}</option>
-          ) : null}
-          {courtOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      {canChooseCourt ? (
+        <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+          <span>الملعب</span>
+          <select
+            className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+            onChange={(event) => updateFilter('court', event.target.value)}
+            value={filters.court}
+          >
+            <option value="">كل الملاعب</option>
+            {filters.court && !courtOptions.some((option) => option.value === filters.court) ? (
+              <option value={filters.court}>ملعب #{filters.court}</option>
+            ) : null}
+            {courtOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <div className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+          <span>الملعب</span>
+          <div className="flex h-11 items-center rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm">
+            {courtOptions[0]?.label ?? 'ملعب المستخدم'}
+          </div>
+        </div>
+      )}
 
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>الموظف المحصل</span>
@@ -445,7 +465,12 @@ function TransactionsFilterForm({
 export function TransactionsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentUser, selectedClubSlug, selectedMembership } = useAuth()
+  const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
+  const assignedCourtId = getAssignedOperationalCourtId(
+    role,
+    selectedMembership,
+  )
+  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
   const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
   const urlParams = useMemo(
     () => parseTransactionQueryParams(location.search),
@@ -453,12 +478,29 @@ export function TransactionsListPage() {
   )
   const urlHasTransactionFilters = hasTransactionFilters(urlParams)
   const effectiveParams = useMemo(() => {
+    const fixedCourtParams =
+      !canChooseCourt && assignedCourtId
+        ? { court: String(assignedCourtId) }
+        : {}
+
     if (urlHasTransactionFilters) {
-      return urlParams
+      return {
+        ...urlParams,
+        ...fixedCourtParams,
+      }
     }
 
-    return usesUnfilteredEmptyUrl ? {} : createDefaultQueryParams()
-  }, [urlHasTransactionFilters, urlParams, usesUnfilteredEmptyUrl])
+    return {
+      ...(usesUnfilteredEmptyUrl ? {} : createDefaultQueryParams()),
+      ...fixedCourtParams,
+    }
+  }, [
+    assignedCourtId,
+    canChooseCourt,
+    urlHasTransactionFilters,
+    urlParams,
+    usesUnfilteredEmptyUrl,
+  ])
   const initialFilters = useMemo(
     () => filterStateFromParams(effectiveParams),
     [effectiveParams],
@@ -509,7 +551,7 @@ export function TransactionsListPage() {
 
       try {
         const [courtsResponse, usersResponse] = await Promise.all([
-          listCourts(selectedClubSlug),
+          canChooseCourt ? listCourts(selectedClubSlug) : Promise.resolve(null),
           listClubUsers(selectedClubSlug, { is_active: true }),
         ])
 
@@ -518,12 +560,21 @@ export function TransactionsListPage() {
         }
 
         setCourtOptions(
-          courtsResponse.results
-            .filter((court: Court) => court.is_active)
-            .map((court) => ({
-              value: String(court.id),
-              label: court.name,
-            })),
+          canChooseCourt && courtsResponse
+            ? courtsResponse.results
+                .filter((court: Court) => court.is_active)
+                .map((court) => ({
+                  value: String(court.id),
+                  label: court.name,
+                }))
+            : selectedMembership?.court
+              ? [
+                  {
+                    value: String(selectedMembership.court.id),
+                    label: selectedMembership.court.name,
+                  },
+                ]
+              : [],
         )
         setCollectorOptions(
           normalizeClubUsersResponse(usersResponse).map((user) => ({
@@ -545,7 +596,7 @@ export function TransactionsListPage() {
     return () => {
       isActive = false
     }
-  }, [selectedClubSlug])
+  }, [canChooseCourt, selectedClubSlug, selectedMembership])
 
   async function reloadTransactions(
     nextParams = effectiveParams,
@@ -700,11 +751,11 @@ export function TransactionsListPage() {
     try {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
-      setSuccessMessage('تم إلغاء الدفع بنجاح')
+      setSuccessMessage('تم إلغاء تسجيل الدفعة بنجاح')
       await reloadTransactions()
     } catch (error) {
       setCancelError(
-        getApiErrorMessage(error, 'تعذر إلغاء الدفع. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر إلغاء تسجيل الدفعة. حاول مرة أخرى'),
       )
       setCancelFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -747,6 +798,7 @@ export function TransactionsListPage() {
 
       <AppCard className="hidden md:block">
         <TransactionsFilterForm
+          canChooseCourt={canChooseCourt}
           collectorOptions={collectorOptions}
           courtOptions={courtOptions}
           initialFilters={initialFilters}
@@ -763,6 +815,7 @@ export function TransactionsListPage() {
         title="فلترة المعاملات"
       >
         <TransactionsFilterForm
+          canChooseCourt={canChooseCourt}
           collectorOptions={collectorOptions}
           courtOptions={courtOptions}
           initialFilters={initialFilters}
@@ -852,7 +905,10 @@ export function TransactionsListPage() {
             )
             const cancelledByName = getActorName(transaction.cancelled_by)
             const createdById = getActorId(transaction.created_by)
+            const transactionType = getTransactionType(transaction)
+            const isRefund = isRefundTransaction(transaction)
             const canCancel =
+              !isRefund &&
               transaction.is_cancelled !== true &&
               transaction.is_settled !== true &&
               (!currentUser?.id || !createdById || currentUser.id === createdById)
@@ -872,6 +928,16 @@ export function TransactionsListPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap justify-end gap-2">
+                    <span
+                      className={[
+                        'rounded-full px-3 py-1 text-xs font-black',
+                        isRefund
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
+                      ].join(' ')}
+                    >
+                      {transactionTypeLabels[transactionType]}
+                    </span>
                     <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
                       {paymentMethodLabels[transaction.payment_method]}
                     </span>
@@ -959,7 +1025,7 @@ export function TransactionsListPage() {
                     }}
                     variant="danger"
                   >
-                    إلغاء الدفع
+                    إلغاء تسجيل الدفعة
                   </AppButton>
                 ) : null}
               </AppCard>

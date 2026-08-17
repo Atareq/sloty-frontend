@@ -244,3 +244,53 @@ export function canManageSettlements(
     membership,
   ).can_manage_settlements
 }
+
+/**
+ * Cancellation refund policy is an owner/platform setting, separate from
+ * pricing and working-hours manager permissions.
+ */
+export function canManageCancellationRefundPolicy(
+  membership: CurrentUserMembership | null,
+  role: AuthRole | null = null,
+): boolean {
+  return role === 'PLATFORM_ADMIN' || membership?.role === 'OWNER'
+}
+
+/**
+ * Settlement visibility is broader than settlement management. Staff and
+ * restricted managers can review their own current unsettled preview, while
+ * creation/approval stays behind canManageSettlements().
+ */
+export function canViewOwnSettlements(
+  membership: CurrentUserMembership | null,
+  role: AuthRole | null = null,
+): boolean {
+  if (role === 'PLATFORM_ADMIN') {
+    return true
+  }
+
+  return ['OWNER', 'MANAGER', 'STAFF'].includes(membership?.role ?? '')
+}
+
+/**
+ * Returns the fixed operational court for Staff UX. This helper is only for
+ * frontend presentation and request shaping; backend permissions remain
+ * authoritative.
+ */
+export function getAssignedOperationalCourtId(
+  role: AuthRole | null,
+  membership: CurrentUserMembership | null,
+): number | null {
+  if (role !== 'STAFF' && membership?.role !== 'STAFF') {
+    return null
+  }
+
+  return membership?.court?.id ?? null
+}
+
+export function canChooseOperationalCourt(
+  role: AuthRole | null,
+  membership: CurrentUserMembership | null,
+): boolean {
+  return role !== 'STAFF' && membership?.role !== 'STAFF'
+}

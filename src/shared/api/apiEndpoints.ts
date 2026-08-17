@@ -24,6 +24,8 @@ export const apiEndpoints = {
       slots: (clubSlug: string) => `clubs/${clubSlug}/bookings/slots/`,
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/`,
+      cancellationPreview: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/bookings/${id}/cancellation-preview/`,
       cancel: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/cancel/`,
       complete: (clubSlug: string, id: ApiId) =>
@@ -54,6 +56,19 @@ export const apiEndpoints = {
       list: (clubSlug: string) => `clubs/${clubSlug}/reports/`,
       courtUsage: (clubSlug: string) =>
         `clubs/${clubSlug}/reports/court-usage/`,
+    },
+    recurringAgreements: {
+      list: (clubSlug: string) => `clubs/${clubSlug}/recurring-agreements/`,
+      detail: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/recurring-agreements/${id}/`,
+      availability: (clubSlug: string) =>
+        `clubs/${clubSlug}/recurring-agreements/availability/`,
+      cancellationPreview: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/recurring-agreements/${id}/cancellation-preview/`,
+      cancel: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/recurring-agreements/${id}/cancel/`,
+      refundDeposit: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/recurring-agreements/${id}/refund-deposit/`,
     },
     settlements: {
       list: (clubSlug: string) => `clubs/${clubSlug}/settlements/`,

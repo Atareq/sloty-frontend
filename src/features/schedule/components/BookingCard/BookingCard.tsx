@@ -9,6 +9,8 @@ export interface BookingCardProps {
 const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
   available:
     'border-[#22C55E] bg-white text-[var(--sloty-primary-dark)] shadow-white/30 hover:-translate-y-0.5 hover:bg-[var(--sloty-soft-mint)]',
+  unavailable:
+    'border-slate-300 bg-slate-100 text-[var(--sloty-text-muted)] shadow-slate-950/10',
   cancelled:
     'border-[#D1D5DB] bg-[#F3F4F6] text-[var(--sloty-text-muted)] shadow-white/30 hover:-translate-y-0.5 hover:bg-white',
   hold:
@@ -23,8 +25,9 @@ const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
 
 const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
   available: 'متاح',
+  unavailable: 'غير متاح',
   cancelled: 'ملغي',
-  hold: 'محجوز مؤقتًا',
+  hold: 'بانتظار العربون',
   confirmed: 'مؤكد',
   completed: 'مكتمل',
   no_show: 'عدم حضور',
@@ -40,6 +43,8 @@ export function BookingCard({ booking, onSelect }: BookingCardProps) {
   const displayStartTime = formatTime12Hour(booking.startTime)
   const isActionable = Boolean(onSelect)
   const statusLabel = booking.label || statusLabelByStatus[booking.status]
+  const isRecurring =
+    booking.booking?.is_recurring || booking.booking?.source === 'RECURRING'
 
   return (
     <button
@@ -58,6 +63,9 @@ export function BookingCard({ booking, onSelect }: BookingCardProps) {
       type="button"
     >
       <span dir="ltr">{displayStartTime}</span>
+      {isRecurring ? (
+        <span className="mt-0.5 block text-[10px] leading-none">↻ أسبوعي</span>
+      ) : null}
     </button>
   )
 }

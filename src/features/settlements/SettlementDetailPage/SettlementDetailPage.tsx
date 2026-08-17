@@ -5,7 +5,10 @@ import {
   getApiErrorMessage,
   isApiClientError,
 } from '../../../core/api/apiError.helpers'
-import { canManageSettlements } from '../../../core/auth/auth.types'
+import {
+  canManageSettlements,
+  canViewOwnSettlements,
+} from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -73,6 +76,7 @@ export function SettlementDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const canSettle = canManageSettlements(selectedMembership, role)
+  const canViewOwn = canViewOwnSettlements(selectedMembership, role)
 
   useEffect(() => {
     let isActive = true
@@ -86,10 +90,10 @@ export function SettlementDetailPage() {
         return
       }
 
-      if (!canSettle) {
+      if (!canViewOwn) {
         setSettlement(null)
         setMessage(null)
-        setError('ليس لديك صلاحية إدارة التسويات')
+        setError('ليس لديك صلاحية عرض التسويات')
         setIsLoading(false)
         return
       }
@@ -129,7 +133,7 @@ export function SettlementDetailPage() {
     return () => {
       isActive = false
     }
-  }, [canSettle, selectedClubSlug, settlementId])
+  }, [canViewOwn, selectedClubSlug, settlementId])
 
   async function handleMarkSettled(): Promise<void> {
     if (!selectedClubSlug || !settlementId) {
@@ -230,7 +234,7 @@ export function SettlementDetailPage() {
                   #{settlement.id}
                 </h2>
               </div>
-              {settlement.status === 'PENDING' ? (
+              {canSettle && settlement.status === 'PENDING' ? (
                 <AppButton
                   disabled={isMarkingSettled}
                   onClick={handleMarkSettled}

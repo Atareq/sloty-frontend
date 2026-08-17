@@ -7,7 +7,17 @@ import {
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
-import type { CurrentUserMembershipClub } from '../../../core/auth/auth.types'
+import {
+  canChooseOperationalCourt,
+  getAssignedOperationalCourtId,
+  type CurrentUserMembershipClub,
+  type CurrentUserMembershipCourt,
+} from '../../../core/auth/auth.types'
+import { AppDateNavigator } from '../../../shared/components/AppDateNavigator/AppDateNavigator'
+import {
+  formatArabicDateWithWeekday,
+  formatDateInputValue,
+} from '../../../shared/utils/date'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import {
@@ -28,15 +38,20 @@ import { HoldBookingActionSheet } from '../components/HoldBookingActionSheet/Hol
 import { ScheduleClosingSection } from '../components/ScheduleClosingSection/ScheduleClosingSection'
 import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
 import { BookingActionSheet } from '../../bookings/components/BookingActionSheet/BookingActionSheet'
+import {
+  createRecurringAgreement,
+  getRecurringAgreementAvailability,
+} from '../../recurringAgreements/recurringAgreementsApi'
+import type { RecurringAgreementAvailabilityResponse } from '../../recurringAgreements/recurringAgreements.types'
 import { createTransaction } from '../../transactions/transactionsApi'
 import {
   RecordPaymentSheet,
   type RecordPaymentSheetValues,
 } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 import {
-  createDateFilterOptions,
   formatBookingDateTime,
   getBookingSummariesFromScheduleSlots,
+  getWeekdayFromDateValue,
   getScheduleClosingBookings,
   mapBookingSlotsResponseToScheduleBookings,
 } from '../scheduleBoard.helpers'
@@ -47,11 +62,16 @@ import {
   createBooking,
   listBookingSlots,
   markBookingNoShow,
+  previewBookingCancellation,
 } from '../scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
+  type BookingCancellationPreview,
   type BookingListItem,
 } from '../scheduleApi.types'
+
+const BOOKING_CANCELLATION_TIME_PASSED = 'BOOKING_CANCELLATION_TIME_PASSED'
+const FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT = 'FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT'
 
 const statusLegend = [
   {
@@ -59,7 +79,7 @@ const statusLegend = [
     className: 'border-[#22C55E] bg-white',
   },
   {
-    label: 'محجوز مؤقتًا',
+    label: 'بانتظار العربون',
     className: 'border-amber-400 bg-amber-100',
   },
   {
@@ -90,12 +110,16 @@ function getSummary(slots: ScheduleBooking[]) {
   }
 }
 
-function getCourtDateLabel(date: string): string {
-  return new Intl.DateTimeFormat('ar-EG', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(new Date(`${date}T00:00:00`))
+function getCourtMinimumDeposit(
+  court: Court | CurrentUserMembershipCourt | null,
+): string | null {
+  if (!court || !('minimum_deposit' in court)) {
+    return null
+  }
+
+  return typeof court.minimum_deposit === 'string'
+    ? court.minimum_deposit
+    : null
 }
 
 /**
@@ -106,12 +130,15 @@ function getCourtDateLabel(date: string): string {
  * booking action/details surfaces when the backend includes booking details.
  */
 export function SchedulePage() {
-  const { selectedClubSlug, selectedMembership } = useAuth()
-  const dateFilters = useMemo(() => createDateFilterOptions(), [])
-  const [selectedDate, setSelectedDate] = useState(dateFilters[0].date)
-  const [activeDateKey, setActiveDateKey] = useState<string | null>('today')
+  const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const [selectedDate, setSelectedDate] = useState(formatDateInputValue(new Date()))
   const selectedClub: CurrentUserMembershipClub | null =
     selectedMembership?.club ?? null
+  const assignedCourtId = getAssignedOperationalCourtId(
+    role,
+    selectedMembership,
+  )
+  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
   const [courts, setCourts] = useState<Court[]>([])
   const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null)
   const [slots, setSlots] = useState<ScheduleBooking[]>([])
@@ -126,6 +153,14 @@ export function SchedulePage() {
   const [isHoldActionSubmitting, setIsHoldActionSubmitting] = useState(false)
   const [holdActionError, setHoldActionError] = useState<string | null>(null)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
+  const [
+    recurringAvailability,
+    setRecurringAvailability,
+  ] = useState<RecurringAgreementAvailabilityResponse | null>(null)
+  const [
+    isCheckingRecurringAvailability,
+    setIsCheckingRecurringAvailability,
+  ] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createFieldErrors, setCreateFieldErrors] = useState<Record<
     string,
@@ -142,6 +177,8 @@ export function SchedulePage() {
   > | null>(null)
   const [cancellingBooking, setCancellingBooking] =
     useState<BookingListItem | null>(null)
+  const [cancellationPreview, setCancellationPreview] =
+    useState<BookingCancellationPreview | null>(null)
   const [completingBooking, setCompletingBooking] =
     useState<BookingListItem | null>(null)
   const [
@@ -158,8 +195,19 @@ export function SchedulePage() {
     ApiFieldError[]
   > | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const selectedCourt =
-    courts.find((court) => court.id === selectedCourtId) ?? null
+  const assignedCourt = useMemo(
+    () =>
+      selectedMembership?.court
+        ? {
+            id: selectedMembership.court.id,
+            name: selectedMembership.court.name,
+          }
+        : null,
+    [selectedMembership],
+  )
+  const selectedCourt = canChooseCourt
+    ? courts.find((court) => court.id === selectedCourtId) ?? null
+    : assignedCourt
   const amSlots = slots.filter((booking) => booking.period === 'am')
   const pmSlots = slots.filter((booking) => booking.period === 'pm')
   const summary = getSummary(slots)
@@ -186,6 +234,19 @@ export function SchedulePage() {
       setIsSetupLoading(true)
       setError(null)
       setBoardMessage(null)
+
+      if (!canChooseCourt) {
+        if (isActive) {
+          setCourts([])
+          setSelectedCourtId(assignedCourtId)
+          setSlots([])
+          setBoardMessage(
+            assignedCourtId ? null : 'لا يوجد ملعب مخصص لهذا المستخدم',
+          )
+          setIsSetupLoading(false)
+        }
+        return
+      }
 
       try {
         const courtsResponse = await listCourts(selectedClubSlug)
@@ -221,7 +282,7 @@ export function SchedulePage() {
     return () => {
       isActive = false
     }
-  }, [selectedClub, selectedClubSlug])
+  }, [assignedCourtId, canChooseCourt, selectedClub, selectedClubSlug])
 
   async function reloadScheduleSlots(): Promise<void> {
     if (!selectedClubSlug || !selectedCourt) {
@@ -330,12 +391,36 @@ export function SchedulePage() {
 
     try {
       const slot = selectedSlot
+      const startTime = formatBookingDateTime(selectedDate, selectedSlot.startTime)
+      const endTime = formatBookingDateTime(selectedDate, selectedSlot.endTime)
+
+      if (values.booking_type === 'weekly') {
+        await createRecurringAgreement(selectedClubSlug, {
+          court: selectedCourt.id,
+          customer_name: values.customer_name,
+          customer_phone: values.customer_phone,
+          weekday: getWeekdayFromDateValue(selectedDate),
+          start_time: `${selectedSlot.startTime}:00`,
+          end_time: `${selectedSlot.endTime}:00`,
+          start_date: selectedDate,
+          payment_method: values.payment_method ?? 'CASH',
+          ...(values.reference ? { reference: values.reference } : {}),
+          ...(values.notes ? { notes: values.notes } : {}),
+        })
+
+        setSelectedSlot(null)
+        setRecurringAvailability(null)
+        setSuccessMessage('تم إنشاء الحجز الأسبوعي بنجاح')
+        await reloadScheduleSlots()
+        return
+      }
+
       const createdBooking = await createBooking(selectedClubSlug, {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
-        start_time: formatBookingDateTime(selectedDate, selectedSlot.startTime),
-        end_time: formatBookingDateTime(selectedDate, selectedSlot.endTime),
+        start_time: startTime,
+        end_time: endTime,
         source: 'MANUAL',
         ...(values.notes ? { notes: values.notes } : {}),
       })
@@ -370,6 +455,43 @@ export function SchedulePage() {
     }
   }
 
+  async function handleCheckRecurringAvailability(): Promise<void> {
+    if (!selectedClubSlug || !selectedCourt || !selectedSlot) {
+      return
+    }
+
+    setIsCheckingRecurringAvailability(true)
+    setCreateError(null)
+    setCreateFieldErrors(null)
+    setRecurringAvailability(null)
+
+    try {
+      const availability = await getRecurringAgreementAvailability(
+        selectedClubSlug,
+        {
+          court: selectedCourt.id,
+          weekday: getWeekdayFromDateValue(selectedDate),
+          start_time: `${selectedSlot.startTime}:00`,
+          end_time: `${selectedSlot.endTime}:00`,
+          start_date: selectedDate,
+        },
+      )
+
+      setRecurringAvailability(availability)
+
+      if (!availability.all_available) {
+        setCreateError('لا يمكن إنشاء الحجز الأسبوعي مع وجود تعارض')
+      }
+    } catch (error) {
+      setCreateError(
+        getApiErrorMessage(error, 'تعذر فحص إتاحة الحجز الأسبوعي'),
+      )
+      setCreateFieldErrors(getApiFieldErrors(error))
+    } finally {
+      setIsCheckingRecurringAvailability(false)
+    }
+  }
+
   async function handleCancelBooking(
     values: CancelBookingReasonValues,
   ): Promise<void> {
@@ -384,13 +506,56 @@ export function SchedulePage() {
     try {
       await cancelBooking(selectedClubSlug, cancellingBooking.id, values)
       setCancellingBooking(null)
+      setCancellationPreview(null)
       setSelectedActionBooking(null)
       setSelectedSlot(null)
       await reloadScheduleSlots()
     } catch (error) {
-      setLifecycleError(
-        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
+      if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
+        setLifecycleError('انتهى وقت إلغاء هذا الحجز لأنه بدأ بالفعل.')
+        await reloadScheduleSlots()
+      } else {
+        setLifecycleError(
+          getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
+        )
+      }
+      setLifecycleFieldErrors(getApiFieldErrors(error))
+    } finally {
+      setIsLifecycleSubmitting(false)
+    }
+  }
+
+  async function handleRequestCancelBooking(
+    booking: BookingListItem,
+  ): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsLifecycleSubmitting(true)
+    setLifecycleError(null)
+    setLifecycleFieldErrors(null)
+    setCancellationPreview(null)
+
+    try {
+      const preview = await previewBookingCancellation(
+        selectedClubSlug,
+        booking.id,
       )
+
+      setCancellationPreview(preview)
+      setCancellingBooking(booking)
+      setSelectedActionBooking(null)
+      setSelectedSlot(null)
+    } catch (error) {
+      if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
+        setLifecycleError('انتهى وقت إلغاء هذا الحجز لأنه بدأ بالفعل.')
+        await reloadScheduleSlots()
+      } else {
+        setLifecycleError(
+          getApiErrorMessage(error, 'تعذر معاينة إلغاء الحجز. حاول مرة أخرى'),
+        )
+      }
       setLifecycleFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsLifecycleSubmitting(false)
@@ -485,11 +650,18 @@ export function SchedulePage() {
       setSuccessMessage('تم تسجيل الدفعة بنجاح')
       await reloadScheduleSlots()
     } catch (error) {
+      const errorCode = getApiErrorCode(error)
+
       setPaymentError(
-        getApiErrorMessage(
-          error,
-          'تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى',
-        ),
+        errorCode === FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT
+          ? getApiErrorMessage(
+              error,
+              'أول دفعة يجب ألا تقل عن الحد الأدنى للعربون المطلوب.',
+            )
+          : getApiErrorMessage(
+              error,
+              'تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى',
+            ),
       )
       setPaymentFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -529,6 +701,7 @@ export function SchedulePage() {
     setSelectedActionBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
+    setRecurringAvailability(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
     setLifecycleError(null)
@@ -566,6 +739,7 @@ export function SchedulePage() {
     setHoldBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
+    setRecurringAvailability(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
     setLifecycleError(null)
@@ -579,6 +753,7 @@ export function SchedulePage() {
     setHoldBooking(null)
     setPaymentBooking(null)
     setCancellingBooking(null)
+    setCancellationPreview(null)
     setCompletingBooking(null)
     setCompletingBookingRemainingAmount(null)
     setNoShowBooking(null)
@@ -599,44 +774,24 @@ export function SchedulePage() {
     clearScheduleSelection()
   }
 
-  function handleDateChange(nextDateKey: string): void {
-    const nextDate = dateFilters.find((filter) => filter.key === nextDateKey)
-      ?.date
-
-    if (!nextDate) {
-      return
-    }
-
-    setActiveDateKey(nextDateKey)
-    setSelectedDate(nextDate)
-    clearScheduleSelection()
-  }
-
-  function handleDateInputChange(nextDate: string): void {
+  function handleDateChange(nextDate: string): void {
     if (!nextDate) {
       return
     }
 
     setSelectedDate(nextDate)
-    setActiveDateKey(
-      dateFilters.find((filter) => filter.date === nextDate)?.key ?? null,
-    )
     clearScheduleSelection()
   }
 
   const scheduleCourt = {
     clubName: selectedClub?.name ?? 'سلوتي',
     courtName: selectedCourt?.name ?? 'لا يوجد ملعب',
-    dateLabel: getCourtDateLabel(selectedDate),
+    dateLabel: formatArabicDateWithWeekday(selectedDate),
   }
   const scheduleStaff = {
     name: 'مستخدم سلوتي',
     role: 'تشغيل الملعب',
   }
-  const scheduleDateFilters = dateFilters.map(({ key, label }) => ({
-    key,
-    label,
-  }))
   const shouldShowBoardSlots =
     !isSetupLoading &&
     !isSlotsLoading &&
@@ -656,10 +811,7 @@ export function SchedulePage() {
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
       <div className="space-y-4 md:space-y-6">
         <ScheduleHeader
-          activeDateKey={activeDateKey}
           court={scheduleCourt}
-          dateFilters={scheduleDateFilters}
-          onDateChange={handleDateChange}
           staff={scheduleStaff}
           summary={summary}
         />
@@ -674,16 +826,11 @@ export function SchedulePage() {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-              <span>تاريخ الحجز</span>
-              <input
-                className="h-10 rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-bold text-[var(--sloty-text-primary)]"
-                onChange={(event) => handleDateInputChange(event.target.value)}
-                type="date"
-                value={selectedDate}
-              />
-            </label>
-            {courts.length > 1 ? (
+            <AppDateNavigator
+              onChange={handleDateChange}
+              value={selectedDate}
+            />
+            {canChooseCourt && courts.length > 1 ? (
               <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
                 <span>الملعب</span>
                 <select
@@ -825,14 +972,19 @@ export function SchedulePage() {
           endTime={selectedSlot.endTime}
           error={createError}
           fieldErrors={createFieldErrors}
+          isCheckingRecurringAvailability={isCheckingRecurringAvailability}
           isSubmitting={isCreateSubmitting}
           onClose={() => {
             setSelectedSlot(null)
             setCreateError(null)
             setCreateFieldErrors(null)
+            setRecurringAvailability(null)
           }}
+          onCheckRecurringAvailability={handleCheckRecurringAvailability}
           onSubmit={handleCreateBooking}
+          recurringAvailability={recurringAvailability}
           startTime={selectedSlot.startTime}
+          slotPrice={selectedSlot.slotPrice}
         />
       ) : null}
 
@@ -890,11 +1042,7 @@ export function SchedulePage() {
             setPaymentFieldErrors(null)
           }}
           onCancel={(booking) => {
-            setCancellingBooking(booking)
-            setSelectedActionBooking(null)
-            setSelectedSlot(null)
-            setLifecycleError(null)
-            setLifecycleFieldErrors(null)
+            void handleRequestCancelBooking(booking)
           }}
           onClose={() => {
             setSelectedSlot(null)
@@ -904,6 +1052,7 @@ export function SchedulePage() {
             setPaymentError(null)
             setPaymentFieldErrors(null)
             setCancellingBooking(null)
+            setCancellationPreview(null)
             setCompletingBooking(null)
             setNoShowBooking(null)
             setLifecycleError(null)
@@ -937,6 +1086,7 @@ export function SchedulePage() {
           error={paymentError}
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
+          minimumDepositHint={getCourtMinimumDeposit(selectedCourt)}
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
@@ -953,10 +1103,12 @@ export function SchedulePage() {
           isSubmitting={isLifecycleSubmitting}
           onClose={() => {
             setCancellingBooking(null)
+            setCancellationPreview(null)
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
           }}
           onSubmit={handleCancelBooking}
+          preview={cancellationPreview}
         />
       ) : null}
 

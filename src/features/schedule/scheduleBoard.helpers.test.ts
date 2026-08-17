@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
+import type { CourtWorkingDay } from '../courts/courtWorkingHours.types'
 import {
   formatBookingDateTime,
   formatTime12Hour,
   generateSlotsFromWorkingHour,
   getEgyptDateValue,
+  mapBookingSlotToScheduleBooking,
   getScheduleClosingBookings,
   getSlotPeriod,
   getVisibleBookings,
 } from './scheduleBoard.helpers'
-import type { BookingListItem } from './scheduleApi.types'
+import type { BookingListItem, BookingSlot } from './scheduleApi.types'
 
 it('formats 24-hour time values as Arabic 12-hour display values', () => {
   expect(formatTime12Hour('00:00')).toBe('12:00 ص')
@@ -24,14 +25,13 @@ it('returns invalid time values unchanged', () => {
   expect(formatTime12Hour('bad-time')).toBe('bad-time')
 })
 
-const workingHour: CourtWorkingHour = {
-  id: 1,
+const workingHour: CourtWorkingDay = {
   weekday: 5,
-  is_closed: false,
-  blocks: [
+  pricing_periods: [
     {
-      start_time: '06:00',
-      end_time: '09:00',
+      starts_at: '06:00',
+      ends_at: '09:00',
+      price: '250.00',
     },
   ],
 }
@@ -131,7 +131,7 @@ describe('scheduleBoard helpers', () => {
     expect(result.items.map((booking) => booking.id)).toEqual([2, 1, 4])
   })
 
-  it('returns setup message for missing working hours or blocks', () => {
+  it('returns setup message for missing working hours or invalid periods', () => {
     expect(generateSlotsFromWorkingHour(undefined, 60, [])).toEqual({
       slots: [],
       message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
@@ -139,10 +139,15 @@ describe('scheduleBoard helpers', () => {
 
     const result = generateSlotsFromWorkingHour(
       {
-        id: 2,
         weekday: 5,
-        is_closed: false,
-      } as CourtWorkingHour,
+        pricing_periods: [
+          {
+            starts_at: 'bad-time',
+            ends_at: '09:00',
+            price: '250.00',
+          },
+        ],
+      },
       60,
       [],
     )
@@ -151,13 +156,12 @@ describe('scheduleBoard helpers', () => {
     expect(result.message).toBe('لم يتم ضبط مواعيد العمل لهذا اليوم')
   })
 
-  it('returns closed-day message without reading blocks', () => {
+  it('returns closed-day message without reading opening times', () => {
     const result = generateSlotsFromWorkingHour(
       {
-        id: 2,
         weekday: 5,
-        is_closed: true,
-      } as CourtWorkingHour,
+        pricing_periods: [],
+      },
       60,
       [],
     )
@@ -183,32 +187,17 @@ describe('scheduleBoard helpers', () => {
     expect(result.slots.every((slot) => slot.status === 'available')).toBe(true)
   })
 
-  it('generates slots from multiple same-day blocks', () => {
-    const result = generateSlotsFromWorkingHour(
-      {
-        ...workingHour,
-        blocks: [
-          { start_time: '06:00', end_time: '08:00' },
-          { start_time: '10:00', end_time: '12:00' },
-        ],
-      },
-      60,
-      [],
-    )
-
-    expect(result.slots.map((slot) => slot.startTime)).toEqual([
-      '06:00',
-      '07:00',
-      '10:00',
-      '11:00',
-    ])
-  })
-
   it('does not generate overnight slots', () => {
     const result = generateSlotsFromWorkingHour(
       {
         ...workingHour,
-        blocks: [{ start_time: '20:00', end_time: '04:00' }],
+        pricing_periods: [
+          {
+            starts_at: '20:00',
+            ends_at: '04:00',
+            price: '250.00',
+          },
+        ],
       },
       60,
       [],
@@ -218,13 +207,16 @@ describe('scheduleBoard helpers', () => {
     expect(result.message).toBe('لم يتم ضبط مواعيد العمل لهذا اليوم')
   })
 
-  it('returns setup message for invalid blocks', () => {
+  it('returns setup message for invalid opening range', () => {
     const result = generateSlotsFromWorkingHour(
       {
         ...workingHour,
-        blocks: [
-          { start_time: 'bad-time', end_time: '09:00' },
-          { start_time: '12:00', end_time: '12:00' },
+        pricing_periods: [
+          {
+            starts_at: 'bad-time',
+            ends_at: '09:00',
+            price: '250.00',
+          },
         ],
       },
       60,
@@ -233,6 +225,34 @@ describe('scheduleBoard helpers', () => {
 
     expect(result.slots).toEqual([])
     expect(result.message).toBe('لم يتم ضبط مواعيد العمل لهذا اليوم')
+  })
+
+  it('generates slots from multiple periods and leaves gaps unavailable', () => {
+    const result = generateSlotsFromWorkingHour(
+      {
+        weekday: 5,
+        pricing_periods: [
+          {
+            starts_at: '06:00',
+            ends_at: '07:00',
+            price: '250.00',
+          },
+          {
+            starts_at: '08:00',
+            ends_at: '09:00',
+            price: '350.00',
+          },
+        ],
+      },
+      60,
+      [],
+    )
+
+    expect(result.message).toBeNull()
+    expect(result.slots.map((slot) => slot.startTime)).toEqual([
+      '06:00',
+      '08:00',
+    ])
   })
 
   it('handles empty or undefined bookings as available slots', () => {
@@ -290,6 +310,31 @@ describe('scheduleBoard helpers', () => {
       'cancelled',
     ])
     expect(result.slots[1].booking).toEqual(bookings[0])
+  })
+
+  it('maps backend slot price and unavailable status without creating a booking', () => {
+    const backendSlot: BookingSlot = {
+      date: '2026-07-21',
+      start_time: '10:00:00',
+      end_time: '11:00:00',
+      slot_status: 'UNAVAILABLE',
+      is_available: false,
+      booking: null,
+      label: null,
+      slot_price: '350.00',
+    }
+
+    const result = mapBookingSlotToScheduleBooking(backendSlot, 7)
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      label: null,
+      isAvailable: false,
+      slotPrice: '350.00',
+      startTime: '10:00',
+      endTime: '11:00',
+    })
+    expect(result.booking).toBeUndefined()
   })
 
   it('keeps HOLD and COMPLETED visible while hiding lifecycle-only backend statuses', () => {

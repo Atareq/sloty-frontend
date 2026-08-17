@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
-import { canManageSettlements } from '../../../core/auth/auth.types'
+import {
+  canManageSettlements,
+  canViewOwnSettlements,
+} from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -17,10 +20,12 @@ import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
-import { listSettlements } from '../settlementsApi'
+import { getSettlementPreview, listSettlements } from '../settlementsApi'
+import { SettlementPreviewContent } from '../components/SettlementPreviewContent/SettlementPreviewContent'
 import type {
   Settlement,
   SettlementActor,
+  SettlementPreview,
   SettlementQueryParams,
 } from '../settlements.types'
 
@@ -274,8 +279,13 @@ export function SettlementsHubPage() {
   const [isLoadingFilters, setIsLoadingFilters] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [ownPreview, setOwnPreview] = useState<SettlementPreview | null>(null)
+  const [isOwnPreviewLoading, setIsOwnPreviewLoading] = useState(false)
+  const [ownPreviewError, setOwnPreviewError] = useState<string | null>(null)
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
   const canSettle = canManageSettlements(selectedMembership, role)
+  const canViewOwn = canViewOwnSettlements(selectedMembership, role)
+  const isOwnMode = canViewOwn && !canSettle
   const queryParams = useMemo(
     () => parseSettlementQuery(location.search),
     [location.search],
@@ -284,13 +294,13 @@ export function SettlementsHubPage() {
     () => filterStateFromParams(queryParams),
     [queryParams],
   )
-  const hasAccess = Boolean(selectedClubSlug && canSettle)
+  const hasAccess = Boolean(selectedClubSlug && canViewOwn)
 
   useEffect(() => {
     let isActive = true
 
     async function loadOptions(): Promise<void> {
-      if (!hasAccess || !selectedClubSlug) {
+      if (!hasAccess || !selectedClubSlug || !canSettle) {
         setUsers([])
         setCourts([])
         setFilterOptionsError(null)
@@ -334,7 +344,48 @@ export function SettlementsHubPage() {
     return () => {
       isActive = false
     }
-  }, [hasAccess, selectedClubSlug])
+  }, [canSettle, hasAccess, selectedClubSlug])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadOwnPreview(): Promise<void> {
+      if (!selectedClubSlug || !isOwnMode) {
+        setOwnPreview(null)
+        setOwnPreviewError(null)
+        setIsOwnPreviewLoading(false)
+        return
+      }
+
+      setIsOwnPreviewLoading(true)
+      setOwnPreviewError(null)
+
+      try {
+        const response = await getSettlementPreview(selectedClubSlug, {})
+
+        if (isActive) {
+          setOwnPreview(response)
+        }
+      } catch (error) {
+        if (isActive) {
+          setOwnPreview(null)
+          setOwnPreviewError(
+            getApiErrorMessage(error, 'تعذر تحميل المبلغ الحالي غير المسوى'),
+          )
+        }
+      } finally {
+        if (isActive) {
+          setIsOwnPreviewLoading(false)
+        }
+      }
+    }
+
+    void loadOwnPreview()
+
+    return () => {
+      isActive = false
+    }
+  }, [isOwnMode, selectedClubSlug])
 
   useEffect(() => {
     let isActive = true
@@ -348,9 +399,9 @@ export function SettlementsHubPage() {
         return
       }
 
-      if (!canSettle) {
+      if (!canSettle && !isOwnMode) {
         setSettlements([])
-        setError('ليس لديك صلاحية إدارة التسويات.')
+        setError('ليس لديك صلاحية عرض التسويات.')
         setMessage(null)
         setIsLoading(false)
         return
@@ -361,7 +412,9 @@ export function SettlementsHubPage() {
       setMessage(null)
 
       try {
-        const response = hasSettlementFilters(queryParams)
+        const response = isOwnMode
+          ? await listSettlements(selectedClubSlug)
+          : hasSettlementFilters(queryParams)
           ? await listSettlements(selectedClubSlug, queryParams)
           : await listSettlements(selectedClubSlug)
 
@@ -385,7 +438,7 @@ export function SettlementsHubPage() {
     return () => {
       isActive = false
     }
-  }, [canSettle, queryParams, selectedClubSlug])
+  }, [canSettle, isOwnMode, queryParams, selectedClubSlug])
 
   function applyFilters(nextFilters: HubFilterState): void {
     navigate(
@@ -425,7 +478,26 @@ export function SettlementsHubPage() {
         title="التسويات المالية والجرد"
       />
 
-      {hasAccess ? (
+      {isOwnMode ? (
+        <AppCard className="space-y-4">
+          <div>
+            <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+              المبلغ الحالي غير المسوى
+            </h2>
+            <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+              يعرض الخادم دفعاتك غير المسواة الحالية بدون اختيار موظف آخر.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link to="/transactions?settlement_status=unsettled&is_cancelled=false">
+              <AppButton variant="secondary">عرض الدفعات غير المسواة</AppButton>
+            </Link>
+          </div>
+        </AppCard>
+      ) : null}
+
+      {canSettle ? (
         <AppCard className="space-y-4">
           <div>
             <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
@@ -484,29 +556,57 @@ export function SettlementsHubPage() {
         </p>
       ) : null}
 
-      {hasAccess ? (
+      {isOwnMode ? (
+        <>
+          {isOwnPreviewLoading ? (
+            <AppCard>
+              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                جاري تحميل المبلغ الحالي غير المسوى...
+              </p>
+            </AppCard>
+          ) : null}
+
+          {!isOwnPreviewLoading && ownPreviewError ? (
+            <AppCard>
+              <p className="text-sm font-bold text-[var(--sloty-danger)]">
+                {ownPreviewError}
+              </p>
+            </AppCard>
+          ) : null}
+
+          {!isOwnPreviewLoading && !ownPreviewError && ownPreview ? (
+            <SettlementPreviewContent preview={ownPreview} />
+          ) : null}
+        </>
+      ) : null}
+
+      {canSettle || isOwnMode ? (
         <>
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
               سجل التسويات
             </h2>
-            <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
-              فلترة
-            </AppButton>
+            {canSettle ? (
+              <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
+                فلترة
+              </AppButton>
+            ) : null}
           </div>
 
-          <AppCard className="hidden md:block">
-            <SettlementFiltersForm
-              courts={courts}
-              filters={filters}
-              isLoadingFilters={isLoadingFilters}
-              isLoadingSettlements={isLoading}
-              key={`desktop-${getSettlementsSearch(queryParams) || 'empty'}`}
-              onApply={applyFilters}
-              onReset={resetFilters}
-              users={users}
-            />
-          </AppCard>
+          {canSettle ? (
+            <AppCard className="hidden md:block">
+              <SettlementFiltersForm
+                courts={courts}
+                filters={filters}
+                isLoadingFilters={isLoadingFilters}
+                isLoadingSettlements={isLoading}
+                key={`desktop-${getSettlementsSearch(queryParams) || 'empty'}`}
+                onApply={applyFilters}
+                onReset={resetFilters}
+                users={users}
+              />
+            </AppCard>
+          ) : null}
 
           <FilterSheet
             isOpen={isFilterSheetOpen}
@@ -528,7 +628,7 @@ export function SettlementsHubPage() {
         </>
       ) : null}
 
-      {isLoading ? (
+      {(canSettle || isOwnMode) && isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             جاري تحميل سجل التسويات...
@@ -551,7 +651,11 @@ export function SettlementsHubPage() {
         </AppCard>
       ) : null}
 
-      {!isLoading && !error && !message && settlements.length === 0 ? (
+      {(canSettle || isOwnMode) &&
+      !isLoading &&
+      !error &&
+      !message &&
+      settlements.length === 0 ? (
         <AppCard className="space-y-3">
           <div>
             <p className="text-base font-black text-[var(--sloty-text-primary)]">
@@ -572,7 +676,10 @@ export function SettlementsHubPage() {
         </AppCard>
       ) : null}
 
-      {!isLoading && !error && settlements.length > 0 ? (
+      {(canSettle || isOwnMode) &&
+      !isLoading &&
+      !error &&
+      settlements.length > 0 ? (
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {settlements.map((settlement) => {
             const periodStart = formatDate(settlement.period_start)

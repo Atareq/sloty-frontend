@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { listCourts } from '../../courts/courtsApi'
+import {
+  createRecurringAgreement,
+  getRecurringAgreementAvailability,
+} from '../../recurringAgreements/recurringAgreementsApi'
 import { createTransaction } from '../../transactions/transactionsApi'
 import {
   cancelBooking,
@@ -12,6 +16,7 @@ import {
   listBookingSlots,
   listBookingsForCourtDay,
   markBookingNoShow,
+  previewBookingCancellation,
 } from '../scheduleApi'
 import type {
   BackendBookingStatus,
@@ -36,10 +41,16 @@ vi.mock('../scheduleApi', () => ({
   listBookingSlots: vi.fn(),
   listBookingsForCourtDay: vi.fn(),
   markBookingNoShow: vi.fn(),
+  previewBookingCancellation: vi.fn(),
 }))
 
 vi.mock('../../transactions/transactionsApi', () => ({
   createTransaction: vi.fn(),
+}))
+
+vi.mock('../../recurringAgreements/recurringAgreementsApi', () => ({
+  createRecurringAgreement: vi.fn(),
+  getRecurringAgreementAvailability: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
@@ -50,7 +61,12 @@ const mockedCreateBooking = vi.mocked(createBooking)
 const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedMarkBookingNoShow = vi.mocked(markBookingNoShow)
+const mockedPreviewBookingCancellation = vi.mocked(previewBookingCancellation)
 const mockedCreateTransaction = vi.mocked(createTransaction)
+const mockedGetRecurringAgreementAvailability = vi.mocked(
+  getRecurringAgreementAvailability,
+)
+const mockedCreateRecurringAgreement = vi.mocked(createRecurringAgreement)
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -67,12 +83,19 @@ function makeSlot(
   const date = createDateFilterOptions()[0].date
   const slotStatus = overrides.slot_status ?? 'FREE'
   const bookingStatus = slotStatus === 'FREE' ? 'CONFIRMED' : slotStatus
+  const shouldCreateBooking =
+    slotStatus !== 'FREE' && slotStatus !== 'UNAVAILABLE'
   const bookingIdByStartTime: Record<string, number> = {
     '06:00': 12,
     '07:00': 10,
     '12:00': 13,
     '13:00': 14,
   }
+  const label = Object.prototype.hasOwnProperty.call(overrides, 'label')
+    ? overrides.label ?? null
+    : slotStatus === 'FREE'
+      ? 'متاح'
+      : 'مؤكد'
 
   return {
     date,
@@ -81,19 +104,20 @@ function makeSlot(
     slot_status: slotStatus,
     is_available: overrides.is_available ?? slotStatus === 'FREE',
     booking: overrides.booking ??
-      (slotStatus === 'FREE'
+      (!shouldCreateBooking
         ? null
         : {
             id: bookingIdByStartTime[overrides.start_time] ?? 10,
             status: bookingStatus as BackendBookingStatus,
-            status_label: overrides.label ?? 'مؤكد',
+            status_label: label ?? 'مؤكد',
             customer_name:
               slotStatus === 'HOLD' ? 'عميل حجز مؤقت' : 'أحمد علي',
             total_booking_value: '250.00',
             total_paid_amount: slotStatus === 'CONFIRMED' ? '250.00' : '100.00',
             remaining_amount: slotStatus === 'CONFIRMED' ? '0.00' : '150.00',
           }),
-    label: overrides.label ?? (slotStatus === 'FREE' ? 'متاح' : 'مؤكد'),
+    label,
+    slot_price: overrides.slot_price ?? null,
   }
 }
 
@@ -118,7 +142,7 @@ function defaultSlots(): BookingSlot[] {
       end_time: '07:00',
       slot_status: 'HOLD',
       is_available: false,
-      label: 'حجز مؤقت',
+      label: 'بانتظار العربون',
     }),
     makeSlot({
       start_time: '07:00',
@@ -214,6 +238,8 @@ function mockScheduleApiData(): void {
         name: 'ملعب 1',
         sport_type: 'FOOTBALL',
         default_price: '250.00',
+        minimum_deposit: '100.00',
+        cancellation_refund_notice_days: 3,
         slot_duration_minutes: 60,
         is_active: true,
         requires_digital_payment_reference: false,
@@ -261,6 +287,68 @@ function mockScheduleApiData(): void {
     amount: '150',
     payment_method: 'CASH',
   })
+  mockedPreviewBookingCancellation.mockResolvedValue({
+    booking_id: 10,
+    previewed_at: '2026-07-20T10:00:00Z',
+    booking_start: '2026-07-20T07:00:00Z',
+    paid_amount: '100.00',
+    minimum_deposit: '100.00',
+    refund_notice_days: 3,
+    refund_deadline: '2026-07-17T07:00:00Z',
+    full_refund: false,
+    refund_amount: '0.00',
+    retained_amount: '100.00',
+    can_cancel: true,
+  })
+  mockedGetRecurringAgreementAvailability.mockResolvedValue({
+    court: 7,
+    weekday: 0,
+    start_time: '09:00:00',
+    end_time: '10:00:00',
+    start_date: createDateFilterOptions()[0].date,
+    horizon_weeks: 12,
+    all_available: true,
+    slots: [
+      {
+        date: createDateFilterOptions()[0].date,
+        start_time: '09:00:00',
+        end_time: '10:00:00',
+        available: true,
+        slot_price: '250.00',
+        failure_code: null,
+      },
+    ],
+  })
+  mockedCreateRecurringAgreement.mockResolvedValue({
+    id: 70,
+    club: 1,
+    court: 7,
+    customer_name: 'أحمد علي',
+    customer_phone: '+201000000000',
+    weekday: 0,
+    start_time: '09:00:00',
+    end_time: '10:00:00',
+    start_date: createDateFilterOptions()[0].date,
+    status: 'ACTIVE',
+    deposit_amount: '250.00',
+    deposit_status: 'HELD',
+    deposit_collected_at: '2026-07-20T09:00:00',
+    deposit_collected_by: 1,
+    cancellation_requested_at: null,
+    cancellation_effective_date: null,
+    cancelled_by: null,
+    cancellation_reason: '',
+    refund_due_at: null,
+    refunded_at: null,
+    refunded_by: null,
+    action_required_code: '',
+    failed_occurrence_start: null,
+    action_required_at: null,
+    notes: '',
+    created_by: 1,
+    created: '2026-07-20T09:00:00',
+    modified: '2026-07-20T09:00:00',
+  })
 }
 
 describe('SchedulePage', () => {
@@ -281,7 +369,7 @@ describe('SchedulePage', () => {
     expect(await screen.findByText('جدول اليوم')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'نادي النصر - ملعب 1' }))
       .toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: '6:00 ص حجز مؤقت' }))
+    expect(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
       .toBeInTheDocument()
     expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
       .toBeInTheDocument()
@@ -291,6 +379,8 @@ describe('SchedulePage', () => {
         date: createDateFilterOptions()[0].date,
       })
     })
+    expect(mockedListCourts).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('الملعب')).not.toBeInTheDocument()
     expect(mockedListBookingsForCourtDay).not.toHaveBeenCalled()
   })
 
@@ -370,6 +460,44 @@ describe('SchedulePage', () => {
       .toBeInTheDocument()
   })
 
+  it('shows selected slot price in Add Booking without submitting price', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const today = createDateFilterOptions()[0].date
+
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+          slot_price: '350.00',
+        }),
+      ]),
+    )
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+    expect(screen.getByText('السعر 350.00 جنيه')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
+
+    await waitFor(() => {
+      expect(mockedCreateBooking).toHaveBeenCalledWith('nasr-club', {
+        court: 7,
+        customer_name: 'أحمد علي',
+        customer_phone: '+201000000000',
+        start_time: `${today}T09:00:00`,
+        end_time: `${today}T10:00:00`,
+        source: 'MANUAL',
+      })
+    })
+  })
+
   it('does not allow FREE slots when is_available is false', async () => {
     mockedListBookingSlots.mockResolvedValueOnce(
       makeSlotsResponse([
@@ -389,13 +517,34 @@ describe('SchedulePage', () => {
       .toBeDisabled()
   })
 
+  it('keeps UNAVAILABLE slots disabled and outside Add Booking', async () => {
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '10:00',
+          end_time: '11:00',
+          slot_status: 'UNAVAILABLE',
+          is_available: false,
+          label: null,
+        }),
+      ]),
+    )
+
+    render(<SchedulePage />)
+
+    expect(await screen.findByRole('button', { name: '10:00 ص غير متاح' }))
+      .toBeDisabled()
+    expect(screen.queryByRole('heading', { name: 'إضافة حجز' }))
+      .not.toBeInTheDocument()
+  })
+
   it('opens existing booking flows for HOLD and CONFIRMED slots', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '6:00 ص حجز مؤقت' }))
-    expect(screen.getByRole('heading', { name: 'حجز مؤقت' }))
+    await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
+    expect(screen.getByRole('heading', { name: 'بانتظار العربون' }))
       .toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'إغلاق' }))
 
@@ -489,12 +638,64 @@ describe('SchedulePage', () => {
     })
   })
 
+  it('checks availability and creates weekly agreements without normal booking', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const today = createDateFilterOptions()[0].date
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+    await user.click(screen.getByRole('button', { name: 'حجز أسبوعي' }))
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'فحص الإتاحة' }))
+
+    await waitFor(() => {
+      expect(mockedGetRecurringAgreementAvailability).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          weekday: 0,
+          start_time: '09:00:00',
+          end_time: '10:00:00',
+          start_date: today,
+        },
+      )
+    })
+
+    expect(await screen.findByText('الموعد متاح للحجز الأسبوعي'))
+      .toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'تأكيد الحجز الأسبوعي' }),
+    )
+
+    await waitFor(() => {
+      expect(mockedCreateRecurringAgreement).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          customer_name: 'أحمد علي',
+          customer_phone: '+201000000000',
+          weekday: 0,
+          start_time: '09:00:00',
+          end_time: '10:00:00',
+          start_date: today,
+          payment_method: 'CASH',
+        },
+      )
+    })
+    expect(mockedCreateBooking).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('reloads backend slots after payment and hold release actions', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
     render(<SchedulePage />)
 
-    await user.click(await screen.findByRole('button', { name: '6:00 ص حجز مؤقت' }))
+    await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
     await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
     await user.type(screen.getByLabelText('المبلغ'), '100')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
@@ -504,7 +705,7 @@ describe('SchedulePage', () => {
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
     })
 
-    await user.click(await screen.findByRole('button', { name: '6:00 ص حجز مؤقت' }))
+    await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
     await user.click(screen.getByRole('button', { name: 'تحرير الموعد' }))
 
     await waitFor(() => {
@@ -549,6 +750,23 @@ describe('SchedulePage', () => {
   it('reloads slots when date or court changes', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      currentUser: null,
+      selectedMembership: {
+        id: 10,
+        role: 'OWNER',
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: null,
+      },
+      role: 'OWNER',
+    })
     mockedListCourts.mockResolvedValueOnce(
       paginatedResponse([
         {
@@ -557,6 +775,8 @@ describe('SchedulePage', () => {
           name: 'ملعب 1',
           sport_type: 'FOOTBALL',
           default_price: '250.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,
@@ -568,6 +788,8 @@ describe('SchedulePage', () => {
           name: 'ملعب 2',
           sport_type: 'FOOTBALL',
           default_price: '250.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,

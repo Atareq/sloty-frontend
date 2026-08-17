@@ -17,7 +17,7 @@ describe('CancelTransactionSheet', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الدفع' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }))
 
     expect(screen.getByText('سبب الإلغاء مطلوب')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
@@ -37,7 +37,7 @@ describe('CancelTransactionSheet', () => {
     )
 
     await user.type(screen.getByLabelText('سبب الإلغاء'), '  مبلغ خاطئ  ')
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الدفع' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }))
 
     expect(onSubmit).toHaveBeenCalledWith({ reason: 'مبلغ خاطئ' })
   })

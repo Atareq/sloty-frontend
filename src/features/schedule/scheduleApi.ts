@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
   BookingCancelPayload,
+  BookingCancellationPreview,
   BookingCreatePayload,
   BookingListItem,
   BookingListParams,
@@ -105,6 +106,24 @@ export function cancelBooking(
     {
       method: 'POST',
       ...(payload ? { body: payload } : {}),
+    },
+  )
+}
+
+/**
+ * Loads the backend-calculated cancellation refund preview.
+ *
+ * The preview is informational only; the cancel endpoint recalculates policy
+ * and money at mutation time.
+ */
+export function previewBookingCancellation(
+  clubSlug: string,
+  bookingId: number | string,
+): Promise<BookingCancellationPreview> {
+  return apiRequest<BookingCancellationPreview>(
+    apiEndpoints.clubs.bookings.cancellationPreview(clubSlug, bookingId),
+    {
+      method: 'POST',
     },
   )
 }

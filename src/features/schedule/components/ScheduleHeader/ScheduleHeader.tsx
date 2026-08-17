@@ -1,7 +1,6 @@
 import { MoneySummaryCard } from '../MoneySummaryCard/MoneySummaryCard'
 import type {
   ScheduleCourt,
-  ScheduleDateFilter,
   ScheduleStaff,
   ScheduleSummary,
 } from '../../schedule.types'
@@ -10,26 +9,19 @@ export interface ScheduleHeaderProps {
   court: ScheduleCourt
   staff: ScheduleStaff
   summary: ScheduleSummary
-  dateFilters: ScheduleDateFilter[]
-  activeDateKey: string | null
-  onDateChange?: (key: string) => void
 }
 
 /**
  * Responsive staff schedule header.
  *
- * It combines identity, today's date, availability summary, and date
- * tabs so staff can understand the day before scanning slot cards. The header
- * starts compact on mobile and expands into a desktop card with a wider top row
- * and four-column summary.
+ * It combines identity, selected date, and availability summary before the
+ * slot cards. Date navigation lives in AppDateNavigator so Schedule keeps one
+ * selected YYYY-MM-DD value.
  */
 export function ScheduleHeader({
   court,
   staff,
   summary,
-  dateFilters,
-  activeDateKey,
-  onDateChange,
 }: ScheduleHeaderProps) {
   return (
     <header className="sticky top-0 z-30 overflow-hidden border-b border-[var(--sloty-border)] bg-[var(--sloty-surface)] md:static md:rounded-2xl md:border md:shadow-[var(--sloty-shadow)]">
@@ -81,28 +73,6 @@ export function ScheduleHeader({
           label="إجمالي الفترات"
           value={summary.totalSlots}
         />
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto px-4 py-2.5 md:px-5 md:py-4 lg:px-6">
-        {dateFilters.map((filter) => {
-          const isActive = activeDateKey === filter.key
-
-          return (
-            <button
-              className={[
-                'h-9 shrink-0 rounded-xl px-4 text-sm font-bold transition',
-                isActive
-                  ? 'sloty-green-surface-button text-white'
-                  : 'bg-[var(--sloty-bg)] text-[var(--sloty-text-muted)] hover:text-[var(--sloty-text-primary)]',
-              ].join(' ')}
-              key={filter.key}
-              onClick={() => onDateChange?.(filter.key)}
-              type="button"
-            >
-              {filter.label}
-            </button>
-          )
-        })}
       </div>
     </header>
   )

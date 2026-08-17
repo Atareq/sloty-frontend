@@ -123,7 +123,7 @@ describe('AuditLogList', () => {
           action_label: undefined,
         }),
       ),
-    ).toBe('UNKNOWN_ACTION')
+    ).toBe('Unknown Action')
 
     renderList([
       entry({
@@ -138,7 +138,7 @@ describe('AuditLogList', () => {
     ])
 
     expect(screen.getAllByText('تعديل حجز')).toHaveLength(2)
-    expect(screen.getAllByText('UNKNOWN_ACTION')).toHaveLength(2)
+    expect(screen.getAllByText('Unknown Action')).toHaveLength(2)
   })
 
   it('filters metadata to safe useful primitive chips', () => {
@@ -166,7 +166,7 @@ describe('AuditLogList', () => {
     expect(screen.getByText('طريقة الدفع')).toBeInTheDocument()
     expect(screen.getByText('نقدي')).toBeInTheDocument()
     expect(screen.getByText('المبلغ')).toBeInTheDocument()
-    expect(screen.getByText('250.00')).toBeInTheDocument()
+    expect(screen.getByText('250.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('التسوية')).toBeInTheDocument()
     expect(screen.getByText('9')).toBeInTheDocument()
     expect(screen.queryByText('ignored_null')).not.toBeInTheDocument()

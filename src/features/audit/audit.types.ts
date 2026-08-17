@@ -17,11 +17,18 @@ export interface AuditLogEntry {
   id: number
   action: string
   action_label?: string | null
-  actor?: AuditActor | null
+  entity_type?: string | null
+  entity_id?: number | string | null
+  actor?: AuditActor | number | null
+  actor_name?: string | null
+  court?: number | null
+  court_name?: string | null
   target_type?: string | null
   target_id?: number | string | null
   message?: string
   description?: string | null
   metadata?: Record<string, unknown> | null
+  before_data?: Record<string, unknown> | null
+  after_data?: Record<string, unknown> | null
   created?: string
 }

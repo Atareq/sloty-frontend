@@ -13,11 +13,14 @@ describe('audit action labels', () => {
     expect(getAuditActionLabel('SETTLEMENT_MARKED_SETTLED')).toBe(
       'تعليم التسوية كمكتملة',
     )
+    expect(getAuditActionLabel('RECURRING_DEPOSIT_FORFEITED')).toBe(
+      'احتجاز تأمين الحجز الأسبوعي',
+    )
   })
 
   it('falls back safely for unknown actions', () => {
     expect(getAuditActionLabel('NEW_BACKEND_ACTION')).toBe(
-      'NEW_BACKEND_ACTION',
+      'New Backend Action',
     )
   })
 
@@ -29,6 +32,10 @@ describe('audit action labels', () => {
     expect(auditActionOptions).toEqual(
       expect.arrayContaining([
         { value: 'BOOKING_CREATED', label: 'إنشاء حجز' },
+        {
+          value: 'RECURRING_AGREEMENT_AUTO_TERMINATED',
+          label: 'إنهاء الحجز الأسبوعي تلقائيًا',
+        },
       ]),
     )
   })

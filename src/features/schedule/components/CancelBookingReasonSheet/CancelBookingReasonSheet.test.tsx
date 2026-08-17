@@ -83,4 +83,47 @@ describe('CancelBookingReasonSheet', () => {
       screen.getByText('سبب الإلغاء مطلوب من الخادم'),
     ).toBeInTheDocument()
   })
+
+  it('shows backend refund preview and submits refund metadata only when refund is due', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+
+    render(
+      <CancelBookingReasonSheet
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        preview={{
+          booking_id: 10,
+          previewed_at: '2026-07-21T12:00:00Z',
+          booking_start: '2026-07-22T18:00:00Z',
+          paid_amount: '300.00',
+          minimum_deposit: '100.00',
+          refund_notice_days: 3,
+          refund_deadline: '2026-07-19T18:00:00Z',
+          full_refund: false,
+          refund_amount: '200.00',
+          retained_amount: '100.00',
+          can_cancel: true,
+        }}
+      />,
+    )
+
+    expect(screen.getByText('مبلغ الاسترداد')).toBeInTheDocument()
+    expect(screen.getByText('200.00 جنيه')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('سبب الإلغاء'), 'العميل ألغى')
+    await user.selectOptions(screen.getByLabelText('طريقة الاسترداد'), 'BANK_TRANSFER')
+    await user.type(screen.getByLabelText('مرجع الاسترداد'), ' RF-1 ')
+    await user.type(screen.getByLabelText('ملاحظات الاسترداد'), ' تم التحويل ')
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      reason: 'العميل ألغى',
+      refund_payment_method: 'BANK_TRANSFER',
+      refund_reference: 'RF-1',
+      refund_notes: 'تم التحويل',
+    })
+  })
 })

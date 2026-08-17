@@ -22,6 +22,7 @@ import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
 import {
   createClubMembership,
   listClubUsers,
+  updateMembershipActivity,
   updateManagerPermissions,
 } from '../../clubUsers/clubUsersApi'
 import {
@@ -42,6 +43,12 @@ import type {
 } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
+import { listPlatformUsers } from '../../adminUsers/adminUsersApi'
+import {
+  getPlatformUserDisplayName,
+  normalizePlatformUsersResponse,
+} from '../../adminUsers/adminUsers.display'
+import type { PlatformUser } from '../../adminUsers/adminUsers.types'
 
 interface UsersFilterState {
   role: ClubUserRole | ''
@@ -404,6 +411,12 @@ function AddUserSheet({
   onSubmit,
 }: AddUserSheetProps) {
   const [values, setValues] = useState<AddUserFormState>(emptyAddUserForm)
+  const [existingUserSearch, setExistingUserSearch] = useState('')
+  const [existingUsers, setExistingUsers] = useState<PlatformUser[]>([])
+  const [existingUsersError, setExistingUsersError] = useState<string | null>(
+    null,
+  )
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false)
 
   function updateValue<Field extends keyof AddUserFormState>(
     field: Field,
@@ -423,8 +436,41 @@ function AddUserSheet({
         }
       }
 
+      if (field === 'mode') {
+        return {
+          ...nextValues,
+          existingUserId: '',
+        }
+      }
+
       return nextValues
     })
+  }
+
+  async function handleSearchExistingUsers(): Promise<void> {
+    const search = existingUserSearch.trim()
+
+    if (!search) {
+      setExistingUsers([])
+      setExistingUsersError('اكتب اسمًا أو رقم هاتف للبحث عن المستخدم.')
+      return
+    }
+
+    setIsSearchingUsers(true)
+    setExistingUsersError(null)
+
+    try {
+      const response = await listPlatformUsers({ search })
+
+      setExistingUsers(normalizePlatformUsersResponse(response))
+    } catch (error) {
+      setExistingUsers([])
+      setExistingUsersError(
+        getApiErrorMessage(error, 'تعذر البحث عن المستخدمين'),
+      )
+    } finally {
+      setIsSearchingUsers(false)
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -473,11 +519,11 @@ function AddUserSheet({
               />
               مستخدم جديد
             </label>
-            <label className="flex items-center gap-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+            <label className="flex items-center gap-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold">
               <input
                 checked={values.mode === 'existing'}
                 className="accent-[var(--sloty-primary)]"
-                disabled
+                disabled={isSubmitting}
                 name="add-user-mode"
                 onChange={() => updateValue('mode', 'existing')}
                 type="radio"
@@ -485,15 +531,84 @@ function AddUserSheet({
               مستخدم موجود
             </label>
           </div>
-          <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-            اختيار مستخدم موجود غير متاح حتى يتم تأكيد Endpoint البحث عن المستخدمين.
-          </p>
           {fieldErrors.mode || fieldErrors.user_id ? (
             <p className="text-xs font-bold text-[var(--sloty-danger)]">
               {fieldErrors.mode ?? fieldErrors.user_id}
             </p>
           ) : null}
         </fieldset>
+
+        {values.mode === 'existing' ? (
+          <section className="space-y-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-4">
+            <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
+              اختيار مستخدم موجود
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>البحث عن المستخدم</span>
+                <input
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  disabled={isSubmitting || isSearchingUsers}
+                  onChange={(event) => setExistingUserSearch(event.target.value)}
+                  placeholder="الاسم أو اسم المستخدم أو الهاتف أو البريد"
+                  value={existingUserSearch}
+                />
+              </label>
+              <div className="flex items-end">
+                <AppButton
+                  disabled={isSubmitting || isSearchingUsers}
+                  fullWidth
+                  onClick={() => void handleSearchExistingUsers()}
+                  type="button"
+                  variant="secondary"
+                >
+                  {isSearchingUsers ? 'جاري البحث...' : 'بحث'}
+                </AppButton>
+              </div>
+            </div>
+
+            {existingUsersError ? (
+              <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+                {existingUsersError}
+              </p>
+            ) : null}
+
+            {existingUsers.length > 0 ? (
+              <div className="grid gap-2">
+                {existingUsers.map((user) => (
+                  <label
+                    className="flex items-start gap-3 rounded-xl border border-[var(--sloty-border)] bg-white p-3 text-sm"
+                    key={user.id}
+                  >
+                    <input
+                      checked={values.existingUserId === String(user.id)}
+                      disabled={isSubmitting}
+                      name="existingUser"
+                      onChange={() =>
+                        updateValue('existingUserId', String(user.id))
+                      }
+                      type="radio"
+                    />
+                    <span>
+                      <span className="block font-black text-[var(--sloty-text-primary)]">
+                        {getPlatformUserDisplayName(user)}
+                      </span>
+                      <span className="mt-1 block font-bold text-[var(--sloty-text-muted)]">
+                        @{user.username}
+                        {user.phone_number ? ` · ${user.phone_number}` : ''}
+                        {user.email ? ` · ${user.email}` : ''}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                ابحث لاختيار مستخدم موجود بالاسم بدل إدخال رقم معرف يدوي.
+              </p>
+            )}
+          </section>
+        ) : null}
 
         <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
           <span>الدور</span>
@@ -516,6 +631,7 @@ function AddUserSheet({
           ) : null}
         </label>
 
+        {values.mode === 'new' ? (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>الاسم الأول</span>
@@ -607,6 +723,7 @@ function AddUserSheet({
             ) : null}
           </label>
         </section>
+        ) : null}
 
         {values.role === 'STAFF' ? (
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
@@ -669,14 +786,19 @@ function UserCard({
   canEditPermissions,
   courts,
   onEditPermissions,
+  onUpdateMembershipActivity,
+  updatingMembershipId,
   user,
 }: {
   canEditPermissions: boolean
   courts: Court[]
   onEditPermissions: (user: ClubUser) => void
+  onUpdateMembershipActivity: (user: ClubUser, isActive: boolean) => void
+  updatingMembershipId: number | null
   user: ClubUser
 }) {
   const courtName = getUserCourtName(user, courts)
+  const canToggleMembership = user.role !== 'OWNER'
 
   return (
     <AppCard className="space-y-4">
@@ -734,6 +856,27 @@ function UserCard({
           تعديل الصلاحيات
         </AppButton>
       ) : null}
+
+      {canEditPermissions && canToggleMembership ? (
+        <AppButton
+          disabled={updatingMembershipId === user.membership_id}
+          fullWidth
+          onClick={() =>
+            onUpdateMembershipActivity(
+              user,
+              user.membership_is_active === false,
+            )
+          }
+          type="button"
+          variant={user.membership_is_active === false ? 'primary' : 'secondary'}
+        >
+          {updatingMembershipId === user.membership_id
+            ? 'جاري تحديث العضوية...'
+            : user.membership_is_active === false
+              ? 'تفعيل العضوية'
+              : 'تعطيل العضوية'}
+        </AppButton>
+      ) : null}
     </AppCard>
   )
 }
@@ -757,6 +900,9 @@ export function SettingsUsersPage() {
     useState<AddUserFieldErrors>({})
   const [editingManager, setEditingManager] = useState<ClubUser | null>(null)
   const [isSavingPermissions, setIsSavingPermissions] = useState(false)
+  const [updatingMembershipId, setUpdatingMembershipId] = useState<
+    number | null
+  >(null)
   const [permissionsError, setPermissionsError] = useState<string | null>(null)
   const [permissionsFieldErrors, setPermissionsFieldErrors] = useState<
     Partial<Record<keyof UpdateManagerPermissionsPayload, string>>
@@ -959,6 +1105,40 @@ export function SettingsUsersPage() {
     }
   }
 
+  async function handleUpdateMembershipActivity(
+    user: ClubUser,
+    isActive: boolean,
+  ): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setUpdatingMembershipId(user.membership_id)
+    setError(null)
+
+    try {
+      await updateMembershipActivity(selectedClubSlug, user.membership_id, {
+        is_active: isActive,
+      })
+      setUsersReloadKey((current) => current + 1)
+      setMessage(isActive ? 'تم تفعيل العضوية' : 'تم تعطيل العضوية')
+
+      if (selectedMembership?.id === user.membership_id) {
+        await refreshCurrentUser()
+      }
+    } catch (error) {
+      setError(
+        getApiErrorMessage(error, 'تعذر تحديث حالة العضوية. حاول مرة أخرى'),
+      )
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
+    } finally {
+      setUpdatingMembershipId(null)
+    }
+  }
+
   async function handleCreateMembership(values: AddUserFormState): Promise<void> {
     const localErrors = validateAddUserForm(values)
 
@@ -1119,6 +1299,8 @@ export function SettingsUsersPage() {
                 setPermissionsFieldErrors({})
                 setEditingManager(user)
               }}
+              onUpdateMembershipActivity={handleUpdateMembershipActivity}
+              updatingMembershipId={updatingMembershipId}
               user={user}
             />
           ))}

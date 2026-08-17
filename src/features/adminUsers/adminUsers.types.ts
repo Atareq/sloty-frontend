@@ -39,6 +39,10 @@ export interface PlatformUser {
 
 export interface PlatformUsersQueryParams {
   search?: string
+  account_type?: PlatformUserAccountType | string
+  club?: number | string
+  role?: string
+  is_active?: boolean | string
 }
 
 export interface PlatformAdminUserPayload {

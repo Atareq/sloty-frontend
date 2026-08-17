@@ -4,6 +4,10 @@ import type {
   SettlementPreviewTransaction,
 } from '../../settlements.types'
 import { settlementPaymentMethodLabels } from '../../settlements.types'
+import {
+  getTransactionType,
+  transactionTypeLabels,
+} from '../../../transactions/transactions.types'
 
 type SettlementTransactionRow = SettlementPreviewTransaction | SettlementLine
 
@@ -64,6 +68,7 @@ export function SettlementTransactionsList({
         const createdLabel =
           'created' in transaction ? formatDate(transaction.created) : null
         const reference = getReference(transaction)
+        const transactionType = getTransactionType(transaction)
 
         return (
           <AppCard className="space-y-3" key={transaction.id}>
@@ -79,9 +84,14 @@ export function SettlementTransactionsList({
                   {transaction.amount}
                 </p>
               </div>
-              <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
-                {settlementPaymentMethodLabels[transaction.payment_method]}
-              </span>
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
+                  {transactionTypeLabels[transactionType]}
+                </span>
+                <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
+                  {settlementPaymentMethodLabels[transaction.payment_method]}
+                </span>
+              </div>
             </div>
 
             <dl className="grid grid-cols-1 gap-2 text-sm">

@@ -124,4 +124,22 @@ describe('RecordPaymentSheet', () => {
     expect(screen.getByText('المبلغ أكبر من المتبقي')).toBeInTheDocument()
     expect(screen.getByText('رقم العملية مطلوب')).toBeInTheDocument()
   })
+
+  it('shows minimum deposit guidance without blocking local validation', () => {
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        minimumDepositHint="100.00"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByText(/الحد الأدنى للعربون في إعدادات الملعب/),
+    ).toBeInTheDocument()
+    expect(screen.getByText('100.00 جنيه')).toBeInTheDocument()
+  })
 })

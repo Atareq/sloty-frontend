@@ -51,68 +51,68 @@ function getMemberships(
   return Array.isArray(user.memberships) ? user.memberships : []
 }
 
-function membershipMatchesClub(
-  membership: PlatformUserMembershipSummary,
-  clubId: string,
-): boolean {
-  return (
-    String(membership.club ?? '') === clubId ||
-    String(membership.club_id ?? '') === clubId ||
-    String(membership.club_slug ?? '') === clubId
-  )
-}
-
-function filterUsers(
-  users: PlatformUser[],
-  filters: AdminUsersFilters,
-): PlatformUser[] {
-  return users.filter((user) => {
-    if (filters.account_type) {
-      const isPlatformAdmin =
-        user.is_platform_admin || user.account_type === 'PLATFORM_ADMIN'
-
-      if (filters.account_type === 'PLATFORM_ADMIN' && !isPlatformAdmin) {
-        return false
-      }
-
-      if (filters.account_type === 'CLUB_USER' && isPlatformAdmin) {
-        return false
-      }
-    }
-
-    if (filters.is_active) {
-      const expected = filters.is_active === 'true'
-
-      if (Boolean(user.is_active ?? true) !== expected) {
-        return false
-      }
-    }
-
-    if (filters.club || filters.role) {
-      const memberships = getMemberships(user)
-
-      if (memberships.length === 0) {
-        return false
-      }
-
-      return memberships.some((membership) => {
-        const clubMatches =
-          !filters.club || membershipMatchesClub(membership, filters.club)
-        const roleMatches = !filters.role || membership.role === filters.role
-
-        return clubMatches && roleMatches
-      })
-    }
-
-    return true
-  })
-}
-
 function getFilters(search: string): AdminUsersFilters {
   return {
     ...emptyFilters,
     ...toQueryObject(search),
   }
+}
+
+function getMembershipCountLabel(count: number): string {
+  if (count === 1) {
+    return 'عضوية واحدة'
+  }
+
+  if (count === 2) {
+    return 'عضويتان'
+  }
+
+  return `${count} عضويات`
+}
+
+function getMembershipSummaryText(
+  memberships: PlatformUserMembershipSummary[],
+): string {
+  if (memberships.length === 0) {
+    return 'لا توجد عضويات'
+  }
+
+  if (memberships.length > 1) {
+    return getMembershipCountLabel(memberships.length)
+  }
+
+  const membership = memberships[0]
+
+  return [
+    membership.club_name ?? 'نادي غير متاح',
+    membership.role ? roleLabels[membership.role] : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function getSingleMembershipValue(
+  memberships: PlatformUserMembershipSummary[],
+  field: keyof Pick<
+    PlatformUserMembershipSummary,
+    'club_name' | 'role' | 'court_name'
+  >,
+): string {
+  if (memberships.length === 0) {
+    return 'لا توجد عضويات'
+  }
+
+  if (memberships.length > 1) {
+    return getMembershipCountLabel(memberships.length)
+  }
+
+  const value = memberships[0][field]
+
+  if (field === 'role' && typeof value === 'string') {
+    return roleLabels[value] ?? value
+  }
+
+  return typeof value === 'string' && value ? value : 'غير متاح حاليًا'
 }
 
 function MembershipSummary({
@@ -123,7 +123,7 @@ function MembershipSummary({
   if (memberships.length === 0) {
     return (
       <span className="text-sm font-bold text-[var(--sloty-text-muted)]">
-        يتم عرض العضويات عند توفرها من الخادم
+        لا توجد عضويات
       </span>
     )
   }
@@ -254,10 +254,6 @@ export function AdminUsersPage() {
   const [clubsWarning, setClubsWarning] = useState<string | null>(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const filteredUsers = useMemo(
-    () => filterUsers(users, filters),
-    [filters, users],
-  )
 
   useEffect(() => {
     let isActive = true
@@ -268,7 +264,13 @@ export function AdminUsersPage() {
 
       try {
         const [usersResponse, clubsResponse] = await Promise.all([
-          listPlatformUsers({ search: filters.search }),
+          listPlatformUsers({
+            search: filters.search,
+            account_type: filters.account_type,
+            club: filters.club,
+            role: filters.role,
+            is_active: filters.is_active,
+          }),
           listClubs().catch(() => null),
         ])
 
@@ -300,7 +302,7 @@ export function AdminUsersPage() {
     return () => {
       isActive = false
     }
-  }, [filters.search])
+  }, [filters])
 
   function handleFilterSubmit(nextFilters: AdminUsersFilters): void {
     navigate(
@@ -390,7 +392,7 @@ export function AdminUsersPage() {
         </AppCard>
       ) : null}
 
-      {!isLoading && !error && filteredUsers.length === 0 ? (
+      {!isLoading && !error && users.length === 0 ? (
         <AppCard>
           <p className="text-sm text-[var(--sloty-text-muted)]">
             {hasActiveFilters
@@ -400,7 +402,7 @@ export function AdminUsersPage() {
         </AppCard>
       ) : null}
 
-      {!isLoading && !error && filteredUsers.length > 0 ? (
+      {!isLoading && !error && users.length > 0 ? (
         viewMode === 'desktop' ? (
           <AppCard className="overflow-x-auto">
             <table className="w-full min-w-[920px] text-right text-sm">
@@ -416,9 +418,8 @@ export function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((user) => {
+                {users.map((user) => {
                   const memberships = getMemberships(user)
-                  const firstMembership = memberships[0]
 
                   return (
                     <tr
@@ -437,15 +438,13 @@ export function AdminUsersPage() {
                         {getPlatformUserAccountTypeLabel(user)}
                       </td>
                       <td className="py-3">
-                        {firstMembership?.club_name ?? 'غير متاح حاليًا'}
+                        {getSingleMembershipValue(memberships, 'club_name')}
                       </td>
                       <td className="py-3">
-                        {firstMembership?.role
-                          ? roleLabels[firstMembership.role]
-                          : 'غير متاح حاليًا'}
+                        {getSingleMembershipValue(memberships, 'role')}
                       </td>
                       <td className="py-3">
-                        {firstMembership?.court_name ?? 'غير متاح حاليًا'}
+                        {getSingleMembershipValue(memberships, 'court_name')}
                       </td>
                       <td className="py-3">
                         {getPlatformUserStatusLabel(user.is_active)}
@@ -463,7 +462,7 @@ export function AdminUsersPage() {
           </AppCard>
         ) : (
           <div className="grid gap-3">
-            {filteredUsers.map((user) => (
+            {users.map((user) => (
               <AppCard className="space-y-4" key={user.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -493,6 +492,9 @@ export function AdminUsersPage() {
                       العضويات
                     </dt>
                     <dd className="mt-1">
+                      <span className="block text-sm font-black text-[var(--sloty-text-primary)]">
+                        {getMembershipSummaryText(getMemberships(user))}
+                      </span>
                       <MembershipSummary memberships={getMemberships(user)} />
                     </dd>
                   </div>

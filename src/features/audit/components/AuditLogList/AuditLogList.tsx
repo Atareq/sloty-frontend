@@ -1,111 +1,46 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
-import { paymentMethodLabels } from '../../../transactions/transactions.types'
-import type { PaymentMethod } from '../../../transactions/transactions.types'
+import type { AuditPresentationChange } from '../../auditEntryPresentation'
+import { getAuditEntryPresentation } from '../../auditEntryPresentation'
 import type { AuditLogEntry } from '../../audit.types'
-import {
-  getAuditActionLabel,
-  getAuditActionUiConfig,
-} from '../../auditActionUi'
+import { getAuditActionUiConfig } from '../../auditActionUi'
 
 export interface AuditLogListProps {
   entries: AuditLogEntry[]
 }
 
-interface MetadataChip {
-  key: string
-  label: string
-  value: string
-}
-
-const metadataLabels: Record<string, string> = {
-  booking: 'الحجز',
-  booking_id: 'الحجز',
-  customer: 'العميل',
-  customer_name: 'العميل',
-  court: 'الملعب',
-  court_name: 'الملعب',
-  payment_method: 'طريقة الدفع',
-  amount: 'المبلغ',
-  transaction: 'الدفع',
-  transaction_id: 'الدفع',
-  settlement: 'التسوية',
-  settlement_id: 'التسوية',
-  reason: 'السبب',
-}
-
-function formatDateTime(value: string | undefined): string | null {
-  if (!value) {
+function AuditChangeList({ changes }: { changes: AuditPresentationChange[] }) {
+  if (changes.length === 0) {
     return null
   }
 
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
-}
-
-function isSafePrimitive(value: unknown): value is string | number | boolean {
-  return ['string', 'number', 'boolean'].includes(typeof value)
-}
-
-function formatPrimitiveMetadataValue(key: string, value: string | number | boolean): string {
-  if (typeof value === 'boolean') {
-    return value ? 'نعم' : 'لا'
-  }
-
-  if (key === 'payment_method' && typeof value === 'string') {
-    return paymentMethodLabels[value as PaymentMethod] ?? value
-  }
-
-  return String(value).trim()
-}
-
-function getMetadataChips(
-  metadata: AuditLogEntry['metadata'],
-): MetadataChip[] {
-  if (!metadata) {
-    return []
-  }
-
-  return Object.entries(metadata).flatMap(([key, value]) => {
-    const label = metadataLabels[key]
-
-    if (!label || !isSafePrimitive(value)) {
-      return []
-    }
-
-    const formattedValue = formatPrimitiveMetadataValue(key, value)
-
-    if (!formattedValue) {
-      return []
-    }
-
-    return [
-      {
-        key,
-        label,
-        value: formattedValue,
-      },
-    ]
-  })
-}
-
-function getEntryDescription(entry: AuditLogEntry): string | null {
-  const description = entry.description?.trim()
-  const message = entry.message?.trim()
-
-  return description || message || null
+  return (
+    <div className="space-y-2 rounded-2xl bg-[var(--sloty-bg)] p-3">
+      <h3 className="text-xs font-black text-[var(--sloty-text-muted)]">
+        التغييرات
+      </h3>
+      <dl className="space-y-2">
+        {changes.map((change) => (
+          <div className="grid gap-1 text-sm sm:grid-cols-[8rem_1fr]" key={change.label}>
+            <dt className="font-bold text-[var(--sloty-text-muted)]">
+              {change.label}
+            </dt>
+            <dd className="font-black text-[var(--sloty-text-primary)]">
+              <span>{change.before}</span>
+              <span className="mx-2 text-[var(--sloty-text-muted)]">←</span>
+              <span>{change.after}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
 }
 
 /**
- * Read-only audit cards that use stable action codes for visuals and backend
- * localized labels for visible action text.
+ * Read-only audit cards rendered from a centralized presentation model.
+ *
+ * The list intentionally does not fetch related entity details; each row must
+ * stand on the audit list payload and safe fallback formatting.
  */
 export function AuditLogList({ entries }: AuditLogListProps) {
   if (entries.length === 0) {
@@ -121,11 +56,8 @@ export function AuditLogList({ entries }: AuditLogListProps) {
   return (
     <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       {entries.map((entry) => {
-        const actionLabel = getAuditActionLabel(entry)
         const actionUi = getAuditActionUiConfig(entry.action)
-        const createdLabel = formatDateTime(entry.created)
-        const description = getEntryDescription(entry)
-        const metadataChips = getMetadataChips(entry.metadata)
+        const presentation = getAuditEntryPresentation(entry)
 
         return (
           <AppCard
@@ -150,66 +82,83 @@ export function AuditLogList({ entries }: AuditLogListProps) {
 
                 <div className="min-w-0 space-y-1">
                   <h2 className="text-base font-black leading-6 text-[var(--sloty-text-primary)]">
-                    {actionLabel}
+                    {presentation.title}
                   </h2>
-                  {description ? (
+                  {presentation.description ? (
                     <p className="text-sm font-semibold leading-6 text-[var(--sloty-text-muted)]">
-                      {description}
+                      {presentation.description}
                     </p>
                   ) : null}
                 </div>
               </div>
 
-              <span
-                className={[
-                  'inline-flex w-fit shrink-0 items-center rounded-full px-3 py-1 text-xs font-black ring-1 ring-current/15',
-                  actionUi.foregroundClass,
-                  actionUi.softBackgroundClass,
-                ].join(' ')}
-              >
-                {actionLabel}
-              </span>
+              {presentation.badgeLabel ? (
+                <span
+                  className={[
+                    'inline-flex w-fit shrink-0 items-center rounded-full px-3 py-1 text-xs font-black ring-1 ring-current/15',
+                    actionUi.foregroundClass,
+                    actionUi.softBackgroundClass,
+                  ].join(' ')}
+                >
+                  {presentation.badgeLabel}
+                </span>
+              ) : null}
             </div>
 
             <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              {entry.actor?.name ? (
+              {presentation.actorLabel ? (
                 <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                   <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
                     المستخدم
                   </dt>
                   <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                    {entry.actor.name}
+                    {presentation.actorLabel}
                   </dd>
                 </div>
               ) : null}
 
-              {createdLabel ? (
+              {presentation.courtLabel ? (
+                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                  <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                    الملعب
+                  </dt>
+                  <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
+                    {presentation.courtLabel}
+                  </dd>
+                </div>
+              ) : null}
+
+              {presentation.createdLabel ? (
                 <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                   <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
                     التاريخ
                   </dt>
                   <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                    <time dateTime={entry.created}>{createdLabel}</time>
+                    <time dateTime={entry.created}>{presentation.createdLabel}</time>
                   </dd>
                 </div>
               ) : null}
             </dl>
 
-            {metadataChips.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {metadataChips.map((chip) => (
-                  <span
-                    className="inline-flex max-w-full items-center gap-1 rounded-full bg-[var(--sloty-bg)] px-3 py-1 text-xs font-bold text-[var(--sloty-text-primary)] ring-1 ring-[var(--sloty-border)]"
-                    key={chip.key}
+            {presentation.details.length > 0 ? (
+              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                {presentation.details.map((detail) => (
+                  <div
+                    className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2"
+                    key={`${detail.label}-${detail.value}`}
                   >
-                    <span className="text-[var(--sloty-text-muted)]">
-                      {chip.label}
-                    </span>
-                    <span className="min-w-0 truncate">{chip.value}</span>
-                  </span>
+                    <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                      {detail.label}
+                    </dt>
+                    <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
+                      {detail.value}
+                    </dd>
+                  </div>
                 ))}
-              </div>
+              </dl>
             ) : null}
+
+            <AuditChangeList changes={presentation.changes} />
           </AppCard>
         )
       })}

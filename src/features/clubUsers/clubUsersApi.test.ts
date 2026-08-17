@@ -4,6 +4,7 @@ import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   createClubMembership,
   listClubUsers,
+  updateMembershipActivity,
   updateManagerPermissions,
 } from './clubUsersApi'
 
@@ -63,6 +64,27 @@ describe('clubUsersApi', () => {
     expect(mockedApiRequest).not.toHaveBeenCalledWith(
       apiEndpoints.clubs.detail('nasr-club'),
       expect.anything(),
+    )
+  })
+
+  it('patches membership activity without overwriting role, court, or permissions', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ id: 1 })
+
+    await updateMembershipActivity('nasr-club', 102, {
+      is_active: false,
+      role: 'MANAGER',
+      court: 7,
+      manager_can_change_pricing: true,
+    } as never)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.memberships.detail('nasr-club', 102),
+      {
+        method: 'PATCH',
+        body: {
+          is_active: false,
+        },
+      },
     )
   })
 

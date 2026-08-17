@@ -5,6 +5,7 @@ import type {
   ClubUser,
   ClubUsersQueryParams,
   CreateMembershipPayload,
+  UpdateMembershipActivityPayload,
   UpdateManagerPermissionsPayload,
 } from './clubUsers.types'
 
@@ -131,6 +132,26 @@ export function updateManagerPermissions(
         manager_can_settle_transactions:
           payload.manager_can_settle_transactions,
         manager_can_change_pricing: payload.manager_can_change_pricing,
+      },
+    },
+  )
+}
+
+/**
+ * Toggles one club membership without touching account state, role, Court
+ * scope, or manager permission fields.
+ */
+export function updateMembershipActivity(
+  clubSlug: string,
+  membershipId: number | string,
+  payload: UpdateMembershipActivityPayload,
+): Promise<ClubUser> {
+  return apiRequest<ClubUser>(
+    apiEndpoints.clubs.memberships.detail(clubSlug, membershipId),
+    {
+      method: 'PATCH',
+      body: {
+        is_active: payload.is_active,
       },
     },
   )

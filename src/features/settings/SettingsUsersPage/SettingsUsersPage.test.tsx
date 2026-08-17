@@ -7,9 +7,11 @@ import { useAuth } from '../../../core/auth/useAuth'
 import {
   createClubMembership,
   listClubUsers,
+  updateMembershipActivity,
   updateManagerPermissions,
 } from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
+import { listPlatformUsers } from '../../adminUsers/adminUsersApi'
 import { SettingsUsersPage } from './SettingsUsersPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -19,6 +21,7 @@ vi.mock('../../../core/auth/useAuth', () => ({
 vi.mock('../../clubUsers/clubUsersApi', () => ({
   createClubMembership: vi.fn(),
   listClubUsers: vi.fn(),
+  updateMembershipActivity: vi.fn(),
   updateManagerPermissions: vi.fn(),
 }))
 
@@ -26,11 +29,17 @@ vi.mock('../../courts/courtsApi', () => ({
   listCourts: vi.fn(),
 }))
 
+vi.mock('../../adminUsers/adminUsersApi', () => ({
+  listPlatformUsers: vi.fn(),
+}))
+
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedCreateClubMembership = vi.mocked(createClubMembership)
 const mockedListClubUsers = vi.mocked(listClubUsers)
+const mockedUpdateMembershipActivity = vi.mocked(updateMembershipActivity)
 const mockedUpdateManagerPermissions = vi.mocked(updateManagerPermissions)
 const mockedListCourts = vi.mocked(listCourts)
+const mockedListPlatformUsers = vi.mocked(listPlatformUsers)
 
 function paginatedResponse<T>(results: T[]) {
   return {
@@ -182,7 +191,19 @@ describe('SettingsUsersPage', () => {
     mockAuth()
     mockedListClubUsers.mockResolvedValue([ownerUser, managerUser, staffUser])
     mockedCreateClubMembership.mockResolvedValue(managerUser)
+    mockedUpdateMembershipActivity.mockResolvedValue(managerUser)
     mockedUpdateManagerPermissions.mockResolvedValue(managerUser)
+    mockedListPlatformUsers.mockResolvedValue([
+      {
+        id: 55,
+        username: 'existing-user',
+        first_name: 'ليلى',
+        last_name: 'جاهز',
+        phone_number: '+201000000055',
+        email: 'existing@example.com',
+        is_active: true,
+      },
+    ])
     mockedListCourts.mockResolvedValue(
       paginatedResponse([
         {
@@ -191,6 +212,8 @@ describe('SettingsUsersPage', () => {
           name: 'ملعب 1',
           sport_type: 'FOOTBALL',
           default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,
@@ -268,6 +291,38 @@ describe('SettingsUsersPage', () => {
     ).toHaveLength(1)
   })
 
+  it('uses the shared membership activity mutation without sending role, court, or permissions', async () => {
+    const user = userEvent.setup()
+
+    mockedListClubUsers
+      .mockResolvedValueOnce([ownerUser, managerUser, staffUser])
+      .mockResolvedValueOnce([
+        ownerUser,
+        { ...managerUser, membership_is_active: true },
+        staffUser,
+      ])
+
+    renderUsersPage()
+
+    await user.click(await screen.findByRole('button', { name: 'تفعيل العضوية' }))
+
+    expect(mockedUpdateMembershipActivity).toHaveBeenCalledWith(
+      'nasr-club',
+      102,
+      { is_active: true },
+    )
+    expect(mockedUpdateMembershipActivity).not.toHaveBeenCalledWith(
+      'nasr-club',
+      102,
+      expect.objectContaining({
+        role: expect.anything(),
+        court: expect.anything(),
+        manager_can_change_pricing: expect.anything(),
+      }),
+    )
+    await waitFor(() => expect(mockedListClubUsers).toHaveBeenCalledTimes(2))
+  })
+
   it('does not show manager permission edit action for unauthorized roles', async () => {
     mockAuth({ role: 'MANAGER' })
 
@@ -295,11 +350,7 @@ describe('SettingsUsersPage', () => {
     expect(dialog.queryByRole('option', { name: 'مالك' })).not.toBeInTheDocument()
     expect(dialog.getByText('مستخدم جديد')).toBeInTheDocument()
     expect(dialog.getByText('مستخدم موجود')).toBeInTheDocument()
-    expect(
-      dialog.getByText(
-        'اختيار مستخدم موجود غير متاح حتى يتم تأكيد Endpoint البحث عن المستخدمين.',
-      ),
-    ).toBeInTheDocument()
+    expect(dialog.queryByText(/غير متاح حتى يتم تأكيد/)).not.toBeInTheDocument()
   })
 
   it('does not show add user action for unauthorized roles', async () => {
@@ -329,6 +380,36 @@ describe('SettingsUsersPage', () => {
     expect(dialog.getByLabelText('البريد الإلكتروني')).toBeInTheDocument()
     expect(dialog.getByLabelText('اسم المستخدم')).toBeInTheDocument()
     expect(dialog.getByLabelText('كلمة المرور')).toBeInTheDocument()
+  })
+
+  it('links an existing user without asking for password or sending new-user data', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.click(dialog.getByLabelText('مستخدم موجود'))
+    expect(dialog.queryByLabelText('كلمة المرور')).not.toBeInTheDocument()
+
+    await user.type(dialog.getByLabelText('البحث عن المستخدم'), 'ليلى')
+    await user.click(dialog.getByRole('button', { name: 'بحث' }))
+    await user.click(await dialog.findByLabelText(/ليلى جاهز/))
+    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    await waitFor(() => {
+      expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
+        user_id: 55,
+        role: 'MANAGER',
+        court: null,
+        manager_can_settle_transactions: false,
+        manager_can_change_pricing: false,
+      })
+    })
+    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ user: expect.anything() }),
+    )
   })
 
   it('shows manager permission toggles defaulted false for add manager', async () => {

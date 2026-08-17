@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { BookingListItem } from '../../../schedule/scheduleApi.types'
 import { BookingActionSheet } from './BookingActionSheet'
@@ -18,13 +19,15 @@ const baseBooking: BookingListItem = {
 
 function renderSheet(booking: BookingListItem, props = {}) {
   return render(
-    <BookingActionSheet
-      booking={booking}
-      courtName="ملعب 1"
-      isOpen
-      onClose={vi.fn()}
-      {...props}
-    />,
+    <MemoryRouter>
+      <BookingActionSheet
+        booking={booking}
+        courtName="ملعب 1"
+        isOpen
+        onClose={vi.fn()}
+        {...props}
+      />
+    </MemoryRouter>,
   )
 }
 
@@ -40,7 +43,7 @@ describe('BookingActionSheet', () => {
 
     renderSheet(holdBooking, { onAddPayment, onFreeHold })
 
-    expect(screen.getByRole('heading', { name: 'حجز محجوز مؤقتًا' }))
+    expect(screen.getByRole('heading', { name: 'حجز بانتظار العربون' }))
       .toBeInTheDocument()
     expect(screen.getByText(/الثلاثاء، ٢١ يوليو/)).toBeInTheDocument()
 
@@ -50,6 +53,21 @@ describe('BookingActionSheet', () => {
     expect(onAddPayment).toHaveBeenCalledWith(holdBooking)
     expect(onFreeHold).toHaveBeenCalledWith(holdBooking)
     expect(screen.queryByRole('button', { name: 'إكمال الحجز' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('routes recurring occurrence cancellation to the agreement detail', () => {
+    renderSheet({
+      ...baseBooking,
+      source: 'RECURRING',
+      recurring_agreement_id: 12,
+    }, {
+      onCancel: vi.fn(),
+    })
+
+    expect(screen.getByRole('link', { name: 'عرض الحجز الأسبوعي' }))
+      .toHaveAttribute('href', '/recurring-agreements/12')
+    expect(screen.queryByRole('button', { name: 'إلغاء الحجز' }))
       .not.toBeInTheDocument()
   })
 

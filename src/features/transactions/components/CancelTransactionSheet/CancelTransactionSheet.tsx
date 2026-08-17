@@ -54,11 +54,11 @@ export function CancelTransactionSheet({
       >
         <div className="space-y-2">
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            إلغاء الدفع
+            إلغاء تسجيل الدفعة
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            سيظل هذا الدفع ظاهرًا في السجل، لكنه لن يتم احتسابه ضمن المدفوعات
-            أو التسويات أو إجماليات لوحة التحكم.
+            هذا تصحيح لدفعة مسجلة بالخطأ، وليس عملية استرداد للعميل. ستظل
+            الدفعة ظاهرة في السجل بدون احتسابها ضمن إجماليات الخلفية.
           </p>
         </div>
 
@@ -93,7 +93,7 @@ export function CancelTransactionSheet({
             type="submit"
             variant="danger"
           >
-            {isSubmitting ? 'جاري الإلغاء...' : 'تأكيد إلغاء الدفع'}
+            {isSubmitting ? 'جاري الإلغاء...' : 'تأكيد إلغاء تسجيل الدفعة'}
           </AppButton>
           <AppButton
             disabled={isSubmitting}

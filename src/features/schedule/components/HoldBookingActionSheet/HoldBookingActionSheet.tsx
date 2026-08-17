@@ -42,13 +42,13 @@ export function HoldBookingActionSheet({
     >
       <div className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl">
         <div className="space-y-2">
-          <p className="text-sm font-bold text-amber-800">حجز مؤقت</p>
+          <p className="text-sm font-bold text-amber-800">بانتظار العربون</p>
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            حجز مؤقت
+            بانتظار العربون
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            هذا الموعد محجوز مؤقتًا. يمكنك تسجيل دفعة لتأكيد الحجز أو تحرير
-            الموعد.
+            هذا الموعد محجوز بانتظار العربون. يمكنك تسجيل دفعة لتأكيد الحجز أو
+            تحرير الموعد.
           </p>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {courtName} - {dateLabel}
@@ -84,7 +84,7 @@ export function HoldBookingActionSheet({
           <div className="rounded-2xl bg-amber-50 p-3">
             <dt className="font-bold text-amber-800">الحالة</dt>
             <dd className="mt-1 inline-flex rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">
-              محجوز مؤقتًا
+              بانتظار العربون
             </dd>
           </div>
         </dl>

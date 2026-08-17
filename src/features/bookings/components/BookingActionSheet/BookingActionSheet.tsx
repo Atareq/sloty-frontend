@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type { BookingListItem } from '../../../schedule/scheduleApi.types'
@@ -69,6 +70,9 @@ export function BookingActionSheet({
   const fallbackDate = dateValue ?? (booking ? getBookingDateFallback(booking) : null)
   const readOnlyMessage = booking ? getReadOnlyMessage(booking) : null
   const notes = booking ? getBookingNotes(booking) : null
+  const recurringAgreementId = booking?.recurring_agreement_id
+  const isRecurringBooking =
+    booking?.is_recurring || booking?.source === 'RECURRING'
 
   return (
     <div
@@ -120,6 +124,16 @@ export function BookingActionSheet({
                   dir="ltr"
                 >
                   {booking.customer_phone}
+                </dd>
+              </div>
+            ) : null}
+            {isRecurringBooking ? (
+              <div className="rounded-2xl bg-[var(--sloty-soft-mint)] p-3">
+                <dt className="font-bold text-[var(--sloty-text-muted)]">
+                  نوع الحجز
+                </dt>
+                <dd className="mt-1 font-black text-[var(--sloty-primary-dark)]">
+                  حجز أسبوعي
                 </dd>
               </div>
             ) : null}
@@ -182,6 +196,22 @@ export function BookingActionSheet({
           </p>
         ) : null}
 
+        {recurringAgreementId ? (
+          <Link
+            className="mt-4 block rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-center text-sm font-black text-[var(--sloty-primary-dark)]"
+            to={`/recurring-agreements/${recurringAgreementId}`}
+          >
+            عرض الحجز الأسبوعي
+          </Link>
+        ) : null}
+
+        {isRecurringBooking ? (
+          <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+            إلغاء هذا الحجز الأسبوعي يتم من صفحة الحجز الأسبوعي حتى لا يظهر
+            كإلغاء حجز منفرد.
+          </p>
+        ) : null}
+
         {error ? (
           <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
             {error}
@@ -233,7 +263,10 @@ export function BookingActionSheet({
               تسجيل عدم حضور
             </AppButton>
           ) : null}
-          {booking && canBookingCancel(booking.status) && onCancel ? (
+          {booking &&
+          !isRecurringBooking &&
+          canBookingCancel(booking.status) &&
+          onCancel ? (
             <AppButton
               disabled={isSubmitting}
               fullWidth

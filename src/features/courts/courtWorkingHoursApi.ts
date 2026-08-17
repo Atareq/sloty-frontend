@@ -1,40 +1,24 @@
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
+import { normalizeTimeString } from './components/CourtWorkingHoursSection/courtWorkingHours.helpers'
 import type {
-  CourtWorkingHour,
-  CourtWorkingHourApiRecord,
   CourtWorkingHoursApiResponse,
-  CourtWorkingHoursPutPayload,
   CourtWorkingHoursResponse,
+  CourtWorkingDay,
+  UpdateCourtWorkingHoursPayload,
 } from './courtWorkingHours.types'
 
-function normalizeTime(value: string | null | undefined): string {
-  return typeof value === 'string'
-    ? value.split(':').slice(0, 2).join(':')
-    : ''
-}
-
-function normalizeWorkingHour(record: CourtWorkingHourApiRecord): CourtWorkingHour {
-  const blocks = Array.isArray(record.blocks)
-    ? record.blocks.map((block) => ({
-        ...(block.id === undefined ? {} : { id: block.id }),
-        start_time: normalizeTime(block.start_time),
-        end_time: normalizeTime(block.end_time),
-      }))
-    : record.opens_at && record.closes_at
-      ? [
-          {
-            start_time: normalizeTime(record.opens_at),
-            end_time: normalizeTime(record.closes_at),
-          },
-        ]
-      : []
-
+function normalizeWorkingDay(record: CourtWorkingDay): CourtWorkingDay {
   return {
-    ...(record.id === undefined ? {} : { id: record.id }),
     weekday: record.weekday,
-    is_closed: Boolean(record.is_closed),
-    blocks: record.is_closed ? [] : blocks,
+    pricing_periods: Array.isArray(record.pricing_periods)
+      ? record.pricing_periods.map((period) => ({
+        ...(period.id === undefined ? {} : { id: period.id }),
+        starts_at: normalizeTimeString(period.starts_at),
+        ends_at: normalizeTimeString(period.ends_at),
+        price: period.price,
+      }))
+      : [],
   }
 }
 
@@ -44,8 +28,9 @@ export function normalizeCourtWorkingHoursResponse(
   return {
     court: response.court,
     court_name: response.court_name,
+    pricing_configured: Boolean(response.pricing_configured),
     working_hours: Array.isArray(response.working_hours)
-      ? response.working_hours.map(normalizeWorkingHour)
+      ? response.working_hours.map(normalizeWorkingDay)
       : [],
   }
 }
@@ -68,7 +53,7 @@ export function getCourtWorkingHours(
 export function saveCourtWorkingHours(
   clubSlug: string,
   courtId: number | string,
-  payload: CourtWorkingHoursPutPayload,
+  payload: UpdateCourtWorkingHoursPayload,
 ): Promise<CourtWorkingHoursResponse> {
   return apiRequest<CourtWorkingHoursApiResponse>(
     apiEndpoints.clubs.courts.workingHours.detail(clubSlug, courtId),

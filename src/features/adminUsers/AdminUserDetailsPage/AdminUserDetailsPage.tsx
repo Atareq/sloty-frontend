@@ -7,6 +7,7 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import {
+  updateMembershipActivity,
   updateManagerPermissions,
 } from '../../clubUsers/clubUsersApi'
 import type {
@@ -96,6 +97,12 @@ export function AdminUserDetailsPage() {
   const [isLoading, setIsLoading] = useState(Boolean(userId))
   const [reloadKey, setReloadKey] = useState(0)
   const [isUpdatingAccount, setIsUpdatingAccount] = useState(false)
+  const [pendingAccountStatus, setPendingAccountStatus] = useState<
+    boolean | null
+  >(null)
+  const [updatingMembershipId, setUpdatingMembershipId] = useState<
+    number | string | null
+  >(null)
   const [editingMembership, setEditingMembership] =
     useState<PlatformUserMembershipSummary | null>(null)
   const [isSavingPermissions, setIsSavingPermissions] = useState(false)
@@ -156,6 +163,7 @@ export function AdminUserDetailsPage() {
 
     try {
       await updatePlatformUser(userId, { is_active: isActive })
+      setPendingAccountStatus(null)
       setReloadKey((current) => current + 1)
     } catch (error) {
       setError(
@@ -167,6 +175,44 @@ export function AdminUserDetailsPage() {
       }
     } finally {
       setIsUpdatingAccount(false)
+    }
+  }
+
+  async function handleUpdateMembershipActivity(
+    membership: PlatformUserMembershipSummary,
+    isActive: boolean,
+  ): Promise<void> {
+    if (!membership.club_slug || !membership.membership_id) {
+      return
+    }
+
+    setUpdatingMembershipId(membership.membership_id)
+    setError(null)
+
+    try {
+      await updateMembershipActivity(
+        membership.club_slug,
+        membership.membership_id,
+        { is_active: isActive },
+      )
+      setReloadKey((current) => current + 1)
+
+      if (
+        selectedMembership?.id === membership.membership_id &&
+        selectedMembership.club.slug === membership.club_slug
+      ) {
+        await refreshCurrentUser()
+      }
+    } catch (error) {
+      setError(
+        getAdminUserErrorMessage(error, 'تعذر تحديث حالة العضوية'),
+      )
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
+    } finally {
+      setUpdatingMembershipId(null)
     }
   }
 
@@ -310,7 +356,7 @@ export function AdminUserDetailsPage() {
                 {user.is_active === false ? (
                   <AppButton
                     disabled={isUpdatingAccount}
-                    onClick={() => void handleUpdateAccountStatus(true)}
+                    onClick={() => setPendingAccountStatus(true)}
                     type="button"
                   >
                     تفعيل الحساب
@@ -318,7 +364,7 @@ export function AdminUserDetailsPage() {
                 ) : (
                   <AppButton
                     disabled={isUpdatingAccount}
-                    onClick={() => void handleUpdateAccountStatus(false)}
+                    onClick={() => setPendingAccountStatus(false)}
                     type="button"
                     variant="danger"
                   >
@@ -388,7 +434,7 @@ export function AdminUserDetailsPage() {
                     {membership.role === 'MANAGER' &&
                     membership.club_slug &&
                     membership.membership_id ? (
-                      <div className="mt-4">
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                         <AppButton
                           onClick={() => openManagerPermissionEditor(membership)}
                           type="button"
@@ -398,12 +444,39 @@ export function AdminUserDetailsPage() {
                         </AppButton>
                       </div>
                     ) : null}
+                    {membership.club_slug && membership.membership_id ? (
+                      <div className="mt-4">
+                        <AppButton
+                          disabled={
+                            updatingMembershipId === membership.membership_id
+                          }
+                          onClick={() =>
+                            void handleUpdateMembershipActivity(
+                              membership,
+                              membership.membership_is_active === false,
+                            )
+                          }
+                          type="button"
+                          variant={
+                            membership.membership_is_active === false
+                              ? 'primary'
+                              : 'secondary'
+                          }
+                        >
+                          {updatingMembershipId === membership.membership_id
+                            ? 'جاري تحديث العضوية...'
+                            : membership.membership_is_active === false
+                              ? 'تفعيل العضوية'
+                              : 'تعطيل العضوية'}
+                        </AppButton>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
             ) : (
               <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                تفاصيل العضويات غير متاحة من الخادم حاليًا.
+                لا توجد عضويات مرتبطة بهذا الحساب.
               </p>
             )}
           </AppCard>
@@ -424,6 +497,56 @@ export function AdminUserDetailsPage() {
           }}
           onSubmit={handleUpdateManagerPermissions}
         />
+      ) : null}
+
+      {pendingAccountStatus !== null ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-3 sm:items-center">
+          <section
+            aria-labelledby="account-status-confirm-title"
+            aria-modal="true"
+            className="w-full max-w-md rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)]"
+            role="dialog"
+          >
+            <div className="space-y-4">
+              <div>
+                <h2
+                  className="text-lg font-black text-[var(--sloty-text-primary)]"
+                  id="account-status-confirm-title"
+                >
+                  {pendingAccountStatus ? 'تفعيل الحساب؟' : 'تعطيل الحساب؟'}
+                </h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
+                  {pendingAccountStatus
+                    ? 'سيتمكن المستخدم من تسجيل الدخول مرة أخرى بعد التفعيل.'
+                    : 'لن يتمكن المستخدم من تسجيل الدخول حتى يتم تفعيل الحساب مرة أخرى.'}
+                </p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <AppButton
+                  disabled={isUpdatingAccount}
+                  onClick={() => void handleUpdateAccountStatus(pendingAccountStatus)}
+                  type="button"
+                  variant={pendingAccountStatus ? 'primary' : 'danger'}
+                >
+                  {isUpdatingAccount
+                    ? 'جاري التحديث...'
+                    : pendingAccountStatus
+                      ? 'تفعيل الحساب'
+                      : 'تعطيل الحساب'}
+                </AppButton>
+                <AppButton
+                  disabled={isUpdatingAccount}
+                  onClick={() => setPendingAccountStatus(null)}
+                  type="button"
+                  variant="secondary"
+                >
+                  إلغاء
+                </AppButton>
+              </div>
+            </div>
+          </section>
+        </div>
       ) : null}
     </div>
   )

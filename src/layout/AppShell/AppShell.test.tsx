@@ -140,7 +140,7 @@ describe('AppShell', () => {
     expect(await screen.findByText('اختيار النادي')).toBeInTheDocument()
   })
 
-  it('shows settlement navigation only when the selected membership allows it', () => {
+  it('shows settlement navigation for own-view roles and management-capable roles', () => {
     mockedUseAuth.mockReturnValue(getAuthValue(2, { role: 'OWNER' }))
 
     renderAppShell()
@@ -153,8 +153,16 @@ describe('AppShell', () => {
 
     renderAppShell()
 
-    expect(screen.queryByText('التسويات المالية والجرد'))
-      .not.toBeInTheDocument()
+    expect(screen.getAllByText('التسويات المالية والجرد').length)
+      .toBeGreaterThan(0)
+
+    cleanup()
+    mockedUseAuth.mockReturnValue(getAuthValue(2, { role: 'STAFF' }))
+
+    renderAppShell()
+
+    expect(screen.getAllByText('التسويات المالية والجرد').length)
+      .toBeGreaterThan(0)
 
     cleanup()
     mockedUseAuth.mockReturnValue(
@@ -283,7 +291,7 @@ describe('AppShell', () => {
       .toBeInTheDocument()
   })
 
-  it('keeps staff menu limited to daily links and account actions', async () => {
+  it('keeps staff menu limited to allowed operational links and account actions', async () => {
     const user = userEvent.setup()
 
     mockedUseAuth.mockReturnValue(getAuthValue(1, { role: 'STAFF' }))
@@ -299,10 +307,10 @@ describe('AppShell', () => {
       .toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'سجل الحجوزات' }))
       .toBeInTheDocument()
-    expect(within(dialog).queryByText('سجل المعاملات المالية'))
-      .not.toBeInTheDocument()
-    expect(within(dialog).queryByText('التسويات المالية والجرد'))
-      .not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'سجل المعاملات المالية' }))
+      .toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'التسويات المالية والجرد' }))
+      .toBeInTheDocument()
     expect(within(dialog).queryByText('التقارير الاستهلاكية للملاعب'))
       .not.toBeInTheDocument()
     expect(within(dialog).queryByText('سجل النشاطات')).not.toBeInTheDocument()

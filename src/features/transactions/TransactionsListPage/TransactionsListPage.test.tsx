@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
@@ -68,6 +68,8 @@ describe('TransactionsListPage', () => {
           name: 'ملعب 1',
           sport_type: 'football',
           default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,
@@ -79,6 +81,8 @@ describe('TransactionsListPage', () => {
           name: 'ملعب متوقف',
           sport_type: 'football',
           default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: false,
           requires_digital_payment_reference: false,
@@ -190,6 +194,38 @@ describe('TransactionsListPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps staff transactions court-scoped without creator filtering', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      selectedMembership: {
+        id: 10,
+        role: 'STAFF',
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: { id: 3, name: 'ملعب 1' },
+      },
+      role: 'STAFF',
+    })
+    mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage('/transactions?court=99&created_by=15')
+
+    expect((await screen.findAllByText('ملعب 1')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('كل الملاعب')).not.toBeInTheDocument()
+    expect(mockedListCourts).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
+        court: '3',
+        created_by: '15',
+      })
+    })
+  })
+
   it('shows an empty state when the selected club has no transactions', async () => {
     mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
 
@@ -236,7 +272,32 @@ describe('TransactionsListPage', () => {
     expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
     expect(screen.getByText('أحمد')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'إلغاء الدفع' }),
+      screen.queryByRole('button', { name: 'إلغاء تسجيل الدفعة' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders refund rows as signed backend amounts without correction actions', async () => {
+    mockedListTransactions.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 8,
+          booking: 10,
+          transaction_type: 'REFUND' as const,
+          amount: '-250.00',
+          payment_method: 'CASH' as const,
+          created_by: { id: 1, name: 'أحمد' },
+          is_cancelled: false,
+          is_settled: false,
+        },
+      ]),
+    )
+
+    renderTransactionsPage()
+
+    expect(await screen.findByText('استرداد')).toBeInTheDocument()
+    expect(screen.getByText('-250.00')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'إلغاء تسجيل الدفعة' }),
     ).not.toBeInTheDocument()
   })
 
@@ -270,13 +331,13 @@ describe('TransactionsListPage', () => {
       '/transactions?settlement_status=unsettled&is_cancelled=false',
     )
 
-    await user.click(await screen.findByRole('button', { name: 'إلغاء الدفع' }))
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الدفع' }))
+    await user.click(await screen.findByRole('button', { name: 'إلغاء تسجيل الدفعة' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }))
 
     expect(screen.getByText('سبب الإلغاء مطلوب')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('سبب الإلغاء'), 'مبلغ خاطئ')
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الدفع' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }))
 
     expect(mockedCancelTransaction).toHaveBeenCalledWith('nasr-club', 5, {
       reason: 'مبلغ خاطئ',
@@ -289,7 +350,7 @@ describe('TransactionsListPage', () => {
         settlement_status: 'unsettled',
       },
     )
-    expect(await screen.findByText('تم إلغاء الدفع بنجاح')).toBeInTheDocument()
+    expect(await screen.findByText('تم إلغاء تسجيل الدفعة بنجاح')).toBeInTheDocument()
   })
 
   it('respects summary redirect filters without adding default dates', async () => {

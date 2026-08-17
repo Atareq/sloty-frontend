@@ -22,7 +22,7 @@ export interface BookingsQueryParams {
 export type Booking = BookingListItem
 
 export const bookingStatusLabels: Record<BookingStatus, string> = {
-  HOLD: 'انتظار الدفع',
+  HOLD: 'بانتظار العربون',
   CONFIRMED: 'مؤكد',
   COMPLETED: 'مكتمل',
   CANCELLED: 'ملغي',

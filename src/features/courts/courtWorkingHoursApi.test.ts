@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
@@ -15,16 +15,20 @@ const mockedApiRequest = vi.mocked(apiRequest)
 
 const workingHourPayload = {
   weekday: 5 as const,
-  is_closed: false,
-  blocks: [
+  pricing_periods: [
     {
-      start_time: '18:00',
-      end_time: '23:00',
+      starts_at: '18:00:00',
+      ends_at: '23:00:00',
+      price: '300.00',
     },
   ],
 }
 
 describe('courtWorkingHoursApi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('loads court working hours from the nested court endpoint', async () => {
     mockedApiRequest.mockResolvedValue({
       court: 7,
@@ -46,8 +50,7 @@ describe('courtWorkingHoursApi', () => {
         workingHourPayload,
         {
           weekday: 6 as const,
-          is_closed: true,
-          blocks: [],
+          pricing_periods: [],
         },
       ],
     }
@@ -69,82 +72,106 @@ describe('courtWorkingHoursApi', () => {
     )
   })
 
-  it('normalizes legacy open and close fields into frontend blocks', () => {
+  it('normalizes period times from the backend response', () => {
     const response = normalizeCourtWorkingHoursResponse({
       court: 7,
       court_name: 'ملعب 1',
+      pricing_configured: true,
       working_hours: [
         {
-          id: 3,
           weekday: 5,
-          is_closed: false,
-          opens_at: '10:00:00',
-          closes_at: '12:00:00',
+          pricing_periods: [
+            {
+              id: 11,
+              starts_at: '10:00:00',
+              ends_at: '12:00:00',
+              price: '250.00',
+            },
+          ],
         },
         {
-          id: 4,
           weekday: 6,
-          is_closed: false,
+          pricing_periods: [],
         },
       ],
     })
 
+    expect(response.pricing_configured).toBe(true)
     expect(response.working_hours).toEqual([
       {
-        id: 3,
         weekday: 5,
-        is_closed: false,
-        blocks: [{ start_time: '10:00', end_time: '12:00' }],
+        pricing_periods: [
+          {
+            id: 11,
+            starts_at: '10:00',
+            ends_at: '12:00',
+            price: '250.00',
+          },
+        ],
       },
       {
-        id: 4,
         weekday: 6,
-        is_closed: false,
-        blocks: [],
+        pricing_periods: [],
       },
     ])
   })
 
-  it('normalizes backend block time precision and closed-day blocks', () => {
+  it('keeps empty pricing periods as closed days without legacy fields', () => {
     const response = normalizeCourtWorkingHoursResponse({
       court: 7,
       court_name: 'ملعب 1',
       working_hours: [
         {
-          weekday: 5,
-          is_closed: false,
-          blocks: [
-            {
-              id: 9,
-              start_time: '18:00:00',
-              end_time: '23:00:00',
-            },
-          ],
-        },
-        {
           weekday: 6,
-          is_closed: true,
-          blocks: [
-            {
-              start_time: '08:00:00',
-              end_time: '10:00:00',
-            },
-          ],
+          pricing_periods: [],
         },
       ],
     })
 
     expect(response.working_hours).toEqual([
       {
-        weekday: 5,
-        is_closed: false,
-        blocks: [{ id: 9, start_time: '18:00', end_time: '23:00' }],
-      },
-      {
         weekday: 6,
-        is_closed: true,
-        blocks: [],
+        pricing_periods: [],
       },
     ])
+  })
+
+  it('does not add legacy working-hour fields to the PUT payload', async () => {
+    const payload = {
+      working_hours: [
+        {
+          weekday: 5 as const,
+          pricing_periods: [
+            {
+              starts_at: '10:00:00',
+              ends_at: '12:00:00',
+              price: '250.00',
+            },
+          ],
+        },
+        {
+          weekday: 6 as const,
+          pricing_periods: [],
+        },
+      ],
+    }
+
+    mockedApiRequest.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [],
+    })
+
+    await saveCourtWorkingHours('nasr-club', 7, payload)
+
+    const sentPayload = mockedApiRequest.mock.calls.at(-1)?.[1]?.body
+    const serializedPayload = JSON.stringify(sentPayload)
+
+    expect(serializedPayload).not.toContain('opens_at')
+    expect(serializedPayload).not.toContain('closes_at')
+    expect(serializedPayload).not.toContain('is_closed')
+    expect(serializedPayload).not.toContain('blocks')
+    expect(serializedPayload).not.toContain('localId')
+    expect(serializedPayload).not.toContain('"id"')
   })
 })

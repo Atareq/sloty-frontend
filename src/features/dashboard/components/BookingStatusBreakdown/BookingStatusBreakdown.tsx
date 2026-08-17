@@ -3,7 +3,7 @@ import type { DashboardSummaryResponse } from '../../dashboard.types'
 import { buildSummaryLink } from '../../summaryLinks'
 
 const bookingStatuses = [
-  { key: 'hold_bookings', label: 'انتظار الدفع', status: 'HOLD', tone: 'amber' },
+  { key: 'hold_bookings', label: 'بانتظار العربون', status: 'HOLD', tone: 'amber' },
   { key: 'confirmed_bookings', label: 'مؤكد', status: 'CONFIRMED', tone: 'green' },
   { key: 'completed_bookings', label: 'مكتمل', status: 'COMPLETED', tone: 'blue' },
   { key: 'cancelled_bookings', label: 'ملغي', status: 'CANCELLED', tone: 'red' },

@@ -40,9 +40,28 @@ describe('BookingCard', () => {
 
     expect(
       screen.getByRole('button', {
-        name: '6:00 ص محجوز مؤقتًا',
+        name: '6:00 ص بانتظار العربون',
       }),
     ).toHaveClass('bg-amber-100')
+  })
+
+  it('renders UNAVAILABLE as a disabled fallback slot', () => {
+    render(
+      <BookingCard
+        booking={{
+          ...confirmedBooking,
+          status: 'unavailable',
+          startTime: '10:00',
+          label: null,
+        }}
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', {
+        name: '10:00 ص غير متاح',
+      }),
+    ).toBeDisabled()
   })
 
   it('allows completed slots to open read-only details', async () => {

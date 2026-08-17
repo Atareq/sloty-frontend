@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
-import { listSettlements } from '../settlementsApi'
+import { getSettlementPreview, listSettlements } from '../settlementsApi'
 import { SettlementHistoryPage } from './SettlementHistoryPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -21,10 +21,12 @@ vi.mock('../../courts/courtsApi', () => ({
 }))
 
 vi.mock('../settlementsApi', () => ({
+  getSettlementPreview: vi.fn(),
   listSettlements: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedGetSettlementPreview = vi.mocked(getSettlementPreview)
 const mockedListClubUsers = vi.mocked(listClubUsers)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedListSettlements = vi.mocked(listSettlements)
@@ -101,6 +103,8 @@ describe('SettlementHistoryPage', () => {
           name: 'Court A',
           sport_type: 'FOOTBALL',
           default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,
@@ -124,6 +128,15 @@ describe('SettlementHistoryPage', () => {
         },
       ]),
     )
+    mockedGetSettlementPreview.mockResolvedValue({
+      club: 1,
+      collected_by: 1,
+      collected_by_name: 'Manager User',
+      transaction_count: 0,
+      total_amount: '0.00',
+      totals_by_payment_method: {},
+      transactions: [],
+    })
   })
 
   it('renders settlement cards with collected-by and backend-generated period', async () => {
@@ -173,7 +186,7 @@ describe('SettlementHistoryPage', () => {
     })
   })
 
-  it('blocks managers without can_manage_settlements', async () => {
+  it('shows own preview mode for managers without can_manage_settlements', async () => {
     mockAuth({ canManageSettlements: false })
 
     render(
@@ -182,10 +195,12 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    expect(
-      await screen.findByText('ليس لديك صلاحية إدارة التسويات.'),
-    ).toBeInTheDocument()
-    expect(mockedListSettlements).not.toHaveBeenCalled()
+    expect(await screen.findByText('المبلغ الحالي غير المسوى'))
+      .toBeInTheDocument()
+    expect(await screen.findByText('Manager User')).toBeInTheDocument()
+    expect(screen.queryByText('مراجعة دفعات موظف')).not.toBeInTheDocument()
+    expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
+    expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
   })
 
   it('shows no selected club message', async () => {

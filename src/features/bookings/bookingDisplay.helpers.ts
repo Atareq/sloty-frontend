@@ -18,7 +18,7 @@ const arabicTimeFormatter = new Intl.DateTimeFormat('ar-EG', {
 })
 
 export const bookingStatusLabels: Record<BackendBookingStatus, string> = {
-  HOLD: 'محجوز مؤقتًا',
+  HOLD: 'بانتظار العربون',
   CONFIRMED: 'مؤكد',
   COMPLETED: 'مكتمل',
   CANCELLED: 'ملغي',

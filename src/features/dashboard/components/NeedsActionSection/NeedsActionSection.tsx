@@ -6,7 +6,7 @@ import { buildSummaryLink } from '../../summaryLinks'
 const needsActionItems = [
   {
     key: 'hold_waiting_payment_count',
-    label: 'حجوزات انتظار الدفع',
+    label: 'حجوزات بانتظار العربون',
     query: { status: 'HOLD' },
   },
   {
@@ -21,7 +21,7 @@ const needsActionItems = [
   },
   {
     key: 'expiring_hold_count',
-    label: 'حجوزات انتظار قاربت على الانتهاء',
+    label: 'حجوزات بانتظار العربون قاربت على الانتهاء',
     query: { hold_expiring: true, status: 'HOLD' },
   },
 ] as const

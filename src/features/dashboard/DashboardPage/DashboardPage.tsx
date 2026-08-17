@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
+import {
+  canChooseOperationalCourt,
+  getAssignedOperationalCourtId,
+} from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -111,7 +115,7 @@ function renderLoadingSkeletons() {
  * Summary / Owner Home control center backed by the dashboard summary endpoint.
  */
 export function DashboardPage() {
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const { role, selectedClubSlug, selectedMembership } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [summary, setSummary] = useState<DashboardSummaryResponse | null>(null)
@@ -121,14 +125,24 @@ export function DashboardPage() {
   const [isCourtsLoading, setIsCourtsLoading] = useState(false)
   const [courtOptionsError, setCourtOptionsError] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
+  const assignedCourtId = getAssignedOperationalCourtId(
+    role,
+    selectedMembership,
+  )
+  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
   const activeShortcut = useMemo(
     () => getShortcutFromSearch(location.search),
     [location.search],
   )
-  const selectedCourt = useMemo(
+  const selectedCourtFromSearch = useMemo(
     () => getCourtFromSearch(location.search),
     [location.search],
   )
+  const selectedCourt = canChooseCourt
+    ? selectedCourtFromSearch
+    : assignedCourtId
+      ? String(assignedCourtId)
+      : ''
   const activeQuery = useMemo(
     () => ({
       ...createShortcutQuery(activeShortcut),
@@ -140,7 +154,9 @@ export function DashboardPage() {
     (court) => String(court.id) === selectedCourt,
   )
   const selectedCourtLabel = selectedCourt
-    ? selectedCourtOption
+    ? !canChooseCourt && selectedMembership?.court?.name
+      ? selectedMembership.court.name
+      : selectedCourtOption
       ? getCourtDisplayName(selectedCourtOption)
       : `ملعب #${selectedCourt}`
     : 'كل الملاعب'
@@ -170,7 +186,7 @@ export function DashboardPage() {
       buildPathWithQuery('/dashboard', {
         ...query,
         shortcut: nextShortcut === 'today' ? undefined : nextShortcut,
-        court: nextCourt || undefined,
+        court: canChooseCourt && nextCourt ? nextCourt : undefined,
       }),
     )
   }
@@ -218,7 +234,7 @@ export function DashboardPage() {
     let isActive = true
 
     async function loadCourts(): Promise<void> {
-      if (!selectedClubSlug) {
+      if (!selectedClubSlug || !canChooseCourt) {
         setCourts([])
         setCourtOptionsError(null)
         setIsCourtsLoading(false)
@@ -251,7 +267,7 @@ export function DashboardPage() {
     return () => {
       isActive = false
     }
-  }, [selectedClubSlug])
+  }, [canChooseCourt, selectedClubSlug])
 
   return (
     <div className="space-y-5">
@@ -318,7 +334,11 @@ export function DashboardPage() {
                 ) : null}
               </div>
 
-              {courts.length === 1 && !selectedCourt ? (
+              {!canChooseCourt ? (
+                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-black text-[var(--sloty-text-primary)]">
+                  {selectedCourtLabel}
+                </div>
+              ) : courts.length === 1 && !selectedCourt ? (
                 <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-black text-[var(--sloty-text-primary)]">
                   كل الملاعب
                 </div>

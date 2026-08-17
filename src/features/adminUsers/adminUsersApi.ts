@@ -17,6 +17,22 @@ function buildPlatformUsersQueryString(
     searchParams.set('search', params.search.trim())
   }
 
+  if (params?.account_type) {
+    searchParams.set('account_type', params.account_type)
+  }
+
+  if (params?.club) {
+    searchParams.set('club', String(params.club))
+  }
+
+  if (params?.role) {
+    searchParams.set('role', params.role)
+  }
+
+  if (params?.is_active !== undefined && params.is_active !== '') {
+    searchParams.set('is_active', String(params.is_active))
+  }
+
   const queryString = searchParams.toString()
 
   return queryString ? `?${queryString}` : ''
@@ -45,9 +61,8 @@ function normalizePlatformAdminPayload(
 /**
  * Lists platform users from the global user endpoint.
  *
- * The current frontend sends only confirmed lightweight account query params;
- * club and role filters remain URL/local filters unless the backend exposes
- * summaries in this same response.
+ * The completed backend owns primary filtering for global users. The frontend
+ * keeps filters URL-driven, then sends the supported query params here.
  */
 export function listPlatformUsers(
   params?: PlatformUsersQueryParams,

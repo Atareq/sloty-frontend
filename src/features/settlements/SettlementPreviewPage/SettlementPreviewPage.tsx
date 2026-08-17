@@ -12,9 +12,7 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { ConfirmSettlementDialog } from '../components/ConfirmSettlementDialog/ConfirmSettlementDialog'
-import { SettlementPaymentTotals } from '../components/SettlementPaymentTotals/SettlementPaymentTotals'
-import { SettlementPreviewSummary } from '../components/SettlementPreviewSummary/SettlementPreviewSummary'
-import { SettlementPreviewTransactionsList } from '../components/SettlementPreviewTransactionsList/SettlementPreviewTransactionsList'
+import { SettlementPreviewContent } from '../components/SettlementPreviewContent/SettlementPreviewContent'
 import { createSettlement, getSettlementPreview } from '../settlementsApi'
 import type {
   SettlementPreview,
@@ -305,13 +303,7 @@ export function SettlementPreviewPage() {
       && preview
       && !isEmptyPreview ? (
         <>
-          <SettlementPreviewSummary preview={preview} />
-          <SettlementPaymentTotals
-            totalsByPaymentMethod={preview.totals_by_payment_method}
-          />
-          <SettlementPreviewTransactionsList
-            transactions={preview.transactions}
-          />
+          <SettlementPreviewContent preview={preview} />
 
           <AppCard className="space-y-4">
             <AppButton

@@ -144,7 +144,9 @@ describe('DashboardPage', () => {
           club: 1,
           name: 'ملعب 3',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
+          default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,
@@ -155,7 +157,9 @@ describe('DashboardPage', () => {
           club: 1,
           name: '',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
+          default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,
@@ -199,6 +203,40 @@ describe('DashboardPage', () => {
     expect(screen.getByText('ملعب #4')).toBeInTheDocument()
     expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
     expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
+  })
+
+  it('uses staff assigned court without exposing all-courts selection', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      selectedMembership: {
+        id: 10,
+        role: 'STAFF',
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: { id: 3, name: 'ملعب 3' },
+      },
+      role: 'STAFF',
+    })
+
+    renderDashboard('/dashboard?court=4')
+
+    expect(await screen.findByText('نطاق الملعب')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'كل الملاعب' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'ملعب #4' }))
+      .not.toBeInTheDocument()
+    expect(mockedListCourts).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockedGetDashboardSummary).toHaveBeenCalledWith('nasr-club', {
+        date: '2026-07-21',
+        court: '3',
+      })
+    })
   })
 
   it('does not block summary when court options fail', async () => {
@@ -291,8 +329,10 @@ describe('DashboardPage', () => {
       club: 1,
       name: 'ملعب وحيد',
       sport_type: 'FOOTBALL',
-      default_price: '250.00',
-      slot_duration_minutes: 60,
+      default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
+          slot_duration_minutes: 60,
       is_active: true,
       requires_digital_payment_reference: false,
       internal_hold_expiry_hours: 12,
@@ -381,7 +421,7 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(await screen.findByText('حالات الحجوزات')).toBeInTheDocument()
-    expect(screen.getByText('انتظار الدفع').closest('a')).toHaveAttribute(
+    expect(screen.getByText('بانتظار العربون').closest('a')).toHaveAttribute(
       'href',
       '/bookings?date=2026-07-21&status=HOLD',
     )

@@ -1,3 +1,5 @@
+import type { PaymentMethod } from '../transactions/transactions.types'
+
 export const BACKEND_BOOKING_STATUSES = [
   'HOLD',
   'CONFIRMED',
@@ -9,6 +11,7 @@ export const BACKEND_BOOKING_STATUSES = [
 
 export const BOOKING_SLOT_STATUSES = [
   'FREE',
+  'UNAVAILABLE',
   'HOLD',
   'CONFIRMED',
   'COMPLETED',
@@ -37,6 +40,9 @@ export interface BookingListItem {
   total_price?: string | null
   paid_amount?: string | null
   remaining_amount?: string | null
+  source?: 'MANUAL' | 'ADMIN_CORRECTION' | 'RECURRING'
+  is_recurring?: boolean
+  recurring_agreement_id?: number | null
 }
 
 export interface BookingCreatePayload {
@@ -52,6 +58,9 @@ export interface BookingCreatePayload {
 export interface BookingCancelPayload {
   reason?: string
   notes?: string
+  refund_payment_method?: PaymentMethod
+  refund_reference?: string
+  refund_notes?: string
 }
 
 export interface BookingNoShowPayload {
@@ -72,6 +81,9 @@ export interface BookingSlotBookingSummary {
   total_booking_value: string
   total_paid_amount: string
   remaining_amount: string
+  source?: 'MANUAL' | 'ADMIN_CORRECTION' | 'RECURRING'
+  is_recurring?: boolean
+  recurring_agreement_id?: number | null
 }
 
 export interface BookingSlot {
@@ -80,8 +92,9 @@ export interface BookingSlot {
   end_time: string
   slot_status: BookingSlotStatus
   is_available: boolean
+  slot_price: string | null
   booking: BookingSlotBookingSummary | null
-  label: string
+  label: string | null
 }
 
 export interface BookingSlotsResponse {
@@ -92,6 +105,20 @@ export interface BookingSlotsResponse {
   slot_duration_minutes: number
   message?: string | null
   slots: BookingSlot[]
+}
+
+export interface BookingCancellationPreview {
+  booking_id: number
+  previewed_at: string
+  booking_start: string
+  paid_amount: string
+  minimum_deposit: string
+  refund_notice_days: number | null
+  refund_deadline: string | null
+  full_refund: boolean
+  refund_amount: string
+  retained_amount: string
+  can_cancel: boolean
 }
 
 export interface BookingSlotsSingleDayParams {

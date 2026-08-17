@@ -10,34 +10,32 @@ import { useAuth } from '../../../../core/auth/useAuth'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import {
+  PricingPeriodsEditor,
+  type PricingPeriodDraft,
+} from '../PricingPeriodsEditor/PricingPeriodsEditor'
+import {
   getCourtWorkingHours,
   saveCourtWorkingHours,
 } from '../../courtWorkingHoursApi'
 import type {
-  CourtWorkingHour,
-  CourtWorkingHourPayload,
+  CourtWorkingDay,
+  CourtWorkingDayPayload,
   CourtWeekday,
 } from '../../courtWorkingHours.types'
 import {
-  doBlocksOverlap,
+  areTimesAlignedToSlotDuration,
+  doPricingPeriodsOverlap,
   getWeekdayLabel,
-  isSameDayValidBlock,
-  minutesToTime,
+  isTimeRangeOrdered,
   normalizeTimeString,
-  sortBlocksByStartTime,
-  timeToMinutes,
+  sortPeriodsByStartTime,
+  toApiTimeString,
   weekdays,
 } from './courtWorkingHours.helpers'
 
-export interface WorkingHourBlockDraft {
-  localId: string
-  start_time: string
-  end_time: string
-}
-
-interface WorkingHourDraft {
-  is_closed: boolean
-  blocks: WorkingHourBlockDraft[]
+interface WorkingDayDraft {
+  weekday: CourtWeekday
+  pricing_periods: PricingPeriodDraft[]
 }
 
 export interface CourtWorkingHoursSectionProps {
@@ -45,123 +43,183 @@ export interface CourtWorkingHoursSectionProps {
   courtId?: string
   isCreateMode: boolean
   canEdit?: boolean
+  slotDurationMinutes?: number
 }
 
-const timeInputClass =
-  'h-10 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:cursor-not-allowed disabled:opacity-50'
+let nextLocalId = 0
 
-function createBlockDraft(
-  weekday: CourtWeekday,
+function createLocalId(prefix = 'period'): string {
+  nextLocalId += 1
+
+  return `${prefix}-${Date.now()}-${nextLocalId}`
+}
+
+function createPricingPeriodDraft(
   index: number,
-  startTime = '08:00',
-  endTime = '09:00',
-): WorkingHourBlockDraft {
+  startsAt = '',
+  endsAt = '',
+  price = '',
+): PricingPeriodDraft {
   return {
-    localId: `${weekday}-${index}-${startTime}-${endTime}`,
-    start_time: normalizeTimeString(startTime),
-    end_time: normalizeTimeString(endTime),
+    localId: createLocalId(`period-${index}`),
+    starts_at: startsAt ? normalizeTimeString(startsAt) : '',
+    ends_at: endsAt ? normalizeTimeString(endsAt) : '',
+    price,
   }
 }
 
-function createClosedDraft(): WorkingHourDraft {
+function createClosedDayDraft(weekday: CourtWeekday): WorkingDayDraft {
   return {
-    is_closed: true,
-    blocks: [],
+    weekday,
+    pricing_periods: [],
   }
 }
 
-function createInitialDrafts(): Record<CourtWeekday, WorkingHourDraft> {
+function createInitialDrafts(): Record<CourtWeekday, WorkingDayDraft> {
   return weekdays.reduce(
     (drafts, weekday) => ({
       ...drafts,
-      [weekday]: createClosedDraft(),
+      [weekday]: createClosedDayDraft(weekday),
     }),
-    {} as Record<CourtWeekday, WorkingHourDraft>,
+    {} as Record<CourtWeekday, WorkingDayDraft>,
   )
 }
 
-function getNextDefaultBlock(
-  weekday: CourtWeekday,
-  blocks: WorkingHourBlockDraft[],
-): WorkingHourBlockDraft {
-  const sortedBlocks = sortBlocksByStartTime(blocks)
-  const lastBlock = sortedBlocks[sortedBlocks.length - 1]
-
-  if (!lastBlock) {
-    return createBlockDraft(weekday, 0)
-  }
-
-  const lastEndMinutes = timeToMinutes(lastBlock.end_time)
-
-  if (!Number.isFinite(lastEndMinutes) || lastEndMinutes >= 23 * 60) {
-    return createBlockDraft(weekday, blocks.length)
-  }
-
-  const startMinutes = lastEndMinutes
-  const endMinutes = startMinutes + 60
-
-  return {
-    localId: `new-${Date.now()}-${blocks.length}`,
-    start_time: minutesToTime(startMinutes),
-    end_time: minutesToTime(endMinutes),
-  }
-}
-
-function draftFromRecord(record: CourtWorkingHour): WorkingHourDraft {
-  const blocks = sortBlocksByStartTime(
-    (Array.isArray(record.blocks) ? record.blocks : []).map((block, index) =>
-      createBlockDraft(record.weekday, index, block.start_time, block.end_time),
+function clonePeriods(
+  periods: PricingPeriodDraft[],
+): PricingPeriodDraft[] {
+  return periods.map((period, index) =>
+    createPricingPeriodDraft(
+      index,
+      period.starts_at,
+      period.ends_at,
+      period.price,
     ),
   )
+}
 
+function draftFromRecord(record: CourtWorkingDay): WorkingDayDraft {
   return {
-    is_closed: record.is_closed,
-    blocks: record.is_closed ? [] : blocks,
+    weekday: record.weekday,
+    pricing_periods: sortPeriodsByStartTime(
+      record.pricing_periods.map((period, index) =>
+        createPricingPeriodDraft(
+          index,
+          period.starts_at,
+          period.ends_at,
+          period.price,
+        ),
+      ),
+    ),
   }
 }
 
-function getDayValidationMessage(draft: WorkingHourDraft): string | null {
-  if (draft.is_closed) {
-    return null
+function buildDraftsFromRecords(
+  records: CourtWorkingDay[],
+): Record<CourtWeekday, WorkingDayDraft> {
+  const nextDrafts = createInitialDrafts()
+
+  records.forEach((record) => {
+    nextDrafts[record.weekday] = draftFromRecord(record)
+  })
+
+  return nextDrafts
+}
+
+interface DayValidationResult {
+  dayMessage: string | null
+  periodErrors: Record<string, string>
+}
+
+function getDayValidationResult(
+  draft: WorkingDayDraft,
+  slotDurationMinutes?: number,
+): DayValidationResult {
+  const periodErrors: Record<string, string> = {}
+
+  if (draft.pricing_periods.length === 0) {
+    return { dayMessage: null, periodErrors }
   }
 
-  if (draft.blocks.length === 0) {
-    return 'أضف فترة عمل واحدة على الأقل'
+  for (const period of draft.pricing_periods) {
+    if (!period.starts_at || !period.ends_at) {
+      periodErrors[period.localId] = 'وقت بداية ونهاية فترة العمل مطلوبان'
+      continue
+    }
+
+    if (!period.price) {
+      periodErrors[period.localId] = 'السعر مطلوب'
+      continue
+    }
+
+    const numericPrice = Number(period.price)
+
+    if (!Number.isFinite(numericPrice)) {
+      periodErrors[period.localId] = 'السعر يجب أن يكون رقمًا'
+      continue
+    }
+
+    if (numericPrice < 0) {
+      periodErrors[period.localId] = 'السعر لا يمكن أن يكون أقل من صفر'
+      continue
+    }
+
+    if (!isTimeRangeOrdered(period)) {
+      periodErrors[period.localId] =
+        'وقت نهاية فترة العمل يجب أن يكون بعد وقت البداية'
+      continue
+    }
+
+    if (
+      !areTimesAlignedToSlotDuration(
+        [period.starts_at, period.ends_at],
+        slotDurationMinutes,
+      )
+    ) {
+      periodErrors[period.localId] =
+        'يجب أن تتوافق حدود فترات العمل والأسعار مع مدة الحجز'
+    }
   }
 
-  const missingStartBlock = draft.blocks.find((block) => !block.start_time)
-
-  if (missingStartBlock) {
-    return 'وقت البداية مطلوب'
+  if (Object.keys(periodErrors).length > 0) {
+    return { dayMessage: Object.values(periodErrors)[0] ?? null, periodErrors }
   }
 
-  const missingEndBlock = draft.blocks.find((block) => !block.end_time)
-
-  if (missingEndBlock) {
-    return 'وقت النهاية مطلوب'
+  if (doPricingPeriodsOverlap(draft.pricing_periods)) {
+    return {
+      dayMessage: 'لا يمكن أن تتداخل فترات العمل والأسعار.',
+      periodErrors,
+    }
   }
 
-  const invalidBlock = draft.blocks.find((block) => !isSameDayValidBlock(block))
+  return { dayMessage: null, periodErrors }
+}
 
-  if (invalidBlock) {
-    return 'وقت النهاية يجب أن يكون بعد وقت البداية في نفس اليوم'
+function buildDayPayload(draft: WorkingDayDraft): CourtWorkingDayPayload {
+  return {
+    weekday: draft.weekday,
+    pricing_periods: sortPeriodsByStartTime(draft.pricing_periods).map(
+      (period) => ({
+        starts_at: toApiTimeString(period.starts_at),
+        ends_at: toApiTimeString(period.ends_at),
+        price: period.price,
+      }),
+    ),
   }
-
-  if (doBlocksOverlap(draft.blocks)) {
-    return 'لا يمكن تداخل فترات العمل في نفس اليوم'
-  }
-
-  return null
 }
 
 /**
- * Court weekly working-hours setup for one selected court.
+ * Court weekly work-and-pricing setup for one selected court.
+ *
+ * Each period defines both availability and price. Empty days are closed, and
+ * backend slot generation remains the source of availability and slot prices.
  */
 export function CourtWorkingHoursSection({
   clubSlug,
   courtId,
   canEdit = true,
   isCreateMode,
+  slotDurationMinutes,
 }: CourtWorkingHoursSectionProps) {
   const { refreshCurrentUser } = useAuth()
   const navigate = useNavigate()
@@ -169,9 +227,9 @@ export function CourtWorkingHoursSection({
   const canLoadWorkingHours =
     Boolean(clubSlug && courtId) && Number.isFinite(numericCourtId)
   const [drafts, setDrafts] =
-    useState<Record<CourtWeekday, WorkingHourDraft>>(createInitialDrafts)
+    useState<Record<CourtWeekday, WorkingDayDraft>>(createInitialDrafts)
   const [lastSavedDrafts, setLastSavedDrafts] =
-    useState<Record<CourtWeekday, WorkingHourDraft>>(createInitialDrafts)
+    useState<Record<CourtWeekday, WorkingDayDraft>>(createInitialDrafts)
   const [isLoading, setIsLoading] = useState(canLoadWorkingHours && !isCreateMode)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(
@@ -180,24 +238,15 @@ export function CourtWorkingHoursSection({
   const [rowErrors, setRowErrors] = useState<
     Partial<Record<CourtWeekday, string>>
   >({})
+  const [periodErrors, setPeriodErrors] = useState<
+    Partial<Record<CourtWeekday, Record<string, string>>>
+  >({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const weeklyPayload = useMemo(() => {
-    return weekdays.map((weekday): CourtWorkingHourPayload => {
-      const draft = drafts[weekday]
-
-      return {
-        weekday,
-        is_closed: draft.is_closed,
-        blocks: draft.is_closed
-          ? []
-          : sortBlocksByStartTime(draft.blocks).map((block) => ({
-              start_time: normalizeTimeString(block.start_time),
-              end_time: normalizeTimeString(block.end_time),
-            })),
-      }
-    })
-  }, [drafts])
+  const weeklyPayload = useMemo(
+    () => weekdays.map((weekday) => buildDayPayload(drafts[weekday])),
+    [drafts],
+  )
 
   useEffect(() => {
     if (isCreateMode || !canLoadWorkingHours || !clubSlug) {
@@ -219,18 +268,14 @@ export function CourtWorkingHoursSection({
         )
 
         if (isActive) {
-          const nextDrafts = createInitialDrafts()
-
-          response.working_hours.forEach((record) => {
-            nextDrafts[record.weekday] = draftFromRecord(record)
-          })
+          const nextDrafts = buildDraftsFromRecords(response.working_hours)
 
           setDrafts(nextDrafts)
           setLastSavedDrafts(nextDrafts)
         }
       } catch (error) {
         if (isActive) {
-          setError(getApiErrorMessage(error, 'تعذر تحميل مواعيد العمل'))
+          setError(getApiErrorMessage(error, 'تعذر تحميل فترات العمل والأسعار'))
         }
       } finally {
         if (isActive) {
@@ -253,7 +298,7 @@ export function CourtWorkingHoursSection({
 
   function updateDraft(
     weekday: CourtWeekday,
-    nextDraft: Partial<WorkingHourDraft>,
+    nextDraft: Partial<WorkingDayDraft>,
   ): void {
     setDrafts((currentDrafts) => ({
       ...currentDrafts,
@@ -266,62 +311,69 @@ export function CourtWorkingHoursSection({
       ...currentErrors,
       [weekday]: undefined,
     }))
+    setPeriodErrors((currentErrors) => ({
+      ...currentErrors,
+      [weekday]: undefined,
+    }))
     resetMessages()
   }
 
-  function setDayState(weekday: CourtWeekday, isClosed: boolean): void {
-    const defaultBlock = createBlockDraft(weekday, 0)
-
-    updateDraft(
-      weekday,
-      isClosed
-        ? createClosedDraft()
-        : {
-            is_closed: false,
-            blocks: [defaultBlock],
-          },
-    )
-  }
-
-  function addBlock(weekday: CourtWeekday): void {
-    const nextBlock = getNextDefaultBlock(weekday, drafts[weekday].blocks)
-
+  function openDay(weekday: CourtWeekday): void {
     updateDraft(weekday, {
-      is_closed: false,
-      blocks: [...drafts[weekday].blocks, nextBlock],
+      pricing_periods: [createPricingPeriodDraft(0)],
     })
   }
 
-  function updateBlock(
+  function closeDay(weekday: CourtWeekday): void {
+    updateDraft(weekday, {
+      pricing_periods: [],
+    })
+  }
+
+  function addPricingPeriod(weekday: CourtWeekday): void {
+    const draft = drafts[weekday]
+    const sortedPeriods = sortPeriodsByStartTime(draft.pricing_periods)
+    const lastPeriod = sortedPeriods[sortedPeriods.length - 1]
+
+    updateDraft(weekday, {
+      pricing_periods: [
+        ...draft.pricing_periods,
+        createPricingPeriodDraft(
+          draft.pricing_periods.length,
+          lastPeriod?.ends_at ?? '',
+        ),
+      ],
+    })
+  }
+
+  function updatePricingPeriod(
     weekday: CourtWeekday,
     localId: string,
-    nextBlock: Partial<WorkingHourBlockDraft>,
+    nextPeriod: Partial<Omit<PricingPeriodDraft, 'localId'>>,
   ): void {
     updateDraft(weekday, {
-      blocks: drafts[weekday].blocks.map((block) =>
-        block.localId === localId
+      pricing_periods: drafts[weekday].pricing_periods.map((period) =>
+        period.localId === localId
           ? {
-              ...block,
-              ...nextBlock,
-              ...(nextBlock.start_time
-                ? { start_time: normalizeTimeString(nextBlock.start_time) }
+              ...period,
+              ...nextPeriod,
+              ...(nextPeriod.starts_at !== undefined
+                ? { starts_at: normalizeTimeString(nextPeriod.starts_at) }
                 : {}),
-              ...(nextBlock.end_time
-                ? { end_time: normalizeTimeString(nextBlock.end_time) }
+              ...(nextPeriod.ends_at !== undefined
+                ? { ends_at: normalizeTimeString(nextPeriod.ends_at) }
                 : {}),
             }
-          : block,
+          : period,
       ),
     })
   }
 
-  function removeBlock(weekday: CourtWeekday, localId: string): void {
-    const nextBlocks = drafts[weekday].blocks.filter(
-      (block) => block.localId !== localId,
-    )
-
+  function removePricingPeriod(weekday: CourtWeekday, localId: string): void {
     updateDraft(weekday, {
-      blocks: nextBlocks,
+      pricing_periods: drafts[weekday].pricing_periods.filter(
+        (period) => period.localId !== localId,
+      ),
     })
   }
 
@@ -330,46 +382,31 @@ export function CourtWorkingHoursSection({
 
     setDrafts(
       weekdays.reduce((nextDrafts, weekday) => {
-        const blocks = saturdayDraft.blocks.map((block, index) =>
-          createBlockDraft(weekday, index, block.start_time, block.end_time),
-        )
-
         return {
           ...nextDrafts,
           [weekday]: {
-            is_closed: saturdayDraft.is_closed,
-            blocks,
+            weekday,
+            pricing_periods: clonePeriods(saturdayDraft.pricing_periods),
           },
         }
-      }, {} as Record<CourtWeekday, WorkingHourDraft>),
+      }, {} as Record<CourtWeekday, WorkingDayDraft>),
     )
     setRowErrors({})
+    setPeriodErrors({})
     resetMessages()
   }
 
-  function setAllDaysClosed(isClosed: boolean): void {
-    setDrafts(
-      weekdays.reduce((nextDrafts, weekday) => {
-        const block = createBlockDraft(weekday, 0)
-
-        return {
-          ...nextDrafts,
-          [weekday]: isClosed
-            ? createClosedDraft()
-            : {
-                is_closed: false,
-                blocks: [block],
-              },
-        }
-      }, {} as Record<CourtWeekday, WorkingHourDraft>),
-    )
+  function closeAllDays(): void {
+    setDrafts(createInitialDrafts())
     setRowErrors({})
+    setPeriodErrors({})
     resetMessages()
   }
 
   function resetChanges(): void {
     setDrafts(lastSavedDrafts)
     setRowErrors({})
+    setPeriodErrors({})
     resetMessages()
   }
 
@@ -380,29 +417,50 @@ export function CourtWorkingHoursSection({
     }
 
     if (!canEdit) {
-      setError('ليس لديك صلاحية تعديل مواعيد العمل.')
+      setError('ليس لديك صلاحية تعديل فترات العمل والأسعار.')
       return
     }
 
     const nextErrors = weekdays.reduce(
       (errors, weekday) => {
-        const message = getDayValidationMessage(drafts[weekday])
+        const { dayMessage } = getDayValidationResult(
+          drafts[weekday],
+          slotDurationMinutes,
+        )
 
-        return message
+        return dayMessage
           ? {
               ...errors,
-              [weekday]: message,
+              [weekday]: dayMessage,
             }
           : errors
       },
       {} as Partial<Record<CourtWeekday, string>>,
     )
+    const nextPeriodErrors = weekdays.reduce(
+      (errors, weekday) => {
+        const { periodErrors } = getDayValidationResult(
+          drafts[weekday],
+          slotDurationMinutes,
+        )
+
+        return Object.keys(periodErrors).length > 0
+          ? {
+              ...errors,
+              [weekday]: periodErrors,
+            }
+          : errors
+      },
+      {} as Partial<Record<CourtWeekday, Record<string, string>>>,
+    )
     const firstErrorWeekday = weekdays.find((weekday) => nextErrors[weekday])
 
     if (firstErrorWeekday !== undefined) {
-      const message = nextErrors[firstErrorWeekday] ?? 'الفترة مكررة أو غير صحيحة'
+      const message =
+        nextErrors[firstErrorWeekday] ?? 'فترات العمل والأسعار غير صحيحة'
 
       setRowErrors(nextErrors)
+      setPeriodErrors(nextPeriodErrors)
       setError(message)
       setSuccessMessage(null)
       return
@@ -411,17 +469,14 @@ export function CourtWorkingHoursSection({
     setIsSaving(true)
     setError(null)
     setRowErrors({})
+    setPeriodErrors({})
     setSuccessMessage(null)
 
     try {
       const response = await saveCourtWorkingHours(clubSlug, numericCourtId, {
         working_hours: weeklyPayload,
       })
-      const nextDrafts = createInitialDrafts()
-
-      response.working_hours.forEach((record) => {
-        nextDrafts[record.weekday] = draftFromRecord(record)
-      })
+      const nextDrafts = buildDraftsFromRecords(response.working_hours)
 
       setDrafts(nextDrafts)
       setLastSavedDrafts(nextDrafts)
@@ -432,11 +487,11 @@ export function CourtWorkingHoursSection({
       const fieldErrors = getApiFieldErrors(error)
       const backendFieldMessage =
         getFirstFieldErrorMessage(fieldErrors, 'working_hours') ??
-        getFirstFieldErrorMessage(fieldErrors, 'blocks')
+        getFirstFieldErrorMessage(fieldErrors, 'pricing_periods')
 
       setError(
         backendFieldMessage ??
-          getApiErrorMessage(error, 'تعذر حفظ مواعيد العمل'),
+          getApiErrorMessage(error, 'تعذر حفظ فترات العمل والأسعار'),
       )
 
       if (isApiClientError(error) && error.status === 403) {
@@ -451,7 +506,7 @@ export function CourtWorkingHoursSection({
     return (
       <AppCard>
         <p className="text-sm font-semibold text-[var(--sloty-text-primary)]">
-          يمكن ضبط مواعيد العمل بعد إنشاء الملعب
+          يمكن ضبط فترات العمل والأسعار بعد إنشاء الملعب
         </p>
       </AppCard>
     )
@@ -461,16 +516,17 @@ export function CourtWorkingHoursSection({
     <AppCard className="space-y-4">
       <div className="space-y-1">
         <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-          مواعيد العمل
+          فترات العمل والأسعار
         </h2>
         <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-          حدد فترات العمل لكل يوم. يمكن إضافة أكثر من فترة في اليوم الواحد.
+          كل فترة تعني أن الملعب متاح للحجز خلالها بهذا السعر. أي وقت خارج
+          الفترات يكون غير متاح.
         </p>
       </div>
 
       {isLoading ? (
         <p className="text-sm text-[var(--sloty-text-muted)]">
-          جاري تحميل مواعيد العمل...
+          جاري تحميل فترات العمل والأسعار...
         </p>
       ) : null}
 
@@ -488,7 +544,7 @@ export function CourtWorkingHoursSection({
 
       {!canEdit ? (
         <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-          ليس لديك صلاحية تعديل مواعيد العمل.
+          ليس لديك صلاحية تعديل فترات العمل والأسعار.
         </p>
       ) : null}
 
@@ -497,10 +553,7 @@ export function CourtWorkingHoursSection({
           <AppButton onClick={applySaturdayToAllDays} variant="secondary">
             تطبيق السبت على باقي الأيام
           </AppButton>
-          <AppButton onClick={() => setAllDaysClosed(false)} variant="secondary">
-            فتح كل الأيام
-          </AppButton>
-          <AppButton onClick={() => setAllDaysClosed(true)} variant="secondary">
+          <AppButton onClick={closeAllDays} variant="secondary">
             إغلاق كل الأيام
           </AppButton>
           <AppButton onClick={resetChanges} variant="secondary">
@@ -512,6 +565,7 @@ export function CourtWorkingHoursSection({
       <div className="space-y-3">
         {weekdays.map((weekday) => {
           const draft = drafts[weekday]
+          const isClosed = draft.pricing_periods.length === 0
 
           return (
             <div
@@ -524,133 +578,76 @@ export function CourtWorkingHoursSection({
                     <span className="block text-[var(--sloty-text-primary)]">
                       {getWeekdayLabel(weekday)}
                     </span>
+                    <span
+                      className={[
+                        'mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black',
+                        isClosed
+                          ? 'bg-slate-100 text-slate-700'
+                          : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
+                      ].join(' ')}
+                    >
+                      {isClosed ? 'مغلق' : 'مفتوح'}
+                    </span>
                     {rowErrors[weekday] ? (
-                      <span className="mt-1 block text-xs text-[var(--sloty-danger)]">
+                      <span className="mt-2 block text-xs text-[var(--sloty-danger)]">
                         {rowErrors[weekday]}
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="grid grid-cols-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-1">
-                    <button
-                      className={[
-                        'rounded-lg px-3 py-2 text-sm font-bold transition',
-                        !draft.is_closed
-                          ? 'sloty-green-surface-button text-white'
-                          : 'text-[var(--sloty-text-muted)]',
-                      ].join(' ')}
+                  {isClosed ? (
+                    <AppButton
                       disabled={!canEdit}
-                      onClick={() => setDayState(weekday, false)}
+                      onClick={() => openDay(weekday)}
                       type="button"
+                      variant="secondary"
                     >
-                      مفتوح
-                    </button>
-                    <button
-                      className={[
-                        'rounded-lg px-3 py-2 text-sm font-bold transition',
-                        draft.is_closed
-                          ? 'bg-slate-200 text-[var(--sloty-text-primary)]'
-                          : 'text-[var(--sloty-text-muted)]',
-                      ].join(' ')}
+                      فتح اليوم
+                    </AppButton>
+                  ) : (
+                    <AppButton
                       disabled={!canEdit}
-                      onClick={() => setDayState(weekday, true)}
+                      onClick={() => closeDay(weekday)}
                       type="button"
+                      variant="secondary"
                     >
-                      مغلق
-                    </button>
-                  </div>
+                      إغلاق اليوم
+                    </AppButton>
+                  )}
                 </div>
               </div>
 
-              {draft.is_closed ? (
-                <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                  مغلق طوال اليوم
-                </p>
-              ) : (
+              {isClosed ? (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
-                      الفترات المختارة
-                    </h3>
-                    <AppButton
-                      disabled={!canEdit}
-                      onClick={() => addBlock(weekday)}
-                      variant="secondary"
-                    >
-                      إضافة فترة
-                    </AppButton>
-                  </div>
-
-                  {draft.blocks.length === 0 ? (
-                    <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                      أضف فترة عمل واحدة على الأقل
-                    </p>
-                  ) : null}
-
-                  <div className="space-y-2">
-                    {sortBlocksByStartTime(draft.blocks).map((block) => (
-                      <div
-                        className="grid gap-2 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3 md:grid-cols-[1fr_1fr_auto]"
-                        key={block.localId}
-                      >
-                        <label className="space-y-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
-                          <span>من</span>
-                          <input
-                            aria-label={`${getWeekdayLabel(weekday)} من`}
-                            className={timeInputClass}
-                            disabled={!canEdit}
-                            onChange={(event) =>
-                              updateBlock(weekday, block.localId, {
-                                start_time: event.target.value,
-                              })
-                            }
-                            type="time"
-                            value={block.start_time}
-                          />
-                        </label>
-
-                        <label className="space-y-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
-                          <span>إلى</span>
-                          <input
-                            aria-label={`${getWeekdayLabel(weekday)} إلى`}
-                            className={timeInputClass}
-                            disabled={!canEdit}
-                            onChange={(event) =>
-                              updateBlock(weekday, block.localId, {
-                                end_time: event.target.value,
-                              })
-                            }
-                            type="time"
-                            value={block.end_time}
-                          />
-                        </label>
-
-                        <div className="flex items-end">
-                          <AppButton
-                            disabled={!canEdit}
-                            fullWidth
-                            onClick={() => removeBlock(weekday, block.localId)}
-                            variant="danger"
-                          >
-                            حذف الفترة
-                          </AppButton>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+                    لا توجد فترات عمل لهذا اليوم.
+                  </p>
                 </div>
+              ) : (
+                <PricingPeriodsEditor
+                  disabled={!canEdit}
+                  errors={periodErrors[weekday]}
+                  onAdd={() => addPricingPeriod(weekday)}
+                  onRemove={(localId) => removePricingPeriod(weekday, localId)}
+                  onUpdate={(localId, nextPeriod) =>
+                    updatePricingPeriod(weekday, localId, nextPeriod)
+                  }
+                  periods={draft.pricing_periods}
+                />
               )}
             </div>
           )
         })}
       </div>
 
-      <AppButton
-        disabled={isSaving || isLoading || !canEdit}
-        onClick={() => void handleSave()}
-      >
-        {isSaving ? 'جاري الحفظ...' : 'حفظ مواعيد الأسبوع'}
-      </AppButton>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <AppButton
+          disabled={isSaving || isLoading || !canEdit}
+          onClick={() => void handleSave()}
+        >
+          {isSaving ? 'جاري الحفظ...' : 'حفظ مواعيد الأسبوع'}
+        </AppButton>
+      </div>
     </AppCard>
   )
 }

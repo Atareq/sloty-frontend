@@ -106,6 +106,15 @@ export function SettingsCourtsPage() {
                 <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
                   {court.default_price} جنيه
                 </p>
+                <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                  الحد الأدنى للعربون: {court.minimum_deposit} جنيه
+                </p>
+                <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                  مهلة الاسترداد:{' '}
+                  {court.cancellation_refund_notice_days === null
+                    ? 'بدون مهلة'
+                    : `${court.cancellation_refund_notice_days} يوم`}
+                </p>
               </div>
               <Link to={`/settings/courts/${court.id}`}>
                 <AppButton fullWidth variant="secondary">

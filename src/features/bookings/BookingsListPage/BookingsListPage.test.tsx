@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { listCourts } from '../../courts/courtsApi'
-import { cancelBooking, completeBooking } from '../../schedule/scheduleApi'
+import {
+  cancelBooking,
+  completeBooking,
+  previewBookingCancellation,
+} from '../../schedule/scheduleApi'
 import { createTransaction } from '../../transactions/transactionsApi'
 import { listBookings } from '../bookingsApi'
 import { BookingsListPage } from './BookingsListPage'
@@ -26,6 +30,7 @@ vi.mock('../../schedule/scheduleApi', () => ({
   cancelBooking: vi.fn(),
   completeBooking: vi.fn(),
   markBookingNoShow: vi.fn(),
+  previewBookingCancellation: vi.fn(),
 }))
 
 vi.mock('../../transactions/transactionsApi', () => ({
@@ -37,6 +42,7 @@ const mockedListBookings = vi.mocked(listBookings)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
+const mockedPreviewBookingCancellation = vi.mocked(previewBookingCancellation)
 const mockedCreateTransaction = vi.mocked(createTransaction)
 const defaultFilters = {
   date: '2026-07-21',
@@ -109,6 +115,8 @@ describe('BookingsListPage', () => {
           name: 'ملعب 1',
           sport_type: 'football',
           default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: true,
           requires_digital_payment_reference: false,
@@ -120,12 +128,27 @@ describe('BookingsListPage', () => {
           name: 'ملعب متوقف',
           sport_type: 'football',
           default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
           is_active: false,
           requires_digital_payment_reference: false,
           internal_hold_expiry_hours: 2,
         },
       ],
+    })
+    mockedPreviewBookingCancellation.mockResolvedValue({
+      booking_id: 10,
+      previewed_at: '2026-07-21T10:00:00Z',
+      booking_start: '2026-07-21T18:00:00Z',
+      paid_amount: '100.00',
+      minimum_deposit: '100.00',
+      refund_notice_days: 3,
+      refund_deadline: '2026-07-18T18:00:00Z',
+      full_refund: false,
+      refund_amount: '0.00',
+      retained_amount: '100.00',
+      can_cancel: true,
     })
     mockAuth()
   })
@@ -174,7 +197,7 @@ describe('BookingsListPage', () => {
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'إزالة فلتر انتظار الدفع' }),
+      screen.getByRole('button', { name: 'إزالة فلتر بانتظار العربون' }),
     ).toBeInTheDocument()
     expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
       date: '2026-07-21',
@@ -194,14 +217,14 @@ describe('BookingsListPage', () => {
     renderBookingsPage('/bookings?date=2026-07-21&status=HOLD')
 
     await user.click(
-      await screen.findByRole('button', { name: 'إزالة فلتر انتظار الدفع' }),
+      await screen.findByRole('button', { name: 'إزالة فلتر بانتظار العربون' }),
     )
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
       date: '2026-07-21',
     })
     expect(
-      screen.queryByRole('button', { name: 'إزالة فلتر انتظار الدفع' }),
+      screen.queryByRole('button', { name: 'إزالة فلتر بانتظار العربون' }),
     ).not.toBeInTheDocument()
   })
 
@@ -237,7 +260,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    await user.click(await screen.findByRole('button', { name: 'انتظار الدفع' }))
+    await user.click(await screen.findByRole('button', { name: 'بانتظار العربون' }))
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
       date: '2026-07-21',

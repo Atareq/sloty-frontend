@@ -42,6 +42,8 @@ type CourtFormState = {
   name: string
   sport_type: SportType
   default_price: string
+  minimum_deposit: string
+  cancellation_refund_notice_days: string
   slot_duration_minutes: string
   is_active: boolean
   requires_digital_payment_reference: boolean
@@ -53,6 +55,8 @@ const initialFormState: CourtFormState = {
   name: '',
   sport_type: 'FOOTBALL',
   default_price: '',
+  minimum_deposit: '',
+  cancellation_refund_notice_days: '',
   slot_duration_minutes: '60',
   is_active: true,
   requires_digital_payment_reference: false,
@@ -81,6 +85,11 @@ function buildPayload(formState: CourtFormState): CourtPayload {
     name: formState.name.trim(),
     sport_type: formState.sport_type,
     default_price: formState.default_price.trim(),
+    minimum_deposit: formState.minimum_deposit.trim(),
+    cancellation_refund_notice_days:
+      formState.cancellation_refund_notice_days.trim() === ''
+        ? null
+        : Number(formState.cancellation_refund_notice_days),
     slot_duration_minutes: Number(formState.slot_duration_minutes),
     is_active: formState.is_active,
     requires_digital_payment_reference:
@@ -117,6 +126,14 @@ export function CourtFormPage() {
     fieldErrors,
     'default_price',
   )
+  const minimumDepositFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'minimum_deposit',
+  )
+  const cancellationRefundNoticeFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'cancellation_refund_notice_days',
+  )
   const slotDurationFieldError = getFirstFieldErrorMessage(
     fieldErrors,
     'slot_duration_minutes',
@@ -148,6 +165,11 @@ export function CourtFormPage() {
             name: court.name,
             sport_type: toSportType(court.sport_type),
             default_price: String(court.default_price),
+            minimum_deposit: String(court.minimum_deposit),
+            cancellation_refund_notice_days:
+              court.cancellation_refund_notice_days === null
+                ? ''
+                : String(court.cancellation_refund_notice_days),
             slot_duration_minutes: String(court.slot_duration_minutes),
             is_active: court.is_active,
             requires_digital_payment_reference:
@@ -198,18 +220,36 @@ export function CourtFormPage() {
     }
 
     const defaultPrice = Number(formState.default_price)
+    const minimumDeposit = Number(formState.minimum_deposit)
+    const cancellationRefundNotice =
+      formState.cancellation_refund_notice_days.trim() === ''
+        ? null
+        : Number(formState.cancellation_refund_notice_days)
     const slotDurationMinutes = Number(formState.slot_duration_minutes)
     const internalHoldExpiryHours = Number(formState.internal_hold_expiry_hours)
     const hasInvalidNumber =
       !Number.isFinite(defaultPrice) ||
+      !Number.isFinite(minimumDeposit) ||
       !Number.isFinite(slotDurationMinutes) ||
       !Number.isFinite(internalHoldExpiryHours) ||
       defaultPrice <= 0 ||
+      minimumDeposit < 0 ||
       slotDurationMinutes <= 0 ||
       internalHoldExpiryHours <= 0
 
     if (hasInvalidNumber) {
-      setError('السعر ومدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً أكبر من صفر')
+      setError('السعر ومدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً صحيحة، والحد الأدنى للعربون لا يقل عن صفر')
+      setFieldErrors(null)
+      return
+    }
+
+    if (
+      cancellationRefundNotice !== null &&
+      (!Number.isInteger(cancellationRefundNotice) ||
+        cancellationRefundNotice < 0 ||
+        cancellationRefundNotice > 30)
+    ) {
+      setError('مهلة استرداد العربون يجب أن تكون فارغة أو رقمًا من 0 إلى 30')
       setFieldErrors(null)
       return
     }
@@ -326,6 +366,53 @@ export function CourtFormPage() {
             {defaultPriceFieldError ? (
               <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
                 {defaultPriceFieldError}
+              </p>
+            ) : null}
+
+            <label className="space-y-2 text-sm font-semibold">
+              <span>الحد الأدنى للعربون</span>
+              <input
+                className={inputClass}
+                inputMode="decimal"
+                onChange={(event) =>
+                  updateField('minimum_deposit', event.target.value)
+                }
+                value={formState.minimum_deposit}
+              />
+              <span className="block text-xs font-normal text-gray-500">
+                تتحقق الخلفية من أول دفعة حسب قيمة الحجز وسياسة الملعب.
+              </span>
+            </label>
+            {minimumDepositFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {minimumDepositFieldError}
+              </p>
+            ) : null}
+
+            <label className="space-y-2 text-sm font-semibold">
+              <span>مهلة استرداد العربون عند الإلغاء</span>
+              <input
+                className={inputClass}
+                inputMode="numeric"
+                max="30"
+                min="0"
+                onChange={(event) =>
+                  updateField(
+                    'cancellation_refund_notice_days',
+                    event.target.value,
+                  )
+                }
+                placeholder="بدون مهلة"
+                type="number"
+                value={formState.cancellation_refund_notice_days}
+              />
+              <span className="block text-xs font-normal text-gray-500">
+                اتركه فارغًا إذا لم توجد مهلة، أو استخدم رقمًا من 0 إلى 30.
+              </span>
+            </label>
+            {cancellationRefundNoticeFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {cancellationRefundNoticeFieldError}
               </p>
             ) : null}
 

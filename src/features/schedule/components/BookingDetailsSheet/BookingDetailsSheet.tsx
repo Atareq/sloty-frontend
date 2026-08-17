@@ -18,7 +18,7 @@ export interface BookingDetailsSheetProps {
 }
 
 const statusLabelByStatus: Record<BookingListItem['status'], string> = {
-  HOLD: 'محجوز مؤقتًا',
+  HOLD: 'بانتظار العربون',
   CONFIRMED: 'مؤكد',
   COMPLETED: 'مكتمل',
   CANCELLED: 'ملغي',

@@ -11,6 +11,13 @@ export const paymentMethodLabels: Record<PaymentMethod, string> = {
   OTHER: 'أخرى',
 }
 
+export type TransactionType = 'PAYMENT' | 'REFUND'
+
+export const transactionTypeLabels: Record<TransactionType, string> = {
+  PAYMENT: 'دفعة',
+  REFUND: 'استرداد',
+}
+
 export type TransactionSettlementStatus = 'settled' | 'unsettled'
 
 export interface TransactionQueryParams {
@@ -28,6 +35,7 @@ export interface TransactionQueryParams {
 export interface Transaction {
   id: number
   booking?: number | null
+  transaction_type?: TransactionType
   amount: string
   payment_method: PaymentMethod
   reference?: string | null
@@ -52,4 +60,19 @@ export interface TransactionCreatePayload {
 
 export interface TransactionCancelPayload {
   reason: string
+}
+
+/**
+ * Legacy rows predate transaction_type and are ordinary payment entries.
+ */
+export function getTransactionType(transaction: {
+  transaction_type?: TransactionType
+}): TransactionType {
+  return transaction.transaction_type ?? 'PAYMENT'
+}
+
+export function isRefundTransaction(transaction: {
+  transaction_type?: TransactionType
+}): boolean {
+  return getTransactionType(transaction) === 'REFUND'
 }

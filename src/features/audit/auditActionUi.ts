@@ -81,6 +81,60 @@ export const auditActionUiConfig: Record<
     softBackgroundClass: 'bg-green-50',
     accentBorderClass: 'border-r-green-500',
   },
+  RECURRING_AGREEMENT_CREATED: {
+    icon: '+',
+    foregroundClass: 'text-green-700',
+    softBackgroundClass: 'bg-green-50',
+    accentBorderClass: 'border-r-green-500',
+  },
+  RECURRING_AGREEMENT_CANCELLED: {
+    icon: 'x',
+    foregroundClass: 'text-red-700',
+    softBackgroundClass: 'bg-red-50',
+    accentBorderClass: 'border-r-red-500',
+  },
+  RECURRING_AGREEMENT_AUTO_TERMINATED: {
+    icon: '!',
+    foregroundClass: 'text-red-900',
+    softBackgroundClass: 'bg-red-100',
+    accentBorderClass: 'border-r-red-900',
+  },
+  RECURRING_DEPOSIT_COLLECTED: {
+    icon: '$',
+    foregroundClass: 'text-emerald-700',
+    softBackgroundClass: 'bg-emerald-50',
+    accentBorderClass: 'border-r-emerald-500',
+  },
+  RECURRING_DEPOSIT_REFUND_DUE: {
+    icon: '$',
+    foregroundClass: 'text-amber-800',
+    softBackgroundClass: 'bg-amber-50',
+    accentBorderClass: 'border-r-amber-500',
+  },
+  RECURRING_DEPOSIT_REFUNDED: {
+    icon: '$',
+    foregroundClass: 'text-blue-700',
+    softBackgroundClass: 'bg-blue-50',
+    accentBorderClass: 'border-r-blue-500',
+  },
+  RECURRING_DEPOSIT_FORFEITED: {
+    icon: '!',
+    foregroundClass: 'text-red-700',
+    softBackgroundClass: 'bg-red-50',
+    accentBorderClass: 'border-r-red-500',
+  },
+  RECURRING_OCCURRENCE_GENERATED: {
+    icon: '+',
+    foregroundClass: 'text-green-700',
+    softBackgroundClass: 'bg-green-50',
+    accentBorderClass: 'border-r-green-500',
+  },
+  RECURRING_GENERATION_FAILED: {
+    icon: '!',
+    foregroundClass: 'text-red-900',
+    softBackgroundClass: 'bg-red-100',
+    accentBorderClass: 'border-r-red-900',
+  },
 }
 
 export const neutralAuditActionUiConfig: AuditActionUiConfig = {

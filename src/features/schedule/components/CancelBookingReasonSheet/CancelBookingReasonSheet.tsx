@@ -5,16 +5,24 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
+import type { PaymentMethod } from '../../../transactions/transactions.types'
+import { paymentMethodLabels } from '../../../transactions/transactions.types'
+import type { BookingCancellationPreview } from '../../scheduleApi.types'
 
 export interface CancelBookingReasonValues {
   reason: string
   notes?: string
+  refund_payment_method?: PaymentMethod
+  refund_reference?: string
+  refund_notes?: string
 }
 
 export interface CancelBookingReasonSheetProps {
   isSubmitting: boolean
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
+  preview?: BookingCancellationPreview | null
   onClose: () => void
   onSubmit: (values: CancelBookingReasonValues) => Promise<void> | void
 }
@@ -28,6 +36,27 @@ const reasonOptions = [
   'أخرى',
 ]
 
+function hasRefund(preview: BookingCancellationPreview | null | undefined): boolean {
+  return Number(preview?.refund_amount ?? 0) > 0
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return 'غير محدد'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('ar-EG', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
 /**
  * Collects the cancellation reason before sending the lifecycle action.
  */
@@ -35,20 +64,37 @@ export function CancelBookingReasonSheet({
   isSubmitting,
   error,
   fieldErrors = null,
+  preview = null,
   onClose,
   onSubmit,
 }: CancelBookingReasonSheetProps) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
+  const [refundPaymentMethod, setRefundPaymentMethod] =
+    useState<PaymentMethod>('CASH')
+  const [refundReference, setRefundReference] = useState('')
+  const [refundNotes, setRefundNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
   const requiresNotes = reason === 'أخرى'
+  const requiresRefundFields = hasRefund(preview)
+  const canSubmitCancellation = preview?.can_cancel !== false
   const reasonFieldError = getFirstFieldErrorMessage(fieldErrors, 'reason')
+  const refundPaymentMethodFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'refund_payment_method',
+  )
+  const refundReferenceFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'refund_reference',
+  )
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const trimmedReason = reason.trim()
     const trimmedNotes = notes.trim()
+    const trimmedRefundReference = refundReference.trim()
+    const trimmedRefundNotes = refundNotes.trim()
 
     if (!trimmedReason) {
       setValidationError('سبب الإلغاء مطلوب')
@@ -64,6 +110,15 @@ export function CancelBookingReasonSheet({
     await onSubmit({
       reason: trimmedReason,
       ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+      ...(requiresRefundFields
+        ? {
+            refund_payment_method: refundPaymentMethod,
+            ...(trimmedRefundReference
+              ? { refund_reference: trimmedRefundReference }
+              : {}),
+            ...(trimmedRefundNotes ? { refund_notes: trimmedRefundNotes } : {}),
+          }
+        : {}),
     })
   }
 
@@ -87,6 +142,59 @@ export function CancelBookingReasonSheet({
         </div>
 
         <div className="mt-5 space-y-4">
+          {preview ? (
+            <section className="space-y-3 rounded-2xl bg-[var(--sloty-bg)] p-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="font-bold text-[var(--sloty-text-muted)]">
+                    المدفوع
+                  </p>
+                  <p className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
+                    {formatMoneyAmount(preview.paid_amount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--sloty-text-muted)]">
+                    الحد الأدنى للعربون
+                  </p>
+                  <p className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
+                    {formatMoneyAmount(preview.minimum_deposit)}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--sloty-text-muted)]">
+                    مبلغ الاسترداد
+                  </p>
+                  <p className="font-black text-[var(--sloty-primary-dark)]" dir="ltr">
+                    {formatMoneyAmount(preview.refund_amount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--sloty-text-muted)]">
+                    المبلغ المحتفظ به
+                  </p>
+                  <p className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
+                    {formatMoneyAmount(preview.retained_amount)}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                مهلة الاسترداد:{' '}
+                {preview.refund_notice_days === null
+                  ? 'بدون مهلة'
+                  : `${preview.refund_notice_days} يوم`}
+              </p>
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                آخر موعد للاسترداد: {formatDateTime(preview.refund_deadline)}
+              </p>
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                {preview.full_refund
+                  ? 'توضح المعاينة أن الاسترداد كامل.'
+                  : 'توضح المعاينة المبلغ المسترد والمبلغ المحتفظ به كما أرجعته الخلفية.'}
+              </p>
+            </section>
+          ) : null}
+
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>سبب الإلغاء</span>
             <select
@@ -126,6 +234,59 @@ export function CancelBookingReasonSheet({
               />
             </label>
           ) : null}
+
+          {requiresRefundFields ? (
+            <section className="space-y-4 rounded-2xl border border-[var(--sloty-border)] p-3">
+              <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
+                بيانات الاسترداد
+              </h3>
+              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>طريقة الاسترداد</span>
+                <select
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  disabled={isSubmitting}
+                  onChange={(event) =>
+                    setRefundPaymentMethod(event.target.value as PaymentMethod)
+                  }
+                  value={refundPaymentMethod}
+                >
+                  {Object.entries(paymentMethodLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {refundPaymentMethodFieldError ? (
+                <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                  {refundPaymentMethodFieldError}
+                </p>
+              ) : null}
+              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>مرجع الاسترداد</span>
+                <input
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  disabled={isSubmitting}
+                  onChange={(event) => setRefundReference(event.target.value)}
+                  value={refundReference}
+                />
+              </label>
+              {refundReferenceFieldError ? (
+                <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                  {refundReferenceFieldError}
+                </p>
+              ) : null}
+              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>ملاحظات الاسترداد</span>
+                <textarea
+                  className="min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  disabled={isSubmitting}
+                  onChange={(event) => setRefundNotes(event.target.value)}
+                  value={refundNotes}
+                />
+              </label>
+            </section>
+          ) : null}
         </div>
 
         {validationError || error ? (
@@ -136,7 +297,7 @@ export function CancelBookingReasonSheet({
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <AppButton
-            disabled={isSubmitting}
+            disabled={isSubmitting || !canSubmitCancellation}
             fullWidth
             type="submit"
             variant="danger"

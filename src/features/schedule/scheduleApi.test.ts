@@ -10,6 +10,7 @@ import {
   listBookingSlots,
   listBookingsForCourtDay,
   markBookingNoShow,
+  previewBookingCancellation,
 } from './scheduleApi'
 import {
   BACKEND_BOOKING_STATUSES,
@@ -89,7 +90,9 @@ describe('scheduleApi', () => {
 
   it('keeps FREE as a slot-only response status', () => {
     expect(BOOKING_SLOT_STATUSES).toContain('FREE')
+    expect(BOOKING_SLOT_STATUSES).toContain('UNAVAILABLE')
     expect(BACKEND_BOOKING_STATUSES).not.toContain('FREE')
+    expect(BACKEND_BOOKING_STATUSES).not.toContain('UNAVAILABLE')
   })
 
   it('exports the full-payment completion error code', () => {
@@ -150,6 +153,31 @@ describe('scheduleApi', () => {
       {
         method: 'POST',
         body: payload,
+      },
+    )
+  })
+
+  it('loads booking cancellation previews through the shared endpoint with POST', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      booking_id: 20,
+      previewed_at: '2026-07-01T12:00:00Z',
+      booking_start: '2026-07-02T18:00:00Z',
+      paid_amount: '300.00',
+      minimum_deposit: '100.00',
+      refund_notice_days: 3,
+      refund_deadline: '2026-06-29T18:00:00Z',
+      full_refund: false,
+      refund_amount: '200.00',
+      retained_amount: '100.00',
+      can_cancel: true,
+    })
+
+    await previewBookingCancellation('nasr-club', 20)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.cancellationPreview('nasr-club', 20),
+      {
+        method: 'POST',
       },
     )
   })

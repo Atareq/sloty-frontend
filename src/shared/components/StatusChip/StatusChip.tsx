@@ -12,7 +12,7 @@ export interface StatusChipProps {
 
 const statusMap: Record<SlotyStatus, { label: string; className: string }> = {
   hold: {
-    label: 'انتظار الدفع',
+    label: 'بانتظار العربون',
     className:
       'bg-[var(--sloty-hold-soft)] text-[var(--sloty-hold)] ring-[var(--sloty-hold)]/20',
   },

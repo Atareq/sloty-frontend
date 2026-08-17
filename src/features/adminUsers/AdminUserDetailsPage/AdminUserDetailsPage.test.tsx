@@ -4,12 +4,19 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
-import { updateManagerPermissions } from '../../clubUsers/clubUsersApi'
+import {
+  updateManagerPermissions,
+  updateMembershipActivity,
+} from '../../clubUsers/clubUsersApi'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import {
   getPlatformUser,
   updatePlatformUser,
 } from '../adminUsersApi'
+import type {
+  PlatformUser,
+  PlatformUserMembershipSummary,
+} from '../adminUsers.types'
 import { AdminUserDetailsPage } from './AdminUserDetailsPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -23,12 +30,14 @@ vi.mock('../adminUsersApi', () => ({
 
 vi.mock('../../clubUsers/clubUsersApi', () => ({
   listClubUsers: vi.fn(),
+  updateMembershipActivity: vi.fn(),
   updateManagerPermissions: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetPlatformUser = vi.mocked(getPlatformUser)
 const mockedUpdatePlatformUser = vi.mocked(updatePlatformUser)
+const mockedUpdateMembershipActivity = vi.mocked(updateMembershipActivity)
 const mockedUpdateManagerPermissions = vi.mocked(updateManagerPermissions)
 const mockedListClubUsers = vi.mocked(listClubUsers)
 
@@ -122,6 +131,14 @@ describe('AdminUserDetailsPage', () => {
       last_name: 'عضو',
       role: 'MANAGER',
     })
+    mockedUpdateMembershipActivity.mockResolvedValue({
+      id: 21,
+      membership_id: 101,
+      username: 'club-user',
+      first_name: 'أحمد',
+      last_name: 'عضو',
+      role: 'MANAGER',
+    })
   })
 
   it('renders account information and calm unavailable membership state', async () => {
@@ -133,7 +150,7 @@ describe('AdminUserDetailsPage', () => {
     expect(screen.getByText('admin@example.com')).toBeInTheDocument()
     expect(screen.getByText('مسؤول منصة')).toBeInTheDocument()
     expect(
-      screen.getByText('تفاصيل العضويات غير متاحة من الخادم حاليًا.'),
+      screen.getByText('لا توجد عضويات مرتبطة بهذا الحساب.'),
     ).toBeInTheDocument()
   })
 
@@ -148,7 +165,7 @@ describe('AdminUserDetailsPage', () => {
     expect(screen.queryByText(/حذف/)).not.toBeInTheDocument()
   })
 
-  it('updates account status through PATCH /users/{userId}/ and refreshes detail', async () => {
+  it('confirms account deactivation then patches /users/{userId}/ and refreshes detail', async () => {
     const testUser = userEvent.setup()
 
     mockedGetPlatformUser
@@ -158,12 +175,99 @@ describe('AdminUserDetailsPage', () => {
     renderPage()
 
     await testUser.click(await screen.findByRole('button', { name: 'تعطيل الحساب' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('تعطيل الحساب؟')
+    expect(
+      screen.getByText(
+        'لن يتمكن المستخدم من تسجيل الدخول حتى يتم تفعيل الحساب مرة أخرى.',
+      ),
+    ).toBeInTheDocument()
+    await testUser.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'تعطيل الحساب',
+      }),
+    )
 
     expect(mockedUpdatePlatformUser).toHaveBeenCalledWith('21', {
       is_active: false,
     })
     await waitFor(() => expect(mockedGetPlatformUser).toHaveBeenCalledTimes(2))
     expect(await screen.findByText('غير نشط')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['Platform Admin', { ...userWithoutMemberships, is_platform_admin: true }],
+    [
+      'Owner',
+      {
+        ...userWithMemberships,
+        is_active: true,
+        memberships: [
+          {
+            ...userWithMemberships.memberships[0],
+            role: 'OWNER',
+          } satisfies PlatformUserMembershipSummary,
+        ],
+      },
+    ],
+    [
+      'Manager',
+      {
+        ...userWithMemberships,
+        is_active: true,
+        memberships: [
+          {
+            ...userWithMemberships.memberships[0],
+            role: 'MANAGER',
+          } satisfies PlatformUserMembershipSummary,
+        ],
+      },
+    ],
+    [
+      'Staff',
+      {
+        ...userWithMemberships,
+        is_active: true,
+        memberships: [
+          {
+            ...userWithMemberships.memberships[1],
+            role: 'STAFF',
+          } satisfies PlatformUserMembershipSummary,
+        ],
+      },
+    ],
+  ] satisfies Array<[string, PlatformUser]>)(
+    'shows account status action for %s targets',
+    async (_, targetUser) => {
+      mockedGetPlatformUser.mockResolvedValueOnce(targetUser)
+
+      renderPage()
+
+      expect(await screen.findByRole('button', { name: 'تعطيل الحساب' }))
+        .toBeInTheDocument()
+      expect(screen.queryByText(/حذف/)).not.toBeInTheDocument()
+    },
+  )
+
+  it('activates an inactive account through the same global PATCH contract', async () => {
+    const testUser = userEvent.setup()
+
+    mockedGetPlatformUser
+      .mockResolvedValueOnce(userWithMemberships)
+      .mockResolvedValueOnce({ ...userWithMemberships, is_active: true })
+
+    renderPage()
+
+    await testUser.click(await screen.findByRole('button', { name: 'تفعيل الحساب' }))
+    await testUser.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'تفعيل الحساب',
+      }),
+    )
+
+    expect(mockedUpdatePlatformUser).toHaveBeenCalledWith('21', {
+      is_active: true,
+    })
+    await waitFor(() => expect(mockedGetPlatformUser).toHaveBeenCalledTimes(2))
   })
 
   it('renders membership summaries and manager permission edit only for manager memberships', async () => {
@@ -176,6 +280,36 @@ describe('AdminUserDetailsPage', () => {
     expect(screen.getByText('موظف تشغيل')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'تعديل صلاحيات العضوية' }))
       .toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'تعطيل العضوية' }))
+      .toHaveLength(2)
+  })
+
+  it('patches only membership active state and does not change account state', async () => {
+    const testUser = userEvent.setup()
+
+    mockedGetPlatformUser
+      .mockResolvedValueOnce(userWithMemberships)
+      .mockResolvedValueOnce({
+        ...userWithMemberships,
+        memberships: [
+          { ...userWithMemberships.memberships[0], membership_is_active: false },
+          userWithMemberships.memberships[1],
+        ],
+      })
+
+    renderPage()
+
+    await testUser.click(
+      (await screen.findAllByRole('button', { name: 'تعطيل العضوية' }))[0],
+    )
+
+    expect(mockedUpdateMembershipActivity).toHaveBeenCalledWith(
+      'nasr-club',
+      101,
+      { is_active: false },
+    )
+    expect(mockedUpdatePlatformUser).not.toHaveBeenCalled()
+    await waitFor(() => expect(mockedGetPlatformUser).toHaveBeenCalledTimes(2))
   })
 
   it('patches only supported manager permission fields and refreshes detail', async () => {
@@ -230,6 +364,11 @@ describe('AdminUserDetailsPage', () => {
     renderPage()
 
     await testUser.click(await screen.findByRole('button', { name: 'تعطيل الحساب' }))
+    await testUser.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'تعطيل الحساب',
+      }),
+    )
 
     expect(await screen.findByText('ليس لديك صلاحية تنفيذ هذا الإجراء'))
       .toBeInTheDocument()

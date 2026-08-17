@@ -1,3 +1,5 @@
+import type { TransactionType } from '../transactions/transactions.types'
+
 export type SettlementPaymentMethod =
   | 'CASH'
   | 'DIGITAL_WALLET'
@@ -19,6 +21,7 @@ export interface SettlementPreviewTransaction {
   booking?: number | null
   court?: number | null
   court_name?: string | null
+  transaction_type?: TransactionType
   amount: string
   payment_method: SettlementPaymentMethod
   payment_reference?: string | null
@@ -46,7 +49,7 @@ export interface SettlementPreview {
 }
 
 export interface SettlementPreviewQueryParams {
-  collected_by: number | string
+  collected_by?: number | string
   court?: number | string
   page?: number | string
 }
@@ -70,9 +73,16 @@ export interface ConfirmSettlementRequest {
 
 export type SettlementStatus = 'PENDING' | 'SETTLED' | 'CANCELLED'
 
+export const settlementStatusLabels: Record<SettlementStatus, string> = {
+  PENDING: 'قيد المراجعة',
+  SETTLED: 'مسواة',
+  CANCELLED: 'ملغية',
+}
+
 export interface SettlementLine {
   id: number
   transaction: number
+  transaction_type?: TransactionType
   amount: string
   payment_method: SettlementPaymentMethod
 }

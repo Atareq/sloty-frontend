@@ -80,7 +80,9 @@ describe('SettingsCourtDetailsPage', () => {
       club: 1,
       name: 'ملعب 1',
       sport_type: 'FOOTBALL',
-      default_price: '250.00',
+      default_price: '300.00',
+      minimum_deposit: '100.00',
+      cancellation_refund_notice_days: 3,
       slot_duration_minutes: 60,
       is_active: true,
       requires_digital_payment_reference: false,
@@ -91,7 +93,9 @@ describe('SettingsCourtDetailsPage', () => {
       club: 1,
       name: 'ملعب 1',
       sport_type: 'FOOTBALL',
-      default_price: '250.00',
+      default_price: '300.00',
+      minimum_deposit: '100.00',
+      cancellation_refund_notice_days: 3,
       slot_duration_minutes: 60,
       is_active: true,
       requires_digital_payment_reference: false,
@@ -99,12 +103,13 @@ describe('SettingsCourtDetailsPage', () => {
     })
   })
 
-  it('shows pricing and working-hours permission messages for a manager without flags', async () => {
+  it('hides default price editing and shows policy and working-hours permissions', async () => {
     renderPage()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية تعديل سعر الملعب.'),
+      await screen.findByText('سياسة استرداد العربون للعرض فقط في هذا الحساب.'),
     ).toBeInTheDocument()
+    expect(screen.queryByText('سعر الفترة الواحدة')).not.toBeInTheDocument()
     expect(screen.getByText('cannot-edit-hours')).toBeInTheDocument()
   })
 })

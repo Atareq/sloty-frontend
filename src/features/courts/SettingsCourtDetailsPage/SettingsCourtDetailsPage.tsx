@@ -5,7 +5,10 @@ import {
   isApiClientError,
 } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
-import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
+import {
+  canManageCancellationRefundPolicy,
+  canManageWorkingHours,
+} from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
@@ -22,13 +25,17 @@ export function SettingsCourtDetailsPage() {
     selectedMembership,
   } = useAuth()
   const [court, setCourt] = useState<Court | null>(null)
-  const [price, setPrice] = useState('')
+  const [minimumDeposit, setMinimumDeposit] = useState('')
+  const [refundNoticeDays, setRefundNoticeDays] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [isSavingPrice, setIsSavingPrice] = useState(false)
+  const [isSavingPolicy, setIsSavingPolicy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [priceMessage, setPriceMessage] = useState<string | null>(null)
-  const canEditPrice = canManagePricing(selectedMembership, role)
+  const [policyMessage, setPolicyMessage] = useState<string | null>(null)
   const canEditWorkingHours = canManageWorkingHours(selectedMembership, role)
+  const canEditRefundPolicy = canManageCancellationRefundPolicy(
+    selectedMembership,
+    role,
+  )
 
   useEffect(() => {
     let isActive = true
@@ -48,7 +55,12 @@ export function SettingsCourtDetailsPage() {
 
         if (isActive) {
           setCourt(response)
-          setPrice(response.default_price)
+          setMinimumDeposit(response.minimum_deposit)
+          setRefundNoticeDays(
+            response.cancellation_refund_notice_days === null
+              ? ''
+              : String(response.cancellation_refund_notice_days),
+          )
         }
       } catch (error) {
         if (isActive) {
@@ -68,26 +80,46 @@ export function SettingsCourtDetailsPage() {
     }
   }, [courtId, selectedClubSlug])
 
-  async function handleSavePrice(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSavePolicy(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
 
     if (!selectedClubSlug || !courtId || !court) {
       return
     }
 
-    if (!canEditPrice) {
-      setPriceMessage('ليس لديك صلاحية تعديل سعر الملعب.')
+    if (!canEditRefundPolicy) {
+      setPolicyMessage('ليست لديك صلاحية تعديل سياسة الحجز والإلغاء.')
       return
     }
 
-    setIsSavingPrice(true)
-    setPriceMessage(null)
+    const parsedMinimumDeposit = Number(minimumDeposit)
+    const parsedRefundNoticeDays =
+      refundNoticeDays.trim() === '' ? null : Number(refundNoticeDays)
+
+    if (
+      !Number.isFinite(parsedMinimumDeposit) ||
+      parsedMinimumDeposit < 0 ||
+      (parsedRefundNoticeDays !== null &&
+        (!Number.isInteger(parsedRefundNoticeDays) ||
+          parsedRefundNoticeDays < 0 ||
+          parsedRefundNoticeDays > 30))
+    ) {
+      setPolicyMessage(
+        'الحد الأدنى للعربون يجب ألا يقل عن صفر، ومهلة الاسترداد من 0 إلى 30 أو فارغة.',
+      )
+      return
+    }
+
+    setIsSavingPolicy(true)
+    setPolicyMessage(null)
 
     try {
       const savedCourt = await updateCourt(selectedClubSlug, courtId, {
         name: court.name,
         sport_type: court.sport_type,
-        default_price: price,
+        default_price: court.default_price,
+        minimum_deposit: minimumDeposit,
+        cancellation_refund_notice_days: parsedRefundNoticeDays,
         slot_duration_minutes: court.slot_duration_minutes,
         is_active: court.is_active,
         requires_digital_payment_reference:
@@ -97,16 +129,23 @@ export function SettingsCourtDetailsPage() {
       })
 
       setCourt(savedCourt)
-      setPrice(savedCourt.default_price)
-      setPriceMessage('تم حفظ سعر الملعب')
+      setMinimumDeposit(savedCourt.minimum_deposit)
+      setRefundNoticeDays(
+        savedCourt.cancellation_refund_notice_days === null
+          ? ''
+          : String(savedCourt.cancellation_refund_notice_days),
+      )
+      setPolicyMessage('تم حفظ سياسة الحجز والإلغاء')
     } catch (error) {
-      setPriceMessage(getApiErrorMessage(error, 'تعذر حفظ سعر الملعب'))
+      setPolicyMessage(
+        getApiErrorMessage(error, 'تعذر حفظ سياسة الحجز والإلغاء'),
+      )
 
       if (isApiClientError(error) && error.status === 403) {
         await refreshCurrentUser()
       }
     } finally {
-      setIsSavingPrice(false)
+      setIsSavingPolicy(false)
     }
   }
 
@@ -118,7 +157,7 @@ export function SettingsCourtDetailsPage() {
             <AppButton variant="secondary">العودة للملاعب</AppButton>
           </Link>
         }
-        description="تعديل سعر الملعب ومواعيد العمل حسب صلاحيات عضويتك"
+        description="تعديل فترات العمل والأسعار وسياسة الحجز حسب صلاحيات عضويتك"
         tone="brand"
         title={court?.name ?? 'إعدادات الملعب'}
       />
@@ -143,33 +182,53 @@ export function SettingsCourtDetailsPage() {
         <>
           <AppCard className="space-y-4">
             <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-              سعر الملعب
+              سياسة الحجز والإلغاء
             </h2>
-            {!canEditPrice ? (
-              <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-                ليس لديك صلاحية تعديل سعر الملعب.
+            {!canEditRefundPolicy ? (
+              <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+                سياسة استرداد العربون للعرض فقط في هذا الحساب.
               </p>
             ) : null}
-            <form className="grid gap-3 sm:grid-cols-[1fr_auto]" onSubmit={handleSavePrice}>
+            <form className="grid gap-3 md:grid-cols-2" onSubmit={handleSavePolicy}>
               <label className="space-y-2 text-sm font-semibold">
-                <span>سعر الفترة الواحدة</span>
+                <span>الحد الأدنى للعربون</span>
                 <input
                   className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60"
-                  disabled={!canEditPrice}
+                  disabled={!canEditRefundPolicy}
                   inputMode="decimal"
-                  onChange={(event) => setPrice(event.target.value)}
-                  value={price}
+                  onChange={(event) => setMinimumDeposit(event.target.value)}
+                  value={minimumDeposit}
                 />
               </label>
-              <div className="flex items-end">
-                <AppButton disabled={!canEditPrice || isSavingPrice} type="submit">
-                  {isSavingPrice ? 'جاري الحفظ...' : 'حفظ السعر'}
+              <label className="space-y-2 text-sm font-semibold">
+                <span>مهلة استرداد العربون</span>
+                <input
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60"
+                  disabled={!canEditRefundPolicy}
+                  inputMode="numeric"
+                  max="30"
+                  min="0"
+                  onChange={(event) => setRefundNoticeDays(event.target.value)}
+                  placeholder="بدون مهلة"
+                  type="number"
+                  value={refundNoticeDays}
+                />
+              </label>
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)] md:col-span-2">
+                الأسعار الفعلية تأتي من فترات العمل والأسعار لكل يوم. أول دفعة وسياسة الاسترداد تتحقق من الخلفية.
+              </p>
+              <div className="flex items-end md:col-span-2">
+                <AppButton
+                  disabled={!canEditRefundPolicy || isSavingPolicy}
+                  type="submit"
+                >
+                  {isSavingPolicy ? 'جاري الحفظ...' : 'حفظ سياسة الحجز'}
                 </AppButton>
               </div>
             </form>
-            {priceMessage ? (
+            {policyMessage ? (
               <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                {priceMessage}
+                {policyMessage}
               </p>
             ) : null}
           </AppCard>
@@ -179,6 +238,7 @@ export function SettingsCourtDetailsPage() {
             clubSlug={selectedClubSlug ?? undefined}
             courtId={courtId}
             isCreateMode={false}
+            slotDurationMinutes={court.slot_duration_minutes}
           />
         </>
       ) : null}

@@ -1,10 +1,10 @@
 import {
-  isSameDayValidBlock,
+  isTimeRangeOrdered,
   normalizeTimeString,
-  sortBlocksByStartTime,
   getCourtWeekdayFromDate,
+  sortPeriodsByStartTime,
 } from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
-import type { CourtWorkingHour } from '../courts/courtWorkingHours.types'
+import type { CourtWorkingDay } from '../courts/courtWorkingHours.types'
 import type { BookingBoardPeriod, ScheduleBooking } from './schedule.types'
 import type {
   BookingListItem,
@@ -33,6 +33,7 @@ const bookingSlotStatusToBoardStatus: Record<
   ScheduleBooking['status']
 > = {
   FREE: 'available',
+  UNAVAILABLE: 'unavailable',
   HOLD: 'hold',
   CONFIRMED: 'confirmed',
   COMPLETED: 'completed',
@@ -181,7 +182,7 @@ export function createDateFilterOptions(today = new Date()): DateFilterOption[] 
 
 export function getWeekdayFromDateValue(
   dateValue: string,
-): CourtWorkingHour['weekday'] {
+): CourtWorkingDay['weekday'] {
   return getCourtWeekdayFromDate(dateValue)
 }
 
@@ -238,6 +239,13 @@ export function mapBookingSlotToScheduleBooking(
         total_price: slot.booking.total_booking_value,
         paid_amount: slot.booking.total_paid_amount,
         remaining_amount: slot.booking.remaining_amount,
+        ...(slot.booking.source ? { source: slot.booking.source } : {}),
+        ...(slot.booking.is_recurring === undefined
+          ? {}
+          : { is_recurring: slot.booking.is_recurring }),
+        ...(slot.booking.recurring_agreement_id === undefined
+          ? {}
+          : { recurring_agreement_id: slot.booking.recurring_agreement_id }),
       }
     : undefined
 
@@ -251,6 +259,7 @@ export function mapBookingSlotToScheduleBooking(
     status: bookingSlotStatusToBoardStatus[slot.slot_status],
     label: slot.label,
     isAvailable: slot.is_available,
+    slotPrice: slot.slot_price,
     startTime,
     endTime,
     period: getSlotPeriod(startMinutes),
@@ -451,7 +460,7 @@ function getSlotBooking(
 }
 
 export function generateSlotsFromWorkingHour(
-  workingHour: CourtWorkingHour | undefined,
+  workingHour: CourtWorkingDay | undefined,
   slotDurationMinutes: number,
   bookings: BookingListItem[] = [],
   selectedDate?: string,
@@ -471,25 +480,17 @@ export function generateSlotsFromWorkingHour(
     }
   }
 
-  const safeBlocks = Array.isArray(workingHour.blocks)
-    ? workingHour.blocks
-    : []
-
   const safeBookings = Array.isArray(bookings)
     ? bookings
     : []
+  const pricingPeriods = Array.isArray(workingHour.pricing_periods)
+    ? workingHour.pricing_periods
+    : []
 
-  if (workingHour.is_closed) {
+  if (pricingPeriods.length === 0) {
     return {
       slots: [],
       message: 'الملعب مغلق في هذا اليوم',
-    }
-  }
-
-  if (safeBlocks.length === 0) {
-    return {
-      slots: [],
-      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
     }
   }
 
@@ -501,59 +502,62 @@ export function generateSlotsFromWorkingHour(
 
   const slots: ScheduleBooking[] = []
   let hiddenPastSlotCount = 0
+  const validPeriods = sortPeriodsByStartTime(pricingPeriods)
+    .filter((period) => isTimeRangeOrdered(period))
 
-  sortBlocksByStartTime(safeBlocks).forEach(
-    (block, blockIndex) => {
-      if (!isSameDayValidBlock(block)) {
-        return
+  if (validPeriods.length === 0) {
+    return {
+      slots: [],
+      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
+    }
+  }
+
+  validPeriods.forEach((period, periodIndex) => {
+    const startsAt = timeToMinutes(period.starts_at)
+    const endsAt = timeToMinutes(period.ends_at)
+
+    if (startsAt === null || endsAt === null) {
+      return
+    }
+
+    for (
+      let slotStart = startsAt;
+      slotStart + duration <= endsAt;
+      slotStart += duration
+    ) {
+      const slotEnd = slotStart + duration
+      const startTime = minutesToTime(slotStart)
+      const endTime = minutesToTime(slotEnd)
+
+      if (selectedDate && isPastSlot(selectedDate, endTime, now)) {
+        hiddenPastSlotCount += 1
+        continue
       }
 
-      const startsAt = timeToMinutes(block.start_time)
-      const endsAt = timeToMinutes(block.end_time)
+      const booking = getSlotBooking(
+        safeBookings,
+        slotStart,
+        slotEnd,
+      )
 
-      if (startsAt === null || endsAt === null) {
-        return
-      }
-
-      for (
-        let slotStart = startsAt;
-        slotStart + duration <= endsAt;
-        slotStart += duration
-      ) {
-        const slotEnd = slotStart + duration
-        const startTime = minutesToTime(slotStart)
-        const endTime = minutesToTime(slotEnd)
-
-        if (selectedDate && isPastSlot(selectedDate, endTime, now)) {
-          hiddenPastSlotCount += 1
-          continue
-        }
-
-        const booking = getSlotBooking(
+      slots.push({
+        id: [
+          'slot',
+          periodIndex,
+          normalizeTimeString(startTime).replace(':', ''),
+        ].join('-'),
+        status: getSlotStatus(
           safeBookings,
           slotStart,
           slotEnd,
-        )
-
-        slots.push({
-          id: [
-            'slot',
-            blockIndex,
-            normalizeTimeString(startTime).replace(':', ''),
-          ].join('-'),
-          status: getSlotStatus(
-            safeBookings,
-            slotStart,
-            slotEnd,
-          ),
-          startTime,
-          endTime,
-          period: getSlotPeriod(slotStart),
-          ...(booking ? { booking } : {}),
-        })
-      }
-    },
-  )
+        ),
+        startTime,
+        endTime,
+        period: getSlotPeriod(slotStart),
+        ...(booking ? { booking } : {}),
+      })
+    }
+  })
 
   if (slots.length === 0) {
     return {

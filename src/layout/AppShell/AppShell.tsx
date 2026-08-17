@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
-  canManageSettlements,
+  canViewOwnSettlements,
   type AuthRole,
   type CurrentUserMembership,
   type CurrentUserProfile,
@@ -61,7 +61,7 @@ function canShowNavigationItem(
   role: AuthRole | null,
 ): boolean {
   if (item.path === '/settlements') {
-    return canManageSettlements(selectedMembership, role)
+    return canViewOwnSettlements(selectedMembership, role)
   }
 
   return true

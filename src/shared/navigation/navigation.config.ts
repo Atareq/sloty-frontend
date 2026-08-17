@@ -53,10 +53,18 @@ export const navigationItems: NavigationItem[] = [
     showInPrimaryNav: true,
   },
   {
+    path: '/recurring-agreements',
+    label: 'الحجوزات الأسبوعية',
+    marker: 'أ',
+    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
+    showInMobile: false,
+    showInPrimaryNav: true,
+  },
+  {
     path: '/transactions',
     label: 'سجل المعاملات المالية',
     marker: 'د',
-    allowedRoles: ['OWNER', 'MANAGER'],
+    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
@@ -64,7 +72,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/settlements',
     label: 'التسويات المالية والجرد',
     marker: 'ت',
-    allowedRoles: ['OWNER', 'MANAGER'],
+    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
@@ -130,7 +138,7 @@ export const navigationItems: NavigationItem[] = [
     marker: 'ض',
     allowedRoles: ['PLATFORM_ADMIN'],
     showInMobile: false,
-    showInPrimaryNav: true,
+    showInPrimaryNav: false,
   },
 ]
 
@@ -146,6 +154,10 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   '/bookings': {
     title: 'سجل الحجوزات',
     subtitle: 'مراجعة وتحديث حجوزات النادي',
+  },
+  '/recurring-agreements': {
+    title: 'الحجوزات الأسبوعية',
+    subtitle: 'متابعة اتفاقات الحجز الأسبوعي والتأمين',
   },
   '/transactions': {
     title: 'سجل المعاملات المالية',
@@ -231,6 +243,13 @@ export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
     return {
       title: 'تفاصيل التسوية',
       subtitle: 'مراجعة تفاصيل التسوية وحالة الدفعات',
+    }
+  }
+
+  if (pathname.startsWith('/recurring-agreements/')) {
+    return {
+      title: 'تفاصيل الحجز الأسبوعي',
+      subtitle: 'مراجعة الاتفاق والتأمين والإلغاء',
     }
   }
 

@@ -5,6 +5,7 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type {
   PaymentMethod,
   TransactionCreatePayload,
@@ -21,6 +22,7 @@ export interface RecordPaymentSheetProps {
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
   isSubmitting: boolean
+  minimumDepositHint?: string | null
   onClose: () => void
   onSubmit: (values: RecordPaymentSheetValues) => Promise<void> | void
 }
@@ -36,6 +38,7 @@ export function RecordPaymentSheet({
   error,
   fieldErrors = null,
   isSubmitting,
+  minimumDepositHint = null,
   onClose,
   onSubmit,
 }: RecordPaymentSheetProps) {
@@ -100,6 +103,12 @@ export function RecordPaymentSheet({
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             سجل دفعة جديدة لهذا الحجز
           </p>
+          {minimumDepositHint ? (
+            <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-xs font-bold text-[var(--sloty-text-muted)]">
+              الحد الأدنى للعربون في إعدادات الملعب:{' '}
+              <span dir="ltr">{formatMoneyAmount(minimumDepositHint)}</span>
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-5 space-y-4">

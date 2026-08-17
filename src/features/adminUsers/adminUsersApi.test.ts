@@ -23,13 +23,19 @@ describe('adminUsersApi', () => {
     expect(mockedApiRequest).toHaveBeenCalledWith(apiEndpoints.users.list)
   })
 
-  it('sends only confirmed search query to the users endpoint', async () => {
+  it('sends supported server-backed filters to the users endpoint', async () => {
     mockedApiRequest.mockResolvedValueOnce([])
 
-    await listPlatformUsers({ search: '  ahmed  ' })
+    await listPlatformUsers({
+      search: '  ahmed  ',
+      account_type: 'CLUB_USER',
+      club: 3,
+      role: 'STAFF',
+      is_active: false,
+    })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.users.list}?search=ahmed`,
+      `${apiEndpoints.users.list}?search=ahmed&account_type=CLUB_USER&club=3&role=STAFF&is_active=false`,
     )
   })
 

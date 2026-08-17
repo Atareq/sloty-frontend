@@ -53,13 +53,20 @@ import {
   cancelBooking,
   completeBooking,
   markBookingNoShow,
+  previewBookingCancellation,
 } from '../../schedule/scheduleApi'
-import { BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT } from '../../schedule/scheduleApi.types'
+import {
+  BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
+  type BookingCancellationPreview,
+} from '../../schedule/scheduleApi.types'
 import {
   RecordPaymentSheet,
   type RecordPaymentSheetValues,
 } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 import { createTransaction } from '../../transactions/transactionsApi'
+
+const BOOKING_CANCELLATION_TIME_PASSED = 'BOOKING_CANCELLATION_TIME_PASSED'
+const FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT = 'FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT'
 
 interface FilterState {
   court: string
@@ -397,6 +404,8 @@ export function BookingsListPage() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null)
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null)
+  const [cancellationPreview, setCancellationPreview] =
+    useState<BookingCancellationPreview | null>(null)
   const [completingBooking, setCompletingBooking] = useState<Booking | null>(null)
   const [
     completingBookingRemainingAmount,
@@ -417,6 +426,7 @@ export function BookingsListPage() {
   > | null>(null)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
+  const [courtRecords, setCourtRecords] = useState<Court[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
   const selectedClubName = selectedMembership?.club.name ?? null
   const urlParams = useMemo(
@@ -453,6 +463,7 @@ export function BookingsListPage() {
     async function loadCourtOptions(): Promise<void> {
       if (!selectedClubSlug) {
         setCourtOptions([])
+        setCourtRecords([])
         setFilterOptionsError(null)
         return
       }
@@ -466,6 +477,7 @@ export function BookingsListPage() {
           return
         }
 
+        setCourtRecords(courtsResponse.results)
         setCourtOptions(
           courtsResponse.results
             .filter((court: Court) => court.is_active)
@@ -477,6 +489,7 @@ export function BookingsListPage() {
       } catch {
         if (isActive) {
           setCourtOptions([])
+          setCourtRecords([])
           setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
         }
       }
@@ -595,6 +608,7 @@ export function BookingsListPage() {
     setSelectedBooking(null)
     setPaymentBooking(null)
     setCancellingBooking(null)
+    setCancellationPreview(null)
     setCompletingBooking(null)
     setCompletingBookingRemainingAmount(null)
     setNoShowBooking(null)
@@ -627,11 +641,18 @@ export function BookingsListPage() {
       setSuccessMessage('تم تسجيل الدفعة بنجاح')
       await reloadBookings()
     } catch (error) {
+      const errorCode = getApiErrorCode(error)
+
       setPaymentError(
-        getApiErrorMessage(
-          error,
-          'تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى',
-        ),
+        errorCode === FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT
+          ? getApiErrorMessage(
+              error,
+              'أول دفعة يجب ألا تقل عن الحد الأدنى للعربون المطلوب.',
+            )
+          : getApiErrorMessage(
+              error,
+              'تعذر تسجيل الدفعة. تأكد من البيانات وحاول مرة أخرى',
+            ),
       )
       setPaymentFieldErrors(getApiFieldErrors(error))
       throw error
@@ -679,14 +700,54 @@ export function BookingsListPage() {
     try {
       await cancelBooking(selectedClubSlug, cancellingBooking.id, values)
       setCancellingBooking(null)
+      setCancellationPreview(null)
       setSuccessMessage('تم إلغاء الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
-      setActionError(
-        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
-      )
+      if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
+        setActionError('انتهى وقت إلغاء هذا الحجز لأنه بدأ بالفعل.')
+        await reloadBookings()
+      } else {
+        setActionError(
+          getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
+        )
+      }
       setActionFieldErrors(getApiFieldErrors(error))
       throw error
+    } finally {
+      setIsActionSubmitting(false)
+    }
+  }
+
+  async function handleRequestCancelBooking(booking: Booking): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsActionSubmitting(true)
+    setActionError(null)
+    setActionFieldErrors(null)
+    setCancellationPreview(null)
+
+    try {
+      const preview = await previewBookingCancellation(
+        selectedClubSlug,
+        booking.id,
+      )
+
+      setCancellationPreview(preview)
+      setCancellingBooking(booking)
+      setSelectedBooking(null)
+    } catch (error) {
+      if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
+        setActionError('انتهى وقت إلغاء هذا الحجز لأنه بدأ بالفعل.')
+        await reloadBookings()
+      } else {
+        setActionError(
+          getApiErrorMessage(error, 'تعذر معاينة إلغاء الحجز. حاول مرة أخرى'),
+        )
+      }
+      setActionFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsActionSubmitting(false)
     }
@@ -775,7 +836,7 @@ export function BookingsListPage() {
           تحتاج إغلاق
         </AppButton>
         <AppButton onClick={handleQuickHold} type="button" variant="secondary">
-          انتظار الدفع
+          بانتظار العربون
         </AppButton>
         <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
           فلترة
@@ -896,10 +957,7 @@ export function BookingsListPage() {
           setPaymentFieldErrors(null)
         }}
         onCancel={(booking) => {
-          setCancellingBooking(booking)
-          setSelectedBooking(null)
-          setActionError(null)
-          setActionFieldErrors(null)
+          void handleRequestCancelBooking(booking)
         }}
         onClose={closeBookingSheets}
         onComplete={(booking) => {
@@ -924,6 +982,12 @@ export function BookingsListPage() {
           error={paymentError}
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
+          minimumDepositHint={
+            paymentBooking
+              ? courtRecords.find((court) => court.id === paymentBooking.court)
+                  ?.minimum_deposit ?? null
+              : null
+          }
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
@@ -940,10 +1004,12 @@ export function BookingsListPage() {
           isSubmitting={isActionSubmitting}
           onClose={() => {
             setCancellingBooking(null)
+            setCancellationPreview(null)
             setActionError(null)
             setActionFieldErrors(null)
           }}
           onSubmit={handleCancelBooking}
+          preview={cancellationPreview}
         />
       ) : null}
 

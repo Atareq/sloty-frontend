@@ -8,11 +8,23 @@ import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type { Value } from 'react-phone-number-input'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
+import {
+  BookingTypeSelector,
+  type BookingType,
+} from '../../../recurringAgreements/components/BookingTypeSelector/BookingTypeSelector'
+import { RecurringAvailabilityPreview } from '../../../recurringAgreements/components/RecurringAvailabilityPreview/RecurringAvailabilityPreview'
+import type { RecurringAgreementAvailabilityResponse } from '../../../recurringAgreements/recurringAgreements.types'
+import type { PaymentMethod } from '../../../transactions/transactions.types'
+import { paymentMethodLabels } from '../../../transactions/transactions.types'
 import { formatTime12Hour } from '../../scheduleBoard.helpers'
 
 export interface AddBookingSheetValues {
+  booking_type?: BookingType
   customer_name: string
   customer_phone: string
+  payment_method?: PaymentMethod
+  reference?: string
   notes?: string
 }
 
@@ -24,7 +36,12 @@ export interface AddBookingSheetProps {
   isSubmitting: boolean
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
+  isCheckingRecurringAvailability?: boolean
+  recurringAvailability?: RecurringAgreementAvailabilityResponse | null
+  recurringWeekdayLabel?: string
+  slotPrice?: string | null
   onClose: () => void
+  onCheckRecurringAvailability?: (values: AddBookingSheetValues) => Promise<void>
   onSubmit: (values: AddBookingSheetValues) => Promise<void>
 }
 
@@ -40,13 +57,21 @@ export function AddBookingSheet({
   endTime,
   error,
   fieldErrors = null,
+  isCheckingRecurringAvailability = false,
   isSubmitting,
   onClose,
+  onCheckRecurringAvailability,
   onSubmit,
+  recurringAvailability = null,
+  recurringWeekdayLabel,
+  slotPrice = null,
   startTime,
 }: AddBookingSheetProps) {
+  const [bookingType, setBookingType] = useState<BookingType>('one_time')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState<Value | undefined>()
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
+  const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
   const nameFieldError = getFirstFieldErrorMessage(
@@ -78,17 +103,36 @@ export function AddBookingSheet({
 
     setValidationError(null)
 
-    await onSubmit({
+    const values: AddBookingSheetValues = {
+      ...(bookingType === 'weekly' ? { booking_type: bookingType } : {}),
       customer_name: trimmedName,
       customer_phone: customerPhone,
+      ...(bookingType === 'weekly'
+        ? {
+            payment_method: paymentMethod,
+            reference: reference.trim() || undefined,
+          }
+        : {}),
       notes: trimmedNotes || undefined,
-    })
+    }
+
+    if (bookingType === 'weekly' && !recurringAvailability) {
+      await onCheckRecurringAvailability?.(values)
+      return
+    }
+
+    if (bookingType === 'weekly' && recurringAvailability?.all_available === false) {
+      setValidationError('لا يمكن إنشاء الحجز الأسبوعي مع وجود تعارض')
+      return
+    }
+
+    await onSubmit(values)
   }
 
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
+      className="fixed inset-0 z-50 flex items-end bg-slate-700/45 p-0 md:items-center md:justify-center md:p-6"
       role="dialog"
     >
       <form
@@ -111,12 +155,33 @@ export function AddBookingSheet({
           >
             {displayStartTime} - {displayEndTime}
           </p>
+          {slotPrice ? (
+            <p className="text-sm font-black text-[var(--sloty-primary-dark)]">
+              السعر {formatMoneyAmount(slotPrice)}
+            </p>
+          ) : null}
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             بعد حفظ الحجز يمكنك تسجيل دفعة أو تحرير الموعد.
           </p>
         </div>
 
         <div className="mt-5 space-y-4">
+          <BookingTypeSelector
+            disabled={isSubmitting || isCheckingRecurringAvailability}
+            onChange={(value) => {
+              setBookingType(value)
+              setValidationError(null)
+            }}
+            value={bookingType}
+          />
+
+          {bookingType === 'weekly' ? (
+            <div className="space-y-1 rounded-xl bg-[var(--sloty-bg)] px-3 py-3 text-sm font-bold text-[var(--sloty-text-primary)]">
+              <p>يتكرر أسبوعيًا كل: {recurringWeekdayLabel ?? dateLabel}</p>
+
+            </div>
+          ) : null}
+
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>اسم العميل</span>
             <input
@@ -151,6 +216,41 @@ export function AddBookingSheet({
             </p>
           ) : null}
 
+          {bookingType === 'weekly' ? (
+            <>
+              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>طريقة دفع التأمين</span>
+                <select
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  disabled={isSubmitting || isCheckingRecurringAvailability}
+                  onChange={(event) =>
+                    setPaymentMethod(event.target.value as PaymentMethod)
+                  }
+                  value={paymentMethod}
+                >
+                  {Object.entries(paymentMethodLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>رقم العملية</span>
+                <input
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  disabled={isSubmitting || isCheckingRecurringAvailability}
+                  onChange={(event) => setReference(event.target.value)}
+                  value={reference}
+                />
+              </label>
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-text-muted)]">
+                اختياري حسب طريقة الدفع وسياسة الملعب
+              </p>
+            </>
+          ) : null}
+
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>
             <textarea
@@ -160,6 +260,10 @@ export function AddBookingSheet({
               value={notes}
             />
           </label>
+
+          {bookingType === 'weekly' && recurringAvailability ? (
+            <RecurringAvailabilityPreview availability={recurringAvailability} />
+          ) : null}
         </div>
 
         {validationError || error ? (
@@ -170,12 +274,18 @@ export function AddBookingSheet({
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <AppButton
-            disabled={isSubmitting}
+            disabled={isSubmitting || isCheckingRecurringAvailability}
             fullWidth
             type="submit"
             variant="primary"
           >
-            {isSubmitting ? 'جاري الحفظ...' : 'حفظ الحجز'}
+            {isSubmitting || isCheckingRecurringAvailability
+              ? 'جاري الحفظ...'
+              : bookingType === 'weekly' && !recurringAvailability
+                ? 'فحص الإتاحة'
+                : bookingType === 'weekly'
+                  ? 'تأكيد الحجز الأسبوعي'
+                  : 'حفظ الحجز'}
           </AppButton>
           <AppButton
             disabled={isSubmitting}

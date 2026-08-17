@@ -28,6 +28,10 @@ export interface UpdateManagerPermissionsPayload {
   manager_can_change_pricing?: boolean
 }
 
+export interface UpdateMembershipActivityPayload {
+  is_active: boolean
+}
+
 export interface CreateMembershipUserPayload {
   username: string
   email?: string

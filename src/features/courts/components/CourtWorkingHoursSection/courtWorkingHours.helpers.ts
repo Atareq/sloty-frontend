@@ -1,7 +1,6 @@
 import type {
+  CourtPricingPeriodPayload,
   CourtWeekday,
-  CourtWorkingHourBlock,
-  CourtWorkingHourBlockPayload,
 } from '../../courtWorkingHours.types'
 
 export const weekdays: CourtWeekday[] = [5, 6, 0, 1, 2, 3, 4]
@@ -39,6 +38,14 @@ export function normalizeTimeString(value: string): string {
   return value.split(':').slice(0, 2).join(':')
 }
 
+export function toApiTimeString(value: string): string {
+  const normalizedValue = normalizeTimeString(value)
+
+  return /^\d{2}:\d{2}$/.test(normalizedValue)
+    ? `${normalizedValue}:00`
+    : value
+}
+
 export function timeToMinutes(value: string): number {
   const [hours, minutes] = normalizeTimeString(value).split(':').map(Number)
 
@@ -64,23 +71,23 @@ export function minutesToTime(minutes: number): string {
   return `${padTimePart(Math.floor(minutes / 60))}:${padTimePart(minutes % 60)}`
 }
 
-export function isSameDayValidBlock(
-  block: Pick<CourtWorkingHourBlock, 'start_time' | 'end_time'>,
+export function isTimeRangeOrdered(
+  range: Pick<CourtPricingPeriodPayload, 'starts_at' | 'ends_at'>,
 ): boolean {
-  if (!block.start_time || !block.end_time) {
+  if (!range.starts_at || !range.ends_at) {
     return false
   }
 
-  return timeToMinutes(block.end_time) > timeToMinutes(block.start_time)
+  return timeToMinutes(range.ends_at) > timeToMinutes(range.starts_at)
 }
 
-export function sortBlocksByStartTime<T extends CourtWorkingHourBlockPayload>(
-  blocks: T[],
+export function sortPeriodsByStartTime<T extends Pick<CourtPricingPeriodPayload, 'starts_at'>>(
+  periods: T[],
 ): T[] {
-  return [...blocks].sort(
+  return [...periods].sort(
     (first, second) => {
-      const firstStart = timeToMinutes(first.start_time)
-      const secondStart = timeToMinutes(second.start_time)
+      const firstStart = timeToMinutes(first.starts_at)
+      const secondStart = timeToMinutes(second.starts_at)
 
       if (!Number.isFinite(firstStart) && !Number.isFinite(secondStart)) {
         return 0
@@ -99,16 +106,31 @@ export function sortBlocksByStartTime<T extends CourtWorkingHourBlockPayload>(
   )
 }
 
-export function doBlocksOverlap(
-  blocks: CourtWorkingHourBlockPayload[],
+export function doPricingPeriodsOverlap(
+  periods: CourtPricingPeriodPayload[],
 ): boolean {
-  const sortedBlocks = sortBlocksByStartTime(blocks)
+  const sortedPeriods = sortPeriodsByStartTime(periods)
 
-  return sortedBlocks.some((block, index) => {
-    const nextBlock = sortedBlocks[index + 1]
+  return sortedPeriods.some((period, index) => {
+    const nextPeriod = sortedPeriods[index + 1]
 
-    return nextBlock
-      ? timeToMinutes(block.end_time) > timeToMinutes(nextBlock.start_time)
+    return nextPeriod
+      ? timeToMinutes(period.ends_at) > timeToMinutes(nextPeriod.starts_at)
       : false
+  })
+}
+
+export function areTimesAlignedToSlotDuration(
+  times: string[],
+  slotDurationMinutes: number | undefined,
+): boolean {
+  if (!slotDurationMinutes) {
+    return true
+  }
+
+  return times.every((time) => {
+    const minutes = timeToMinutes(time)
+
+    return Number.isFinite(minutes) && minutes % slotDurationMinutes === 0
   })
 }

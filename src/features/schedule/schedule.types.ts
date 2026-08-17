@@ -2,6 +2,7 @@ import type { BookingListItem } from './scheduleApi.types'
 
 export type BookingBoardSlotStatus =
   | 'available'
+  | 'unavailable'
   | 'hold'
   | 'confirmed'
   | 'completed'
@@ -34,10 +35,11 @@ export interface ScheduleDateFilter {
 export interface ScheduleBooking {
   id: string
   status: BookingBoardSlotStatus
-  label?: string
+  label?: string | null
   isAvailable?: boolean
   startTime: string
   endTime: string
+  slotPrice?: string | null
   period: BookingBoardPeriod
   booking?: BookingListItem
 }
