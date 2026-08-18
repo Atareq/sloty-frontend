@@ -1,8 +1,9 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { Link, MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../core/auth/useAuth'
+import { PageActions } from '../../shared/components/PageActions/PageActions'
 import { AppShell } from './AppShell'
 
 vi.mock('../../core/auth/useAuth', () => ({
@@ -89,8 +90,19 @@ function renderAppShell(
         <Route element={<AppShell />}>
           <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
           <Route element={<p>سجل المعاملات المالية</p>} path="/transactions" />
-          <Route element={<p>الأندية</p>} path="/admin/clubs" />
+          <Route
+            element={
+              <PageActions>
+                <Link to="/admin/clubs/new">إضافة نادي</Link>
+              </PageActions>
+            }
+            path="/admin/clubs"
+          />
           <Route element={<p>المستخدمون</p>} path="/admin/users" />
+          <Route
+            element={<p>تفاصيل التسوية</p>}
+            path="/settlements/:settlementId"
+          />
         </Route>
         <Route element={<p>اختيار النادي</p>} path="/select-club" />
         <Route element={<p>تسجيل الدخول</p>} path="/login" />
@@ -111,6 +123,14 @@ describe('AppShell', () => {
 
     expect(screen.getAllByText('النادي الحالي: Demo Football Club').length)
       .toBeGreaterThan(0)
+  })
+
+  it('renders the shell page heading once without feature title duplication', () => {
+    renderAppShell()
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: 'لوحة التحكم' }))
+      .toBeInTheDocument()
   })
 
   it('shows change-club action only for multi-club users', () => {
@@ -289,6 +309,43 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'سجل المعاملات المالية' }))
       .toBeInTheDocument()
+  })
+
+  it('updates route title when navigating between routes', async () => {
+    const user = userEvent.setup()
+
+    renderAppShell()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    await user.click(
+      screen.getByRole('button', { name: 'سجل المعاملات المالية' }),
+    )
+
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: 'سجل المعاملات المالية',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+
+  it('renders dynamic detail route metadata intentionally', () => {
+    renderAppShell('/settlements/42')
+
+    expect(screen.getByRole('heading', { level: 1, name: 'تفاصيل التسوية' }))
+      .toBeInTheDocument()
+  })
+
+  it('keeps migrated page actions visible once below the shell header', () => {
+    mockedUseAuth.mockReturnValue(getAuthValue(0, { role: 'PLATFORM_ADMIN' }))
+
+    renderAppShell('/admin/clubs')
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: 'إدارة الأندية' }))
+      .toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'إضافة نادي' })).toHaveLength(1)
   })
 
   it('keeps staff menu limited to allowed operational links and account actions', async () => {

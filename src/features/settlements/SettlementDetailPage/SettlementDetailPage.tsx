@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { SettlementTotalsCard } from '../components/SettlementTotalsCard/SettlementTotalsCard'
 import { SettlementTransactionsList } from '../components/SettlementTransactionsList/SettlementTransactionsList'
 import {
@@ -180,18 +180,11 @@ export function SettlementDetailPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Link to="/settlements">
-              <AppButton variant="secondary">التسويات المالية والجرد</AppButton>
-            </Link>
-          </div>
-        }
-        description="الفترة المعروضة يتم تحديدها تلقائيًا من أول معاملة داخلة في التسوية حتى وقت تأكيد التسوية."
-        tone="brand"
-        title="تفاصيل التسوية"
-      />
+      <PageActions>
+        <Link to="/settlements">
+          <AppButton variant="secondary">التسويات المالية والجرد</AppButton>
+        </Link>
+      </PageActions>
 
       {isLoading ? (
         <AppCard>

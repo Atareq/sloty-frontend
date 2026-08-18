@@ -17,7 +17,6 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import { formatDateInputValue } from '../../../shared/utils/date'
@@ -394,7 +393,7 @@ function BookingsFilterForm({
 export function BookingsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { selectedClubSlug, selectedMembership } = useAuth()
+  const { selectedClubSlug } = useAuth()
   const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -428,7 +427,6 @@ export function BookingsListPage() {
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [courtRecords, setCourtRecords] = useState<Court[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
-  const selectedClubName = selectedMembership?.club.name ?? null
   const urlParams = useMemo(
     () => parseBookingsQueryParams(location.search),
     [location.search],
@@ -814,16 +812,6 @@ export function BookingsListPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        description={
-          selectedClubName
-            ? `قائمة مراجعة الحجوزات داخل ${selectedClubName}`
-            : 'قائمة مراجعة الحجوزات حسب الفلاتر'
-        }
-        tone="brand"
-        title="الحجوزات"
-      />
-
       <div className="flex gap-2 overflow-x-auto pb-1">
         <AppButton onClick={handleQuickToday} type="button" variant="secondary">
           اليوم

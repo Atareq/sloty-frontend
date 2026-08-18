@@ -145,7 +145,7 @@ export const navigationItems: NavigationItem[] = [
 export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   '/dashboard': {
     title: 'لوحة التحكم',
-    subtitle: 'ملخص اليوم ومؤشرات التشغيل',
+    subtitle: 'متابعة الحجوزات والتحصيل والمبالغ غير المسواة',
   },
   '/schedule': {
     title: 'الجدول',
@@ -153,7 +153,7 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   },
   '/bookings': {
     title: 'سجل الحجوزات',
-    subtitle: 'مراجعة وتحديث حجوزات النادي',
+    subtitle: 'قائمة مراجعة الحجوزات حسب الفلاتر',
   },
   '/recurring-agreements': {
     title: 'الحجوزات الأسبوعية',
@@ -161,7 +161,7 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   },
   '/transactions': {
     title: 'سجل المعاملات المالية',
-    subtitle: 'سجل المدفوعات المسجلة داخل النادي',
+    subtitle: 'سجل المدفوعات المسجلة على حجوزات النادي النشط',
   },
   '/settlements': {
     title: 'التسويات المالية والجرد',
@@ -177,11 +177,11 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   },
   '/reports': {
     title: 'التقارير الاستهلاكية للملاعب',
-    subtitle: 'تحليل استخدام الملاعب والحجوزات',
+    subtitle: 'تحليل إشغال الملاعب والطلب حسب الفترة والموظف',
   },
   '/audit-logs': {
     title: 'سجل النشاطات',
-    subtitle: 'متابعة التعديلات والإجراءات داخل النادي',
+    subtitle: 'متابعة التغييرات المهمة داخل النادي',
   },
   '/settings': {
     title: 'الإعدادات',
@@ -193,11 +193,11 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   },
   '/settings/courts': {
     title: 'إعدادات الملاعب',
-    subtitle: 'إدارة الملاعب ومواعيد العمل',
+    subtitle: 'إدارة أسعار ومواعيد عمل ملاعب النادي المحدد',
   },
   '/admin/clubs': {
-    title: 'الأندية',
-    subtitle: 'إدارة أندية المنصة',
+    title: 'إدارة الأندية',
+    subtitle: 'إعداد الأندية الأساسية قبل إضافة الملاعب وساعات العمل',
   },
   '/admin/users': {
     title: 'إدارة المستخدمين',
@@ -263,14 +263,56 @@ export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
   if (pathname === '/admin/users/new') {
     return {
       title: 'إضافة مستخدم',
-      subtitle: 'إنشاء حساب منصة أو عضوية نادي',
+      subtitle: 'استخدم نفس عقد إنشاء الحسابات والعضويات المعتمد في الواجهة',
     }
   }
 
   if (pathname.startsWith('/admin/users/')) {
     return {
       title: 'تفاصيل المستخدم',
-      subtitle: 'مراجعة بيانات الحساب والعضويات المتاحة',
+      subtitle: 'تفاصيل الحساب والعضويات كما يرسلها الخادم',
+    }
+  }
+
+  if (pathname === '/more') {
+    return {
+      title: 'المزيد',
+      subtitle: 'مسار مؤقت للمزيد من إجراءات الموظف والمدير',
+    }
+  }
+
+  if (pathname === '/admin/clubs/new') {
+    return {
+      title: 'إضافة نادي',
+      subtitle: 'بيانات النادي الأساسية',
+    }
+  }
+
+  if (pathname.match(/^\/admin\/clubs\/[^/]+\/courts\/new$/)) {
+    return {
+      title: 'إضافة ملعب',
+      subtitle: 'بيانات الملعب الأساسية التي يعتمد عليها جدول الحجز لاحقًا',
+    }
+  }
+
+  if (pathname.match(/^\/admin\/clubs\/[^/]+\/courts\/[^/]+$/)) {
+    return {
+      title: 'تعديل ملعب',
+      subtitle: 'بيانات الملعب الأساسية التي يعتمد عليها جدول الحجز لاحقًا',
+    }
+  }
+
+  if (pathname.match(/^\/admin\/clubs\/[^/]+\/courts$/)) {
+    return {
+      title: 'إدارة الملاعب',
+      subtitle: 'ملاعب النادي المحدد',
+    }
+  }
+
+  if (pathname.startsWith('/admin/clubs/')) {
+    return {
+      title: 'تعديل النادي',
+      subtitle: 'بيانات النادي الأساسية',
     }
   }
 

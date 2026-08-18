@@ -30,9 +30,9 @@ export function ScheduleHeader({
           <p className="text-xs font-semibold text-white/80">
             جدول اليوم
           </p>
-          <h1 className="truncate text-lg font-black text-white md:text-2xl">
+          <h2 className="truncate text-lg font-black text-white md:text-2xl">
             {court.clubName} - {court.courtName}
-          </h1>
+          </h2>
           <p className="mt-1 text-xs text-white/80 md:text-sm">
             {court.dateLabel}
           </p>

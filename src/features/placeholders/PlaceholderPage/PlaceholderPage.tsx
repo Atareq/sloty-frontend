@@ -1,5 +1,4 @@
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 
 export interface PlaceholderPageProps {
   title: string
@@ -13,11 +12,9 @@ export interface PlaceholderPageProps {
 export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
   return (
     <div className="space-y-5">
-      <PageHeader description={description} tone="brand" title={title} />
-
       <AppCard>
         <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-          هذه صفحة مؤقتة داخل هيكل التطبيق. سيتم بناء الوظائف الحقيقية بعد
+          {title}: {description} سيتم بناء الوظائف الحقيقية بعد
           اعتماد واجهات الخلفية وتدفقات المنتج الخاصة بها.
         </p>
       </AppCard>

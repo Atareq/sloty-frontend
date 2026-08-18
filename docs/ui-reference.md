@@ -3,7 +3,22 @@ Sports Courts Rental Management System
 
 Current frontend implementation note:
 
-This document remains a design-direction reference. New pages in the current React frontend should use the shared `PageHeader` by default, follow the shared `AppCard` and `AppButton` patterns, and keep one Sloty visual fingerprint across the app. Do not create custom page headers or separate-looking prototype pages unless the existing shared pattern clearly does not fit.
+This document remains a design-direction reference. Authenticated pages in the current React frontend receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header. Use shared `PageActions` for feature-specific page buttons, use shared `AppSelect` for product-facing dropdowns instead of native browser select menus where practical, follow the shared `AppCard` and `AppButton` patterns, and keep one Sloty visual fingerprint across the app. Do not create custom page headers or separate-looking prototype pages unless the existing shared pattern clearly does not fit.
+
+Current local working tree note:
+
+Approved staged/unstaged UI implementation in the local working tree is the source of truth during integration. Documentation should be synchronized to current approved implementation rather than used to restore older UI from stale docs, old commits, prototype code, or GitHub master.
+
+Current Schedule date/control UX:
+
+- Schedule uses `AppDateNavigator`, not a native browser date input, as the primary date selector.
+- `AppDateNavigator` contains a rolling date strip, a fully clickable date trigger, and an in-app `@daypicker/react` calendar with Lucide icons.
+- Mobile calendar presentation behaves like a bottom sheet; desktop behaves like a compact modal.
+- Selecting a date already visible changes selection only; selecting an outside date rebuilds the 7-day range from that date.
+- Selected dates use Sloty's rounded green surface/button language. Today uses a subtle HOLD-palette amber marker (`border-amber-400`, `bg-amber-100`, `text-amber-900`) without competing with selected green.
+- Schedule control hierarchy is title/description and authorized Court selector first, date navigation second, and lightweight status legend third.
+- Active filter chips are one accessible clickable button per chip; clicking the chip removes only its own filter and buttons must not be nested.
+- AppSelect owns dropdown presentation and interaction with Sloty surface/border/green/soft-mint styling, Lucide ChevronDown/Check icons, RTL layout, and keyboard support.
 
 1. UI Vision
 

@@ -147,7 +147,6 @@ describe('SettlementHistoryPage', () => {
     )
 
     expect(await screen.findByText('#9')).toBeInTheDocument()
-    expect(screen.getByText('التسويات المالية والجرد')).toBeInTheDocument()
     expect(screen.getByText('مراجعة دفعات موظف')).toBeInTheDocument()
     expect(screen.getAllByText('Ahmed Staff').length).toBeGreaterThan(0)
     expect(screen.getByText('2000.00')).toBeInTheDocument()

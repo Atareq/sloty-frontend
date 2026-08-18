@@ -8,7 +8,6 @@ import {
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import {
   addDays,
@@ -124,7 +123,6 @@ export function DashboardPage() {
   const [courts, setCourts] = useState<Court[]>([])
   const [isCourtsLoading, setIsCourtsLoading] = useState(false)
   const [courtOptionsError, setCourtOptionsError] = useState<string | null>(null)
-  const selectedClubName = selectedMembership?.club.name ?? null
   const assignedCourtId = getAssignedOperationalCourtId(
     role,
     selectedMembership,
@@ -271,16 +269,6 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        description={
-          selectedClubName
-            ? `متابعة الحجوزات والتحصيل والمبالغ غير المسواة داخل ${selectedClubName}`
-            : 'متابعة الحجوزات والتحصيل والمبالغ غير المسواة'
-        }
-        tone="brand"
-        title="الملخص"
-      />
-
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">

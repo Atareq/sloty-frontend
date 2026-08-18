@@ -160,7 +160,7 @@ describe('SettlementPreviewPage', () => {
   it('loads preview from URL params and renders review sections', async () => {
     renderPage('/settlements/preview?collected_by=15&court=3')
 
-    expect(await screen.findByText('مراجعة التسوية')).toBeInTheDocument()
+    expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
       collected_by: '15',
       court: '3',

@@ -47,6 +47,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 
 ## Architecture Rules
 
+- During active integration work, the current local working tree is the implementation source of truth for approved staged/unstaged changes.
+- Never replace newer approved local implementation with stale documentation, old commits, prototype code, or GitHub master.
+- Update documentation to describe approved implementation rather than forcing implementation back to stale docs.
+- When extracting approved code into a shared component, preserve behavior and visual semantics closely and do not combine unrelated cleanup with the extraction.
 - Keep shared components presentational and reusable.
 - Keep feature-specific state and logic inside feature folders.
 - Keep cross-feature primitives in `src/core`, reusable UI/helpers in `src/shared`, and app shell/route protection in `src/layout`.
@@ -136,6 +140,13 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Schedule page uses one selected `YYYY-MM-DD` date value with the shared rolling date navigator plus a real date picker.
 - Schedule uses one selected `YYYY-MM-DD` date source of truth through the shared `AppDateNavigator`; do not recreate today/tomorrow/after-tomorrow business state in feature pages.
 - `AppDateNavigator` keeps visible range state separate from the selected date: selecting a visible date changes selection only, while calendar/external selection outside the visible range rebuilds the 7-day range from that date.
+- Schedule does not use a native browser date input as its primary selector; `AppDateNavigator` uses a rolling visible date strip, a fully clickable date trigger, and an in-app `@daypicker/react` calendar with Lucide icons.
+- AppDateNavigator mobile calendar presentation behaves like a bottom sheet, desktop behaves like a compact modal, and users select dates by tapping days rather than typing dates.
+- AppDateNavigator selected days must use Sloty's rounded green surface/button styling, not generic browser/DayPicker blue or purple states.
+- AppDateNavigator today marker uses the Schedule HOLD palette (`border-amber-400`, `bg-amber-100`, `text-amber-900`) as a subtle secondary marker; selected green remains primary when today is selected.
+- Schedule control hierarchy is: `لوحة الحجز` title/description and authorized Court selector; then the date-navigation area; then a lightweight status legend.
+- Do not crowd Schedule title, Court selector, date controls, and legend into one flex row; desktop needs clear hierarchy/whitespace and mobile stacks naturally.
+- Schedule status legend is informational and lower visual weight than Court/date actions.
 - Booking Board hides/blocks past slots based on the current Africa/Cairo time; past selected dates are not bookable.
 - Booking Board keeps the AM/PM split: AM before 12:00 and PM from 12:00 onward.
 - Sprint 3B creates bookings only from backend-available Booking Board slots; AddBookingSheet remains customer basics only.
@@ -175,6 +186,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Bookings List supports URL query filters used by Summary cards, and Summary redirects must not be overwritten by default page filters.
 - Mobile filter UX uses quick filter buttons plus a `فلترة` button; advanced filters live in a sheet/drawer on mobile.
 - Active filter chips must remain URL-driven and removable.
+- Active filter chips are one accessible button per chip; clicking anywhere on the chip removes only that filter while preserving other active filters, and buttons must not be nested.
 - Court filters must display court names instead of raw IDs while still sending numeric court IDs to the backend.
 - Bookings List cards are clickable review entries that open the shared `BookingActionSheet`; do not create a separate booking edit flow or raw transaction edit entry from booking history.
 - Booking Board remains availability-focused; Bookings List is for reviewing and filtering existing bookings.
@@ -229,6 +241,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Audit logs are read-only. Reports and audit access are role/permission-gated UX helpers, with backend remaining the authority.
 - Reports access is role-based for allowed report roles and must not depend on settlement permission.
 - Do not expose manual ID inputs for business entities; use named select/search fields for users, staff, courts, and actions while keeping backend IDs/enums as internal option values.
+- Native browser `<select>` menus are not the default product-facing dropdown experience because their opened menu is controlled by the OS/browser and breaks the Sloty design system.
+- Product-facing dropdowns should use the shared `src/shared/components/AppSelect/AppSelect.tsx`; features provide options/business values and `AppSelect` owns presentation and interaction.
+- Do not create separate visual primitives such as `FeatureSelect`, `CourtSelect`, `PaymentSelect`, `FilterSelect`, or `AdminSelect`.
+- AppSelect must stay RTL-first, mobile touch-friendly, keyboard-accessible, and use Sloty surface/border/green/soft-mint styling with Lucide ChevronDown and Check icons.
 - Audit log action filters and displays must use Arabic business labels instead of raw enum values.
 - Audit log rich presentation must stay centralized in the audit presentation helper, use only list-response data, treat rich fields as optional, and never fetch related Booking/User/Court/Transaction/Settlement/Recurring details per row.
 - Audit log before/after changes must render only known safe business fields; do not expose sensitive/internal fields such as passwords, tokens, auth payloads, secrets, or serializer/debug data.
@@ -271,8 +287,11 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Users & Permissions may add Manager/Staff memberships and edit existing Manager permission flags; it must not create Owner users or edit Staff/Owner permissions.
 - Users & Permissions badges use effective club-users fields (`can_change_pricing`, `can_manage_working_hours`, `can_manage_settlements`) and never raw backend field names.
 - Backend remains the authority for permission enforcement.
-- Authenticated pages use the reusable unified green header from `AppShell`; do not add duplicate visible page title cards inside shell pages.
-- The unified header mobile hamburger is a right-side RTL menu button with three horizontal lines; hide it when desktop sidebar mode is active.
+- Authenticated pages use exactly one shell-level page header rendered by `AppShell` through `src/shared/components/PageHeader/PageHeader.tsx`; do not add duplicate visible page title cards inside shell pages.
+- Authenticated route title/subtitle text must come from `src/shared/navigation/navigation.config.ts`; do not duplicate route title strings in feature components unnecessarily.
+- Feature-specific buttons that previously lived beside a page title should use the layout-only `src/shared/components/PageActions/PageActions.tsx`.
+- Never introduce parallel page-header implementations; `PageHeader` is the canonical visual page header.
+- The canonical header mobile hamburger is a right-side RTL menu button with three horizontal lines; hide it when desktop sidebar mode is active.
 - The hamburger and mobile drawer are mobile-only; the drawer opens from the right and must close or be hidden when switching to desktop view.
 - Desktop navigation uses the sidebar only; the mobile drawer must never render over the desktop sidebar.
 - Platform Admin does not use the club-user bottom navigation.
@@ -290,8 +309,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Desktop view must always expose a visible `عرض الهاتف` recovery action outside hidden mobile-only UI surfaces.
 - Do not place the only mobile/desktop view toggle inside a drawer or surface hidden by the current view mode.
 - Navigation labels must use the approved Arabic wording: `لوحة التحكم`, `الجدول`, `سجل الحجوزات`, `سجل المعاملات المالية`, `التسويات المالية والجرد`, `سجل النشاطات`, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
-- Every new page must use the repo shared `PageHeader` by default unless there is a clear reason not to.
-- Do not create custom page headers when `PageHeader` fits the use case.
+- Authenticated feature pages must not render a second `PageHeader`; they receive the shared `PageHeader` from `AppShell`.
+- Do not create custom page headers or alternate header systems when the canonical shell `PageHeader` fits the use case.
 - Keep one Sloty visual fingerprint across the project: Arabic-first, RTL-first, mobile-first, green brand system, rounded cards, shared `AppCard`/`AppButton` patterns, consistent spacing, and responsive layouts.
 - Any new page must look like part of the same product, not a separate prototype.
 - Do not create separate mobile and desktop business pages for the same workflow; share data/request flow and vary presentation only.

@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
@@ -67,16 +67,11 @@ export function ClubsListPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          <Link to="/admin/clubs/new">
-            <AppButton>إضافة نادي</AppButton>
-          </Link>
-        }
-        description="إعداد الأندية الأساسية قبل إضافة الملاعب وساعات العمل."
-        title="إدارة الأندية"
-        tone="brand"
-      />
+      <PageActions>
+        <Link to="/admin/clubs/new">
+          <AppButton>إضافة نادي</AppButton>
+        </Link>
+      </PageActions>
 
       {isLoading ? (
         <AppCard>

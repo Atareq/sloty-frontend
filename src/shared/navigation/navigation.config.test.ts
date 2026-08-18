@@ -151,4 +151,59 @@ describe('navigation config', () => {
       subtitle: 'مراجعة أعضاء النادي وصلاحيات المديرين',
     })
   })
+
+  it('exposes intentional metadata for every authenticated router route shape', () => {
+    const routeSamples = [
+      '/dashboard',
+      '/schedule',
+      '/bookings',
+      '/recurring-agreements',
+      '/recurring-agreements/12',
+      '/transactions',
+      '/settlements',
+      '/settlements/history',
+      '/settlements/preview',
+      '/settlements/42',
+      '/reports',
+      '/audit-logs',
+      '/settings/courts',
+      '/settings/courts/5',
+      '/settings',
+      '/settings/users',
+      '/more',
+      '/admin/clubs',
+      '/admin/clubs/new',
+      '/admin/clubs/demo-club',
+      '/admin/clubs/demo-club/courts',
+      '/admin/clubs/demo-club/courts/new',
+      '/admin/clubs/demo-club/courts/3',
+      '/admin/users',
+      '/admin/users/new',
+      '/admin/users/9',
+      '/admin/settings',
+    ]
+
+    for (const path of routeSamples) {
+      expect(getPageHeaderMeta(path), path).not.toEqual({
+        title: 'لوحة التحكم',
+        subtitle: 'ملخص اليوم ومؤشرات التشغيل',
+      })
+      expect(getPageHeaderMeta(path).title).not.toHaveLength(0)
+    }
+  })
+
+  it('uses feature-approved wording for migrated header routes', () => {
+    expect(getPageHeaderMeta('/admin/clubs/new')).toEqual({
+      title: 'إضافة نادي',
+      subtitle: 'بيانات النادي الأساسية',
+    })
+    expect(getPageHeaderMeta('/admin/clubs/demo-club/courts/new')).toEqual({
+      title: 'إضافة ملعب',
+      subtitle: 'بيانات الملعب الأساسية التي يعتمد عليها جدول الحجز لاحقًا',
+    })
+    expect(getPageHeaderMeta('/admin/users/new')).toEqual({
+      title: 'إضافة مستخدم',
+      subtitle: 'استخدم نفس عقد إنشاء الحسابات والعضويات المعتمد في الواجهة',
+    })
+  })
 })

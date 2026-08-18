@@ -4,7 +4,6 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { formatArabicDateWithWeekday } from '../../../shared/utils/date'
 import { formatMoneyAmount } from '../../../shared/utils/money'
 import { listCourts } from '../../courts/courtsApi'
@@ -93,11 +92,6 @@ export function RecurringAgreementsListPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="الحجوزات الأسبوعية"
-        description="متابعة اتفاقات الحجز الأسبوعي والتأمين"
-      />
-
       {isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">

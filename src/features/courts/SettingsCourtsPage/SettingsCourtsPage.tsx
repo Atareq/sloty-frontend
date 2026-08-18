@@ -5,7 +5,6 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { listCourts } from '../courtsApi'
 import type { Court } from '../courts.types'
 
@@ -57,12 +56,6 @@ export function SettingsCourtsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        description="إدارة أسعار ومواعيد عمل ملاعب النادي المحدد"
-        tone="brand"
-        title="إعدادات الملاعب"
-      />
-
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">

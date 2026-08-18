@@ -9,7 +9,6 @@ import type { ApiFieldError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import {
   formatArabicDateTime,
   formatArabicDateWithWeekday,
@@ -204,11 +203,6 @@ export function RecurringAgreementDetailsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="تفاصيل الحجز الأسبوعي"
-        description="مراجعة الاتفاق والتأمين والإلغاء"
-      />
-
       {isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">

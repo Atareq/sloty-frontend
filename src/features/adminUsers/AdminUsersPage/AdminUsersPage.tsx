@@ -5,7 +5,7 @@ import { useAppViewMode } from '../../../layout/AppShell/AppShell.viewMode'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import { toQueryObject } from '../../../shared/utils/queryParams'
@@ -321,16 +321,11 @@ export function AdminUsersPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          <Link to={appRoutes.adminUserNew}>
-            <AppButton>إضافة مستخدم</AppButton>
-          </Link>
-        }
-        description="إدارة حسابات المنصة وعضويات الأندية"
-        title="إدارة المستخدمين"
-        tone="brand"
-      />
+      <PageActions>
+        <Link to={appRoutes.adminUserNew}>
+          <AppButton>إضافة مستخدم</AppButton>
+        </Link>
+      </PageActions>
 
       {viewMode === 'desktop' ? (
         <AppCard>

@@ -16,20 +16,33 @@ export function BookingFilterChips({
   return (
     <div className="flex flex-wrap gap-2">
       {chips.map((chip) => (
-        <span
-          className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]"
+        <button
+          aria-label={`إزالة فلتر ${chip.label}`}
+          className="
+            inline-flex items-center gap-2 rounded-full
+            bg-[var(--sloty-soft-mint)]
+            px-3 py-1
+            text-xs font-black
+            text-[var(--sloty-primary-dark)]
+            transition
+            hover:bg-[var(--sloty-primary)]/15
+            focus:outline-none
+            focus:ring-2
+            focus:ring-[var(--sloty-primary)]/30
+          "
           key={chip.key}
+          onClick={() => onRemove(chip.key)}
+          type="button"
         >
-          {chip.label}
-          <button
-            aria-label={`إزالة فلتر ${chip.label}`}
-            className="rounded-full px-1 text-sm leading-none hover:bg-white/70"
-            onClick={() => onRemove(chip.key)}
-            type="button"
+          <span>{chip.label}</span>
+
+          <span
+            aria-hidden="true"
+            className="text-sm leading-none"
           >
             ×
-          </button>
-        </span>
+          </span>
+        </button>
       ))}
     </div>
   )

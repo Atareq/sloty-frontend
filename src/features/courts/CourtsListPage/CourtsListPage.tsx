@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { listCourts } from '../courtsApi'
 import type { Court } from '../courts.types'
 
@@ -59,14 +59,9 @@ export function CourtsListPage() {
 
   return (
     <div className="space-y-5">
-    <PageHeader
-      tone="brand"
-      actions={
+      <PageActions>
         <div className="grid w-full max-w-sm grid-cols-2 gap-2 sm:flex sm:w-auto sm:max-w-none">
-          <Link
-            className="min-w-0 sm:w-auto"
-            to="/admin/clubs"
-          >
+          <Link className="min-w-0 sm:w-auto" to="/admin/clubs">
             <AppButton fullWidth>
               الأندية
             </AppButton>
@@ -83,10 +78,7 @@ export function CourtsListPage() {
             </Link>
           ) : null}
         </div>
-      }
-      description={clubSlug ? `ملاعب النادي: ${clubSlug}` : undefined}
-      title="إدارة الملاعب"
-    />
+      </PageActions>
       {isLoading ? (
         <AppCard>
           <p className="text-sm text-[var(--sloty-text-muted)]">

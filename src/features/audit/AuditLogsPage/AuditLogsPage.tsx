@@ -4,7 +4,6 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
@@ -207,12 +206,6 @@ export function AuditLogsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        description="متابعة التغييرات المهمة داخل النادي"
-        tone="brand"
-        title="سجل النشاطات"
-      />
-
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">

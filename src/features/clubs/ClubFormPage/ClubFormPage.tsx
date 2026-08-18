@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
   getApiErrorMessage,
@@ -8,7 +8,7 @@ import {
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
 import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
@@ -64,10 +64,6 @@ export function ClubFormPage() {
   const selectedGovernorate = findGovernorateByCode(
     locations,
     formState.governorate,
-  )
-  const title = useMemo(
-    () => (isCreateMode ? 'إضافة نادي' : 'تعديل النادي'),
-    [isCreateMode],
   )
   const nameFieldError = getFirstFieldErrorMessage(fieldErrors, 'name')
   const slugFieldError = getFirstFieldErrorMessage(fieldErrors, 'slug')
@@ -223,21 +219,13 @@ export function ClubFormPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        tone="brand"
-        actions={
-          <Link
-            className="w-full sm:w-auto"
-            to="/admin/clubs"
-          >
-            <AppButton fullWidth variant="secondary">
-              العودة للأندية
-            </AppButton>
-          </Link>
-        }
-        description="بيانات النادي الأساسية."
-        title={title}
-      />
+      <PageActions>
+        <Link className="w-full sm:w-auto" to="/admin/clubs">
+          <AppButton fullWidth variant="secondary">
+            العودة للأندية
+          </AppButton>
+        </Link>
+      </PageActions>
       <AppCard>
         {isLoading || isLocationsLoading ? (
           <p className="text-sm text-[var(--sloty-text-muted)]">

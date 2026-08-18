@@ -3,6 +3,7 @@
 This file is a short implementation reference for the current Sloty React frontend.
 
 Source-of-truth order:
+- Current local working tree, including approved staged/unstaged UI changes
 - Current source code
 - `AGENTS.md`
 - This file
@@ -39,6 +40,8 @@ Source-of-truth order:
 - Egypt location dropdowns for club address
 - International phone input with E.164 payload submission
 - Court working hours setup through nested per-court weekly API
+- Premium in-app Schedule date navigation through `AppDateNavigator`
+- Shared product dropdown foundation through `AppSelect`
 - Club-user court settings for pricing and working-hours permissions
 - Booking Board read-only slots
 - Manual booking creation
@@ -86,7 +89,10 @@ Source-of-truth order:
 
 ## UI Rules
 
-- Use shared `PageHeader` by default for new pages
+- Authenticated pages receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header.
+- Feature-specific page buttons use the shared layout-only `PageActions` component when they need to sit below the shell header.
+- Product-facing dropdowns use shared `AppSelect` instead of native browser select menus where practical.
+- Active filter chips are fully clickable removable buttons, not nested icon-only controls.
 - Reuse shared `AppCard` and `AppButton` patterns
 - Keep the green brand system, rounded cards, consistent spacing, and responsive layouts
 - New pages should look like part of one product, not separate prototypes
@@ -101,7 +107,7 @@ Source-of-truth order:
 
 - Sprint 6 settlement foundation is implemented for review, confirmation, history, and detail.
 - Settlement pages use `selectedClubSlug`; owner can settle, and manager access depends on `can_manage_settlements`.
-- Settlement review and confirmation both post to `clubs/{club_slug}/settlements/`: review sends `{ collected_by, dry_run: true }`, and confirmation sends `{ collected_by, dry_run: false, notes? }`.
+- Settlement preview uses `GET clubs/{club_slug}/settlements/preview/`; confirmation posts `{ collected_by, court?, notes? }` to `clubs/{club_slug}/settlements/`.
 - Settled transactions are shown as locked/read-only. Cancelled transactions remain visible and are not manually counted in frontend totals.
 
 ## Dashboard, Reports, And Audit Logs
@@ -116,8 +122,17 @@ Source-of-truth order:
 - Working hours now use `clubs/{club_slug}/courts/{court_id}/working-hours/`.
 - The old flat `court-working-hours/` endpoint is removed from frontend usage.
 - Court settings saves the full weekly schedule with PUT using numeric weekdays (`0` Monday through `6` Sunday).
-- Working Hours V2 uses native time inputs for multiple same-day `blocks` instead of `opens_at`/`closes_at`.
-- Overnight working-hour blocks are not supported in this version, and Booking Board generates slots from blocks.
+- Working Hours uses period-based `pricing_periods` rows instead of `opens_at`/`closes_at`.
+- Overnight working-hour ranges are not supported in this version, and Booking Board uses backend-generated slots.
+
+## Schedule Date UX
+
+- Schedule uses `AppDateNavigator` as the primary date selector, not a native browser date input.
+- The navigator has a rolling 7-day strip, a fully clickable date trigger, and an in-app `@daypicker/react` calendar with Lucide icons.
+- Mobile calendar presentation behaves like a bottom sheet; desktop behaves like a compact modal.
+- Selecting a visible date changes only the selected date. Selecting a calendar date outside the visible range rebuilds the range from that date.
+- Selected days use Sloty's rounded green treatment. Today uses a subtle amber HOLD-palette marker unless selected green is the primary state.
+- Schedule controls are organized as title/Court selector, then date navigation, then the lower-weight status legend.
 
 ## Transactions
 

@@ -12,7 +12,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@daypicker/react": "^10.0.1",
     "@tailwindcss/vite": "^4.3.2",
+    "lucide-react": "^1.32.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-phone-number-input": "^3.4.17",

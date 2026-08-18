@@ -55,7 +55,8 @@ export function ClubSelectionPage() {
     <main className="min-h-screen bg-[var(--sloty-bg)] px-4 py-6 text-right sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <PageHeader
-          description="اختر النادي الذي تريد العمل عليه"
+          showMenuButton={false}
+          subtitle="اختر النادي الذي تريد العمل عليه"
           title="اختيار النادي"
         />
 

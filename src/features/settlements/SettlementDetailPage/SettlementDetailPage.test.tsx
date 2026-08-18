@@ -115,11 +115,7 @@ describe('SettlementDetailPage', () => {
   it('renders collected-by settlement detail with display-only backend period', async () => {
     renderPage()
 
-    expect(
-      await screen.findByText(
-        'الفترة المعروضة يتم تحديدها تلقائيًا من أول معاملة داخلة في التسوية حتى وقت تأكيد التسوية.',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('رقم التسوية')).toBeInTheDocument()
     expect(screen.getByText('Ahmed Staff')).toBeInTheDocument()
     expect(screen.getByText('2000.00')).toBeInTheDocument()
     expect(screen.getByText('Shift settlement')).toBeInTheDocument()

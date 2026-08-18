@@ -8,13 +8,12 @@ import {
 } from '../../core/auth/auth.types'
 import { useAuth } from '../../core/auth/useAuth'
 import { MobileBottomNav } from '../../shared/components/MobileBottomNav/MobileBottomNav'
-import { PageHeaderSuppressionProvider } from '../../shared/components/PageHeader/PageHeader'
+import { PageHeader } from '../../shared/components/PageHeader/PageHeader'
 import {
   getNavigationItemsForRole,
   getPageHeaderMeta,
   type NavigationItem,
 } from '../../shared/navigation/navigation.config'
-import { UnifiedPageHeader } from '../UnifiedPageHeader/UnifiedPageHeader'
 import { AppViewModeContext, type ViewMode } from './AppShell.viewMode'
 
 const viewModeStorageKey = 'sloty:view-mode'
@@ -311,7 +310,7 @@ export function AppShell() {
           'transition-[padding]',
         ].join(' ')}
       >
-        <UnifiedPageHeader
+        <PageHeader
           clubName={selectedClubName}
           onMenuClick={handleOpenMenu}
           showMenuButton={isDrawerAllowed}
@@ -345,9 +344,7 @@ export function AppShell() {
               </div>
             ) : null}
             <AppViewModeContext.Provider value={viewMode}>
-              <PageHeaderSuppressionProvider suppress>
-                <Outlet />
-              </PageHeaderSuppressionProvider>
+              <Outlet />
             </AppViewModeContext.Provider>
           </div>
         </main>

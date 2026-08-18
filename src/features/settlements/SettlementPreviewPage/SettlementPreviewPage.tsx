@@ -9,7 +9,7 @@ import { canManageSettlements } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { ConfirmSettlementDialog } from '../components/ConfirmSettlementDialog/ConfirmSettlementDialog'
 import { SettlementPreviewContent } from '../components/SettlementPreviewContent/SettlementPreviewContent'
@@ -226,20 +226,11 @@ export function SettlementPreviewPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          <Link to="/settlements">
-            <AppButton variant="secondary">رجوع إلى التسويات</AppButton>
-          </Link>
-        }
-        description={
-          preview
-            ? `${preview.collected_by_name} · مراجعة الدفعات غير المسواة`
-            : 'مراجعة الدفعات غير المسواة قبل تأكيد التسوية'
-        }
-        tone="brand"
-        title="مراجعة التسوية"
-      />
+      <PageActions>
+        <Link to="/settlements">
+          <AppButton variant="secondary">رجوع إلى التسويات</AppButton>
+        </Link>
+      </PageActions>
 
       {!selectedClubSlug ? (
         <AppCard>

@@ -11,7 +11,7 @@ import {
 } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
 import { getCourt, updateCourt } from '../courtsApi'
 import type { Court } from '../courts.types'
@@ -151,16 +151,11 @@ export function SettingsCourtDetailsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          <Link to="/settings/courts">
-            <AppButton variant="secondary">العودة للملاعب</AppButton>
-          </Link>
-        }
-        description="تعديل فترات العمل والأسعار وسياسة الحجز حسب صلاحيات عضويتك"
-        tone="brand"
-        title={court?.name ?? 'إعدادات الملعب'}
-      />
+      <PageActions>
+        <Link to="/settings/courts">
+          <AppButton variant="secondary">العودة للملاعب</AppButton>
+        </Link>
+      </PageActions>
 
       {isLoading ? (
         <AppCard>

@@ -4,7 +4,7 @@ import { isApiClientError } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import {
   updateMembershipActivity,
@@ -268,16 +268,11 @@ export function AdminUserDetailsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          <Link to={appRoutes.adminUsers}>
-            <AppButton variant="secondary">رجوع للمستخدمين</AppButton>
-          </Link>
-        }
-        description="تفاصيل الحساب والعضويات كما يرسلها الخادم."
-        title="تفاصيل المستخدم"
-        tone="brand"
-      />
+      <PageActions>
+        <Link to={appRoutes.adminUsers}>
+          <AppButton variant="secondary">رجوع للمستخدمين</AppButton>
+        </Link>
+      </PageActions>
 
       {isLoading ? (
         <AppCard>

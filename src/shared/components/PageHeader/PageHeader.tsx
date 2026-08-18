@@ -1,81 +1,62 @@
-import { createContext, useContext, type ReactNode } from 'react'
-
 export interface PageHeaderProps {
   title: string
-  description?: string
-  actions?: ReactNode
-  tone?: 'default' | 'brand'
-}
-
-const PageHeaderSuppressionContext = createContext(false)
-
-export interface PageHeaderSuppressionProviderProps {
-  children: ReactNode
-  suppress: boolean
-}
-
-export function PageHeaderSuppressionProvider({
-  children,
-  suppress,
-}: PageHeaderSuppressionProviderProps) {
-  return (
-    <PageHeaderSuppressionContext.Provider value={suppress}>
-      {children}
-    </PageHeaderSuppressionContext.Provider>
-  )
+  subtitle?: string
+  clubName?: string | null
+  showMenuButton?: boolean
+  onMenuClick?: () => void
 }
 
 /**
- * Reusable page header with Sloty's Arabic-first hierarchy.
+ * Canonical Sloty page header.
  *
- * Keep it lightweight so feature pages can decide which actions and summary
- * content belong near the heading.
+ * AppShell provides route metadata and selected-club context so this shared
+ * component stays presentational and does not depend on auth or routing hooks.
  */
 export function PageHeader({
   title,
-  description,
-  actions,
-  tone = 'default',
+  subtitle,
+  clubName,
+  showMenuButton = true,
+  onMenuClick,
 }: PageHeaderProps) {
-  const suppressPageHeader = useContext(PageHeaderSuppressionContext)
+  return (
+    <header
+      className="sloty-green-surface rounded-b-3xl px-4 pb-5 pt-4 text-white shadow-[var(--sloty-shadow)] sm:px-6 sm:pt-5"
+      dir="rtl"
+    >
+      <div className="mx-auto flex w-full max-w-7xl items-start justify-between gap-4">
+        {showMenuButton ? (
+          <button
+            aria-label="فتح القائمة"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/12 text-white transition hover:bg-white/18 focus:outline-none focus:ring-2 focus:ring-white/70"
+            onClick={onMenuClick}
+            type="button"
+          >
+            <span className="flex w-6 flex-col gap-1.5" aria-hidden="true">
+              <span className="h-0.5 rounded-full bg-current" />
+              <span className="h-0.5 rounded-full bg-current" />
+              <span className="h-0.5 rounded-full bg-current" />
+            </span>
+          </button>
+        ) : null}
 
-  if (suppressPageHeader) {
-    return actions ? (
-      <div className="flex flex-wrap justify-end gap-2">{actions}</div>
-    ) : null
-  }
-
-  if (tone === 'brand') {
-    return (
-      <header className="sloty-green-surface relative overflow-hidden rounded-3xl border border-emerald-950/10 p-5 text-white shadow-[var(--sloty-shadow)] sm:flex sm:items-start sm:justify-between sm:gap-6 sm:p-6">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-black">{title}</h1>
-          {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-white/82">
-              {description}
+        <div className="min-w-0 flex-1 space-y-2">
+          <p className="text-base font-black">Sloty</p>
+          {clubName ? (
+            <p className="text-xs font-bold leading-5 text-white/75">
+              النادي الحالي: {clubName}
             </p>
           ) : null}
+          <div className="space-y-1 pt-1">
+            <h1 className="text-2xl font-black leading-9">{title}</h1>
+            {subtitle ? (
+              <p className="text-sm font-bold leading-6 text-white/75">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
         </div>
-        {actions ? (
-          <div className="mt-4 flex shrink-0 gap-2 sm:mt-0">{actions}</div>
-        ) : null}
-      </header>
-    )
-  }
-
-  return (
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-[var(--sloty-text-primary)]">
-          {title}
-        </h1>
-        {description ? (
-          <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            {description}
-          </p>
-        ) : null}
       </div>
-      {actions ? <div className="flex shrink-0 gap-2">{actions}</div> : null}
     </header>
   )
 }

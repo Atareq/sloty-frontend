@@ -274,9 +274,8 @@ describe('ReportsPage', () => {
 
     renderReportsPage()
 
-    expect(await screen.findByRole('heading', {
-      name: 'التقارير الاستهلاكية للملاعب',
-    })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'عرض التقرير' }))
+      .toBeInTheDocument()
     expect(screen.queryByText('ليس لديك صلاحية عرض التقارير'))
       .not.toBeInTheDocument()
   })
@@ -523,8 +522,7 @@ describe('ReportsPage', () => {
   it('removes old generic report UI concepts', async () => {
     renderReportsPage()
 
-    expect(await screen.findByText('التقارير الاستهلاكية للملاعب'))
-      .toBeInTheDocument()
+    expect(await screen.findByText('من تاريخ')).toBeInTheDocument()
     expect(screen.queryByText('طريقة الدفع')).not.toBeInTheDocument()
     expect(screen.queryByText('حسب طريقة الدفع')).not.toBeInTheDocument()
     expect(screen.queryByText('المعاملات')).not.toBeInTheDocument()

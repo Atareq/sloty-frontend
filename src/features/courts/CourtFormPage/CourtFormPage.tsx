@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
   getApiErrorMessage,
@@ -8,7 +8,7 @@ import {
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
 import { createCourt, getCourt, updateCourt } from '../courtsApi'
 import type { CourtPayload } from '../courts.types'
@@ -117,10 +117,6 @@ export function CourtFormPage() {
   > | null>(null)
   const [isLoading, setIsLoading] = useState(Boolean(clubSlug && !isCreateMode))
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const title = useMemo(
-    () => (isCreateMode ? 'إضافة ملعب' : 'تعديل الملعب'),
-    [isCreateMode],
-  )
   const nameFieldError = getFirstFieldErrorMessage(fieldErrors, 'name')
   const defaultPriceFieldError = getFirstFieldErrorMessage(
     fieldErrors,
@@ -280,17 +276,13 @@ export function CourtFormPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        actions={
-          clubSlug ? (
-            <Link to={`/admin/clubs/${clubSlug}/courts`}>
-              <AppButton variant="secondary">العودة للملاعب</AppButton>
-            </Link>
-          ) : null
-        }
-        description="بيانات الملعب الأساسية التي يعتمد عليها جدول الحجز لاحقاً."
-        title={title}
-      />
+      {clubSlug ? (
+        <PageActions>
+          <Link to={`/admin/clubs/${clubSlug}/courts`}>
+            <AppButton variant="secondary">العودة للملاعب</AppButton>
+          </Link>
+        </PageActions>
+      ) : null}
 
       <AppCard>
         {isLoading ? (

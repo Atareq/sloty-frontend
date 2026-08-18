@@ -5,7 +5,6 @@ import { isApiClientError } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
@@ -341,12 +340,6 @@ export function AdminUserFormPage() {
 
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
-      <PageHeader
-        description="استخدم نفس عقد إنشاء الحسابات والعضويات المعتمد في الواجهة."
-        title="إضافة مستخدم"
-        tone="brand"
-      />
-
       {error ? (
         <AppCard>
           <p className="text-sm font-semibold text-[var(--sloty-danger)]">

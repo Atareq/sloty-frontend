@@ -10,7 +10,6 @@ import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import {
   buildPathWithQuery,
   type QueryParamValue,
@@ -472,12 +471,6 @@ export function SettlementsHubPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        description="مراجعة وتسوية دفعات الموظفين"
-        tone="brand"
-        title="التسويات المالية والجرد"
-      />
-
       {isOwnMode ? (
         <AppCard className="space-y-4">
           <div>

@@ -69,6 +69,7 @@ import {
   type BookingCancellationPreview,
   type BookingListItem,
 } from '../scheduleApi.types'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 
 const BOOKING_CANCELLATION_TIME_PASSED = 'BOOKING_CANCELLATION_TIME_PASSED'
 const FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT = 'FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT'
@@ -831,20 +832,19 @@ export function SchedulePage() {
               value={selectedDate}
             />
             {canChooseCourt && courts.length > 1 ? (
-              <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                <span>الملعب</span>
-                <select
-                  className="h-10 rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-bold text-[var(--sloty-text-primary)]"
-                  onChange={(event) => handleCourtChange(event.target.value)}
-                  value={selectedCourtId ?? ''}
-                >
-                  {courts.map((court) => (
-                    <option key={court.id} value={court.id}>
-                      {court.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <AppSelect
+              label="الملعب"
+              onChange={handleCourtChange}
+              options={courts.map((court) => ({
+                value: String(court.id),
+                label: court.name || `ملعب #${court.id}`,
+              }))}
+              value={
+                selectedCourtId !== null
+                  ? String(selectedCourtId)
+                  : ''
+              }
+            />
             ) : null}
             <div className="flex flex-wrap gap-2">
               {statusLegend.map((item) => (

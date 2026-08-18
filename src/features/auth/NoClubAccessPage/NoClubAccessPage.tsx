@@ -13,7 +13,8 @@ export function NoClubAccessPage() {
     <main className="min-h-screen bg-[var(--sloty-bg)] px-4 py-6 text-right sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         <PageHeader
-          description="لا يوجد لديك صلاحية للوصول إلى أي نادي حتى الآن."
+          showMenuButton={false}
+          subtitle="لا يوجد لديك صلاحية للوصول إلى أي نادي حتى الآن."
           title="لا توجد صلاحية نادي"
         />
 

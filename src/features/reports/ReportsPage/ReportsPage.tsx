@@ -4,7 +4,6 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import {
@@ -466,12 +465,6 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        description="تحليل إشغال الملاعب والطلب حسب الفترة والموظف"
-        tone="brand"
-        title="التقارير الاستهلاكية للملاعب"
-      />
-
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">

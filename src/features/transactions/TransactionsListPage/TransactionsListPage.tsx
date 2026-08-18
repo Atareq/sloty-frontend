@@ -13,7 +13,6 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
-import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import {
@@ -521,7 +520,6 @@ export function TransactionsListPage() {
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [collectorOptions, setCollectorOptions] = useState<FilterOption[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
-  const selectedClubName = selectedMembership?.club.name ?? null
   const filterLabelMaps = useMemo<FilterLabelMaps>(
     () => ({
       collectorLabels: Object.fromEntries(
@@ -765,16 +763,6 @@ export function TransactionsListPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        description={
-          selectedClubName
-            ? `سجل المدفوعات المسجلة داخل ${selectedClubName}`
-            : 'سجل بسيط للمدفوعات المسجلة على حجوزات النادي النشط'
-        }
-        tone="brand"
-        title="المعاملات"
-      />
-
       <div className="flex gap-2 overflow-x-auto pb-1">
         <AppButton onClick={handleQuickLastSevenDays} type="button" variant="secondary">
           آخر 7 أيام

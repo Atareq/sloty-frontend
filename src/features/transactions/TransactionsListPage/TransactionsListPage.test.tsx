@@ -189,9 +189,7 @@ describe('TransactionsListPage', () => {
       'nasr-club',
       defaultFilters,
     )
-    expect(
-      screen.getByText('سجل المدفوعات المسجلة داخل نادي النصر'),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'فلترة' })).toBeInTheDocument()
   })
 
   it('keeps staff transactions court-scoped without creator filtering', async () => {
