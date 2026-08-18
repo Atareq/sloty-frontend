@@ -5,6 +5,7 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type {
   PaymentMethod,
@@ -129,23 +130,16 @@ export function RecordPaymentSheet({
             </p>
           ) : null}
 
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>طريقة الدفع</span>
-            <select
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-              disabled={isSubmitting}
-              onChange={(event) =>
-                setPaymentMethod(event.target.value as PaymentMethod)
-              }
-              value={paymentMethod}
-            >
-              {Object.entries(paymentMethodLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AppSelect
+            disabled={isSubmitting}
+            label="طريقة الدفع"
+            onChange={(value) => setPaymentMethod(value as PaymentMethod)}
+            options={Object.entries(paymentMethodLabels).map(([value, label]) => ({
+              value,
+              label,
+            }))}
+            value={paymentMethod}
+          />
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>رقم العملية</span>

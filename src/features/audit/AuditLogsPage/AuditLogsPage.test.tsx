@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import { listAuditLogs } from '../auditApi'
 import { AuditLogsPage } from './AuditLogsPage'
@@ -169,11 +170,15 @@ describe('AuditLogsPage', () => {
   })
 
   it('loads club users into the user filter with backend ids as option values', async () => {
+    const user = userEvent.setup()
+
     renderAuditLogsPage()
 
     const userSelect = await screen.findByLabelText('المستخدم')
 
-    expect(screen.getByRole('option', { name: 'كل المستخدمين' }))
+    await user.click(userSelect)
+
+    expect(await screen.findByRole('option', { name: 'كل المستخدمين' }))
       .toHaveValue('')
     expect(screen.getByRole('option', { name: 'محمود حسن' }))
       .toHaveValue('7')
@@ -186,7 +191,12 @@ describe('AuditLogsPage', () => {
   })
 
   it('preserves deep-linked unknown user ids with a fallback option', async () => {
+    const user = userEvent.setup()
+
     renderAuditLogsPage('/audit-logs?actor=15')
+
+    const userSelect = await screen.findByLabelText('المستخدم')
+    await user.click(userSelect)
 
     expect(await screen.findByRole('option', { name: 'مستخدم #15' }))
       .toHaveValue('15')
@@ -203,7 +213,9 @@ describe('AuditLogsPage', () => {
 
     const actionSelect = await screen.findByLabelText('نوع الإجراء')
 
-    expect(screen.getByRole('option', { name: 'كل الإجراءات' }))
+    await user.click(actionSelect)
+
+    expect(await screen.findByRole('option', { name: 'كل الإجراءات' }))
       .toHaveValue('')
     expect(screen.getByRole('option', { name: 'إلغاء معاملة مالية' }))
       .toHaveValue('TRANSACTION_CANCELLED')
@@ -211,7 +223,8 @@ describe('AuditLogsPage', () => {
       .toHaveValue('SETTLEMENT_MARKED_SETTLED')
     expect(screen.queryByText('TRANSACTION_CANCELLED')).not.toBeInTheDocument()
 
-    await user.selectOptions(actionSelect, 'TRANSACTION_CANCELLED')
+    await user.click(actionSelect)
+    await chooseAppSelectOption(user, actionSelect, 'إلغاء معاملة مالية')
     await user.click(screen.getByRole('button', { name: 'تحديث السجل' }))
 
     expect(screen.getByTestId('location')).toHaveTextContent(
@@ -223,12 +236,16 @@ describe('AuditLogsPage', () => {
   })
 
   it('preserves unknown deep-linked action values', async () => {
+    const user = userEvent.setup()
+
     renderAuditLogsPage('/audit-logs?action=NEW_BACKEND_ACTION')
 
-    expect(await screen.findByLabelText('نوع الإجراء')).toHaveValue(
-      'NEW_BACKEND_ACTION',
-    )
-    expect(screen.getByRole('option', { name: 'New Backend Action' }))
+    const actionSelect = await screen.findByLabelText('نوع الإجراء')
+    expect(actionSelect).toHaveValue('NEW_BACKEND_ACTION')
+
+    await user.click(actionSelect)
+
+    expect(await screen.findByRole('option', { name: 'New Backend Action' }))
       .toHaveValue('NEW_BACKEND_ACTION')
     expect(mockedListAuditLogs).toHaveBeenCalledWith('nasr-club', {
       action: 'NEW_BACKEND_ACTION',

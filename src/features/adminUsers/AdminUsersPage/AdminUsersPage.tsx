@@ -4,6 +4,7 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAppViewMode } from '../../../layout/AppShell/AppShell.viewMode'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
@@ -44,6 +45,25 @@ const roleLabels: Record<string, string> = {
   MANAGER: 'مدير',
   STAFF: 'موظف',
 }
+
+const accountTypeFilterOptions = [
+  { value: '', label: 'كل الحسابات' },
+  { value: 'PLATFORM_ADMIN', label: 'مسؤول منصة' },
+  { value: 'CLUB_USER', label: 'مستخدم نادي' },
+]
+
+const roleFilterOptions = [
+  { value: '', label: 'كل الأدوار' },
+  { value: 'OWNER', label: 'مالك' },
+  { value: 'MANAGER', label: 'مدير' },
+  { value: 'STAFF', label: 'موظف' },
+]
+
+const accountStatusFilterOptions = [
+  { value: '', label: 'كل الحالات' },
+  { value: 'true', label: 'نشط' },
+  { value: 'false', label: 'غير نشط' },
+]
 
 function getMemberships(
   user: PlatformUser,
@@ -178,61 +198,39 @@ function AdminUsersFilterForm({
         />
       </label>
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>نوع الحساب</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateValue('account_type', event.target.value)}
-          value={values.account_type}
-        >
-          <option value="">كل الحسابات</option>
-          <option value="PLATFORM_ADMIN">مسؤول منصة</option>
-          <option value="CLUB_USER">مستخدم نادي</option>
-        </select>
-      </label>
+      <AppSelect
+        label="نوع الحساب"
+        onChange={(value) => updateValue('account_type', value)}
+        options={accountTypeFilterOptions}
+        value={values.account_type}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>النادي</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateValue('club', event.target.value)}
-          value={values.club}
-        >
-          <option value="">كل الأندية</option>
-          {clubs.map((club) => (
-            <option key={club.id} value={club.id}>
-              {club.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        label="النادي"
+        onChange={(value) => updateValue('club', value)}
+        options={[
+          { value: '', label: 'كل الأندية' },
+          ...clubs.map((club) => ({
+            value: String(club.id),
+            label: club.name,
+          })),
+        ]}
+        value={values.club}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الدور</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateValue('role', event.target.value)}
-          value={values.role}
-        >
-          <option value="">كل الأدوار</option>
-          <option value="OWNER">مالك</option>
-          <option value="MANAGER">مدير</option>
-          <option value="STAFF">موظف</option>
-        </select>
-      </label>
+      <AppSelect
+        label="الدور"
+        onChange={(value) => updateValue('role', value)}
+        options={roleFilterOptions}
+        value={values.role}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>حالة الحساب</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateValue('is_active', event.target.value)}
-          value={values.is_active}
-        >
-          <option value="">كل الحالات</option>
-          <option value="true">نشط</option>
-          <option value="false">غير نشط</option>
-        </select>
-      </label>
+      <AppSelect
+        label="حالة الحساب"
+        onChange={(value) => updateValue('is_active', value)}
+        options={accountStatusFilterOptions}
+        value={values.is_active}
+      />
 
       <div className="flex items-end">
         <AppButton fullWidth type="submit">

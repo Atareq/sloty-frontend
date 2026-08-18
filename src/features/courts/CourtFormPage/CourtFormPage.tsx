@@ -8,6 +8,7 @@ import {
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
 import { createCourt, getCourt, updateCourt } from '../courtsApi'
@@ -63,6 +64,23 @@ const initialFormState: CourtFormState = {
   internal_hold_expiry_hours: '12',
   notes: '',
 }
+
+const slotDurationOptions = [
+  { value: '30', label: '30 دقيقة' },
+  { value: '45', label: '45 دقيقة' },
+  { value: '60', label: 'ساعة واحدة' },
+  { value: '90', label: 'ساعة ونصف' },
+  { value: '120', label: 'ساعتان' },
+]
+
+const holdExpiryOptions = [
+  { value: '1', label: 'ساعة واحدة' },
+  { value: '2', label: 'ساعتان' },
+  { value: '6', label: '6 ساعات' },
+  { value: '12', label: '12 ساعة' },
+  { value: '16', label: '16 ساعة' },
+  { value: '24', label: '24 ساعة' },
+]
 
 const inputClass =
   'h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15'
@@ -408,22 +426,13 @@ export function CourtFormPage() {
               </p>
             ) : null}
 
-            <label className="block space-y-2 text-sm font-semibold">
-              <span>مدة الفترة الواحدة</span>
-
-              <select
-                className={inputClass}
-                onChange={(event) =>
-                  updateField('slot_duration_minutes', event.target.value)
-                }
+            <label className="block space-y-2">
+              <AppSelect
+                label="مدة الفترة الواحدة"
+                onChange={(value) => updateField('slot_duration_minutes', value)}
+                options={slotDurationOptions}
                 value={formState.slot_duration_minutes}
-              >
-                <option value="30">30 دقيقة</option>
-                <option value="45">45 دقيقة</option>
-                <option value="60">ساعة واحدة</option>
-                <option value="90">ساعة ونصف</option>
-                <option value="120">ساعتان</option>
-              </select>
+              />
 
               <span className="block text-xs font-normal text-gray-500">
                 يتم حفظ مدة الفترة ولا يمكن تغييرها بعد ذلك.
@@ -434,23 +443,15 @@ export function CourtFormPage() {
                 {slotDurationFieldError}
               </p>
             ) : null}
-            <label className="block space-y-2 text-sm font-semibold">
-              <span>مدة الاحتفاظ بالحجز بدون دفع</span>
-
-              <select
-                className={inputClass}
-                onChange={(event) =>
-                  updateField('internal_hold_expiry_hours', event.target.value)
+            <label className="block space-y-2">
+              <AppSelect
+                label="مدة الاحتفاظ بالحجز بدون دفع"
+                onChange={(value) =>
+                  updateField('internal_hold_expiry_hours', value)
                 }
+                options={holdExpiryOptions}
                 value={formState.internal_hold_expiry_hours}
-              >
-                <option value="1">ساعة واحدة</option>
-                <option value="2">ساعتان</option>
-                <option value="6">6 ساعات</option>
-                <option value="12">12 ساعة</option>
-                <option value="16">16 ساعة</option>
-                <option value="24">24 ساعة</option>
-              </select>
+              />
 
               <span className="block text-xs font-normal text-gray-500">
                 المدة التي يظل فيها الحجز محفوظاً قبل إلغائه في حالة عدم الدفع.

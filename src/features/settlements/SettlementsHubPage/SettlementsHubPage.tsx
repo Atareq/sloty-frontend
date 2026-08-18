@@ -9,6 +9,7 @@ import { useAuth } from '../../../core/auth/useAuth'
 import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import {
   buildPathWithQuery,
@@ -46,6 +47,13 @@ const statusLabels: Record<string, string> = {
   SETTLED: 'مسواة',
   CANCELLED: 'ملغاة',
 }
+
+const settlementStatusFilterOptions = [
+  { value: '', label: 'كل الحالات' },
+  { value: 'PENDING', label: 'قيد المراجعة' },
+  { value: 'SETTLED', label: 'مسواة' },
+  { value: 'CANCELLED', label: 'ملغاة' },
+]
 
 function parseSettlementQuery(search: string): SettlementQueryParams {
   const queryObject = toQueryObject(search)
@@ -173,68 +181,62 @@ function SettlementFiltersForm({
     onClose?.()
   }
 
+  const userFilterOptions = [
+    { value: '', label: 'كل الموظفين' },
+    ...(localFilters.collected_by
+    && !users.some((user) => String(user.id) === localFilters.collected_by)
+      ? [
+        {
+          value: localFilters.collected_by,
+          label: `الموظف #${localFilters.collected_by}`,
+        },
+      ]
+      : []),
+    ...users.map((user) => ({
+      value: String(user.id),
+      label: getUserName(user),
+    })),
+  ]
+
+  const courtFilterOptions = [
+    { value: '', label: 'كل الملاعب' },
+    ...(localFilters.court
+    && !courts.some((court) => String(court.id) === localFilters.court)
+      ? [{ value: localFilters.court, label: `ملعب #${localFilters.court}` }]
+      : []),
+    ...courts.map((court) => ({
+      value: String(court.id),
+      label: court.name,
+    })),
+  ]
+
   return (
     <form
       className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
       onSubmit={handleSubmit}
     >
-      <label className="space-y-2 text-sm font-semibold">
-        <span>الموظف المحصل</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          disabled={isLoadingFilters}
-          onChange={(event) => updateFilter('collected_by', event.target.value)}
-          value={localFilters.collected_by}
-        >
-          <option value="">كل الموظفين</option>
-          {localFilters.collected_by
-          && !users.some((user) => String(user.id) === localFilters.collected_by) ? (
-            <option value={localFilters.collected_by}>
-              الموظف #{localFilters.collected_by}
-            </option>
-          ) : null}
-          {users.map((user) => (
-            <option key={user.membership_id} value={user.id}>
-              {getUserName(user)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        disabled={isLoadingFilters}
+        label="الموظف المحصل"
+        onChange={(value) => updateFilter('collected_by', value)}
+        options={userFilterOptions}
+        value={localFilters.collected_by}
+      />
 
-      <label className="space-y-2 text-sm font-semibold">
-        <span>الحالة</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('status', event.target.value)}
-          value={localFilters.status}
-        >
-          <option value="">كل الحالات</option>
-          <option value="PENDING">قيد المراجعة</option>
-          <option value="SETTLED">مسواة</option>
-          <option value="CANCELLED">ملغاة</option>
-        </select>
-      </label>
+      <AppSelect
+        label="الحالة"
+        onChange={(value) => updateFilter('status', value)}
+        options={settlementStatusFilterOptions}
+        value={localFilters.status}
+      />
 
-      <label className="space-y-2 text-sm font-semibold">
-        <span>الملعب</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          disabled={isLoadingFilters}
-          onChange={(event) => updateFilter('court', event.target.value)}
-          value={localFilters.court}
-        >
-          <option value="">كل الملاعب</option>
-          {localFilters.court
-          && !courts.some((court) => String(court.id) === localFilters.court) ? (
-            <option value={localFilters.court}>ملعب #{localFilters.court}</option>
-          ) : null}
-          {courts.map((court) => (
-            <option key={court.id} value={court.id}>
-              {court.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        disabled={isLoadingFilters}
+        label="الملعب"
+        onChange={(value) => updateFilter('court', value)}
+        options={courtFilterOptions}
+        value={localFilters.court}
+      />
 
       <div className="flex flex-col gap-2 xl:justify-end">
         <AppButton disabled={isLoadingSettlements} fullWidth type="submit">
@@ -502,24 +504,18 @@ export function SettlementsHubPage() {
           </div>
 
           <form className="grid gap-3 md:grid-cols-[1fr_auto]" onSubmit={handleReviewSubmit}>
-            <label className="space-y-2 text-sm font-semibold">
-              <span>الموظف المحصل</span>
-              <select
-                className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                disabled={isLoadingFilters || users.length === 0}
-                onChange={(event) => setSelectedCollectorId(event.target.value)}
-                value={selectedCollectorId}
-              >
-                {users.length === 0 ? (
-                  <option value="">لا يوجد موظفون متاحون</option>
-                ) : null}
-                {users.map((user) => (
-                  <option key={user.membership_id} value={user.id}>
-                    {getUserName(user)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <AppSelect
+              disabled={isLoadingFilters || users.length === 0}
+              emptyLabel="لا يوجد موظفون متاحون"
+              label="الموظف المحصل"
+              onChange={setSelectedCollectorId}
+              options={users.map((user) => ({
+                value: String(user.id),
+                label: getUserName(user),
+              }))}
+              placeholder="لا يوجد موظفون متاحون"
+              value={selectedCollectorId}
+            />
 
             <div className="flex flex-col gap-2 md:justify-end">
               <AppButton

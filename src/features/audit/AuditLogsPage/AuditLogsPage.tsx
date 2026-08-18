@@ -4,6 +4,7 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
@@ -253,48 +254,36 @@ export function AuditLogsPage() {
                   value={filters.date_to}
                 />
               </label>
-              <label className="space-y-2 text-sm font-semibold">
-                <span>المستخدم</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  disabled={isUserOptionsLoading}
-                  onChange={(event) => updateFilter('actor', event.target.value)}
-                  value={filters.actor}
-                >
-                  <option value="">
-                    {isUserOptionsLoading
-                      ? 'جاري تحميل المستخدمين...'
-                      : 'كل المستخدمين'}
-                  </option>
-                  {shouldShowActorFallbackOption ? (
-                    <option value={filters.actor}>مستخدم #{filters.actor}</option>
-                  ) : null}
-                  {userOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-2 text-sm font-semibold">
-                <span>نوع الإجراء</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  onChange={(event) => updateFilter('action', event.target.value)}
-                  value={filters.action}
-                >
-                  {shouldShowActionFallbackOption ? (
-                    <option value={filters.action}>
-                      {getAuditActionLabel(filters.action)}
-                    </option>
-                  ) : null}
-                  {auditActionOptions.map((option) => (
-                    <option key={option.value || 'all-actions'} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AppSelect
+                label="المستخدم"
+                loading={isUserOptionsLoading}
+                loadingLabel="جاري تحميل المستخدمين..."
+                onChange={(value) => updateFilter('actor', value)}
+                options={[
+                  { value: '', label: 'كل المستخدمين' },
+                  ...(shouldShowActorFallbackOption
+                    ? [{ value: filters.actor, label: `مستخدم #${filters.actor}` }]
+                    : []),
+                  ...userOptions,
+                ]}
+                value={filters.actor}
+              />
+              <AppSelect
+                label="نوع الإجراء"
+                onChange={(value) => updateFilter('action', value)}
+                options={[
+                  ...(shouldShowActionFallbackOption
+                    ? [
+                      {
+                        value: filters.action,
+                        label: getAuditActionLabel(filters.action),
+                      },
+                    ]
+                    : []),
+                  ...auditActionOptions,
+                ]}
+                value={filters.action}
+              />
               <div className="flex items-end">
                 <AppButton disabled={isLoading} fullWidth type="submit">
                   تحديث السجل

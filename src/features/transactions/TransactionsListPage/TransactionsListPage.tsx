@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
@@ -73,6 +74,18 @@ const transactionFilterKeys = [
 ] as const
 
 const chipFilterKeys = transactionFilterKeys.filter((key) => key !== 'page')
+
+const settlementStatusOptions = [
+  { value: '', label: 'الكل' },
+  { value: 'unsettled', label: 'غير مسواة' },
+  { value: 'settled', label: 'مسواة' },
+]
+
+const cancellationStatusOptions = [
+  { value: '', label: 'الكل' },
+  { value: 'false', label: 'غير ملغية' },
+  { value: 'true', label: 'ملغية' },
+]
 
 function createDefaultQueryParams(): TransactionQueryParams {
   return getLastSevenDaysRange()
@@ -315,6 +328,37 @@ function TransactionsFilterForm({
     onClose?.()
   }
 
+  const paymentMethodOptions = [
+    { value: '', label: 'كل طرق الدفع' },
+    ...Object.entries(paymentMethodLabels).map(([value, label]) => ({
+      value,
+      label,
+    })),
+  ]
+
+  const courtFilterOptions = [
+    { value: '', label: 'كل الملاعب' },
+    ...(filters.court
+    && !courtOptions.some((option) => option.value === filters.court)
+      ? [{ value: filters.court, label: `ملعب #${filters.court}` }]
+      : []),
+    ...courtOptions,
+  ]
+
+  const collectorFilterOptions = [
+    { value: '', label: 'كل الموظفين' },
+    ...(filters.created_by
+    && !collectorOptions.some((option) => option.value === filters.created_by)
+      ? [
+        {
+          value: filters.created_by,
+          label: `الموظف المحصل #${filters.created_by}`,
+        },
+      ]
+      : []),
+    ...collectorOptions,
+  ]
+
   return (
     <form
       className="grid grid-cols-1 gap-3 md:grid-cols-4"
@@ -340,67 +384,34 @@ function TransactionsFilterForm({
         />
       </label>
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>حالة التسوية</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('settlement_status', event.target.value)}
-          value={filters.settlement_status}
-        >
-          <option value="">الكل</option>
-          <option value="unsettled">غير مسواة</option>
-          <option value="settled">مسواة</option>
-        </select>
-      </label>
+      <AppSelect
+        label="حالة التسوية"
+        onChange={(value) => updateFilter('settlement_status', value)}
+        options={settlementStatusOptions}
+        value={filters.settlement_status}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>حالة الإلغاء</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('is_cancelled', event.target.value)}
-          value={filters.is_cancelled}
-        >
-          <option value="">الكل</option>
-          <option value="false">غير ملغية</option>
-          <option value="true">ملغية</option>
-        </select>
-      </label>
+      <AppSelect
+        label="حالة الإلغاء"
+        onChange={(value) => updateFilter('is_cancelled', value)}
+        options={cancellationStatusOptions}
+        value={filters.is_cancelled}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>طريقة الدفع</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('payment_method', event.target.value)}
-          value={filters.payment_method}
-        >
-          <option value="">كل طرق الدفع</option>
-          {Object.entries(paymentMethodLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        label="طريقة الدفع"
+        onChange={(value) => updateFilter('payment_method', value)}
+        options={paymentMethodOptions}
+        value={filters.payment_method}
+      />
 
       {canChooseCourt ? (
-        <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-          <span>الملعب</span>
-          <select
-            className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-            onChange={(event) => updateFilter('court', event.target.value)}
-            value={filters.court}
-          >
-            <option value="">كل الملاعب</option>
-            {filters.court && !courtOptions.some((option) => option.value === filters.court) ? (
-              <option value={filters.court}>ملعب #{filters.court}</option>
-            ) : null}
-            {courtOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <AppSelect
+          label="الملعب"
+          onChange={(value) => updateFilter('court', value)}
+          options={courtFilterOptions}
+          value={filters.court}
+        />
       ) : (
         <div className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
           <span>الملعب</span>
@@ -410,27 +421,12 @@ function TransactionsFilterForm({
         </div>
       )}
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الموظف المحصل</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('created_by', event.target.value)}
-          value={filters.created_by}
-        >
-          <option value="">كل الموظفين</option>
-          {filters.created_by
-          && !collectorOptions.some((option) => option.value === filters.created_by) ? (
-            <option value={filters.created_by}>
-              الموظف المحصل #{filters.created_by}
-            </option>
-          ) : null}
-          {collectorOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        label="الموظف المحصل"
+        onChange={(value) => updateFilter('created_by', value)}
+        options={collectorFilterOptions}
+        value={filters.created_by}
+      />
 
       <div className="flex flex-col gap-2 md:justify-end">
         <AppButton disabled={isLoading} fullWidth type="submit">

@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listCourts } from '../../courts/courtsApi'
 import {
   createRecurringAgreement,
@@ -724,7 +725,11 @@ describe('SchedulePage', () => {
 
     await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
-    await user.selectOptions(screen.getByLabelText('سبب الإلغاء'), 'العميل ألغى')
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('سبب الإلغاء'),
+      'العميل ألغى',
+    )
     await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
     await waitFor(() => expect(mockedListBookingSlots).toHaveBeenCalledTimes(2))
 
@@ -735,7 +740,8 @@ describe('SchedulePage', () => {
 
     await user.click(await screen.findByRole('button', { name: '7:00 ص مؤكد' }))
     await user.click(screen.getByRole('button', { name: 'تسجيل عدم حضور' }))
-    await user.selectOptions(
+    await chooseAppSelectOption(
+      user,
       screen.getByLabelText('سبب عدم الحضور'),
       'لم يحضر العميل',
     )
@@ -800,9 +806,9 @@ describe('SchedulePage', () => {
 
     render(<SchedulePage />)
 
-    fireEvent.change(screen.getByLabelText('تاريخ الحجز'), {
-      target: { value: '2026-07-21' },
-    })
+    await user.click(
+      screen.getByRole('button', { name: /الثلاثاء، ٢١ يوليو ٢٠٢٦/ }),
+    )
 
     await waitFor(() => {
       expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
@@ -811,7 +817,7 @@ describe('SchedulePage', () => {
       })
     })
 
-    await user.selectOptions(screen.getByLabelText('الملعب'), '8')
+    await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 2')
 
     await waitFor(() => {
       expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {

@@ -4,6 +4,7 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import {
@@ -515,43 +516,26 @@ export function ReportsPage() {
                   value={filters.date_to}
                 />
               </label>
-              <label className="space-y-2 text-sm font-semibold">
-                <span>الملعب</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  onChange={(event) => updateFilter('court', event.target.value)}
-                  value={filters.court}
-                >
-                  <option value="">كل الملاعب</option>
-                  {shouldShowCourtFallbackOption ? (
-                    <option value={filters.court}>ملعب #{filters.court}</option>
-                  ) : null}
-                  {courtOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-2 text-sm font-semibold">
-                <span>الفترة</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  onChange={(event) =>
-                    updateFilter(
-                      'period',
-                      event.target.value as CourtUsageReportPeriod,
-                    )
-                  }
-                  value={filters.period}
-                >
-                  {periodOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AppSelect
+                label="الملعب"
+                onChange={(value) => updateFilter('court', value)}
+                options={[
+                  { value: '', label: 'كل الملاعب' },
+                  ...(shouldShowCourtFallbackOption
+                    ? [{ value: filters.court, label: `ملعب #${filters.court}` }]
+                    : []),
+                  ...courtOptions,
+                ]}
+                value={filters.court}
+              />
+              <AppSelect
+                label="الفترة"
+                onChange={(value) =>
+                  updateFilter('period', value as CourtUsageReportPeriod)
+                }
+                options={periodOptions}
+                value={filters.period}
+              />
               {filters.period === 'custom' ? (
                 <>
                   <label className="space-y-2 text-sm font-semibold">
@@ -578,43 +562,26 @@ export function ReportsPage() {
                   </label>
                 </>
               ) : null}
-              <label className="space-y-2 text-sm font-semibold">
-                <span>الموظف</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  onChange={(event) => updateFilter('staff', event.target.value)}
-                  value={filters.staff}
-                >
-                  <option value="">كل الموظفين</option>
-                  {shouldShowStaffFallbackOption ? (
-                    <option value={filters.staff}>مستخدم #{filters.staff}</option>
-                  ) : null}
-                  {staffOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-2 text-sm font-semibold">
-                <span>حالة الحجز</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  onChange={(event) =>
-                    updateFilter(
-                      'status',
-                      event.target.value as CourtUsageReportStatus | '',
-                    )
-                  }
-                  value={filters.status}
-                >
-                  {reportStatusOptions.map((option) => (
-                    <option key={option.value || 'default'} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AppSelect
+                label="الموظف"
+                onChange={(value) => updateFilter('staff', value)}
+                options={[
+                  { value: '', label: 'كل الموظفين' },
+                  ...(shouldShowStaffFallbackOption
+                    ? [{ value: filters.staff, label: `مستخدم #${filters.staff}` }]
+                    : []),
+                  ...staffOptions,
+                ]}
+                value={filters.staff}
+              />
+              <AppSelect
+                label="حالة الحجز"
+                onChange={(value) =>
+                  updateFilter('status', value as CourtUsageReportStatus | '')
+                }
+                options={reportStatusOptions}
+                value={filters.status}
+              />
               <div className="flex items-end">
                 <AppButton disabled={isLoading} fullWidth type="submit">
                   عرض التقرير

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
 import { cancelTransaction, listTransactions } from '../transactionsApi'
@@ -182,7 +183,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(await screen.findByText('150.00')).toBeInTheDocument()
-    expect(screen.getAllByText('محفظة رقمية')).toHaveLength(2)
+    expect(screen.getByText('محفظة رقمية')).toBeInTheDocument()
     expect(screen.getByText('#10')).toBeInTheDocument()
     expect(screen.getByText('REF-123')).toBeInTheDocument()
     expect(mockedListTransactions).toHaveBeenCalledWith(
@@ -447,19 +448,19 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
-    expect(await screen.findByRole('option', { name: 'ملعب 1' })).toBeInTheDocument()
-    expect(
-      await screen.findByRole('option', { name: 'أحمد محمد' }),
-    ).toBeInTheDocument()
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.type(screen.getByLabelText('إلى تاريخ'), '2026-07-15')
-    await user.selectOptions(screen.getByLabelText('حالة التسوية'), 'settled')
-    await user.selectOptions(screen.getByLabelText('حالة الإلغاء'), 'false')
-    await user.selectOptions(screen.getByLabelText('طريقة الدفع'), 'CASH')
-    await user.selectOptions(screen.getByLabelText('الملعب'), '3')
-    await user.selectOptions(screen.getByLabelText('الموظف المحصل'), '15')
+    await chooseAppSelectOption(user, screen.getByLabelText('حالة التسوية'), 'مسواة')
+    await chooseAppSelectOption(user, screen.getByLabelText('حالة الإلغاء'), 'غير ملغية')
+    await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'نقدي')
+    await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('الموظف المحصل'),
+      'أحمد محمد',
+    )
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
     expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
@@ -504,7 +505,7 @@ describe('TransactionsListPage', () => {
     await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
-    await user.selectOptions(screen.getByLabelText('حالة التسوية'), 'settled')
+    await chooseAppSelectOption(user, screen.getByLabelText('حالة التسوية'), 'مسواة')
     await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
 
     expect(screen.getByLabelText('من تاريخ')).toHaveValue('2026-07-13')

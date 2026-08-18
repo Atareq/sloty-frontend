@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { chooseAppSelectOption } from '../../../../test/appSelectTestUtils'
 import { CancelBookingReasonSheet } from './CancelBookingReasonSheet'
 
 function renderSheet(onSubmit = vi.fn()) {
@@ -37,7 +38,7 @@ describe('CancelBookingReasonSheet', () => {
 
     renderSheet(onSubmit)
 
-    await user.selectOptions(screen.getByLabelText('سبب الإلغاء'), 'أخرى')
+    await chooseAppSelectOption(user, screen.getByLabelText('سبب الإلغاء'), 'أخرى')
     await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
 
     expect(screen.getByText('اكتب ملاحظة توضح سبب الإلغاء'))
@@ -51,7 +52,7 @@ describe('CancelBookingReasonSheet', () => {
 
     renderSheet(onSubmit)
 
-    await user.selectOptions(screen.getByLabelText('سبب الإلغاء'), 'أخرى')
+    await chooseAppSelectOption(user, screen.getByLabelText('سبب الإلغاء'), 'أخرى')
     await user.type(screen.getByLabelText('ملاحظات'), 'ظرف طارئ')
     await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
 
@@ -113,8 +114,16 @@ describe('CancelBookingReasonSheet', () => {
     expect(screen.getByText('مبلغ الاسترداد')).toBeInTheDocument()
     expect(screen.getByText('200.00 جنيه')).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('سبب الإلغاء'), 'العميل ألغى')
-    await user.selectOptions(screen.getByLabelText('طريقة الاسترداد'), 'BANK_TRANSFER')
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('سبب الإلغاء'),
+      'العميل ألغى',
+    )
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الاسترداد'),
+      'تحويل بنكي',
+    )
     await user.type(screen.getByLabelText('مرجع الاسترداد'), ' RF-1 ')
     await user.type(screen.getByLabelText('ملاحظات الاسترداد'), ' تم التحويل ')
     await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))

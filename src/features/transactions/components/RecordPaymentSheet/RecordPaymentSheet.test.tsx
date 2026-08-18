@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { chooseAppSelectOption } from '../../../../test/appSelectTestUtils'
 import { RecordPaymentSheet } from './RecordPaymentSheet'
 
 describe('RecordPaymentSheet', () => {
@@ -61,9 +62,10 @@ describe('RecordPaymentSheet', () => {
     )
 
     await user.type(screen.getByLabelText('المبلغ'), '150')
-    await user.selectOptions(
+    await chooseAppSelectOption(
+      user,
       screen.getByLabelText('طريقة الدفع'),
-      'DIGITAL_WALLET',
+      'محفظة رقمية',
     )
     await user.type(screen.getByLabelText('رقم العملية'), ' REF-123 ')
     await user.type(screen.getByLabelText('ملاحظات'), ' دفعة مقدمة ')

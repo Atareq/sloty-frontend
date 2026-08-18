@@ -242,7 +242,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Reports access is role-based for allowed report roles and must not depend on settlement permission.
 - Do not expose manual ID inputs for business entities; use named select/search fields for users, staff, courts, and actions while keeping backend IDs/enums as internal option values.
 - Native browser `<select>` menus are not the default product-facing dropdown experience because their opened menu is controlled by the OS/browser and breaks the Sloty design system.
-- Product-facing dropdowns should use the shared `src/shared/components/AppSelect/AppSelect.tsx`; features provide options/business values and `AppSelect` owns presentation and interaction.
+- Product-facing dropdowns must use the shared `src/shared/components/AppSelect/AppSelect.tsx`; features provide options/business values and `AppSelect` owns presentation and interaction.
 - Do not create separate visual primitives such as `FeatureSelect`, `CourtSelect`, `PaymentSelect`, `FilterSelect`, or `AdminSelect`.
 - AppSelect must stay RTL-first, mobile touch-friendly, keyboard-accessible, and use Sloty surface/border/green/soft-mint styling with Lucide ChevronDown and Check icons.
 - Audit log action filters and displays must use Arabic business labels instead of raw enum values.

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
 import { getSettlementPreview, listSettlements } from '../settlementsApi'
@@ -171,9 +172,13 @@ describe('SettlementHistoryPage', () => {
     )
 
     await screen.findByText('#9')
-    await user.selectOptions(screen.getAllByLabelText('الموظف المحصل')[1], '5')
-    await user.selectOptions(screen.getByLabelText('الحالة'), 'PENDING')
-    await user.selectOptions(screen.getByLabelText('الملعب'), '3')
+    await chooseAppSelectOption(
+      user,
+      screen.getAllByLabelText('الموظف المحصل')[1],
+      'Ahmed Staff',
+    )
+    await chooseAppSelectOption(user, screen.getByLabelText('الحالة'), 'قيد المراجعة')
+    await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'Court A')
     await user.click(screen.getByRole('button', { name: 'تحديث السجل' }))
 
     await waitFor(() => {

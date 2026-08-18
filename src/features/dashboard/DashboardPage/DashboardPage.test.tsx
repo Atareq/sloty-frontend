@@ -363,7 +363,7 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(await screen.findByLabelText('نطاق الملعب')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'نطاق الملعب' }))
+    expect(screen.getByRole('button', { name: /نطاق الملعب/ }))
       .toBeInTheDocument()
   })
 

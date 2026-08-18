@@ -16,6 +16,7 @@ import type { ApiFieldError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
@@ -98,6 +99,11 @@ const bookingFilterKeys = [
   'remaining_amount_gt',
   'status',
 ] as const
+
+const booleanFilterOptions = [
+  { value: '', label: 'الكل' },
+  { value: 'true', label: 'نعم' },
+]
 
 function createDefaultQueryParams(): BookingsQueryParams {
   return {
@@ -229,6 +235,23 @@ function BookingsFilterForm({
     onClose?.()
   }
 
+  const courtFilterOptions = [
+    { value: '', label: 'كل الملاعب' },
+    ...(filters.court
+    && !courtOptions.some((option) => option.value === filters.court)
+      ? [{ value: filters.court, label: `ملعب #${filters.court}` }]
+      : []),
+    ...courtOptions,
+  ]
+
+  const bookingStatusFilterOptions = [
+    { value: '', label: 'الكل' },
+    ...Object.entries(bookingStatusLabels).map(([value, label]) => ({
+      value,
+      label,
+    })),
+  ]
+
   return (
     <form
       className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
@@ -264,64 +287,33 @@ function BookingsFilterForm({
         />
       </label>
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الملعب</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('court', event.target.value)}
-          value={filters.court}
-        >
-          <option value="">كل الملاعب</option>
-          {filters.court && !courtOptions.some((option) => option.value === filters.court) ? (
-            <option value={filters.court}>ملعب #{filters.court}</option>
-          ) : null}
-          {courtOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        label="الملعب"
+        onChange={(value) => updateFilter('court', value)}
+        options={courtFilterOptions}
+        value={filters.court}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الحالة</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('status', event.target.value)}
-          value={filters.status}
-        >
-          <option value="">الكل</option>
-          {Object.entries(bookingStatusLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        label="الحالة"
+        onChange={(value) => updateFilter('status', value)}
+        options={bookingStatusFilterOptions}
+        value={filters.status}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>تحتاج إجراء</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('needs_action', event.target.value)}
-          value={filters.needs_action}
-        >
-          <option value="">الكل</option>
-          <option value="true">نعم</option>
-        </select>
-      </label>
+      <AppSelect
+        label="تحتاج إجراء"
+        onChange={(value) => updateFilter('needs_action', value)}
+        options={booleanFilterOptions}
+        value={filters.needs_action}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>متأخرة</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('overdue', event.target.value)}
-          value={filters.overdue}
-        >
-          <option value="">الكل</option>
-          <option value="true">نعم</option>
-        </select>
-      </label>
+      <AppSelect
+        label="متأخرة"
+        onChange={(value) => updateFilter('overdue', value)}
+        options={booleanFilterOptions}
+        value={filters.overdue}
+      />
 
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>بها مبلغ متبقي</span>
@@ -337,29 +329,19 @@ function BookingsFilterForm({
         />
       </label>
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>انتهى وقتها</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('ended', event.target.value)}
-          value={filters.ended}
-        >
-          <option value="">الكل</option>
-          <option value="true">نعم</option>
-        </select>
-      </label>
+      <AppSelect
+        label="انتهى وقتها"
+        onChange={(value) => updateFilter('ended', value)}
+        options={booleanFilterOptions}
+        value={filters.ended}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>انتظار قاربت على الانتهاء</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('hold_expiring', event.target.value)}
-          value={filters.hold_expiring}
-        >
-          <option value="">الكل</option>
-          <option value="true">نعم</option>
-        </select>
-      </label>
+      <AppSelect
+        label="انتظار قاربت على الانتهاء"
+        onChange={(value) => updateFilter('hold_expiring', value)}
+        options={booleanFilterOptions}
+        value={filters.hold_expiring}
+      />
 
       <div className="flex flex-col gap-2 xl:justify-end">
         <AppButton disabled={isLoading} fullWidth type="submit">

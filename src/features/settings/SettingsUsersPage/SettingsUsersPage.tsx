@@ -11,6 +11,7 @@ import { useAuth } from '../../../core/auth/useAuth'
 import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import {
@@ -56,6 +57,25 @@ interface UsersFilterState {
   is_active: string
   search: string
 }
+
+const userRoleFilterOptions = [
+  { value: '', label: 'الكل' },
+  { value: 'OWNER', label: 'مالك' },
+  { value: 'MANAGER', label: 'مدير' },
+  { value: 'STAFF', label: 'موظف' },
+]
+
+const userStatusFilterOptions = [
+  { value: '', label: 'الكل' },
+  { value: 'true', label: 'نشط' },
+  { value: 'false', label: 'غير نشط' },
+]
+
+const createMembershipRoleOptions = [
+  { value: '', label: 'اختر الدور' },
+  { value: 'MANAGER', label: 'مدير' },
+  { value: 'STAFF', label: 'موظف' },
+]
 
 type AddUserMode = 'new' | 'existing'
 
@@ -199,57 +219,43 @@ function UsersFilterForm({
     onClose?.()
   }
 
+  const courtFilterOptions = [
+    { value: '', label: 'كل الملاعب' },
+    ...(localFilters.court
+    && !courts.some((court) => String(court.id) === localFilters.court)
+      ? [{ value: localFilters.court, label: `ملعب #${localFilters.court}` }]
+      : []),
+    ...courts.map((court) => ({
+      value: String(court.id),
+      label: court.name,
+    })),
+  ]
+
   return (
     <form
       className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
       onSubmit={handleSubmit}
     >
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الدور</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('role', event.target.value)}
-          value={localFilters.role}
-        >
-          <option value="">الكل</option>
-          <option value="OWNER">مالك</option>
-          <option value="MANAGER">مدير</option>
-          <option value="STAFF">موظف</option>
-        </select>
-      </label>
+      <AppSelect
+        label="الدور"
+        onChange={(value) => updateFilter('role', value)}
+        options={userRoleFilterOptions}
+        value={localFilters.role}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الحالة</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('is_active', event.target.value)}
-          value={localFilters.is_active}
-        >
-          <option value="">الكل</option>
-          <option value="true">نشط</option>
-          <option value="false">غير نشط</option>
-        </select>
-      </label>
+      <AppSelect
+        label="الحالة"
+        onChange={(value) => updateFilter('is_active', value)}
+        options={userStatusFilterOptions}
+        value={localFilters.is_active}
+      />
 
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>الملعب</span>
-        <select
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('court', event.target.value)}
-          value={localFilters.court}
-        >
-          <option value="">كل الملاعب</option>
-          {localFilters.court
-          && !courts.some((court) => String(court.id) === localFilters.court) ? (
-            <option value={localFilters.court}>ملعب #{localFilters.court}</option>
-          ) : null}
-          {courts.map((court) => (
-            <option key={court.id} value={court.id}>
-              {court.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AppSelect
+        label="الملعب"
+        onChange={(value) => updateFilter('court', value)}
+        options={courtFilterOptions}
+        value={localFilters.court}
+      />
 
       <div className="flex flex-col gap-2 xl:justify-end">
         <AppButton disabled={isLoading} fullWidth type="submit">
@@ -610,20 +616,16 @@ function AddUserSheet({
           </section>
         ) : null}
 
-        <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-          <span>الدور</span>
-          <select
-            className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+        <label className="block space-y-2">
+          <AppSelect
             disabled={isSubmitting}
-            onChange={(event) =>
-              updateValue('role', event.target.value as CreateMembershipRole | '')
+            label="الدور"
+            onChange={(value) =>
+              updateValue('role', value as CreateMembershipRole | '')
             }
+            options={createMembershipRoleOptions}
             value={values.role}
-          >
-            <option value="">اختر الدور</option>
-            <option value="MANAGER">مدير</option>
-            <option value="STAFF">موظف</option>
-          </select>
+          />
           {fieldErrors.role ? (
             <span className="block text-xs font-bold text-[var(--sloty-danger)]">
               {fieldErrors.role}
@@ -726,21 +728,20 @@ function AddUserSheet({
         ) : null}
 
         {values.role === 'STAFF' ? (
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>الملعب المسؤول عنه</span>
-            <select
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          <label className="block space-y-2">
+            <AppSelect
               disabled={isSubmitting}
-              onChange={(event) => updateValue('court', event.target.value)}
+              label="الملعب المسؤول عنه"
+              onChange={(value) => updateValue('court', value)}
+              options={[
+                { value: '', label: 'اختر ملعبًا للموظف' },
+                ...courts.map((court) => ({
+                  value: String(court.id),
+                  label: court.name || `ملعب #${court.id}`,
+                })),
+              ]}
               value={values.court}
-            >
-              <option value="">اختر ملعبًا للموظف</option>
-              {courts.map((court) => (
-                <option key={court.id} value={court.id}>
-                  {court.name || `ملعب #${court.id}`}
-                </option>
-              ))}
-            </select>
+            />
             {fieldErrors.court ? (
               <span className="block text-xs font-bold text-[var(--sloty-danger)]">
                 {fieldErrors.court}

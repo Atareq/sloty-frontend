@@ -5,6 +5,7 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type { PaymentMethod } from '../../../transactions/transactions.types'
 import { paymentMethodLabels } from '../../../transactions/transactions.types'
@@ -195,25 +196,22 @@ export function CancelBookingReasonSheet({
             </section>
           ) : null}
 
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>سبب الإلغاء</span>
-            <select
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-              disabled={isSubmitting}
-              onChange={(event) => {
-                setReason(event.target.value)
-                setValidationError(null)
-              }}
-              value={reason}
-            >
-              <option value="">اختر السبب</option>
-              {reasonOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AppSelect
+            disabled={isSubmitting}
+            label="سبب الإلغاء"
+            onChange={(value) => {
+              setReason(value)
+              setValidationError(null)
+            }}
+            options={[
+              { value: '', label: 'اختر السبب' },
+              ...reasonOptions.map((option) => ({
+                value: option,
+                label: option,
+              })),
+            ]}
+            value={reason}
+          />
           {reasonFieldError ? (
             <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
               {reasonFieldError}
@@ -240,23 +238,20 @@ export function CancelBookingReasonSheet({
               <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
                 بيانات الاسترداد
               </h3>
-              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-                <span>طريقة الاسترداد</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-                  disabled={isSubmitting}
-                  onChange={(event) =>
-                    setRefundPaymentMethod(event.target.value as PaymentMethod)
-                  }
-                  value={refundPaymentMethod}
-                >
-                  {Object.entries(paymentMethodLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AppSelect
+                disabled={isSubmitting}
+                label="طريقة الاسترداد"
+                onChange={(value) =>
+                  setRefundPaymentMethod(value as PaymentMethod)
+                }
+                options={Object.entries(paymentMethodLabels).map(
+                  ([value, label]) => ({
+                    value,
+                    label,
+                  }),
+                )}
+                value={refundPaymentMethod}
+              />
               {refundPaymentMethodFieldError ? (
                 <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
                   {refundPaymentMethodFieldError}

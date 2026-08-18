@@ -3,7 +3,7 @@ Sports Courts Rental Management System
 
 Current frontend implementation note:
 
-This document remains a design-direction reference. Authenticated pages in the current React frontend receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header. Use shared `PageActions` for feature-specific page buttons, use shared `AppSelect` for product-facing dropdowns instead of native browser select menus where practical, follow the shared `AppCard` and `AppButton` patterns, and keep one Sloty visual fingerprint across the app. Do not create custom page headers or separate-looking prototype pages unless the existing shared pattern clearly does not fit.
+This document remains a design-direction reference. Authenticated pages in the current React frontend receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header. Use shared `PageActions` for feature-specific page buttons, use shared `AppSelect` for product-facing dropdowns instead of native browser select menus, follow the shared `AppCard` and `AppButton` patterns, and keep one Sloty visual fingerprint across the app. Do not create custom page headers or separate-looking prototype pages unless the existing shared pattern clearly does not fit.
 
 Current local working tree note:
 

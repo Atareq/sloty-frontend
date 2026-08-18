@@ -5,6 +5,7 @@ import { isApiClientError } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
@@ -68,6 +69,18 @@ const initialValues: FormValues = {
   manager_can_change_pricing: false,
   existingUserId: '',
 }
+
+const userKindOptions = [
+  { value: 'PLATFORM_ADMIN', label: 'مسؤول منصة' },
+  { value: 'CLUB_USER', label: 'مستخدم نادي' },
+]
+
+const platformMembershipRoleOptions = [
+  { value: '', label: 'اختر الدور' },
+  { value: 'OWNER', label: 'مالك' },
+  { value: 'MANAGER', label: 'مدير' },
+  { value: 'STAFF', label: 'موظف' },
+]
 
 function trimOptional(value: string): string | undefined {
   const trimmedValue = value.trim()
@@ -349,19 +362,14 @@ export function AdminUserFormPage() {
       ) : null}
 
       <AppCard className="space-y-4">
-        <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-          <span>نوع المستخدم</span>
-          <select
-            className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+        <label className="block space-y-2">
+          <AppSelect
             disabled={isSubmitting}
-            onChange={(event) =>
-              updateValue('userKind', event.target.value as UserKind)
-            }
+            label="نوع المستخدم"
+            onChange={(value) => updateValue('userKind', value as UserKind)}
+            options={userKindOptions}
             value={values.userKind}
-          >
-            <option value="PLATFORM_ADMIN">مسؤول منصة</option>
-            <option value="CLUB_USER">مستخدم نادي</option>
-          </select>
+          />
           {fieldErrors.userKind ? (
             <span className="text-xs font-bold text-[var(--sloty-danger)]">
               {fieldErrors.userKind}
@@ -575,23 +583,21 @@ export function AdminUserFormPage() {
             بيانات العضوية
           </h2>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-              <span>النادي</span>
-              <select
-                className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+            <label className="block space-y-2">
+              <AppSelect
                 disabled={isSubmitting || isLoadingClubs}
-                onChange={(event) =>
-                  updateValue('club_slug', event.target.value)
-                }
+                label="النادي"
+                loading={isLoadingClubs}
+                onChange={(value) => updateValue('club_slug', value)}
+                options={[
+                  { value: '', label: 'اختر النادي' },
+                  ...clubs.map((club) => ({
+                    value: club.slug,
+                    label: club.name,
+                  })),
+                ]}
                 value={values.club_slug}
-              >
-                <option value="">اختر النادي</option>
-                {clubs.map((club) => (
-                  <option key={club.slug} value={club.slug}>
-                    {club.name}
-                  </option>
-                ))}
-              </select>
+              />
               {fieldErrors.club_slug ? (
                 <span className="text-xs font-bold text-[var(--sloty-danger)]">
                   {fieldErrors.club_slug}
@@ -599,24 +605,19 @@ export function AdminUserFormPage() {
               ) : null}
             </label>
 
-            <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-              <span>الدور</span>
-              <select
-                className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+            <label className="block space-y-2">
+              <AppSelect
                 disabled={isSubmitting}
-                onChange={(event) =>
+                label="الدور"
+                onChange={(value) =>
                   updateValue(
                     'role',
-                    event.target.value as PlatformAdminCreateMembershipRole | '',
+                    value as PlatformAdminCreateMembershipRole | '',
                   )
                 }
+                options={platformMembershipRoleOptions}
                 value={values.role}
-              >
-                <option value="">اختر الدور</option>
-                <option value="OWNER">مالك</option>
-                <option value="MANAGER">مدير</option>
-                <option value="STAFF">موظف</option>
-              </select>
+              />
               {fieldErrors.role ? (
                 <span className="text-xs font-bold text-[var(--sloty-danger)]">
                   {fieldErrors.role}
@@ -625,21 +626,21 @@ export function AdminUserFormPage() {
             </label>
 
             {isStaff ? (
-              <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-                <span>الملعب</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  disabled={isSubmitting || isLoadingCourts || !values.club_slug}
-                  onChange={(event) => updateValue('court', event.target.value)}
+              <label className="block space-y-2">
+                <AppSelect
+                  disabled={isSubmitting || !values.club_slug}
+                  label="الملعب"
+                  loading={isLoadingCourts}
+                  onChange={(value) => updateValue('court', value)}
+                  options={[
+                    { value: '', label: 'اختر الملعب' },
+                    ...courts.map((court) => ({
+                      value: String(court.id),
+                      label: court.name,
+                    })),
+                  ]}
                   value={values.court}
-                >
-                  <option value="">اختر الملعب</option>
-                  {courts.map((court) => (
-                    <option key={court.id} value={court.id}>
-                      {court.name}
-                    </option>
-                  ))}
-                </select>
+                />
                 {fieldErrors.court ? (
                   <span className="text-xs font-bold text-[var(--sloty-danger)]">
                     {fieldErrors.court}

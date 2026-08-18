@@ -5,6 +5,7 @@ import {
   getCountryCallingCode,
 } from 'react-phone-number-input'
 import type { Country, Value } from 'react-phone-number-input'
+import { AppSelect } from '../AppSelect/AppSelect'
 
 export interface SlotyPhoneNumberInputProps {
   value: Value | undefined
@@ -46,19 +47,17 @@ export function SlotyPhoneNumberInput({
         error ? 'sloty-phone-input--error' : '',
       ].join(' ')}
     >
-      <select
-        aria-label="الدولة أو المنطقة"
+      <AppSelect
+        ariaLabel="الدولة أو المنطقة"
         className="sloty-phone-input__country"
         disabled={disabled}
-        onChange={(event) => handleCountryChange(event.target.value as Country)}
+        onChange={(country) => handleCountryChange(country as Country)}
+        options={countries.map((country) => ({
+          value: country,
+          label: `${country} +${getCountryCallingCode(country)}`,
+        }))}
         value={selectedCountry}
-      >
-        {countries.map((country) => (
-          <option key={country} value={country}>
-            {country} +{getCountryCallingCode(country)}
-          </option>
-        ))}
-      </select>
+      />
 
       <PhoneInput
         aria-label="رقم الهاتف"

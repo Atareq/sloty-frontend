@@ -226,6 +226,7 @@ export function AppDateNavigator({
 
         {/* Fully clickable calendar trigger */}
         <button
+          aria-label="فتح تقويم تاريخ الحجز"
           aria-expanded={isCalendarOpen}
           aria-haspopup="dialog"
           className={[

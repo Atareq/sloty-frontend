@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 
 export interface NoShowReasonValues {
   reason?: string
@@ -73,25 +74,22 @@ export function NoShowReasonSheet({
         </div>
 
         <div className="mt-5 space-y-4">
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>سبب عدم الحضور</span>
-            <select
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-              disabled={isSubmitting}
-              onChange={(event) => {
-                setReason(event.target.value)
-                setValidationError(null)
-              }}
-              value={reason}
-            >
-              <option value="">بدون سبب محدد</option>
-              {reasonOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AppSelect
+            disabled={isSubmitting}
+            label="سبب عدم الحضور"
+            onChange={(value) => {
+              setReason(value)
+              setValidationError(null)
+            }}
+            options={[
+              { value: '', label: 'بدون سبب محدد' },
+              ...reasonOptions.map((option) => ({
+                value: option,
+                label: option,
+              })),
+            ]}
+            value={reason}
+          />
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>

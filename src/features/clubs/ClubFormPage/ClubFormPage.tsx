@@ -8,6 +8,7 @@ import {
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
@@ -33,8 +34,6 @@ const initialFormState: ClubFormState = {
 
 const inputClass =
   'h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15'
-const selectClass =
-  'h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:cursor-not-allowed disabled:opacity-60'
 const textareaClass =
   'min-h-24 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15'
 
@@ -266,22 +265,20 @@ export function ClubFormPage() {
               </p>
             ) : null}
 
-            <label className="space-y-2 text-sm font-semibold">
-              <span>المحافظة</span>
-              <select
-                className={selectClass}
-                onChange={(event) =>
-                  handleGovernorateChange(event.target.value)
-                }
+            <label className="block space-y-2">
+              <AppSelect
+                label="المحافظة"
+                loading={isLocationsLoading}
+                onChange={handleGovernorateChange}
+                options={[
+                  { value: '', label: 'اختر المحافظة' },
+                  ...(locations?.governorates.map((governorate) => ({
+                    value: governorate.code,
+                    label: governorate.name_ar,
+                  })) ?? []),
+                ]}
                 value={formState.governorate}
-              >
-                <option value="">اختر المحافظة</option>
-                {locations?.governorates.map((governorate) => (
-                  <option key={governorate.code} value={governorate.code}>
-                    {governorate.name_ar}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
             {governorateFieldError ? (
               <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
@@ -289,21 +286,20 @@ export function ClubFormPage() {
               </p>
             ) : null}
 
-            <label className="space-y-2 text-sm font-semibold">
-              <span>المدينة/المركز</span>
-              <select
-                className={selectClass}
+            <label className="block space-y-2">
+              <AppSelect
                 disabled={!formState.governorate || !selectedGovernorate}
-                onChange={(event) => updateField('city', event.target.value)}
+                label="المدينة/المركز"
+                onChange={(value) => updateField('city', value)}
+                options={[
+                  { value: '', label: 'اختر المدينة/المركز' },
+                  ...(selectedGovernorate?.cities.map((city) => ({
+                    value: city.code,
+                    label: city.name_ar,
+                  })) ?? []),
+                ]}
                 value={formState.city}
-              >
-                <option value="">اختر المدينة/المركز</option>
-                {selectedGovernorate?.cities.map((city) => (
-                  <option key={city.code} value={city.code}>
-                    {city.name_ar}
-                  </option>
-                ))}
-              </select>
+              />
               {selectedGovernorate &&
               selectedGovernorate.cities.length === 0 ? (
                 <span className="block text-xs font-bold text-[var(--sloty-text-muted)]">

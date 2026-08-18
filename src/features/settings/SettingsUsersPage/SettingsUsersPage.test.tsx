@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import {
   createClubMembership,
   listClubUsers,
@@ -344,7 +345,7 @@ describe('SettingsUsersPage', () => {
     const dialog = await openAddUserSheet(user)
 
     expect(dialog.getByText('إضافة مستخدم')).toBeInTheDocument()
-    expect(dialog.getByLabelText('الدور')).toBeInTheDocument()
+    await user.click(dialog.getByLabelText('الدور'))
     expect(dialog.getByRole('option', { name: 'مدير' })).toBeInTheDocument()
     expect(dialog.getByRole('option', { name: 'موظف' })).toBeInTheDocument()
     expect(dialog.queryByRole('option', { name: 'مالك' })).not.toBeInTheDocument()
@@ -394,7 +395,7 @@ describe('SettingsUsersPage', () => {
     await user.type(dialog.getByLabelText('البحث عن المستخدم'), 'ليلى')
     await user.click(dialog.getByRole('button', { name: 'بحث' }))
     await user.click(await dialog.findByLabelText(/ليلى جاهز/))
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
     await waitFor(() => {
@@ -418,7 +419,7 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
 
     expect(dialog.getByText('صلاحيات المدير')).toBeInTheDocument()
     expect(
@@ -436,11 +437,11 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
     await user.click(
       dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
     )
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
 
     expect(dialog.getByLabelText('الملعب المسؤول عنه')).toBeInTheDocument()
     expect(dialog.queryByText('صلاحيات المدير')).not.toBeInTheDocument()
@@ -455,7 +456,7 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'staff-new')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
@@ -474,7 +475,7 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم العائلة'), 'مدير')
     await user.type(dialog.getByLabelText('رقم الهاتف'), '01111111111')
@@ -530,12 +531,12 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
     await user.type(dialog.getByLabelText('رقم الهاتف'), '01012345678')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
-    await user.selectOptions(dialog.getByLabelText('الملعب المسؤول عنه'), '7')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الملعب المسؤول عنه'), 'ملعب 1')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
     await waitFor(() => {
@@ -575,12 +576,12 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
     await user.type(dialog.getByLabelText('رقم الهاتف'), '01012')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
-    await user.selectOptions(dialog.getByLabelText('الملعب المسؤول عنه'), '7')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الملعب المسؤول عنه'), 'ملعب 1')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
     expect(dialog.getByText('أدخل رقم هاتف صحيح')).toBeInTheDocument()
@@ -593,11 +594,11 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'STAFF')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
-    await user.selectOptions(dialog.getByLabelText('الملعب المسؤول عنه'), '7')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الملعب المسؤول عنه'), 'ملعب 1')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
     await waitFor(() => {
@@ -636,7 +637,7 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
@@ -659,7 +660,7 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await user.selectOptions(dialog.getByLabelText('الدور'), 'MANAGER')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
@@ -851,12 +852,10 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     await screen.findByText('أحمد مالك')
-    expect(await screen.findByRole('option', { name: 'ملعب 1' }))
-      .toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('الدور'), 'MANAGER')
-    await user.selectOptions(screen.getByLabelText('الحالة'), 'false')
-    await user.selectOptions(screen.getByLabelText('الملعب'), '7')
+    await chooseAppSelectOption(user, screen.getByLabelText('الدور'), 'مدير')
+    await chooseAppSelectOption(user, screen.getByLabelText('الحالة'), 'غير نشط')
+    await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
     await waitFor(() => {

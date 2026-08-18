@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listCourts } from '../../courts/courtsApi'
 import {
   cancelBooking,
@@ -296,9 +297,8 @@ describe('BookingsListPage', () => {
     renderBookingsPage()
 
     await screen.findByText('لا توجد حجوزات مطابقة للفلاتر الحالية')
-    expect(await screen.findByRole('option', { name: 'ملعب 1' })).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('الملعب'), '3')
+    await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {

@@ -91,7 +91,7 @@ Source-of-truth order:
 
 - Authenticated pages receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header.
 - Feature-specific page buttons use the shared layout-only `PageActions` component when they need to sit below the shell header.
-- Product-facing dropdowns use shared `AppSelect` instead of native browser select menus where practical.
+- Product-facing dropdowns use shared `AppSelect` instead of native browser select menus.
 - Active filter chips are fully clickable removable buttons, not nested icon-only controls.
 - Reuse shared `AppCard` and `AppButton` patterns
 - Keep the green brand system, rounded cards, consistent spacing, and responsive layouts

@@ -5,6 +5,7 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 import type { Value } from 'react-phone-number-input'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
@@ -218,23 +219,18 @@ export function AddBookingSheet({
 
           {bookingType === 'weekly' ? (
             <>
-              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-                <span>طريقة دفع التأمين</span>
-                <select
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-                  disabled={isSubmitting || isCheckingRecurringAvailability}
-                  onChange={(event) =>
-                    setPaymentMethod(event.target.value as PaymentMethod)
-                  }
-                  value={paymentMethod}
-                >
-                  {Object.entries(paymentMethodLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AppSelect
+                disabled={isSubmitting || isCheckingRecurringAvailability}
+                label="طريقة دفع التأمين"
+                onChange={(value) => setPaymentMethod(value as PaymentMethod)}
+                options={Object.entries(paymentMethodLabels).map(
+                  ([value, label]) => ({
+                    value,
+                    label,
+                  }),
+                )}
+                value={paymentMethod}
+              />
 
               <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
                 <span>رقم العملية</span>

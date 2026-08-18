@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppViewModeContext } from '../../../layout/AppShell/AppShell.viewMode'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubs } from '../../clubs/clubsApi'
 import { listPlatformUsers } from '../adminUsersApi'
 import { AdminUsersPage } from './AdminUsersPage'
@@ -147,7 +148,7 @@ describe('AdminUsersPage', () => {
     renderPage()
 
     await screen.findByText('منى عضو')
-    await user.selectOptions(screen.getByLabelText('الدور'), 'STAFF')
+    await chooseAppSelectOption(user, screen.getByLabelText('الدور'), 'موظف')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
     expect(screen.getByTestId('location')).toHaveTextContent(

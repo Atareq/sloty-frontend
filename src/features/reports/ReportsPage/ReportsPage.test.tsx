@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
 import { getCourtUsageReport } from '../reportsApi'
@@ -336,13 +337,18 @@ describe('ReportsPage', () => {
   })
 
   it('uses named court and staff selects instead of raw ID inputs', async () => {
+    const user = userEvent.setup()
+
     renderReportsPage()
 
+    await user.click(await screen.findByLabelText('الملعب'))
     expect(await screen.findByRole('option', { name: 'ملعب 1' }))
       .toHaveValue('3')
     expect(screen.queryByRole('option', { name: 'ملعب متوقف' }))
       .not.toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'محمود حسن' }))
+
+    await user.click(screen.getByLabelText('الموظف'))
+    expect(await screen.findByRole('option', { name: 'محمود حسن' }))
       .toHaveValue('5')
     expect(screen.queryByText('رقم الملعب')).not.toBeInTheDocument()
     expect(screen.queryByText('رقم الموظف')).not.toBeInTheDocument()
@@ -355,6 +361,8 @@ describe('ReportsPage', () => {
 
     renderReportsPage()
 
+    await user.click(await screen.findByLabelText('الفترة'))
+
     expect(await screen.findByRole('option', { name: 'كل اليوم' }))
       .toHaveValue('all_day')
     expect(screen.getByRole('option', { name: 'صباحي / نهاري' }))
@@ -364,7 +372,7 @@ describe('ReportsPage', () => {
       .toHaveValue('custom')
     expect(screen.queryByLabelText('من الساعة')).not.toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('الفترة'), 'custom')
+    await chooseAppSelectOption(user, screen.getByLabelText('الفترة'), 'فترة مخصصة')
     expect(screen.getByLabelText('من الساعة')).toBeInTheDocument()
     expect(screen.getByLabelText('إلى الساعة')).toBeInTheDocument()
 
@@ -377,7 +385,11 @@ describe('ReportsPage', () => {
   })
 
   it('uses only supported court usage status filter options', async () => {
+    const user = userEvent.setup()
+
     renderReportsPage()
+
+    await user.click(await screen.findByLabelText('حالة الحجز'))
 
     expect(await screen.findByRole('option', { name: 'الحالة الافتراضية' }))
       .toHaveValue('')
@@ -402,12 +414,12 @@ describe('ReportsPage', () => {
 
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.type(screen.getByLabelText('إلى تاريخ'), '2026-07-15')
-    await user.selectOptions(await screen.findByLabelText('الملعب'), '3')
-    await user.selectOptions(screen.getByLabelText('الموظف'), '5')
-    await user.selectOptions(screen.getByLabelText('الفترة'), 'custom')
+    await chooseAppSelectOption(user, await screen.findByLabelText('الملعب'), 'ملعب 1')
+    await chooseAppSelectOption(user, screen.getByLabelText('الموظف'), 'محمود حسن')
+    await chooseAppSelectOption(user, screen.getByLabelText('الفترة'), 'فترة مخصصة')
     await user.type(screen.getByLabelText('من الساعة'), '18:00')
     await user.type(screen.getByLabelText('إلى الساعة'), '23:00')
-    await user.selectOptions(screen.getByLabelText('حالة الحجز'), 'COMPLETED')
+    await chooseAppSelectOption(user, screen.getByLabelText('حالة الحجز'), 'مكتمل')
     await user.click(screen.getByRole('button', { name: 'عرض التقرير' }))
 
     expect(screen.getByTestId('location')).toHaveTextContent(
@@ -442,13 +454,18 @@ describe('ReportsPage', () => {
   })
 
   it('preserves unknown deep-linked court and staff IDs with fallback labels', async () => {
+    const user = userEvent.setup()
+
     renderReportsPage(
       '/reports?date_from=2026-07-01&date_to=2026-07-15&court=99&staff=15',
     )
 
+    await user.click(await screen.findByLabelText('الملعب'))
     expect(await screen.findByRole('option', { name: 'ملعب #99' }))
       .toHaveValue('99')
-    expect(screen.getByRole('option', { name: 'مستخدم #15' }))
+
+    await user.click(screen.getByLabelText('الموظف'))
+    expect(await screen.findByRole('option', { name: 'مستخدم #15' }))
       .toHaveValue('15')
     expect(screen.getByLabelText('الملعب')).toHaveValue('99')
     expect(screen.getByLabelText('الموظف')).toHaveValue('15')

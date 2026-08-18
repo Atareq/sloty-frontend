@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { chooseAppSelectOption } from '../../../../test/appSelectTestUtils'
 import { NoShowReasonSheet } from './NoShowReasonSheet'
 
 function renderSheet(onSubmit = vi.fn()) {
@@ -21,7 +22,8 @@ describe('NoShowReasonSheet', () => {
 
     renderSheet(onSubmit)
 
-    await user.selectOptions(
+    await chooseAppSelectOption(
+      user,
       screen.getByLabelText('سبب عدم الحضور'),
       'لم يحضر العميل',
     )
@@ -40,7 +42,11 @@ describe('NoShowReasonSheet', () => {
 
     renderSheet(onSubmit)
 
-    await user.selectOptions(screen.getByLabelText('سبب عدم الحضور'), 'أخرى')
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('سبب عدم الحضور'),
+      'أخرى',
+    )
     await user.click(screen.getByRole('button', { name: 'تأكيد عدم الحضور' }))
 
     expect(screen.getByText('اكتب ملاحظة توضح سبب عدم الحضور'))

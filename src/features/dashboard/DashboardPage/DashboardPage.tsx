@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import {
   addDays,
@@ -362,26 +363,28 @@ export function DashboardPage() {
                   ) : null}
                 </div>
               ) : (
-                <label className="flex items-center gap-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                  <span>نطاق الملعب</span>
-                  <select
-                    className="h-11 rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-bold text-[var(--sloty-text-primary)]"
-                    onChange={(event) =>
-                      updateDashboardQuery({ court: event.target.value })
+                <div className="min-w-56">
+                  <AppSelect
+                    label="نطاق الملعب"
+                    onChange={(value) =>
+                      updateDashboardQuery({ court: value })
                     }
+                    options={[
+                      { value: '', label: 'كل الملاعب' },
+                      ...courts.map((court) => ({
+                        value: String(court.id),
+                        label: getCourtDisplayName(court),
+                      })),
+                      ...(selectedCourt && !selectedCourtOption ? [
+                        {
+                          value: selectedCourt,
+                          label: selectedCourtLabel,
+                        },
+                      ] : []),
+                    ]}
                     value={selectedCourt}
-                  >
-                    <option value="">كل الملاعب</option>
-                    {courts.map((court) => (
-                      <option key={court.id} value={court.id}>
-                        {getCourtDisplayName(court)}
-                      </option>
-                    ))}
-                    {selectedCourt && !selectedCourtOption ? (
-                      <option value={selectedCourt}>{selectedCourtLabel}</option>
-                    ) : null}
-                  </select>
-                </label>
+                  />
+                </div>
               )}
             </div>
           </AppCard>

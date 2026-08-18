@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
+import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { createClubMembership } from '../../clubUsers/clubUsersApi'
 import { listClubs } from '../../clubs/clubsApi'
 import { listCourts } from '../../courts/courtsApi'
@@ -149,13 +150,16 @@ describe('AdminUserFormPage', () => {
 
     renderPage()
 
-    await testUser.selectOptions(
+    await chooseAppSelectOption(
+      testUser,
       await screen.findByLabelText('نوع المستخدم'),
-      'CLUB_USER',
+      'مستخدم نادي',
     )
 
     expect(await screen.findByLabelText('النادي')).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'مالك' })).toBeInTheDocument()
+    await testUser.click(screen.getByLabelText('الدور'))
+    expect(await screen.findByRole('option', { name: 'مالك' }))
+      .toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'مدير' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'موظف' })).toBeInTheDocument()
     expect(screen.getByText('ربط مستخدم موجود')).toBeInTheDocument()
@@ -167,15 +171,16 @@ describe('AdminUserFormPage', () => {
 
     renderPage()
 
-    await testUser.selectOptions(
+    await chooseAppSelectOption(
+      testUser,
       await screen.findByLabelText('نوع المستخدم'),
-      'CLUB_USER',
+      'مستخدم نادي',
     )
     await testUser.type(screen.getByLabelText('الاسم الأول'), 'سامي')
     await testUser.type(screen.getByLabelText('اسم المستخدم'), 'staff-user')
     await testUser.type(screen.getByLabelText('كلمة المرور'), 'secret123')
-    await testUser.selectOptions(screen.getByLabelText('النادي'), 'nasr-club')
-    await testUser.selectOptions(screen.getByLabelText('الدور'), 'STAFF')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'موظف')
     await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
 
     expect(await screen.findByText('اختر ملعبًا للموظف')).toBeInTheDocument()
@@ -189,16 +194,17 @@ describe('AdminUserFormPage', () => {
 
     renderPage()
 
-    await testUser.selectOptions(
+    await chooseAppSelectOption(
+      testUser,
       await screen.findByLabelText('نوع المستخدم'),
-      'CLUB_USER',
+      'مستخدم نادي',
     )
     await testUser.click(screen.getByLabelText('ربط مستخدم موجود'))
     await testUser.type(screen.getByLabelText('البحث عن المستخدم'), 'existing')
     await testUser.click(screen.getByRole('button', { name: 'بحث' }))
     await testUser.click(await screen.findByLabelText(/أحمد موجود/))
-    await testUser.selectOptions(screen.getByLabelText('النادي'), 'nasr-club')
-    await testUser.selectOptions(screen.getByLabelText('الدور'), 'OWNER')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'مالك')
     await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
 
     await waitFor(() =>
@@ -215,16 +221,17 @@ describe('AdminUserFormPage', () => {
 
     renderPage()
 
-    await testUser.selectOptions(
+    await chooseAppSelectOption(
+      testUser,
       await screen.findByLabelText('نوع المستخدم'),
-      'CLUB_USER',
+      'مستخدم نادي',
     )
     await testUser.click(screen.getByLabelText('ربط مستخدم موجود'))
     await testUser.type(screen.getByLabelText('البحث عن المستخدم'), 'existing')
     await testUser.click(screen.getByRole('button', { name: 'بحث' }))
     await testUser.click(await screen.findByLabelText(/أحمد موجود/))
-    await testUser.selectOptions(screen.getByLabelText('النادي'), 'nasr-club')
-    await testUser.selectOptions(screen.getByLabelText('الدور'), 'MANAGER')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'مدير')
     await testUser.click(
       screen.getByLabelText(/إدارة التسويات المالية والجرد/),
     )
@@ -250,17 +257,22 @@ describe('AdminUserFormPage', () => {
 
     renderPage()
 
-    await testUser.selectOptions(
+    await chooseAppSelectOption(
+      testUser,
       await screen.findByLabelText('نوع المستخدم'),
-      'CLUB_USER',
+      'مستخدم نادي',
     )
     await testUser.click(screen.getByLabelText('ربط مستخدم موجود'))
     await testUser.type(screen.getByLabelText('البحث عن المستخدم'), 'existing')
     await testUser.click(screen.getByRole('button', { name: 'بحث' }))
     await testUser.click(await screen.findByLabelText(/أحمد موجود/))
-    await testUser.selectOptions(screen.getByLabelText('النادي'), 'nasr-club')
-    await testUser.selectOptions(screen.getByLabelText('الدور'), 'STAFF')
-    await testUser.selectOptions(await screen.findByLabelText('الملعب'), '7')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
+    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'موظف')
+    await chooseAppSelectOption(
+      testUser,
+      await screen.findByLabelText('الملعب'),
+      'ملعب 1',
+    )
     await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
 
     await waitFor(() =>
