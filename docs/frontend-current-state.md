@@ -92,7 +92,12 @@ Source-of-truth order:
 - Authenticated pages receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header.
 - Feature-specific page buttons use the shared layout-only `PageActions` component when they need to sit below the shell header.
 - Product-facing dropdowns use shared `AppSelect` instead of native browser select menus.
+- Categorical filters remain `AppSelect`; Boolean operational inclusion conditions use checkboxes, with shared `FilterCheckboxGroup` available for related Boolean state choices.
 - Active filter chips are fully clickable removable buttons, not nested icon-only controls.
+- Schedule uses the shell `PageHeader` as its only page identity header. Its local order is booking controls, `AppDateNavigator`, status legend, lightweight summary, closing actions, then the Court board; the summary is not sticky and does not repeat title, Club/date, or user identity.
+- Product date-time text uses shared `formatArabicDateTime()` rather than raw backend ISO timestamps while API and query values remain unchanged.
+- Cancellation refund explanations use the affected booking time, backend notice period/deadline, and backend result. Deposit collection time is historical and is not a refund-eligibility basis.
+- `/settings/users` permanent deletion, when backend DELETE support is confirmed, deletes only a Manager/Staff membership from the selected club and never the global user account. Owner memberships are excluded.
 - Reuse shared `AppCard` and `AppButton` patterns
 - Keep the green brand system, rounded cards, consistent spacing, and responsive layouts
 - New pages should look like part of one product, not separate prototypes

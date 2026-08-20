@@ -233,6 +233,7 @@ export function mapBookingSlotToScheduleBooking(
         id: slot.booking.id,
         court: courtId,
         customer_name: slot.booking.customer_name,
+        customer_phone: slot.booking.customer_phone,
         start_time: getSlotBookingDateTime(slot.date, startTime),
         end_time: getSlotBookingDateTime(slot.date, endTime),
         status: slot.booking.status,

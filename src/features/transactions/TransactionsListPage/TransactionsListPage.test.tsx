@@ -452,8 +452,8 @@ describe('TransactionsListPage', () => {
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.type(screen.getByLabelText('إلى تاريخ'), '2026-07-15')
-    await chooseAppSelectOption(user, screen.getByLabelText('حالة التسوية'), 'مسواة')
-    await chooseAppSelectOption(user, screen.getByLabelText('حالة الإلغاء'), 'غير ملغية')
+    await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'غير ملغية' }))
     await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'نقدي')
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await chooseAppSelectOption(
@@ -471,6 +471,65 @@ describe('TransactionsListPage', () => {
       is_cancelled: 'false',
       payment_method: 'CASH',
       settlement_status: 'settled',
+    })
+  })
+
+  it('maps both or neither transaction state checkboxes to all', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage()
+
+    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await user.clear(screen.getByLabelText('من تاريخ'))
+    await user.clear(screen.getByLabelText('إلى تاريخ'))
+    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {})
+
+    await user.click(screen.getByRole('checkbox', { name: 'غير مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'غير ملغية' }))
+    await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الدفع'),
+      'نقدي',
+    )
+    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      payment_method: 'CASH',
+    })
+  })
+
+  it('maps one checked option from each state group to scalar API values', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage()
+
+    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await user.clear(screen.getByLabelText('من تاريخ'))
+    await user.clear(screen.getByLabelText('إلى تاريخ'))
+    await user.click(screen.getByRole('checkbox', { name: 'غير مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
+    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      is_cancelled: 'true',
+      settlement_status: 'unsettled',
     })
   })
 
@@ -505,12 +564,14 @@ describe('TransactionsListPage', () => {
     await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
-    await chooseAppSelectOption(user, screen.getByLabelText('حالة التسوية'), 'مسواة')
+    await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))
     await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
 
     expect(screen.getByLabelText('من تاريخ')).toHaveValue('2026-07-13')
     expect(screen.getByLabelText('إلى تاريخ')).toHaveValue('2026-07-20')
-    expect(screen.getByLabelText('حالة التسوية')).toHaveValue('')
+    expect(screen.getByRole('checkbox', { name: 'غير مسواة' }))
+      .not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'مسواة' })).not.toBeChecked()
     expect(mockedListTransactions).toHaveBeenLastCalledWith(
       'nasr-club',
       defaultFilters,

@@ -113,6 +113,8 @@ function makeSlot(
             status_label: label ?? 'مؤكد',
             customer_name:
               slotStatus === 'HOLD' ? 'عميل حجز مؤقت' : 'أحمد علي',
+            customer_phone:
+              slotStatus === 'HOLD' ? '+201012345678' : '+201000000000',
             total_booking_value: '250.00',
             total_paid_amount: slotStatus === 'CONFIRMED' ? '250.00' : '100.00',
             remaining_amount: slotStatus === 'CONFIRMED' ? '0.00' : '150.00',
@@ -367,9 +369,14 @@ describe('SchedulePage', () => {
   it('loads the daily board from backend booking slots', async () => {
     render(<SchedulePage />)
 
-    expect(await screen.findByText('جدول اليوم')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'نادي النصر - ملعب 1' }))
+    expect(await screen.findByRole('heading', { name: 'لوحة الحجز' }))
       .toBeInTheDocument()
+    expect(screen.queryByText('جدول اليوم')).not.toBeInTheDocument()
+    expect(screen.queryByText('مستخدم سلوتي')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+    const summary = screen.getByRole('region', { name: 'ملخص فترات الحجز' })
+    expect(within(summary).getByText('إجمالي الفترات')).toBeInTheDocument()
+    expect(within(summary).getByText('5')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
       .toBeInTheDocument()
     expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
@@ -547,6 +554,9 @@ describe('SchedulePage', () => {
     await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
     expect(screen.getByRole('heading', { name: 'بانتظار العربون' }))
       .toBeInTheDocument()
+    expect(screen.getByText('رقم الهاتف')).toBeInTheDocument()
+    expect(screen.getByText('+201012345678')).toBeInTheDocument()
+    expect(screen.queryByText('غير متوفر')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'إغلاق' }))
 
     await user.click(screen.getByRole('button', { name: '7:00 ص مؤكد' }))
@@ -598,6 +608,7 @@ describe('SchedulePage', () => {
             status: 'CONFIRMED',
             status_label: 'مؤكد',
             customer_name: 'عميل يحتاج إغلاق',
+            customer_phone: '+201055555555',
             total_booking_value: '250.00',
             total_paid_amount: '100.00',
             remaining_amount: '150.00',
@@ -637,6 +648,33 @@ describe('SchedulePage', () => {
     await waitFor(() => {
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('keeps customer phone when a newly created booking returns HOLD', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const today = createDateFilterOptions()[0].date
+    mockedCreateBooking.mockResolvedValueOnce({
+      id: 21,
+      court: 7,
+      customer_name: 'عميل جديد',
+      customer_phone: '+201012345678',
+      start_time: `${today}T09:00:00`,
+      end_time: `${today}T10:00:00`,
+      status: 'HOLD',
+    })
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+    await user.type(screen.getByLabelText('اسم العميل'), 'عميل جديد')
+    await user.type(screen.getByLabelText('رقم الهاتف'), '01012345678')
+    await user.click(screen.getByRole('button', { name: 'حفظ الحجز' }))
+
+    expect(await screen.findByRole('heading', { name: 'بانتظار العربون' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('عميل جديد')).toBeInTheDocument()
+    expect(screen.getByText('+201012345678')).toBeInTheDocument()
+    expect(screen.queryByText('غير متوفر')).not.toBeInTheDocument()
   })
 
   it('checks availability and creates weekly agreements without normal booking', async () => {

@@ -285,12 +285,14 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Club Settings must not contain manager permission controls or send manager permission fields through Club create/update payloads.
 - Pricing edit actions must use the centralized pricing permission helper, and working-hours edit actions must use the centralized working-hours permission helper.
 - Users & Permissions may add Manager/Staff memberships and edit existing Manager permission flags; it must not create Owner users or edit Staff/Owner permissions.
+- Permanent deletion in `/settings/users` means deleting a Manager/Staff membership from the current club, never deleting the global Sloty user account. Use the Arabic wording `حذف المستخدم من النادي نهائيًا`, never offer this action for Owner memberships, and do not add the UI/API call until membership DELETE support is confirmed by the backend contract.
 - Users & Permissions badges use effective club-users fields (`can_change_pricing`, `can_manage_working_hours`, `can_manage_settlements`) and never raw backend field names.
 - Backend remains the authority for permission enforcement.
 - Authenticated pages use exactly one shell-level page header rendered by `AppShell` through `src/shared/components/PageHeader/PageHeader.tsx`; do not add duplicate visible page title cards inside shell pages.
 - Authenticated route title/subtitle text must come from `src/shared/navigation/navigation.config.ts`; do not duplicate route title strings in feature components unnecessarily.
 - Feature-specific buttons that previously lived beside a page title should use the layout-only `src/shared/components/PageActions/PageActions.tsx`.
 - Never introduce parallel page-header implementations; `PageHeader` is the canonical visual page header.
+- Schedule follows `PageHeader` then booking controls, `AppDateNavigator`, the status legend, a lightweight non-sticky Schedule summary, operational sections, and the Court board. The summary must not render another `header`, green hero, page title, Club/date identity, or employee identity.
 - The canonical header mobile hamburger is a right-side RTL menu button with three horizontal lines; hide it when desktop sidebar mode is active.
 - The hamburger and mobile drawer are mobile-only; the drawer opens from the right and must close or be hidden when switching to desktop view.
 - Desktop navigation uses the sidebar only; the mobile drawer must never render over the desktop sidebar.
@@ -311,6 +313,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Navigation labels must use the approved Arabic wording: `لوحة التحكم`, `الجدول`, `سجل الحجوزات`, `سجل المعاملات المالية`, `التسويات المالية والجرد`, `سجل النشاطات`, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
 - Authenticated feature pages must not render a second `PageHeader`; they receive the shared `PageHeader` from `AppShell`.
 - Do not create custom page headers or alternate header systems when the canonical shell `PageHeader` fits the use case.
+- Use `AppSelect` for categorical choices such as Court, status, payment method, collector, and role. Use checkbox controls for Boolean operational inclusion filters; related Boolean state choices may share a presentational `FilterCheckboxGroup` while features retain URL/API semantics.
+- Raw backend ISO timestamps must not be intentionally exposed in product UI. Keep ISO values in API/query contracts and use shared `formatArabicDateTime()` for date-time presentation when it satisfies the feature.
+- Refund eligibility explanations must flow from the affected booking occurrence, the Court notice period, the backend refund deadline, and the backend eligibility/result. `deposit_collected_at` is historical only and must never explain or determine refund eligibility.
 - Keep one Sloty visual fingerprint across the project: Arabic-first, RTL-first, mobile-first, green brand system, rounded cards, shared `AppCard`/`AppButton` patterns, consistent spacing, and responsive layouts.
 - Any new page must look like part of the same product, not a separate prototype.
 - Do not create separate mobile and desktop business pages for the same workflow; share data/request flow and vary presentation only.

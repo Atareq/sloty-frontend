@@ -47,6 +47,5 @@ export interface ScheduleBooking {
 export interface ScheduleSummary {
   availableCount: number
   confirmedCount: number
-  cancelledCount: number
   totalSlots: number
 }

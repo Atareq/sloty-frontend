@@ -78,6 +78,7 @@ export interface BookingSlotBookingSummary {
   status: BackendBookingStatus
   status_label: string
   customer_name: string
+  customer_phone: string
   total_booking_value: string
   total_paid_amount: string
   remaining_amount: string

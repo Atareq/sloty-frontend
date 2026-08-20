@@ -13,10 +13,12 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import {
+  formatArabicDateTime,
   formatDateInputValue,
   getLastSevenDaysRange,
 } from '../../../shared/utils/date'
@@ -46,9 +48,9 @@ interface FilterState {
   created_by: string
   date_from: string
   date_to: string
-  is_cancelled: string
+  is_cancelled: Array<'false' | 'true'>
   payment_method: PaymentMethod | ''
-  settlement_status: TransactionSettlementStatus | ''
+  settlement_status: TransactionSettlementStatus[]
 }
 
 interface FilterOption {
@@ -74,18 +76,6 @@ const transactionFilterKeys = [
 ] as const
 
 const chipFilterKeys = transactionFilterKeys.filter((key) => key !== 'page')
-
-const settlementStatusOptions = [
-  { value: '', label: 'الكل' },
-  { value: 'unsettled', label: 'غير مسواة' },
-  { value: 'settled', label: 'مسواة' },
-]
-
-const cancellationStatusOptions = [
-  { value: '', label: 'الكل' },
-  { value: 'false', label: 'غير ملغية' },
-  { value: 'true', label: 'ملغية' },
-]
 
 function createDefaultQueryParams(): TransactionQueryParams {
   return getLastSevenDaysRange()
@@ -150,9 +140,13 @@ function filterStateFromParams(params: TransactionQueryParams): FilterState {
     date_from: params.date_from ?? '',
     date_to: params.date_to ?? '',
     is_cancelled:
-      params.is_cancelled === undefined ? '' : String(params.is_cancelled),
+      params.is_cancelled === undefined
+        ? []
+        : [String(params.is_cancelled) as 'false' | 'true'],
     payment_method: params.payment_method ?? '',
-    settlement_status: params.settlement_status ?? '',
+    settlement_status: params.settlement_status
+      ? [params.settlement_status]
+      : [],
   }
 }
 
@@ -162,10 +156,12 @@ function paramsFromFilterState(filters: FilterState): TransactionQueryParams {
     ...(filters.created_by ? { created_by: filters.created_by } : {}),
     ...(filters.date_from ? { date_from: filters.date_from } : {}),
     ...(filters.date_to ? { date_to: filters.date_to } : {}),
-    ...(filters.is_cancelled ? { is_cancelled: filters.is_cancelled } : {}),
+    ...(filters.is_cancelled.length === 1
+      ? { is_cancelled: filters.is_cancelled[0] }
+      : {}),
     ...(filters.payment_method ? { payment_method: filters.payment_method } : {}),
-    ...(filters.settlement_status
-      ? { settlement_status: filters.settlement_status }
+    ...(filters.settlement_status.length === 1
+      ? { settlement_status: filters.settlement_status[0] }
       : {}),
   }
 }
@@ -255,23 +251,6 @@ function getClubUserName(user: ClubUser): string {
   return fullName || user.username || `#${user.id}`
 }
 
-function formatTransactionDate(value: string | undefined): string | null {
-  if (!value) {
-    return null
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
-}
-
 function getActorId(
   value: Transaction['created_by'] | Transaction['cancelled_by'],
 ): number | null {
@@ -315,11 +294,24 @@ function TransactionsFilterForm({
 }: TransactionsFilterFormProps) {
   const [filters, setFilters] = useState<FilterState>(initialFilters)
 
-  function updateFilter(field: keyof FilterState, value: string): void {
+  function updateFilter<Key extends keyof FilterState>(
+    field: Key,
+    value: FilterState[Key],
+  ): void {
     setFilters((currentFilters) => ({
       ...currentFilters,
       [field]: value,
     }))
+  }
+
+  function toggleFilterValue<Value extends string>(
+    values: Value[],
+    value: Value,
+    checked: boolean,
+  ): Value[] {
+    return checked
+      ? Array.from(new Set([...values, value]))
+      : values.filter((item) => item !== value)
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -384,23 +376,65 @@ function TransactionsFilterForm({
         />
       </label>
 
-      <AppSelect
+      <FilterCheckboxGroup
+        className="md:col-span-2 xl:col-span-1"
         label="حالة التسوية"
-        onChange={(value) => updateFilter('settlement_status', value)}
-        options={settlementStatusOptions}
-        value={filters.settlement_status}
+        onChange={(key, checked) =>
+          updateFilter(
+            'settlement_status',
+            toggleFilterValue(
+              filters.settlement_status,
+              key as TransactionSettlementStatus,
+              checked,
+            ),
+          )
+        }
+        options={[
+          {
+            key: 'unsettled',
+            label: 'غير مسواة',
+            checked: filters.settlement_status.includes('unsettled'),
+          },
+          {
+            key: 'settled',
+            label: 'مسواة',
+            checked: filters.settlement_status.includes('settled'),
+          },
+        ]}
       />
 
-      <AppSelect
+      <FilterCheckboxGroup
+        className="md:col-span-2 xl:col-span-1"
         label="حالة الإلغاء"
-        onChange={(value) => updateFilter('is_cancelled', value)}
-        options={cancellationStatusOptions}
-        value={filters.is_cancelled}
+        onChange={(key, checked) =>
+          updateFilter(
+            'is_cancelled',
+            toggleFilterValue(
+              filters.is_cancelled,
+              key as 'false' | 'true',
+              checked,
+            ),
+          )
+        }
+        options={[
+          {
+            key: 'false',
+            label: 'غير ملغية',
+            checked: filters.is_cancelled.includes('false'),
+          },
+          {
+            key: 'true',
+            label: 'ملغية',
+            checked: filters.is_cancelled.includes('true'),
+          },
+        ]}
       />
 
       <AppSelect
         label="طريقة الدفع"
-        onChange={(value) => updateFilter('payment_method', value)}
+        onChange={(value) =>
+          updateFilter('payment_method', value as PaymentMethod | '')
+        }
         options={paymentMethodOptions}
         value={filters.payment_method}
       />
@@ -883,8 +917,8 @@ export function TransactionsListPage() {
       {!isLoading && !error && transactions.length > 0 ? (
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {transactions.map((transaction) => {
-            const createdLabel = formatTransactionDate(transaction.created)
-            const cancelledAtLabel = formatTransactionDate(
+            const createdLabel = formatArabicDateTime(transaction.created)
+            const cancelledAtLabel = formatArabicDateTime(
               transaction.cancelled_at ?? undefined,
             )
             const cancelledByName = getActorName(transaction.cancelled_by)

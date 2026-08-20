@@ -59,4 +59,29 @@ describe('BookingListCard', () => {
 
     expect(handleSelect).toHaveBeenCalledWith(completedBooking)
   })
+
+  it('formats the creation timestamp without exposing raw ISO text', () => {
+    render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          created: '2026-07-21T18:10:00Z',
+        } as Booking}
+      />,
+    )
+
+    expect(screen.getByText('أُنشئ')).toBeInTheDocument()
+    expect(screen.queryByText('2026-07-21T18:10:00Z')).not.toBeInTheDocument()
+    expect(screen.getByText(/٢٠٢٦/)).toBeInTheDocument()
+  })
+
+  it('preserves the safe fallback for an invalid creation timestamp', () => {
+    render(
+      <BookingListCard
+        booking={{ ...confirmedBooking, created: 'not-a-date' } as Booking}
+      />,
+    )
+
+    expect(screen.getByText('not-a-date')).toBeInTheDocument()
+  })
 })

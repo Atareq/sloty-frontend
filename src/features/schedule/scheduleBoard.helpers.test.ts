@@ -337,6 +337,32 @@ describe('scheduleBoard helpers', () => {
     expect(result.booking).toBeUndefined()
   })
 
+  it('maps customer_phone from backend booking slot summaries', () => {
+    const backendSlot: BookingSlot = {
+      date: '2026-07-21',
+      start_time: '06:00:00',
+      end_time: '07:00:00',
+      slot_status: 'HOLD',
+      is_available: false,
+      booking: {
+        id: 12,
+        status: 'HOLD',
+        status_label: 'بانتظار العربون',
+        customer_name: 'عميل حجز مؤقت',
+        customer_phone: '+201012345678',
+        total_booking_value: '250.00',
+        total_paid_amount: '0.00',
+        remaining_amount: '250.00',
+      },
+      label: 'بانتظار العربون',
+      slot_price: '250.00',
+    }
+
+    expect(
+      mapBookingSlotToScheduleBooking(backendSlot, 7).booking?.customer_phone,
+    ).toBe('+201012345678')
+  })
+
   it('keeps HOLD and COMPLETED visible while hiding lifecycle-only backend statuses', () => {
     const bookings: BookingListItem[] = [
       {

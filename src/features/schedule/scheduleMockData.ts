@@ -199,7 +199,5 @@ export const scheduleSummary: ScheduleSummary = {
     .length,
   confirmedCount: scheduleBookings.filter((booking) => booking.status === 'confirmed')
     .length,
-  cancelledCount: scheduleBookings.filter((booking) => booking.status === 'cancelled')
-    .length,
   totalSlots: scheduleBookings.length,
 }

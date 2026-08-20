@@ -113,6 +113,14 @@ describe('CancelBookingReasonSheet', () => {
 
     expect(screen.getByText('مبلغ الاسترداد')).toBeInTheDocument()
     expect(screen.getByText('200.00 جنيه')).toBeInTheDocument()
+    expect(screen.getByText('موعد الحجز')).toBeInTheDocument()
+    expect(screen.getByText('سياسة استرداد العربون')).toBeInTheDocument()
+    expect(screen.getByText('الإلغاء قبل الموعد بـ 3 يوم')).toBeInTheDocument()
+    expect(screen.getByText('آخر موعد للاسترداد')).toBeInTheDocument()
+    expect(screen.queryByText('2026-07-22T18:00:00Z')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('يحق للعميل استرداد 200.00 جنيه حسب المعاينة.'),
+    ).toBeInTheDocument()
 
     await chooseAppSelectOption(
       user,

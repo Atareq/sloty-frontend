@@ -162,15 +162,10 @@ export function LoginPage() {
                 كلمة المرور
               </label>
               <div className="relative">
-                <span
-                  aria-hidden="true"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-[var(--sloty-text-muted)]"
-                >
-                  ق
-                </span>
+ 
                 <input
                   autoComplete="current-password"
-                  className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 pl-16 pr-10 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 pl-16 pr-5 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   id="password"
                   onChange={(event) =>
                     updateField('password', event.target.value)

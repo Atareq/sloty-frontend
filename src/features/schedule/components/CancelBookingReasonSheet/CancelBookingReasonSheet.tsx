@@ -6,6 +6,7 @@ import {
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
+import { formatArabicDateTime } from '../../../../shared/utils/date'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type { PaymentMethod } from '../../../transactions/transactions.types'
 import { paymentMethodLabels } from '../../../transactions/transactions.types'
@@ -39,23 +40,6 @@ const reasonOptions = [
 
 function hasRefund(preview: BookingCancellationPreview | null | undefined): boolean {
   return Number(preview?.refund_amount ?? 0) > 0
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return 'غير محدد'
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
 }
 
 /**
@@ -145,6 +129,32 @@ export function CancelBookingReasonSheet({
         <div className="mt-5 space-y-4">
           {preview ? (
             <section className="space-y-3 rounded-2xl bg-[var(--sloty-bg)] p-3 text-sm">
+              <div>
+                <p className="font-bold text-[var(--sloty-text-muted)]">
+                  موعد الحجز
+                </p>
+                <p className="font-black text-[var(--sloty-text-primary)]">
+                  {formatArabicDateTime(preview.booking_start) ?? 'غير محدد'}
+                </p>
+              </div>
+              <div>
+                <p className="font-bold text-[var(--sloty-text-muted)]">
+                  سياسة استرداد العربون
+                </p>
+                <p className="font-black text-[var(--sloty-text-primary)]">
+                  {preview.refund_notice_days === null
+                    ? 'لا توجد مهلة استرداد محددة'
+                    : `الإلغاء قبل الموعد بـ ${preview.refund_notice_days} يوم`}
+                </p>
+              </div>
+              <div>
+                <p className="font-bold text-[var(--sloty-text-muted)]">
+                  آخر موعد للاسترداد
+                </p>
+                <p className="font-black text-[var(--sloty-text-primary)]">
+                  {formatArabicDateTime(preview.refund_deadline) ?? 'غير محدد'}
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <p className="font-bold text-[var(--sloty-text-muted)]">
@@ -179,19 +189,17 @@ export function CancelBookingReasonSheet({
                   </p>
                 </div>
               </div>
-              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                مهلة الاسترداد:{' '}
-                {preview.refund_notice_days === null
-                  ? 'بدون مهلة'
-                  : `${preview.refund_notice_days} يوم`}
-              </p>
-              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                آخر موعد للاسترداد: {formatDateTime(preview.refund_deadline)}
-              </p>
-              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                {preview.full_refund
-                  ? 'توضح المعاينة أن الاسترداد كامل.'
-                  : 'توضح المعاينة المبلغ المسترد والمبلغ المحتفظ به كما أرجعته الخلفية.'}
+              <p
+                className={[
+                  'rounded-xl px-3 py-2 text-sm font-black',
+                  hasRefund(preview)
+                    ? 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]'
+                    : 'bg-amber-100 text-amber-900',
+                ].join(' ')}
+              >
+                {hasRefund(preview)
+                  ? `يحق للعميل استرداد ${formatMoneyAmount(preview.refund_amount)} حسب المعاينة.`
+                  : 'لا يوجد مبلغ مستحق للاسترداد حسب المعاينة.'}
               </p>
             </section>
           ) : null}

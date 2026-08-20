@@ -17,6 +17,7 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
@@ -81,6 +82,13 @@ interface FilterState {
   status: BookingStatus | ''
 }
 
+type OperationalFilterKey =
+  | 'ended'
+  | 'hold_expiring'
+  | 'needs_action'
+  | 'overdue'
+  | 'remaining_amount_gt'
+
 interface FilterOption {
   value: string
   label: string
@@ -99,11 +107,6 @@ const bookingFilterKeys = [
   'remaining_amount_gt',
   'status',
 ] as const
-
-const booleanFilterOptions = [
-  { value: '', label: 'الكل' },
-  { value: 'true', label: 'نعم' },
-]
 
 function createDefaultQueryParams(): BookingsQueryParams {
   return {
@@ -229,6 +232,18 @@ function BookingsFilterForm({
     }))
   }
 
+  function updateOperationalFilter(
+    key: string,
+    checked: boolean,
+  ): void {
+    const field = key as OperationalFilterKey
+
+    updateFilter(
+      field,
+      checked ? (field === 'remaining_amount_gt' ? '0' : 'true') : '',
+    )
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     onApply(filters)
@@ -301,46 +316,37 @@ function BookingsFilterForm({
         value={filters.status}
       />
 
-      <AppSelect
-        label="تحتاج إجراء"
-        onChange={(value) => updateFilter('needs_action', value)}
-        options={booleanFilterOptions}
-        value={filters.needs_action}
-      />
-
-      <AppSelect
-        label="متأخرة"
-        onChange={(value) => updateFilter('overdue', value)}
-        options={booleanFilterOptions}
-        value={filters.overdue}
-      />
-
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-        <span>بها مبلغ متبقي</span>
-        <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          inputMode="numeric"
-          onChange={(event) =>
-            updateFilter('remaining_amount_gt', event.target.value)
-          }
-          placeholder="0"
-          type="text"
-          value={filters.remaining_amount_gt}
-        />
-      </label>
-
-      <AppSelect
-        label="انتهى وقتها"
-        onChange={(value) => updateFilter('ended', value)}
-        options={booleanFilterOptions}
-        value={filters.ended}
-      />
-
-      <AppSelect
-        label="انتظار قاربت على الانتهاء"
-        onChange={(value) => updateFilter('hold_expiring', value)}
-        options={booleanFilterOptions}
-        value={filters.hold_expiring}
+      <FilterCheckboxGroup
+        className="md:col-span-2 xl:col-span-3"
+        label="فلاتر تشغيلية"
+        onChange={updateOperationalFilter}
+        options={[
+          {
+            key: 'needs_action',
+            label: 'تحتاج إجراء',
+            checked: filters.needs_action === 'true',
+          },
+          {
+            key: 'overdue',
+            label: 'متأخرة',
+            checked: filters.overdue === 'true',
+          },
+          {
+            key: 'remaining_amount_gt',
+            label: 'بها مبلغ متبقي',
+            checked: Boolean(filters.remaining_amount_gt),
+          },
+          {
+            key: 'ended',
+            label: 'انتهى وقتها',
+            checked: filters.ended === 'true',
+          },
+          {
+            key: 'hold_expiring',
+            label: 'انتظار قاربت على الانتهاء',
+            checked: filters.hold_expiring === 'true',
+          },
+        ]}
       />
 
       <div className="flex flex-col gap-2 xl:justify-end">

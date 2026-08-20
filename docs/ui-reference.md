@@ -17,8 +17,13 @@ Current Schedule date/control UX:
 - Selecting a date already visible changes selection only; selecting an outside date rebuilds the 7-day range from that date.
 - Selected dates use Sloty's rounded green surface/button language. Today uses a subtle HOLD-palette amber marker (`border-amber-400`, `bg-amber-100`, `text-amber-900`) without competing with selected green.
 - Schedule control hierarchy is title/description and authorized Court selector first, date navigation second, and lightweight status legend third.
+- After those controls, Schedule shows a lightweight non-sticky operational summary, closing actions, and the Court board. It must not render another header/hero, page title, Club/date identity, or employee identity below the shell `PageHeader`.
 - Active filter chips are one accessible clickable button per chip; clicking the chip removes only its own filter and buttons must not be nested.
 - AppSelect owns dropdown presentation and interaction with Sloty surface/border/green/soft-mint styling, Lucide ChevronDown/Check icons, RTL layout, and keyboard support.
+- AppSelect is for categorical choices. Boolean operational inclusion conditions use comfortable, whole-row checkbox controls; related Boolean state choices may use one shared `FilterCheckboxGroup` with RTL layout and Sloty green accent.
+- Never expose raw ISO timestamps as intentional product text; use the shared Arabic date-time formatter while preserving ISO API/query values.
+- Refund-policy presentation starts with the affected booking occurrence, then the Court notice policy and backend deadline, then the backend result. Deposit collection time is historical context only.
+- Destructive user wording in Club Settings must say `حذف المستخدم من النادي نهائيًا` and refer only to removing a Manager/Staff membership from that club, never deleting the global account or an Owner membership.
 
 1. UI Vision
 

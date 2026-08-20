@@ -1,4 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { formatArabicDateTime } from '../../../../shared/utils/date'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import {
   formatBookingDateTimeRangeWithWeekday,
@@ -43,6 +44,12 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
   const totalAmount = booking.total_price ?? getOptionalBookingField(booking, 'total_amount')
   const notes = getOptionalBookingField(booking, 'notes')
   const created = getOptionalBookingField(booking, 'created')
+  const createdLabel =
+    typeof created === 'string'
+      ? formatArabicDateTime(created)
+      : created === null
+        ? null
+        : created.toString()
   const isClickable = Boolean(onSelect)
   const showsFinancialWarning =
     booking.status === 'COMPLETED' && hasRemainingAmount(booking)
@@ -92,7 +99,7 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
         </div>
 
         <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-          <dt className="font-bold text-[var(--sloty-text-muted)]">الوقت</dt>
+          <dt className="font-bold text-[var(--sloty-text-muted)]">الموعد</dt>
           <dd className="font-black text-[var(--sloty-text-primary)]">
             {formatBookingDateTimeRangeWithWeekday(
               booking.start_time,
@@ -128,11 +135,11 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
           </div>
         ) : null}
 
-        {created ? (
+        {createdLabel ? (
           <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
             <dt className="font-bold text-[var(--sloty-text-muted)]">أُنشئ</dt>
             <dd className="font-black text-[var(--sloty-text-primary)]">
-              {String(created)}
+              {createdLabel}
             </dd>
           </div>
         ) : null}

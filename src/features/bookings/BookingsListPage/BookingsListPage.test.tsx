@@ -307,6 +307,61 @@ describe('BookingsListPage', () => {
     })
   })
 
+  it('combines operational checkbox filters using the confirmed query contract', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookings
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderBookingsPage()
+
+    await screen.findByText('لا توجد حجوزات مطابقة للفلاتر الحالية')
+    await user.click(screen.getByRole('checkbox', { name: 'تحتاج إجراء' }))
+    await user.click(screen.getByRole('checkbox', { name: 'متأخرة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'بها مبلغ متبقي' }))
+    await user.click(screen.getByRole('checkbox', { name: 'انتهى وقتها' }))
+    await user.click(
+      screen.getByRole('checkbox', { name: 'انتظار قاربت على الانتهاء' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      date: '2026-07-21',
+      ended: 'true',
+      hold_expiring: 'true',
+      needs_action: 'true',
+      overdue: 'true',
+      remaining_amount_gt: '0',
+    })
+    expect(screen.getByLabelText('الملعب')).toBeInTheDocument()
+    expect(screen.getByLabelText('الحالة')).toBeInTheDocument()
+  })
+
+  it('removes only the selected operational filter chip', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookings
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderBookingsPage('/bookings?needs_action=true&overdue=true')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'إزالة فلتر تحتاج إجراء' }),
+    )
+
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      overdue: 'true',
+    })
+    expect(screen.getByRole('button', { name: 'إزالة فلتر وقتها عدى' }))
+      .toBeInTheDocument()
+  })
+
   it('shows active court chips with loaded court names', async () => {
     mockedListBookings.mockResolvedValueOnce(paginatedResponse([]))
 

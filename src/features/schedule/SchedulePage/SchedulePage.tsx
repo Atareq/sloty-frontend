@@ -36,7 +36,7 @@ import {
 } from '../components/NoShowReasonSheet/NoShowReasonSheet'
 import { HoldBookingActionSheet } from '../components/HoldBookingActionSheet/HoldBookingActionSheet'
 import { ScheduleClosingSection } from '../components/ScheduleClosingSection/ScheduleClosingSection'
-import { ScheduleHeader } from '../components/ScheduleHeader/ScheduleHeader'
+import { ScheduleSummary } from '../components/ScheduleSummary/ScheduleSummary'
 import { BookingActionSheet } from '../../bookings/components/BookingActionSheet/BookingActionSheet'
 import {
   createRecurringAgreement,
@@ -106,7 +106,6 @@ function getSummary(slots: ScheduleBooking[]) {
   return {
     availableCount: slots.filter((slot) => slot.status === 'available').length,
     confirmedCount: slots.filter((slot) => slot.status === 'confirmed').length,
-    cancelledCount: 0,
     totalSlots: slots.length,
   }
 }
@@ -784,15 +783,7 @@ export function SchedulePage() {
     clearScheduleSelection()
   }
 
-  const scheduleCourt = {
-    clubName: selectedClub?.name ?? 'سلوتي',
-    courtName: selectedCourt?.name ?? 'لا يوجد ملعب',
-    dateLabel: formatArabicDateWithWeekday(selectedDate),
-  }
-  const scheduleStaff = {
-    name: 'مستخدم سلوتي',
-    role: 'تشغيل الملعب',
-  }
+  const selectedDateLabel = formatArabicDateWithWeekday(selectedDate)
   const shouldShowBoardSlots =
     !isSetupLoading &&
     !isSlotsLoading &&
@@ -811,41 +802,35 @@ export function SchedulePage() {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
       <div className="space-y-4 md:space-y-6">
-        <ScheduleHeader
-          court={scheduleCourt}
-          staff={scheduleStaff}
-          summary={summary}
-        />
-
-        <section className="flex flex-col gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:flex-row md:items-center md:justify-between md:px-5">
-          <div className="space-y-1">
-            <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-              لوحة الحجز
-            </h2>
-            <p className="text-sm text-[var(--sloty-text-muted)]">
-              اختر فترة متاحة لإضافة حجز، أو فترة مشغولة لعرض الإجراء المناسب
-            </p>
+        <section className="space-y-4 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:px-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-1">
+              <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+                لوحة الحجز
+              </h2>
+              <p className="text-sm text-[var(--sloty-text-muted)]">
+                اختر فترة متاحة لإضافة حجز، أو فترة مشغولة لعرض الإجراء المناسب
+              </p>
+            </div>
+            {canChooseCourt && courts.length > 1 ? (
+              <AppSelect
+                className="w-full md:w-64"
+                label="الملعب"
+                onChange={handleCourtChange}
+                options={courts.map((court) => ({
+                  value: String(court.id),
+                  label: court.name || `ملعب #${court.id}`,
+                }))}
+                value={selectedCourtId !== null ? String(selectedCourtId) : ''}
+              />
+            ) : null}
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+
+          <div className="space-y-3">
             <AppDateNavigator
               onChange={handleDateChange}
               value={selectedDate}
             />
-            {canChooseCourt && courts.length > 1 ? (
-            <AppSelect
-              label="الملعب"
-              onChange={handleCourtChange}
-              options={courts.map((court) => ({
-                value: String(court.id),
-                label: court.name || `ملعب #${court.id}`,
-              }))}
-              value={
-                selectedCourtId !== null
-                  ? String(selectedCourtId)
-                  : ''
-              }
-            />
-            ) : null}
             <div className="flex flex-wrap gap-2">
               {statusLegend.map((item) => (
                 <span
@@ -865,6 +850,8 @@ export function SchedulePage() {
             </div>
           </div>
         </section>
+
+        <ScheduleSummary summary={summary} />
 
         <ScheduleClosingSection
           bookings={closingBookings.items}
@@ -968,7 +955,7 @@ export function SchedulePage() {
       selectedCourt ? (
         <AddBookingSheet
           courtName={selectedCourt.name}
-          dateLabel={scheduleCourt.dateLabel}
+          dateLabel={selectedDateLabel}
           endTime={selectedSlot.endTime}
           error={createError}
           fieldErrors={createFieldErrors}
@@ -992,7 +979,7 @@ export function SchedulePage() {
         <HoldBookingActionSheet
           booking={holdBooking}
           courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
-          dateLabel={scheduleCourt.dateLabel}
+          dateLabel={selectedDateLabel}
           error={holdActionError}
           isSubmitting={isHoldActionSubmitting}
           onAddPayment={(booking) => {
