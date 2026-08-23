@@ -128,21 +128,17 @@ export function LoginPage() {
                 رقم الموبايل أو اسم المستخدم
               </label>
               <div className="relative">
-                <span
-                  aria-hidden="true"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-[var(--sloty-text-muted)]"
-                >
-                  01
-                </span>
                 <input
+                  autoCapitalize="none"
                   autoComplete="username"
-                  className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 pl-4 pr-10 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  autoCorrect="off"
+                  className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   id="username"
-                  inputMode="tel"
                   onChange={(event) =>
                     updateField('username', event.target.value)
                   }
-                  placeholder="01xxxxxxxxx"
+                  placeholder="اسم المستخدم أو رقم الموبايل"
+                  spellCheck={false}
                   type="text"
                   value={formState.username}
                 />

@@ -97,6 +97,40 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
   })
 
+  it('uses a text login identifier field that supports usernames on mobile', async () => {
+    const user = userEvent.setup()
+
+    renderLoginPage()
+
+    const usernameInput = screen.getByLabelText('رقم الموبايل أو اسم المستخدم')
+
+    expect(usernameInput).toHaveAttribute('type', 'text')
+    expect(usernameInput).toHaveAttribute('autocomplete', 'username')
+    expect(usernameInput).toHaveAttribute('autocapitalize', 'none')
+    expect(usernameInput).toHaveAttribute('autocorrect', 'off')
+    expect(usernameInput).toHaveAttribute('spellcheck', 'false')
+    expect(usernameInput).not.toHaveAttribute('inputmode', 'tel')
+    expect(usernameInput).not.toHaveAttribute('inputmode', 'numeric')
+    expect(usernameInput).toHaveAttribute(
+      'placeholder',
+      'اسم المستخدم أو رقم الموبايل',
+    )
+    expect(screen.queryByText('01')).not.toBeInTheDocument()
+
+    await user.type(usernameInput, 'manager_a')
+
+    expect(usernameInput).toHaveValue('manager_a')
+  })
+
+  it('keeps password manager autocomplete on the password field', () => {
+    renderLoginPage()
+
+    expect(screen.getByLabelText('كلمة المرور')).toHaveAttribute(
+      'autocomplete',
+      'current-password',
+    )
+  })
+
   it('toggles password visibility locally', async () => {
     const user = userEvent.setup()
 
@@ -127,18 +161,43 @@ describe('LoginPage', () => {
 
     await user.type(
       screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
-      'staff-user',
+      'manager_a',
     )
     await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
 
     expect(mockedLoginWithPassword).toHaveBeenCalledWith({
-      username: 'staff-user',
+      username: 'manager_a',
       password: 'secret-pass',
     })
     expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
     expect(getAccessToken()).toBe(accessToken)
     expect(getRefreshToken()).toBe('refresh-token')
+  })
+
+  it('sends phone-number login through the username payload field', async () => {
+    const user = userEvent.setup()
+    const accessToken = createDevAccessToken('STAFF')
+
+    mockedLoginWithPassword.mockResolvedValueOnce({
+      access: accessToken,
+      refresh: 'refresh-token',
+    })
+
+    renderLoginPageWithRoutes()
+
+    await user.type(
+      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      '01012345678',
+    )
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(mockedLoginWithPassword).toHaveBeenCalledWith({
+      username: '01012345678',
+      password: 'secret-pass',
+    })
+    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
   })
 
   it('shows an Arabic error when the auth API rejects login', async () => {
