@@ -115,6 +115,7 @@ describe('transactionsApi', () => {
       booking: 10,
       amount: '150',
       payment_method: 'CASH' as const,
+      payment_reference: 'PAY-17',
     }
 
     mockedApiRequest.mockResolvedValueOnce({
@@ -130,6 +131,9 @@ describe('transactionsApi', () => {
         method: 'POST',
         body: payload,
       },
+    )
+    expect(mockedApiRequest.mock.lastCall?.[1]?.body).not.toHaveProperty(
+      'reference',
     )
   })
 

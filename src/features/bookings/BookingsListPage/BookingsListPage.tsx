@@ -13,6 +13,7 @@ import {
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
+import { canChooseOperationalCourt } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -21,7 +22,6 @@ import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGr
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
-import { formatDateInputValue } from '../../../shared/utils/date'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
@@ -40,6 +40,7 @@ import {
   getActiveBookingFilterChips,
 } from '../components/BookingFilterChips/BookingFilterChips.helpers'
 import { BookingActionSheet } from '../components/BookingActionSheet/BookingActionSheet'
+import { hasActiveRecurrence } from '../bookingRecurrence.helpers'
 import { BookingListCard } from '../components/BookingListCard/BookingListCard'
 import {
   CancelBookingReasonSheet,
@@ -53,6 +54,7 @@ import {
 import {
   cancelBooking,
   completeBooking,
+  endBookingRecurrence,
   markBookingNoShow,
   previewBookingCancellation,
 } from '../../schedule/scheduleApi'
@@ -78,20 +80,26 @@ interface FilterState {
   hold_expiring: string
   needs_action: string
   overdue: string
-  remaining_amount_gt: string
+  search: string
+  upcoming: string
+  has_remaining_amount: string
   status: BookingStatus | ''
 }
 
 type OperationalFilterKey =
   | 'ended'
   | 'hold_expiring'
-  | 'needs_action'
   | 'overdue'
-  | 'remaining_amount_gt'
 
 interface FilterOption {
   value: string
   label: string
+}
+
+interface PaginationState {
+  count: number
+  hasNext: boolean
+  hasPrevious: boolean
 }
 
 const bookingFilterKeys = [
@@ -104,15 +112,11 @@ const bookingFilterKeys = [
   'needs_action',
   'overdue',
   'page',
-  'remaining_amount_gt',
+  'search',
+  'upcoming',
+  'has_remaining_amount',
   'status',
 ] as const
-
-function createDefaultQueryParams(): BookingsQueryParams {
-  return {
-    date: formatDateInputValue(new Date()),
-  }
-}
 
 function isBookingStatus(value: string): value is BookingStatus {
   return Object.keys(bookingStatusLabels).includes(value)
@@ -139,30 +143,29 @@ function parseBookingsQueryParams(search: string): BookingsQueryParams {
       || key === 'hold_expiring'
       || key === 'needs_action'
       || key === 'overdue'
+      || key === 'upcoming'
+      || key === 'has_remaining_amount'
     ) {
       params[key] = value
       return
     }
 
-    if (key === 'court' || key === 'page' || key === 'remaining_amount_gt') {
+    if (key === 'court' || key === 'page') {
       params[key] = value
       return
     }
 
-    if (key === 'date' || key === 'date_from' || key === 'date_to') {
+    if (
+      key === 'date'
+      || key === 'date_from'
+      || key === 'date_to'
+      || key === 'search'
+    ) {
       params[key] = value
     }
   })
 
   return params
-}
-
-function hasBookingFilters(params: BookingsQueryParams): boolean {
-  return bookingFilterKeys.some((key) => {
-    const value = params[key]
-
-    return value !== undefined && value !== ''
-  })
 }
 
 function filterStateFromParams(params: BookingsQueryParams): FilterState {
@@ -177,10 +180,12 @@ function filterStateFromParams(params: BookingsQueryParams): FilterState {
     needs_action:
       params.needs_action === undefined ? '' : String(params.needs_action),
     overdue: params.overdue === undefined ? '' : String(params.overdue),
-    remaining_amount_gt:
-      params.remaining_amount_gt === undefined
+    search: params.search ?? '',
+    upcoming: params.upcoming === undefined ? '' : String(params.upcoming),
+    has_remaining_amount:
+      params.has_remaining_amount === undefined
         ? ''
-        : String(params.remaining_amount_gt),
+        : String(params.has_remaining_amount),
     status: params.status ?? '',
   }
 }
@@ -195,8 +200,10 @@ function paramsFromFilterState(filters: FilterState): BookingsQueryParams {
     ...(filters.hold_expiring ? { hold_expiring: filters.hold_expiring } : {}),
     ...(filters.needs_action ? { needs_action: filters.needs_action } : {}),
     ...(filters.overdue ? { overdue: filters.overdue } : {}),
-    ...(filters.remaining_amount_gt
-      ? { remaining_amount_gt: filters.remaining_amount_gt }
+    ...(filters.search.trim() ? { search: filters.search.trim() } : {}),
+    ...(filters.upcoming ? { upcoming: filters.upcoming } : {}),
+    ...(filters.has_remaining_amount
+      ? { has_remaining_amount: filters.has_remaining_amount }
       : {}),
     ...(filters.status ? { status: filters.status } : {}),
   }
@@ -207,6 +214,7 @@ function getBookingsSearch(params: BookingsQueryParams): string {
 }
 
 interface BookingsFilterFormProps {
+  canChooseCourt: boolean
   courtOptions: FilterOption[]
   initialFilters: FilterState
   isLoading: boolean
@@ -216,6 +224,7 @@ interface BookingsFilterFormProps {
 }
 
 function BookingsFilterForm({
+  canChooseCourt,
   courtOptions,
   initialFilters,
   isLoading,
@@ -238,10 +247,7 @@ function BookingsFilterForm({
   ): void {
     const field = key as OperationalFilterKey
 
-    updateFilter(
-      field,
-      checked ? (field === 'remaining_amount_gt' ? '0' : 'true') : '',
-    )
+    updateFilter(field, checked ? 'true' : '')
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -272,10 +278,20 @@ function BookingsFilterForm({
       className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
       onSubmit={handleSubmit}
     >
+      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)] md:col-span-2 xl:col-span-5">
+        <span>بحث بالعميل أو رقم الهاتف</span>
+        <input
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 font-semibold text-[var(--sloty-text-primary)] outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          onChange={(event) => updateFilter('search', event.target.value)}
+          type="search"
+          value={filters.search}
+        />
+      </label>
+
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>تاريخ محدد</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
           onChange={(event) => updateFilter('date', event.target.value)}
           type="date"
           value={filters.date}
@@ -285,7 +301,7 @@ function BookingsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>من تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
           onChange={(event) => updateFilter('date_from', event.target.value)}
           type="date"
           value={filters.date_from}
@@ -295,19 +311,21 @@ function BookingsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>إلى تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
           onChange={(event) => updateFilter('date_to', event.target.value)}
           type="date"
           value={filters.date_to}
         />
       </label>
 
-      <AppSelect
-        label="الملعب"
-        onChange={(value) => updateFilter('court', value)}
-        options={courtFilterOptions}
-        value={filters.court}
-      />
+      {canChooseCourt ? (
+        <AppSelect
+          label="الملعب"
+          onChange={(value) => updateFilter('court', value)}
+          options={courtFilterOptions}
+          value={filters.court}
+        />
+      ) : null}
 
       <AppSelect
         label="الحالة"
@@ -322,19 +340,9 @@ function BookingsFilterForm({
         onChange={updateOperationalFilter}
         options={[
           {
-            key: 'needs_action',
-            label: 'تحتاج إجراء',
-            checked: filters.needs_action === 'true',
-          },
-          {
             key: 'overdue',
             label: 'متأخرة',
             checked: filters.overdue === 'true',
-          },
-          {
-            key: 'remaining_amount_gt',
-            label: 'بها مبلغ متبقي',
-            checked: Boolean(filters.remaining_amount_gt),
           },
           {
             key: 'ended',
@@ -381,9 +389,14 @@ function BookingsFilterForm({
 export function BookingsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { selectedClubSlug } = useAuth()
-  const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
+  const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [pagination, setPagination] = useState<PaginationState>({
+    count: 0,
+    hasNext: false,
+    hasPrevious: false,
+  })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -415,18 +428,27 @@ export function BookingsListPage() {
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [courtRecords, setCourtRecords] = useState<Court[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!successMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setSuccessMessage(null), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [successMessage])
   const urlParams = useMemo(
     () => parseBookingsQueryParams(location.search),
     [location.search],
   )
-  const urlHasBookingFilters = hasBookingFilters(urlParams)
   const effectiveParams = useMemo(() => {
-    if (urlHasBookingFilters) {
+    if (canChooseCourt) {
       return urlParams
     }
 
-    return usesUnfilteredEmptyUrl ? {} : createDefaultQueryParams()
-  }, [urlHasBookingFilters, urlParams, usesUnfilteredEmptyUrl])
+    const staffParams = { ...urlParams }
+    delete staffParams.court
+    return staffParams
+  }, [canChooseCourt, urlParams])
   const initialFilters = useMemo(
     () => filterStateFromParams(effectiveParams),
     [effectiveParams],
@@ -447,7 +469,7 @@ export function BookingsListPage() {
     let isActive = true
 
     async function loadCourtOptions(): Promise<void> {
-      if (!selectedClubSlug) {
+      if (!selectedClubSlug || !canChooseCourt) {
         setCourtOptions([])
         setCourtRecords([])
         setFilterOptionsError(null)
@@ -486,11 +508,12 @@ export function BookingsListPage() {
     return () => {
       isActive = false
     }
-  }, [selectedClubSlug])
+  }, [canChooseCourt, selectedClubSlug])
 
   const reloadBookings = useCallback(async (): Promise<void> => {
     if (!selectedClubSlug) {
       setBookings([])
+      setPagination({ count: 0, hasNext: false, hasPrevious: false })
       setError(null)
       setMessage('اختر ناديًا أولًا لعرض الحجوزات')
       setIsLoading(false)
@@ -504,14 +527,42 @@ export function BookingsListPage() {
     try {
       const bookingsResponse = await listBookings(selectedClubSlug, effectiveParams)
 
+      if (
+        bookingsResponse.results.length === 0
+        && bookingsResponse.previous
+        && Number(effectiveParams.page || 1) > 1
+      ) {
+        const previousPageParams = { ...effectiveParams }
+        const previousPage = Number(effectiveParams.page) - 1
+        if (previousPage <= 1) {
+          delete previousPageParams.page
+        } else {
+          previousPageParams.page = String(previousPage)
+        }
+        navigate(
+          {
+            pathname: location.pathname,
+            search: getBookingsSearch(previousPageParams),
+          },
+          { replace: true },
+        )
+        return
+      }
+
       setBookings(bookingsResponse.results)
+      setPagination({
+        count: bookingsResponse.count,
+        hasNext: Boolean(bookingsResponse.next),
+        hasPrevious: Boolean(bookingsResponse.previous),
+      })
     } catch (error) {
       setBookings([])
+      setPagination({ count: 0, hasNext: false, hasPrevious: false })
       setError(getApiErrorMessage(error, 'تعذر تحميل الحجوزات'))
     } finally {
       setIsLoading(false)
     }
-  }, [effectiveParams, selectedClubSlug])
+  }, [effectiveParams, location.pathname, navigate, selectedClubSlug])
 
   useEffect(() => {
     void Promise.resolve().then(() => reloadBookings())
@@ -519,9 +570,12 @@ export function BookingsListPage() {
 
   function handleApplyFilters(nextFilters: FilterState): void {
     const nextParams = paramsFromFilterState(nextFilters)
+    delete nextParams.page
+    if (!canChooseCourt) {
+      delete nextParams.court
+    }
     const nextSearch = getBookingsSearch(nextParams)
 
-    setUsesUnfilteredEmptyUrl(!nextSearch)
     navigate(
       {
         pathname: location.pathname,
@@ -532,37 +586,15 @@ export function BookingsListPage() {
   }
 
   function handleResetFilters(): void {
-    const defaultParams = createDefaultQueryParams()
+    const nextParams: BookingsQueryParams = {
+      ...(effectiveParams.needs_action
+        ? { needs_action: effectiveParams.needs_action }
+        : {}),
+      ...(effectiveParams.has_remaining_amount !== undefined
+        ? { has_remaining_amount: effectiveParams.has_remaining_amount }
+        : {}),
+    }
 
-    setUsesUnfilteredEmptyUrl(false)
-    navigate(
-      {
-        pathname: location.pathname,
-        search: getBookingsSearch(defaultParams),
-      },
-      { replace: false },
-    )
-  }
-
-  function handleRemoveFilter(key: BookingFilterChipKey): void {
-    const nextParams = { ...effectiveParams }
-
-    delete nextParams[key]
-
-    const nextSearch = getBookingsSearch(nextParams)
-
-    setUsesUnfilteredEmptyUrl(!nextSearch)
-    navigate(
-      {
-        pathname: location.pathname,
-        search: nextSearch,
-      },
-      { replace: false },
-    )
-  }
-
-  function applyQuickParams(nextParams: BookingsQueryParams): void {
-    setUsesUnfilteredEmptyUrl(false)
     navigate(
       {
         pathname: location.pathname,
@@ -572,22 +604,76 @@ export function BookingsListPage() {
     )
   }
 
-  function handleQuickToday(): void {
-    applyQuickParams(createDefaultQueryParams())
+  function handleRemoveFilter(key: BookingFilterChipKey): void {
+    const nextParams = { ...effectiveParams }
+
+    delete nextParams[key]
+    delete nextParams.page
+
+    const nextSearch = getBookingsSearch(nextParams)
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch,
+      },
+      { replace: false },
+    )
   }
 
-  function handleQuickNeedsClosing(): void {
-    applyQuickParams({
-      date: formatDateInputValue(new Date()),
-      needs_action: 'true',
-    })
+  function handlePrimaryFilter(key: string, checked: boolean): void {
+    const nextParams = { ...effectiveParams }
+    delete nextParams.page
+
+    if (key === 'needs_action') {
+      if (checked) {
+        nextParams.needs_action = 'true'
+      } else {
+        delete nextParams.needs_action
+      }
+    }
+
+    if (key === 'has_remaining_amount') {
+      if (checked) {
+        nextParams.has_remaining_amount = 'true'
+      } else {
+        delete nextParams.has_remaining_amount
+      }
+    }
+
+    if (key === 'upcoming') {
+      if (checked) {
+        nextParams.upcoming = 'true'
+      } else {
+        delete nextParams.upcoming
+      }
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: false },
+    )
   }
 
-  function handleQuickHold(): void {
-    applyQuickParams({
-      date: formatDateInputValue(new Date()),
-      status: 'HOLD',
-    })
+  function handlePageChange(nextPage: number): void {
+    const nextParams = { ...effectiveParams }
+
+    if (nextPage <= 1) {
+      delete nextParams.page
+    } else {
+      nextParams.page = String(nextPage)
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: false },
+    )
   }
 
   function closeBookingSheets(): void {
@@ -620,11 +706,18 @@ export function BookingsListPage() {
         booking: paymentBooking.id,
         amount: values.amount,
         payment_method: values.payment_method,
-        ...(values.reference ? { reference: values.reference } : {}),
+        ...(values.reference
+          ? { payment_reference: values.reference }
+          : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       })
       setPaymentBooking(null)
-      setSuccessMessage('تم تسجيل الدفعة بنجاح')
+      setSelectedBooking(null)
+      setSuccessMessage(
+        paymentBooking.status === 'HOLD'
+          ? 'تم تسجيل العربون وتأكيد الحجز بنجاح'
+          : 'تم تسجيل التحصيل بنجاح',
+      )
       await reloadBookings()
     } catch (error) {
       const errorCode = getApiErrorCode(error)
@@ -657,15 +750,15 @@ export function BookingsListPage() {
 
     try {
       await cancelBooking(selectedClubSlug, booking.id, {
-        reason: 'تحرير الحجز المؤقت',
-        notes: 'تم تحرير الموعد من سجل الحجوزات',
+        reason: 'إلغاء الحجز المؤقت',
+        notes: 'تم إلغاء الحجز من سجل الحجوزات',
       })
       setSelectedBooking(null)
-      setSuccessMessage('تم تحرير الموعد بنجاح')
+      setSuccessMessage('تم إلغاء الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
       setActionError(
-        getApiErrorMessage(error, 'تعذر تحرير الموعد. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
       )
     } finally {
       setIsActionSubmitting(false)
@@ -687,6 +780,7 @@ export function BookingsListPage() {
       await cancelBooking(selectedClubSlug, cancellingBooking.id, values)
       setCancellingBooking(null)
       setCancellationPreview(null)
+      setSelectedBooking(null)
       setSuccessMessage('تم إلغاء الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
@@ -723,7 +817,6 @@ export function BookingsListPage() {
 
       setCancellationPreview(preview)
       setCancellingBooking(booking)
-      setSelectedBooking(null)
     } catch (error) {
       if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
         setActionError('انتهى وقت إلغاء هذا الحجز لأنه بدأ بالفعل.')
@@ -751,6 +844,7 @@ export function BookingsListPage() {
       await completeBooking(selectedClubSlug, completingBooking.id)
       setCompletingBooking(null)
       setCompletingBookingRemainingAmount(null)
+      setSelectedBooking(null)
       setSuccessMessage('تم إكمال الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
@@ -786,6 +880,7 @@ export function BookingsListPage() {
     try {
       await markBookingNoShow(selectedClubSlug, noShowBooking.id, values)
       setNoShowBooking(null)
+      setSelectedBooking(null)
       setSuccessMessage('تم تسجيل عدم الحضور بنجاح')
       await reloadBookings()
     } catch (error) {
@@ -798,24 +893,55 @@ export function BookingsListPage() {
     }
   }
 
+  async function handleEndRecurrence(booking: Booking): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsActionSubmitting(true)
+    setActionError(null)
+
+    try {
+      await endBookingRecurrence(selectedClubSlug, booking.id)
+      setSelectedBooking(null)
+      setSuccessMessage('تم إيقاف التكرار الأسبوعي')
+      await reloadBookings()
+    } catch (error) {
+      setActionError(
+        getApiErrorMessage(error, 'تعذر إيقاف التكرار الأسبوعي. حاول مرة أخرى'),
+      )
+    } finally {
+      setIsActionSubmitting(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <AppButton onClick={handleQuickToday} type="button" variant="secondary">
-          اليوم
-        </AppButton>
-        <AppButton
-          onClick={handleQuickNeedsClosing}
-          type="button"
-          variant="secondary"
-        >
-          تحتاج إغلاق
-        </AppButton>
-        <AppButton onClick={handleQuickHold} type="button" variant="secondary">
-          بانتظار العربون
-        </AppButton>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <FilterCheckboxGroup
+          className="min-w-0 flex-1"
+          label="مراجعة سريعة"
+          onChange={handlePrimaryFilter}
+          options={[
+            {
+              key: 'needs_action',
+              label: 'تحتاج إجراء',
+              checked: effectiveParams.needs_action === 'true',
+            },
+            {
+              key: 'has_remaining_amount',
+              label: 'بها مبلغ متبقي',
+              checked: effectiveParams.has_remaining_amount === 'true',
+            },
+            {
+              key: 'upcoming',
+              label: 'قادمة',
+              checked: effectiveParams.upcoming === 'true',
+            },
+          ]}
+        />
         <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
-          فلترة
+          فلاتر إضافية
         </AppButton>
       </div>
 
@@ -825,27 +951,17 @@ export function BookingsListPage() {
         </p>
       ) : null}
 
-      <AppCard className="hidden md:block">
-        <BookingsFilterForm
-          courtOptions={courtOptions}
-          initialFilters={initialFilters}
-          isLoading={isLoading}
-          key={`desktop-${getBookingsSearch(effectiveParams) || 'empty-filters'}`}
-          onApply={handleApplyFilters}
-          onReset={handleResetFilters}
-        />
-      </AppCard>
-
       <FilterSheet
         isOpen={isFilterSheetOpen}
         onClose={() => setIsFilterSheetOpen(false)}
         title="فلترة الحجوزات"
       >
         <BookingsFilterForm
+          canChooseCourt={canChooseCourt}
           courtOptions={courtOptions}
           initialFilters={initialFilters}
           isLoading={isLoading}
-          key={`mobile-${getBookingsSearch(effectiveParams) || 'empty-filters'}`}
+          key={getBookingsSearch(effectiveParams) || 'empty-filters'}
           onApply={handleApplyFilters}
           onClose={() => setIsFilterSheetOpen(false)}
           onReset={handleResetFilters}
@@ -883,26 +999,59 @@ export function BookingsListPage() {
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             {hasActiveFilters
-              ? 'لا توجد حجوزات مطابقة للفلاتر الحالية'
-              : 'لا توجد حجوزات لهذا اليوم'}
+              ? 'ملقيناش حجوزات مطابقة للفلاتر الحالية.'
+              : 'مفيش حجوزات لعرضها.'}
           </p>
         </AppCard>
       ) : null}
 
       {!isLoading && !error && bookings.length > 0 ? (
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {bookings.map((booking) => (
-            <BookingListCard
-              booking={booking}
-              key={booking.id}
-              onSelect={(booking) => {
-                setSelectedBooking(booking)
-                setActionError(null)
-                setActionFieldErrors(null)
-              }}
-            />
-          ))}
-        </section>
+        <>
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {bookings.map((booking) => (
+              <BookingListCard
+                booking={booking}
+                key={booking.id}
+                onSelect={(booking) => {
+                  setSelectedBooking(booking)
+                  setActionError(null)
+                  setActionFieldErrors(null)
+                }}
+              />
+            ))}
+          </section>
+
+          {pagination.hasNext || pagination.hasPrevious ? (
+            <nav
+              aria-label="صفحات سجل الحجوزات"
+              className="flex items-center justify-center gap-3"
+            >
+              <AppButton
+                disabled={!pagination.hasPrevious}
+                onClick={() => handlePageChange(
+                  Math.max(1, Number(effectiveParams.page || 1) - 1),
+                )}
+                type="button"
+                variant="secondary"
+              >
+                السابق
+              </AppButton>
+              <span className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                صفحة {effectiveParams.page || 1} · {pagination.count} حجز
+              </span>
+              <AppButton
+                disabled={!pagination.hasNext}
+                onClick={() => handlePageChange(
+                  Number(effectiveParams.page || 1) + 1,
+                )}
+                type="button"
+                variant="secondary"
+              >
+                التالي
+              </AppButton>
+            </nav>
+          ) : null}
+        </>
       ) : null}
 
       {successMessage ? (
@@ -923,12 +1072,21 @@ export function BookingsListPage() {
       <BookingActionSheet
         booking={selectedBooking}
         dateValue={typeof effectiveParams.date === 'string' ? effectiveParams.date : null}
-        error={actionError}
-        isOpen={Boolean(selectedBooking)}
+        error={
+          paymentBooking || cancellingBooking || completingBooking || noShowBooking
+            ? null
+            : actionError
+        }
+        isOpen={Boolean(
+          selectedBooking &&
+            !paymentBooking &&
+            !cancellingBooking &&
+            !completingBooking &&
+            !noShowBooking,
+        )}
         isSubmitting={isActionSubmitting}
         onAddPayment={(booking) => {
           setPaymentBooking(booking)
-          setSelectedBooking(null)
           setPaymentError(null)
           setPaymentFieldErrors(null)
         }}
@@ -939,15 +1097,16 @@ export function BookingsListPage() {
         onComplete={(booking) => {
           setCompletingBooking(booking)
           setCompletingBookingRemainingAmount(null)
-          setSelectedBooking(null)
           setActionError(null)
+        }}
+        onEndRecurrence={(booking) => {
+          void handleEndRecurrence(booking)
         }}
         onFreeHold={(booking) => {
           void handleFreeHoldBooking(booking)
         }}
         onNoShow={(booking) => {
           setNoShowBooking(booking)
-          setSelectedBooking(null)
           setActionError(null)
         }}
       />
@@ -964,6 +1123,7 @@ export function BookingsListPage() {
                   ?.minimum_deposit ?? null
               : null
           }
+          paymentPurpose={paymentBooking.status === 'HOLD' ? 'deposit' : 'remaining'}
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
@@ -986,6 +1146,7 @@ export function BookingsListPage() {
           }}
           onSubmit={handleCancelBooking}
           preview={cancellationPreview}
+          recurrenceWillEnd={hasActiveRecurrence(cancellingBooking)}
         />
       ) : null}
 
@@ -1027,6 +1188,7 @@ export function BookingsListPage() {
             setActionError(null)
           }}
           onSubmit={handleNoShowBooking}
+          recurrenceWillEnd={hasActiveRecurrence(noShowBooking)}
         />
       ) : null}
     </div>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { AppButton } from '../AppButton/AppButton'
+import { AppSheet } from '../AppSheet/AppSheet'
 
 export interface FilterSheetProps {
   isOpen: boolean
@@ -20,27 +20,19 @@ export function FilterSheet({
   onClose,
   title,
 }: FilterSheetProps) {
-  if (!isOpen) {
-    return null
-  }
-
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-      role="dialog"
+    <AppSheet
+      ariaLabel={title}
+      className="min-w-0 max-w-full md:max-w-2xl"
+      isOpen={isOpen}
+      onRequestClose={onClose}
     >
-      <div className="max-h-[88vh] w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-2xl md:rounded-3xl">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            {title}
-          </h2>
-          <AppButton onClick={onClose} type="button" variant="secondary">
-            إغلاق
-          </AppButton>
-        </div>
+      <div className="w-full min-w-0 max-w-full overflow-x-hidden p-5 pt-14">
+        <h2 className="mb-5 text-xl font-black text-[var(--sloty-text-primary)]">
+          {title}
+        </h2>
         {children}
       </div>
-    </div>
+    </AppSheet>
   )
 }

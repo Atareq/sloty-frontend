@@ -139,11 +139,25 @@ select {
   background: transparent;
   color: var(--sloty-text-primary);
   direction: ltr;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 600;
   outline: none;
   padding-inline: 0.75rem;
   text-align: left;
+}
+
+.sloty-mobile-safe-input {
+  font-size: 1rem;
+}
+
+@media (min-width: 640px) {
+  .sloty-phone-input__number {
+    font-size: 0.875rem;
+  }
+
+  .sloty-mobile-safe-input {
+    font-size: 0.875rem;
+  }
 }
 
 .sloty-phone-input__country:has(> button:disabled),

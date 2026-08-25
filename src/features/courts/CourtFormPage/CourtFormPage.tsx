@@ -83,9 +83,9 @@ const holdExpiryOptions = [
 ]
 
 const inputClass =
-  'h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15'
+  'h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm'
 const textareaClass =
-  'min-h-24 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15'
+  'min-h-24 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm'
 
 function optionalText(value: string): string | undefined {
   const trimmedValue = value.trim()
@@ -390,7 +390,7 @@ export function CourtFormPage() {
                 value={formState.minimum_deposit}
               />
               <span className="block text-xs font-normal text-gray-500">
-                تتحقق الخلفية من أول دفعة حسب قيمة الحجز وسياسة الملعب.
+                أقل عربون مطلوب لتأكيد الحجز.
               </span>
             </label>
             {minimumDepositFieldError ? (
@@ -400,7 +400,10 @@ export function CourtFormPage() {
             ) : null}
 
             <label className="space-y-2 text-sm font-semibold">
-              <span>مهلة استرداد العربون عند الإلغاء</span>
+              <span>سياسة استرداد التأمين</span>
+              <span className="block text-xs font-normal text-gray-500">
+                يسترد العميل التأمين عند الإلغاء قبل الموعد بـ
+              </span>
               <input
                 className={inputClass}
                 inputMode="numeric"
@@ -412,12 +415,12 @@ export function CourtFormPage() {
                     event.target.value,
                   )
                 }
-                placeholder="بدون مهلة"
+                placeholder="عدد الأيام"
                 type="number"
                 value={formState.cancellation_refund_notice_days}
               />
               <span className="block text-xs font-normal text-gray-500">
-                اتركه فارغًا إذا لم توجد مهلة، أو استخدم رقمًا من 0 إلى 30.
+                أيام — اتركها فارغة لو مفيش مهلة محددة.
               </span>
             </label>
             {cancellationRefundNoticeFieldError ? (
@@ -445,7 +448,7 @@ export function CourtFormPage() {
             ) : null}
             <label className="block space-y-2">
               <AppSelect
-                label="مدة الاحتفاظ بالحجز بدون دفع"
+                label="مدة انتظار الحجز بدون العربون"
                 onChange={(value) =>
                   updateField('internal_hold_expiry_hours', value)
                 }
@@ -454,7 +457,7 @@ export function CourtFormPage() {
               />
 
               <span className="block text-xs font-normal text-gray-500">
-                المدة التي يظل فيها الحجز محفوظاً قبل إلغائه في حالة عدم الدفع.
+                لو العربون متدفعش خلال المدة دي، الحجز هيتلغي تلقائيًا.
               </span>
             </label>
             {holdExpiryFieldError ? (

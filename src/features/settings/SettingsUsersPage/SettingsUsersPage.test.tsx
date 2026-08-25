@@ -7,6 +7,7 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import {
   createClubMembership,
+  deleteClubMembership,
   listClubUsers,
   updateMembershipActivity,
   updateManagerPermissions,
@@ -21,6 +22,7 @@ vi.mock('../../../core/auth/useAuth', () => ({
 
 vi.mock('../../clubUsers/clubUsersApi', () => ({
   createClubMembership: vi.fn(),
+  deleteClubMembership: vi.fn(),
   listClubUsers: vi.fn(),
   updateMembershipActivity: vi.fn(),
   updateManagerPermissions: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock('../../adminUsers/adminUsersApi', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedCreateClubMembership = vi.mocked(createClubMembership)
+const mockedDeleteClubMembership = vi.mocked(deleteClubMembership)
 const mockedListClubUsers = vi.mocked(listClubUsers)
 const mockedUpdateMembershipActivity = vi.mocked(updateMembershipActivity)
 const mockedUpdateManagerPermissions = vi.mocked(updateManagerPermissions)
@@ -191,9 +194,10 @@ describe('SettingsUsersPage', () => {
     vi.clearAllMocks()
     mockAuth()
     mockedListClubUsers.mockResolvedValue([ownerUser, managerUser, staffUser])
-    mockedCreateClubMembership.mockResolvedValue(managerUser)
-    mockedUpdateMembershipActivity.mockResolvedValue(managerUser)
-    mockedUpdateManagerPermissions.mockResolvedValue(managerUser)
+    mockedCreateClubMembership.mockResolvedValue(managerUser as never)
+    mockedDeleteClubMembership.mockResolvedValue(undefined)
+    mockedUpdateMembershipActivity.mockResolvedValue(managerUser as never)
+    mockedUpdateManagerPermissions.mockResolvedValue(managerUser as never)
     mockedListPlatformUsers.mockResolvedValue([
       {
         id: 55,
@@ -324,6 +328,34 @@ describe('SettingsUsersPage', () => {
     await waitFor(() => expect(mockedListClubUsers).toHaveBeenCalledTimes(2))
   })
 
+  it('permanently deletes a non-owner membership and removes its row', async () => {
+    const user = userEvent.setup()
+    mockedListClubUsers
+      .mockResolvedValueOnce([ownerUser, managerUser, staffUser])
+      .mockResolvedValueOnce([ownerUser, staffUser])
+
+    renderUsersPage()
+
+    await screen.findByText('منى مدير')
+    const managerCard = screen.getByText('منى مدير').closest('section')
+    expect(managerCard).not.toBeNull()
+    await user.click(
+      within(managerCard as HTMLElement).getByRole('button', {
+        name: 'حذف المستخدم من النادي نهائيًا',
+      }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'تأكيد الحذف النهائي' }),
+    )
+
+    expect(mockedDeleteClubMembership).toHaveBeenCalledWith('nasr-club', 102)
+    await waitFor(() => {
+      expect(screen.queryByText('منى مدير')).not.toBeInTheDocument()
+    })
+    expect(mockedListClubUsers).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('DELETED')).not.toBeInTheDocument()
+  })
+
   it('does not show manager permission edit action for unauthorized roles', async () => {
     mockAuth({ role: 'MANAGER' })
 
@@ -352,6 +384,20 @@ describe('SettingsUsersPage', () => {
     expect(dialog.getByText('مستخدم جديد')).toBeInTheDocument()
     expect(dialog.getByText('مستخدم موجود')).toBeInTheDocument()
     expect(dialog.queryByText(/غير متاح حتى يتم تأكيد/)).not.toBeInTheDocument()
+  })
+
+  it('protects unfinished add-user input when AppSheet dismissal is requested', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
+    await user.click(dialog.getByRole('button', { name: 'إغلاق' }))
+
+    expect(screen.getByText('عندك تعديلات لسه متحفظتش.')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'إضافة مستخدم' }))
+      .toBeInTheDocument()
   })
 
   it('does not show add user action for unauthorized roles', async () => {

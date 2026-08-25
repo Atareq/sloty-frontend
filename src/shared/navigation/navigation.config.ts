@@ -1,4 +1,8 @@
-import type { AuthRole } from '../../core/auth/auth.types'
+import {
+  canManageSettlements,
+  type AuthRole,
+  type CurrentUserMembership,
+} from '../../core/auth/auth.types'
 
 export interface NavigationItem {
   path: string
@@ -24,7 +28,7 @@ const allRoles: AuthRole[] = [
 /**
  * Single role-based navigation source for desktop and mobile shells.
  *
- * `showInMobile` keeps the bottom navigation focused on main actions.
+ * `showInMobile` is retained for route metadata compatibility.
  * `showInPrimaryNav` keeps routable detail pages out of drawer/sidebar chrome.
  */
 export const navigationItems: NavigationItem[] = [
@@ -53,16 +57,8 @@ export const navigationItems: NavigationItem[] = [
     showInPrimaryNav: true,
   },
   {
-    path: '/recurring-agreements',
-    label: 'الحجوزات الأسبوعية',
-    marker: 'أ',
-    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
-    showInMobile: false,
-    showInPrimaryNav: true,
-  },
-  {
     path: '/transactions',
-    label: 'سجل المعاملات المالية',
+    label: 'التحصيلات',
     marker: 'د',
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: false,
@@ -70,7 +66,7 @@ export const navigationItems: NavigationItem[] = [
   },
   {
     path: '/settlements',
-    label: 'التسويات المالية والجرد',
+    label: 'عهد الموظفين',
     marker: 'ت',
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: false,
@@ -155,25 +151,21 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
     title: 'سجل الحجوزات',
     subtitle: 'قائمة مراجعة الحجوزات حسب الفلاتر',
   },
-  '/recurring-agreements': {
-    title: 'الحجوزات الأسبوعية',
-    subtitle: 'متابعة اتفاقات الحجز الأسبوعي والتأمين',
-  },
   '/transactions': {
-    title: 'سجل المعاملات المالية',
-    subtitle: 'سجل المدفوعات المسجلة على حجوزات النادي النشط',
+    title: 'التحصيلات',
+    subtitle: 'مراجعة التحصيلات والاستردادات المسجلة',
   },
   '/settlements': {
-    title: 'التسويات المالية والجرد',
-    subtitle: 'مراجعة وتسوية دفعات الموظفين',
+    title: 'عهد الموظفين',
+    subtitle: 'مراجعة المبالغ التي مع الموظفين وسجل الاستلام',
   },
   '/settlements/history': {
     title: 'التسويات المالية والجرد',
     subtitle: 'متابعة التسويات السابقة وحالات الجرد',
   },
   '/settlements/preview': {
-    title: 'مراجعة التسوية',
-    subtitle: 'مراجعة الدفعات غير المسواة قبل التأكيد',
+    title: 'مراجعة العهدة',
+    subtitle: 'راجع التحصيلات غير المسواة قبل تأكيد الاستلام',
   },
   '/reports': {
     title: 'التقارير الاستهلاكية للملاعب',
@@ -212,13 +204,29 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
 export function getNavigationItemsForRole(
   role: AuthRole,
   options: { mobileOnly?: boolean; primaryOnly?: boolean } = {},
+  membership: CurrentUserMembership | null = null,
 ): NavigationItem[] {
-  return navigationItems.filter(
-    (item) =>
+  return navigationItems
+    .filter((item) =>
       item.allowedRoles.includes(role) &&
       (!options.mobileOnly || item.showInMobile) &&
       (!options.primaryOnly || item.showInPrimaryNav),
-  )
+    )
+    .map((item) => {
+      if (item.path === '/transactions' && role === 'STAFF') {
+        return { ...item, label: 'تحصيلاتي' }
+      }
+
+      if (
+        item.path === '/settlements' &&
+        membership &&
+        !canManageSettlements(membership, role)
+      ) {
+        return { ...item, label: 'عهدتي' }
+      }
+
+      return item
+    })
 }
 
 export function canRoleAccessPath(role: AuthRole, path: string): boolean {
@@ -231,7 +239,29 @@ export function getAllNavigationRoles(): AuthRole[] {
   return allRoles
 }
 
-export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
+export function getPageHeaderMeta(
+  pathname: string,
+  role: AuthRole | null = null,
+  membership: CurrentUserMembership | null = null,
+): PageHeaderMeta {
+  if (pathname === '/transactions' && role === 'STAFF') {
+    return {
+      title: 'تحصيلاتي',
+      subtitle: 'التحصيلات والاستردادات المسجلة على ملعبك',
+    }
+  }
+
+  if (
+    pathname === '/settlements' &&
+    role &&
+    !canManageSettlements(membership, role)
+  ) {
+    return {
+      title: 'عهدتي',
+      subtitle: 'المبلغ الذي معك الآن وسجل العهد السابقة',
+    }
+  }
+
   if (pageHeaderMetaByPath[pathname]) {
     return pageHeaderMetaByPath[pathname]
   }
@@ -243,13 +273,6 @@ export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
     return {
       title: 'تفاصيل التسوية',
       subtitle: 'مراجعة تفاصيل التسوية وحالة الدفعات',
-    }
-  }
-
-  if (pathname.startsWith('/recurring-agreements/')) {
-    return {
-      title: 'تفاصيل الحجز الأسبوعي',
-      subtitle: 'مراجعة الاتفاق والتأمين والإلغاء',
     }
   }
 

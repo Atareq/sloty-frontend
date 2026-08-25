@@ -107,7 +107,11 @@ describe('SettingsCourtDetailsPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('سياسة استرداد العربون للعرض فقط في هذا الحساب.'),
+      await screen.findByText('سياسة استرداد التأمين للعرض فقط في هذا الحساب.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('سياسة استرداد التأمين')).toBeInTheDocument()
+    expect(
+      screen.getByText('يسترد العميل التأمين عند الإلغاء قبل الموعد بـ'),
     ).toBeInTheDocument()
     expect(screen.queryByText('سعر الفترة الواحدة')).not.toBeInTheDocument()
     expect(screen.getByText('cannot-edit-hours')).toBeInTheDocument()

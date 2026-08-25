@@ -7,6 +7,23 @@ import {
 } from './navigation.config'
 
 describe('navigation config', () => {
+  const membership = {
+    id: 10,
+    role: 'MANAGER' as const,
+    club: {
+      id: 1,
+      slug: 'demo-club',
+      name: 'نادي التجربة',
+      is_active: true,
+    },
+    court: null,
+    permissions: {
+      can_change_pricing: false,
+      can_manage_working_hours: false,
+      can_manage_settlements: false,
+    },
+  }
+
   it('filters staff navigation items by role', () => {
     const staffPaths = getNavigationItemsForRole('STAFF').map(
       (item) => item.path,
@@ -16,7 +33,6 @@ describe('navigation config', () => {
       '/dashboard',
       '/schedule',
       '/bookings',
-      '/recurring-agreements',
       '/transactions',
       '/settlements',
     ])
@@ -33,6 +49,28 @@ describe('navigation config', () => {
     expect(canRoleAccessPath('OWNER', '/settings/users')).toBe(true)
   })
 
+  it('uses role and effective settlement permission for finance labels', () => {
+    expect(
+      getNavigationItemsForRole('STAFF', {}, { ...membership, role: 'STAFF' })
+        .find((item) => item.path === '/transactions')?.label,
+    ).toBe('تحصيلاتي')
+    expect(
+      getNavigationItemsForRole('MANAGER', {}, membership)
+        .find((item) => item.path === '/settlements')?.label,
+    ).toBe('عهدتي')
+    expect(
+      getNavigationItemsForRole('MANAGER', {}, {
+        ...membership,
+        permissions: {
+          ...membership.permissions,
+          can_manage_settlements: true,
+        },
+      }).find((item) => item.path === '/settlements')?.label,
+    ).toBe('عهد الموظفين')
+    expect(getPageHeaderMeta('/transactions', 'STAFF', membership).title)
+      .toBe('تحصيلاتي')
+  })
+
   it('returns only direct primary navigation items when requested', () => {
     const ownerPrimaryLabels = getNavigationItemsForRole('OWNER', {
       primaryOnly: true,
@@ -42,9 +80,8 @@ describe('navigation config', () => {
       'لوحة التحكم',
       'الجدول',
       'سجل الحجوزات',
-      'الحجوزات الأسبوعية',
-      'سجل المعاملات المالية',
-      'التسويات المالية والجرد',
+      'التحصيلات',
+      'عهد الموظفين',
       'التقارير الاستهلاكية للملاعب',
       'الإعدادات',
     ])
@@ -81,7 +118,6 @@ describe('navigation config', () => {
   it('keeps finance, admin, history, and settings pages out of the footer', () => {
     const hiddenMobilePaths = [
       '/transactions',
-      '/recurring-agreements',
       '/settlements',
       '/reports',
       '/audit-logs',
@@ -122,8 +158,8 @@ describe('navigation config', () => {
         'لوحة التحكم',
         'الجدول',
         'سجل الحجوزات',
-        'سجل المعاملات المالية',
-        'التسويات المالية والجرد',
+        'التحصيلات',
+        'عهد الموظفين',
         'سجل النشاطات',
         'التقارير الاستهلاكية للملاعب',
         'الإعدادات',
@@ -157,8 +193,6 @@ describe('navigation config', () => {
       '/dashboard',
       '/schedule',
       '/bookings',
-      '/recurring-agreements',
-      '/recurring-agreements/12',
       '/transactions',
       '/settlements',
       '/settlements/history',

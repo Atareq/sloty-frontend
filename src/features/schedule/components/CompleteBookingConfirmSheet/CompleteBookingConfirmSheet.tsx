@@ -1,4 +1,5 @@
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import { hasPositiveRemainingAmount } from '../../../bookings/bookingPayment.helpers'
 
@@ -25,12 +26,9 @@ export function CompleteBookingConfirmSheet({
   const hasRemaining = hasPositiveRemainingAmount(remainingAmount)
 
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-      role="dialog"
+    <AppSheet ariaLabel="إكمال الحجز" onRequestClose={onClose}
     >
-      <div className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl">
+      <div className="p-5 pt-14">
         <div className="space-y-2">
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
             إكمال الحجز
@@ -86,6 +84,6 @@ export function CompleteBookingConfirmSheet({
           </AppButton>
         </div>
       </div>
-    </div>
+    </AppSheet>
   )
 }

@@ -328,7 +328,7 @@ export function AdminUserFormPage() {
             : {}),
         })
 
-        navigate(appRoutes.adminUserDetail(createdMembership.id), {
+        navigate(appRoutes.adminUserDetail(createdMembership.user_summary.id), {
           state: { flashMessage: 'تم إنشاء العضوية بنجاح.' },
         })
         return

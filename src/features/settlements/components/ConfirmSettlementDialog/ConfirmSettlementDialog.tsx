@@ -1,4 +1,5 @@
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 
 interface ConfirmSettlementDialogProps {
@@ -26,37 +27,36 @@ export function ConfirmSettlementDialog({
   totalAmount,
   transactionCount,
 }: ConfirmSettlementDialogProps) {
-  if (!isOpen) {
-    return null
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-3 sm:items-center">
-      <section
-        aria-labelledby="confirm-settlement-title"
-        aria-modal="true"
-        className="w-full max-w-lg rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)]"
-        role="dialog"
-      >
-        <div className="space-y-4">
+    <AppSheet
+      className="md:max-w-lg"
+      isOpen={isOpen}
+      onRequestClose={() => {
+        if (!isSubmitting) {
+          onClose()
+        }
+      }}
+      title="تأكيد استلام العهدة"
+    >
+      <section className="p-4 sm:p-5">
+        <div className="space-y-4 pt-7">
           <div>
             <h2
               className="text-lg font-black text-[var(--sloty-text-primary)]"
-              id="confirm-settlement-title"
             >
-              تأكيد التسوية
+              تأكيد استلام العهدة
             </h2>
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
-              هل أنت متأكد من تسوية {formatMoneyAmount(totalAmount)} للموظف{' '}
+              هل تؤكد استلام {formatMoneyAmount(totalAmount)} من{' '}
               {collectorName}؟
             </p>
             <p className="mt-1 text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-              بعد التأكيد لن تظهر هذه الدفعات ضمن المبالغ غير المسواة.
+              بعد التأكيد لن تظهر هذه التحصيلات ضمن عهدة الموظف الحالية.
             </p>
           </div>
 
           <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3 text-sm font-bold text-[var(--sloty-text-primary)]">
-            عدد الدفعات: {transactionCount}
+            عدد التحصيلات: {transactionCount}
           </div>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
@@ -76,7 +76,9 @@ export function ConfirmSettlementDialog({
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <AppButton disabled={isSubmitting} onClick={onConfirm}>
-              {isSubmitting ? 'جاري تأكيد التسوية...' : 'تأكيد التسوية'}
+              {isSubmitting
+                ? 'جاري تأكيد الاستلام...'
+                : 'تأكيد استلام العهدة'}
             </AppButton>
             <AppButton
               disabled={isSubmitting}
@@ -88,6 +90,6 @@ export function ConfirmSettlementDialog({
           </div>
         </div>
       </section>
-    </div>
+    </AppSheet>
   )
 }

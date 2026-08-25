@@ -174,8 +174,12 @@ describe('TransactionsListPage', () => {
           booking: 10,
           amount: '150.00',
           payment_method: 'DIGITAL_WALLET' as const,
-          reference: 'REF-123',
+          payment_reference: 'REF-123',
           created: '2026-07-02T10:00:00Z',
+          booking_start_time: '2026-07-02T11:00:00Z',
+          court_name: 'ملعب النجوم',
+          created_by: 15,
+          created_by_username: 'collector',
         },
       ]),
     )
@@ -184,7 +188,9 @@ describe('TransactionsListPage', () => {
 
     expect(await screen.findByText('150.00')).toBeInTheDocument()
     expect(screen.getByText('محفظة رقمية')).toBeInTheDocument()
-    expect(screen.getByText('#10')).toBeInTheDocument()
+    expect(screen.getByText('ملعب النجوم')).toBeInTheDocument()
+    expect(screen.getByText('collector')).toBeInTheDocument()
+    expect(screen.queryByText('#10')).not.toBeInTheDocument()
     expect(screen.getByText('REF-123')).toBeInTheDocument()
     expect(mockedListTransactions).toHaveBeenCalledWith(
       'nasr-club',
@@ -231,7 +237,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(
-      await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية'),
+      await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.'),
     ).toBeInTheDocument()
   })
 
@@ -245,7 +251,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لعرض المعاملات'),
+      await screen.findByText('اختر ناديًا أولًا لعرض التحصيلات'),
     ).toBeInTheDocument()
     expect(mockedListTransactions).not.toHaveBeenCalled()
   })
@@ -271,7 +277,7 @@ describe('TransactionsListPage', () => {
     expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
     expect(screen.getByText('أحمد')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'إلغاء تسجيل الدفعة' }),
+      screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
     ).not.toBeInTheDocument()
   })
 
@@ -296,7 +302,7 @@ describe('TransactionsListPage', () => {
     expect(await screen.findByText('استرداد')).toBeInTheDocument()
     expect(screen.getByText('-250.00')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'إلغاء تسجيل الدفعة' }),
+      screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
     ).not.toBeInTheDocument()
   })
 
@@ -330,7 +336,7 @@ describe('TransactionsListPage', () => {
       '/transactions?settlement_status=unsettled&is_cancelled=false',
     )
 
-    await user.click(await screen.findByRole('button', { name: 'إلغاء تسجيل الدفعة' }))
+    await user.click(await screen.findByRole('button', { name: 'إلغاء التحصيل' }))
     await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }))
 
     expect(screen.getByText('سبب الإلغاء مطلوب')).toBeInTheDocument()
@@ -349,7 +355,7 @@ describe('TransactionsListPage', () => {
         settlement_status: 'unsettled',
       },
     )
-    expect(await screen.findByText('تم إلغاء تسجيل الدفعة بنجاح')).toBeInTheDocument()
+    expect(await screen.findByText('تم إلغاء التحصيل بنجاح')).toBeInTheDocument()
   })
 
   it('respects summary redirect filters without adding default dates', async () => {
@@ -432,7 +438,7 @@ describe('TransactionsListPage', () => {
     await user.click(await screen.findByRole('button', { name: 'فلترة' }))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('فلترة المعاملات')).toBeInTheDocument()
+    expect(screen.getByText('فلترة التحصيلات')).toBeInTheDocument()
     expect(screen.getAllByLabelText('الموظف المحصل')).not.toHaveLength(0)
   })
 
@@ -447,7 +453,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.clear(screen.getByLabelText('إلى تاريخ'))
@@ -486,7 +492,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
@@ -520,7 +526,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.click(screen.getByRole('checkbox', { name: 'غير مسواة' }))
@@ -561,7 +567,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage('/transactions?settlement_status=unsettled')
 
-    await screen.findByText('لا توجد دفعات مطابقة للفلاتر الحالية')
+    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))

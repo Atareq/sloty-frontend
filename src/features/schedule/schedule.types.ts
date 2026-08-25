@@ -3,6 +3,7 @@ import type { BookingListItem } from './scheduleApi.types'
 export type BookingBoardSlotStatus =
   | 'available'
   | 'unavailable'
+  | 'recurring_reserved'
   | 'hold'
   | 'confirmed'
   | 'completed'
@@ -40,6 +41,10 @@ export interface ScheduleBooking {
   startTime: string
   endTime: string
   slotPrice?: string | null
+  canStartRecurring?: boolean | null
+  recurringAnchorBookingId?: number | null
+  recurringBlockedReason?: string | null
+  firstRecurringConflictStart?: string | null
   period: BookingBoardPeriod
   booking?: BookingListItem
 }

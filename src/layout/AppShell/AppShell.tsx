@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { X } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
   canViewOwnSettlements,
   type AuthRole,
   type CurrentUserMembership,
-  type CurrentUserProfile,
 } from '../../core/auth/auth.types'
 import { useAuth } from '../../core/auth/useAuth'
-import { MobileBottomNav } from '../../shared/components/MobileBottomNav/MobileBottomNav'
+import {
+  useAppOverlayRegistration,
+  useHasActiveAppSheet,
+} from '../../shared/components/AppSheet/appSheetOverlay'
+import { NewBookingFAB } from '../../shared/components/NewBookingFAB/NewBookingFAB'
 import { PageHeader } from '../../shared/components/PageHeader/PageHeader'
+import { getAuthenticatedUserDisplayName } from '../../shared/utils/displayNames'
 import {
   getNavigationItemsForRole,
   getPageHeaderMeta,
@@ -41,18 +46,6 @@ const mobileMenuGroups: NavigationGroup[] = [
     paths: ['/admin/clubs', '/admin/users'],
   },
 ]
-
-function getUserDisplayName(
-  currentUser: CurrentUserProfile | null,
-  claimName: string | undefined,
-): string {
-  const profileName = [currentUser?.first_name, currentUser?.last_name]
-    .filter(Boolean)
-    .join(' ')
-    .trim()
-
-  return profileName || currentUser?.username || claimName || 'مستخدم سلوتي'
-}
 
 function canShowNavigationItem(
   item: NavigationItem,
@@ -106,7 +99,7 @@ function getViewModeToggleLabel(currentViewMode: ViewMode): string {
  * Role-aware application shell for authenticated Sloty pages.
  *
  * AppShell owns the authenticated chrome: one unified header, the mobile
- * drawer/account menu, desktop navigation, and the three-item mobile footer.
+ * drawer/account menu, desktop navigation, and global mobile booking action.
  */
 export function AppShell() {
   const {
@@ -121,19 +114,31 @@ export function AppShell() {
   const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
-  const pageHeaderMeta = getPageHeaderMeta(location.pathname)
+  const hasActiveAppSheet = useHasActiveAppSheet()
+  const pageHeaderMeta = getPageHeaderMeta(
+    location.pathname,
+    role,
+    selectedMembership,
+  )
   const shouldUseDesktopNav = viewMode === 'desktop'
   const shouldShowMobileMenu = !shouldUseDesktopNav
   const desktopItems = useMemo(
     () =>
       role
-        ? getNavigationItemsForRole(role, { primaryOnly: true }).filter((item) =>
+        ? getNavigationItemsForRole(
+            role,
+            { primaryOnly: true },
+            selectedMembership,
+          ).filter((item) =>
             canShowNavigationItem(item, selectedMembership, role),
           )
         : [],
     [role, selectedMembership],
   )
-  const displayName = getUserDisplayName(currentUser, claims?.name)
+  const displayName = getAuthenticatedUserDisplayName(
+    currentUser,
+    claims?.name,
+  )
   const selectedClubName = selectedMembership?.club.name ?? null
   const canChangeClub = (currentUser?.memberships.length ?? 0) > 1
   const flashMessage = getFlashMessage(location.state)
@@ -150,16 +155,20 @@ export function AppShell() {
       ),
     [desktopItems],
   )
-  const mobileItems = role
-    ? getNavigationItemsForRole(role, { mobileOnly: true })
-        .filter((item) => canShowNavigationItem(item, selectedMembership, role))
-        .map((item) => ({
-          key: item.path,
-          label: item.label,
-          marker: item.marker,
-          path: item.path,
-        }))
-    : []
+  const isBookingRoute = ['/dashboard', '/schedule', '/bookings'].includes(
+    location.pathname,
+  )
+  const canCreateBooking =
+    role === 'OWNER' || role === 'MANAGER' || role === 'STAFF'
+  const shouldShowBookingFab =
+    isBookingRoute &&
+    canCreateBooking &&
+    !shouldUseDesktopNav &&
+    !isMenuOpen &&
+    !hasActiveAppSheet
+  const requestCloseMenu = useAppOverlayRegistration(isMenuOpen, () => {
+    setIsMenuOpen(false)
+  })
 
   const clearFlashMessage = useCallback((): void => {
     navigate(`${location.pathname}${location.search}${location.hash}`, {
@@ -175,7 +184,7 @@ export function AppShell() {
 
     const timeoutId = window.setTimeout(() => {
       clearFlashMessage()
-    }, 3500)
+    }, 3000)
 
     return () => window.clearTimeout(timeoutId)
   }, [clearFlashMessage, flashMessage])
@@ -200,10 +209,6 @@ export function AppShell() {
     navigate('/select-club')
   }
 
-  function handleMobileNavigation(nextPath: string): void {
-    navigate(nextPath)
-  }
-
   function handleMenuNavigation(nextPath: string): void {
     setIsMenuOpen(false)
     navigate(nextPath)
@@ -225,6 +230,22 @@ export function AppShell() {
       return nextViewMode
     })
   }
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return
+    }
+
+    function handleEscape(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        requestCloseMenu()
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [isMenuOpen, requestCloseMenu])
 
   return (
     <div
@@ -320,7 +341,8 @@ export function AppShell() {
 
         <main
           className={[
-            'min-h-svh px-4 pb-24 pt-5 sm:px-6 lg:pl-8 lg:pb-8 lg:pt-8',
+            'min-h-svh px-4 pt-5 sm:px-6 lg:pl-8 lg:pb-8 lg:pt-8',
+            isBookingRoute && canCreateBooking ? 'pb-24' : 'pb-8',
             shouldUseDesktopNav ? 'pr-4 sm:pr-6' : 'lg:pr-8',
           ].join(' ')}
         >
@@ -352,6 +374,7 @@ export function AppShell() {
 
       {isMenuOpen && isDrawerAllowed ? (
         <div
+          aria-label="قائمة التنقل"
           aria-modal="true"
           className="fixed inset-0 z-50 bg-slate-950/45"
           role="dialog"
@@ -359,10 +382,10 @@ export function AppShell() {
           <button
             aria-label="إغلاق القائمة"
             className="absolute inset-0 h-full w-full cursor-default"
-            onClick={() => setIsMenuOpen(false)}
+            onClick={requestCloseMenu}
             type="button"
           />
-          <aside className="absolute bottom-0 right-0 top-0 flex w-full max-w-sm flex-col overflow-y-auto bg-[var(--sloty-surface)] p-4 shadow-2xl">
+          <aside className="absolute bottom-0 right-0 top-0 flex w-[min(82vw,320px)] flex-col overflow-y-auto bg-[var(--sloty-surface)] p-4 shadow-2xl">
             <div className="flex items-center justify-between gap-3 border-b border-[var(--sloty-border)] pb-4">
               <div>
                 <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
@@ -372,6 +395,14 @@ export function AppShell() {
                   {displayName}
                 </p>
               </div>
+              <button
+                aria-label="إغلاق القائمة"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--sloty-text-muted)] transition hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)]"
+                onClick={requestCloseMenu}
+                type="button"
+              >
+                <X aria-hidden="true" size={20} />
+              </button>
             </div>
 
             <div className="flex flex-1 flex-col gap-5 py-5">
@@ -446,11 +477,13 @@ export function AppShell() {
         </div>
       ) : null}
 
-      {mobileItems.length > 0 && !shouldUseDesktopNav ? (
-        <MobileBottomNav
-          activeKey={location.pathname}
-          items={mobileItems}
-          onChange={handleMobileNavigation}
+      {shouldShowBookingFab ? (
+        <NewBookingFAB
+          onClick={() => {
+            if (location.pathname !== '/schedule') {
+              navigate('/schedule')
+            }
+          }}
         />
       ) : null}
     </div>

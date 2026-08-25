@@ -13,7 +13,9 @@ export interface BookingsQueryParams {
   status?: BookingStatus | ''
   needs_action?: boolean | string | ''
   overdue?: boolean | string | ''
-  remaining_amount_gt?: number | string
+  search?: string
+  upcoming?: boolean | string | ''
+  has_remaining_amount?: boolean | string | ''
   ended?: boolean | string | ''
   hold_expiring?: boolean | string | ''
   page?: number | string

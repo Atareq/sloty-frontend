@@ -85,8 +85,16 @@ describe('SettlementPreviewPage', () => {
       collected_by_name: 'أحمد المحصل',
       court: 3,
       court_name: 'ملعب 3',
+      is_self_preview: false,
+      can_approve: true,
+      approval_required: false,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
       transaction_count: 2,
       total_amount: '700.00',
+      booking_payments: '700.00',
+      booking_refunds: '0.00',
+      net_amount: '700.00',
       totals_by_payment_method: {
         CASH: '500.00',
         DIGITAL_WALLET: '200.00',
@@ -109,7 +117,7 @@ describe('SettlementPreviewPage', () => {
           court_name: 'ملعب 3',
           amount: '200.00',
           payment_method: 'DIGITAL_WALLET',
-          reference: 'REF-2',
+          payment_reference: 'REF-2',
         },
       ],
     })
@@ -126,7 +134,7 @@ describe('SettlementPreviewPage', () => {
     renderPage('/settlements/preview')
 
     expect(
-      await screen.findByText('اختر الموظف المحصل لمراجعة التسوية.'),
+      await screen.findByText('اختر الموظف المحصل لمراجعة العهدة.'),
     ).toBeInTheDocument()
     expect(screen.getByText('العودة إلى التسويات').closest('a')).toHaveAttribute(
       'href',
@@ -141,7 +149,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لمراجعة التسوية'),
+      await screen.findByText('اختر ناديًا أولًا لمراجعة العهدة'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
@@ -152,7 +160,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية إنشاء التسويات.'),
+      await screen.findByText('ليس لديك صلاحية استلام عهد الموظفين.'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
@@ -172,7 +180,7 @@ describe('SettlementPreviewPage', () => {
     expect(screen.getAllByText('500.00 جنيه')).not.toHaveLength(0)
     expect(screen.getAllByText('كاش')).not.toHaveLength(0)
     expect(screen.getAllByText('محفظة إلكترونية')).not.toHaveLength(0)
-    expect(screen.getByText('الدفعات غير المسواة')).toBeInTheDocument()
+    expect(screen.getByText('التحصيلات غير المسواة')).toBeInTheDocument()
     expect(screen.getByText('حجز #123')).toBeInTheDocument()
     expect(screen.getAllByText('رقم العملية')).not.toHaveLength(0)
     expect(screen.getByText('REF-1')).toBeInTheDocument()
@@ -183,8 +191,16 @@ describe('SettlementPreviewPage', () => {
       club: 1,
       collected_by: 15,
       collected_by_name: 'أحمد المحصل',
+      is_self_preview: false,
+      can_approve: true,
+      approval_required: false,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
       transaction_count: 0,
       total_amount: '0.00',
+      booking_payments: '0.00',
+      booking_refunds: '0.00',
+      net_amount: '0.00',
       totals_by_payment_method: {},
       transactions: [],
     })
@@ -192,10 +208,10 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('لا توجد معاملات غير مسواة لهذا الموظف'),
+      await screen.findByText('مفيش عهدة حالية للموظف دلوقتي.'),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'تأكيد التسوية' }),
+      screen.queryByRole('button', { name: 'تأكيد استلام العهدة' }),
     ).not.toBeInTheDocument()
   })
 
@@ -209,7 +225,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('لا توجد دفعات غير مسواة حالياً لهذا الموظف'),
+      await screen.findByText('مفيش عهدة حالية للموظف دلوقتي.'),
     ).toBeInTheDocument()
     expect(screen.queryByText('No unsettled transactions')).not.toBeInTheDocument()
   })
@@ -219,17 +235,17 @@ describe('SettlementPreviewPage', () => {
 
     renderPage('/settlements/preview?collected_by=15&court=3')
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
     const dialog = screen.getByRole('dialog')
 
     expect(dialog).toBeInTheDocument()
-    expect(screen.getAllByText('تأكيد التسوية')).not.toHaveLength(0)
+    expect(screen.getAllByText('تأكيد استلام العهدة')).not.toHaveLength(0)
     expect(within(dialog).getByText(/أحمد المحصل/)).toBeInTheDocument()
     expect(within(dialog).getByText(/700.00 جنيه/)).toBeInTheDocument()
-    expect(within(dialog).getByText('عدد الدفعات: 2')).toBeInTheDocument()
+    expect(within(dialog).getByText('عدد التحصيلات: 2')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('ملاحظات اختيارية'), 'مراجعة الوردية')
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
 
     expect(mockedCreateSettlement).toHaveBeenCalledWith('nasr-club', {
       collected_by: 15,
@@ -249,8 +265,8 @@ describe('SettlementPreviewPage', () => {
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
 
     expect(await screen.findByTestId('location')).toHaveTextContent(
       '/settlements',
@@ -270,8 +286,16 @@ describe('SettlementPreviewPage', () => {
         club: 1,
         collected_by: 15,
         collected_by_name: 'أحمد المحصل',
+        is_self_preview: false,
+        can_approve: true,
+        approval_required: false,
+        period_start: '2026-07-21T10:00:00Z',
+        period_end: '2026-07-21T11:00:00Z',
         transaction_count: 2,
         total_amount: '700.00',
+        booking_payments: '700.00',
+        booking_refunds: '0.00',
+        net_amount: '700.00',
         totals_by_payment_method: {
           CASH: '700.00',
         },
@@ -287,19 +311,27 @@ describe('SettlementPreviewPage', () => {
         club: 1,
         collected_by: 15,
         collected_by_name: 'أحمد المحصل',
+        is_self_preview: false,
+        can_approve: true,
+        approval_required: false,
+        period_start: '2026-07-21T10:00:00Z',
+        period_end: '2026-07-21T11:00:00Z',
         transaction_count: 0,
         total_amount: '0.00',
+        booking_payments: '0.00',
+        booking_refunds: '0.00',
+        net_amount: '0.00',
         totals_by_payment_method: {},
         transactions: [],
       })
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
 
     expect(
-      await screen.findByText('لا توجد معاملات غير مسواة لهذا الموظف'),
+      await screen.findByText('مفيش عهدة حالية للموظف دلوقتي.'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -315,8 +347,8 @@ describe('SettlementPreviewPage', () => {
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد التسوية' }))
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد التسوية' })[1])
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
 
     expect(
       await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),

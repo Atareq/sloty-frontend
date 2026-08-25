@@ -115,8 +115,8 @@ describe('SettlementDetailPage', () => {
   it('renders collected-by settlement detail with display-only backend period', async () => {
     renderPage()
 
-    expect(await screen.findByText('رقم التسوية')).toBeInTheDocument()
-    expect(screen.getByText('Ahmed Staff')).toBeInTheDocument()
+    expect(await screen.findByText('الموظف')).toBeInTheDocument()
+    expect(screen.getAllByText('Ahmed Staff')).not.toHaveLength(0)
     expect(screen.getByText('2000.00')).toBeInTheDocument()
     expect(screen.getByText('Shift settlement')).toBeInTheDocument()
     expect(screen.getByText('#101')).toBeInTheDocument()
@@ -129,13 +129,16 @@ describe('SettlementDetailPage', () => {
     renderPage()
 
     await user.click(await screen.findByRole('button', {
-      name: 'تأكيد الاستلام',
+      name: 'تأكيد استلام العهدة',
     }))
+    await user.click(screen.getAllByRole('button', {
+      name: 'تأكيد استلام العهدة',
+    })[1])
 
     await waitFor(() => {
       expect(mockedMarkSettlementSettled).toHaveBeenCalledWith('nasr-club', '9')
     })
-    expect(await screen.findByText('تم تحديث حالة التسوية')).toBeInTheDocument()
+    expect(await screen.findByText('تم استلام العهدة بنجاح')).toBeInTheDocument()
     expect(screen.getByText('مسواة')).toBeInTheDocument()
   })
 
@@ -149,8 +152,11 @@ describe('SettlementDetailPage', () => {
     renderPage()
 
     await user.click(await screen.findByRole('button', {
-      name: 'تأكيد الاستلام',
+      name: 'تأكيد استلام العهدة',
     }))
+    await user.click(screen.getAllByRole('button', {
+      name: 'تأكيد استلام العهدة',
+    })[1])
 
     expect(
       await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),

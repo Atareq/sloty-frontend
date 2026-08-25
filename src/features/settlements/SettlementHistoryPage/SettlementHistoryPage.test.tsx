@@ -133,8 +133,16 @@ describe('SettlementHistoryPage', () => {
       club: 1,
       collected_by: 1,
       collected_by_name: 'Manager User',
+      is_self_preview: true,
+      can_approve: false,
+      approval_required: true,
+      period_start: '2026-07-19T15:20:00Z',
+      period_end: '2026-07-19T16:20:00Z',
       transaction_count: 0,
       total_amount: '0.00',
+      booking_payments: '0.00',
+      booking_refunds: '0.00',
+      net_amount: '0.00',
       totals_by_payment_method: {},
       transactions: [],
     })
@@ -147,11 +155,11 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('#9')).toBeInTheDocument()
-    expect(screen.getByText('مراجعة دفعات موظف')).toBeInTheDocument()
+    expect(await screen.findByText('2000.00')).toBeInTheDocument()
+    expect(screen.getByText('عهد الموظفين')).toBeInTheDocument()
     expect(screen.getAllByText('Ahmed Staff').length).toBeGreaterThan(0)
     expect(screen.getByText('2000.00')).toBeInTheDocument()
-    expect(screen.getByText('عدد المعاملات')).toBeInTheDocument()
+    expect(screen.getByText('عدد التحصيلات')).toBeInTheDocument()
     expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
     expect(screen.getByRole('link', { name: 'عرض التفاصيل' })).toHaveAttribute(
       'href',
@@ -171,7 +179,7 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    await screen.findByText('#9')
+    await screen.findByText('2000.00')
     await chooseAppSelectOption(
       user,
       screen.getAllByLabelText('الموظف المحصل')[1],
@@ -199,10 +207,9 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('المبلغ الحالي غير المسوى'))
+    expect(await screen.findByText('مفيش مبلغ غير مسوى عندك دلوقتي.'))
       .toBeInTheDocument()
-    expect(await screen.findByText('Manager User')).toBeInTheDocument()
-    expect(screen.queryByText('مراجعة دفعات موظف')).not.toBeInTheDocument()
+    expect(screen.queryByText('عهد الموظفين')).not.toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
     expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
   })
@@ -232,14 +239,14 @@ describe('SettlementHistoryPage', () => {
     )
 
     expect(
-      await screen.findByText('لا توجد تسويات مسجلة حتى الآن'),
+      await screen.findByText('مفيش عهد مستلمة مسجلة حتى الآن.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('عند تأكيد تسوية موظف ستظهر هنا كسجل مالي مغلق.'),
+      screen.getByText('عند تأكيد استلام عهدة موظف ستظهر هنا في السجل.'),
     ).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'عرض لوحة التحكم' })[0])
       .toHaveAttribute('href', '/dashboard')
-    expect(screen.getAllByRole('link', { name: 'عرض الدفعات غير المسواة' })[0])
+    expect(screen.getAllByRole('link', { name: 'عرض التحصيلات غير المسواة' })[0])
       .toHaveAttribute(
         'href',
         '/transactions?settlement_status=unsettled&is_cancelled=false',

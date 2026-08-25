@@ -3,17 +3,13 @@ export interface NewBookingFABProps {
 }
 
 /**
- * Floating "new booking" action for staff mobile screens.
- *
- * It is visually ready but intentionally does not implement booking creation.
- * Feature screens can pass an `onClick` later when that flow is designed. It
- * hides from tablet/desktop layouts, where this action belongs in a toolbar.
+ * Canonical floating action that returns authorized mobile users to Schedule.
  */
 export function NewBookingFAB({ onClick }: NewBookingFABProps) {
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-40 px-4 pb-3 md:hidden">
+    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-40 w-[min(calc(100%-2rem),24rem)] -translate-x-1/2 md:hidden">
       <button
-        className="sloty-green-surface-button flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-black text-white shadow-lg shadow-emerald-900/15 transition hover:bg-[var(--sloty-primary-dark)] active:scale-[0.99]"
+        className="sloty-green-surface-button flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-black text-white shadow-lg shadow-emerald-900/15 transition hover:bg-[var(--sloty-primary-dark)] active:scale-[0.99]"
         onClick={onClick}
         type="button"
       >

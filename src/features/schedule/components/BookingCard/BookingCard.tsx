@@ -11,6 +11,8 @@ const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
     'border-[#22C55E] bg-white text-[var(--sloty-primary-dark)] shadow-white/30 hover:-translate-y-0.5 hover:bg-[var(--sloty-soft-mint)]',
   unavailable:
     'border-slate-300 bg-slate-100 text-[var(--sloty-text-muted)] shadow-slate-950/10',
+  recurring_reserved:
+    'border-violet-300 bg-violet-100 text-violet-900 shadow-violet-950/10 hover:-translate-y-0.5 hover:bg-violet-50',
   cancelled:
     'border-[#D1D5DB] bg-[#F3F4F6] text-[var(--sloty-text-muted)] shadow-white/30 hover:-translate-y-0.5 hover:bg-white',
   hold:
@@ -26,6 +28,7 @@ const slotClassesByStatus: Record<ScheduleBooking['status'], string> = {
 const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
   available: 'متاح',
   unavailable: 'غير متاح',
+  recurring_reserved: 'مثبت أسبوعيًا',
   cancelled: 'ملغي',
   hold: 'بانتظار العربون',
   confirmed: 'مؤكد',
@@ -36,21 +39,32 @@ const statusLabelByStatus: Record<ScheduleBooking['status'], string> = {
 /**
  * Real schedule slot button rendered over the decorative court background.
  *
- * The visual label intentionally shows only the time. Customer names, payment
- * amounts, and booking actions belong in the focused sheets opened by status.
+ * It stays intentionally minimal: time, human status, and an icon for an
+ * existing recurring booking or a free slot eligible for weekly recurrence.
+ * Customer and money details stay in task sheets.
  */
 export function BookingCard({ booking, onSelect }: BookingCardProps) {
   const displayStartTime = formatTime12Hour(booking.startTime)
   const isActionable = Boolean(onSelect)
   const statusLabel = booking.label || statusLabelByStatus[booking.status]
   const isRecurring =
-    booking.booking?.is_recurring || booking.booking?.source === 'RECURRING'
+    booking.status === 'recurring_reserved' || booking.booking?.is_recurring
+  const canStartRecurring =
+    booking.status === 'available' && booking.canStartRecurring === true
+  const accessibleLabel = [
+    displayStartTime,
+    statusLabel,
+    isRecurring ? 'حجز متكرر' : null,
+    canStartRecurring ? 'متاح للتثبيت أسبوعيًا' : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <button
-      aria-label={`${displayStartTime} ${statusLabel}`}
+      aria-label={accessibleLabel}
       className={[
-        'h-11 w-full max-w-[72px] justify-self-center rounded-xl border-2 px-1 text-center text-xs font-black shadow-lg transition focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--sloty-primary-dark)] sm:h-12 sm:max-w-[76px] sm:text-sm md:h-14 md:max-w-[96px] md:text-base lg:h-16 lg:max-w-[108px]',
+        'relative flex min-h-16 w-full max-w-[88px] flex-col items-center justify-center justify-self-center rounded-xl border-2 px-1.5 py-2 text-center font-black shadow-lg transition focus:outline-none focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--sloty-primary-dark)] sm:max-w-[96px] md:min-h-20 md:max-w-[108px]',
         isActionable ? 'cursor-pointer' : 'cursor-not-allowed opacity-70',
         slotClassesByStatus[booking.status],
       ].join(' ')}
@@ -62,10 +76,20 @@ export function BookingCard({ booking, onSelect }: BookingCardProps) {
       }}
       type="button"
     >
-      <span dir="ltr">{displayStartTime}</span>
-      {isRecurring ? (
-        <span className="mt-0.5 block text-[10px] leading-none">↻ أسبوعي</span>
+      {isRecurring || canStartRecurring ? (
+        <span
+          aria-hidden="true"
+          className="absolute left-1.5 top-1 text-xs leading-none"
+        >
+          ↻
+        </span>
       ) : null}
+      <span className="text-sm md:text-base" dir="ltr">
+        {displayStartTime}
+      </span>
+      <span className="mt-1 text-[10px] leading-tight sm:text-xs">
+        {statusLabel}
+      </span>
     </button>
   )
 }

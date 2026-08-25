@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import {
   canChooseOperationalCourt,
+  canManageSettlements,
   getAssignedOperationalCourtId,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
@@ -12,10 +13,13 @@ import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import {
   addDays,
+  formatArabicDateWithWeekday,
   formatDateInputValue,
 } from '../../../shared/utils/date'
-import { getCourtDisplayName } from '../../../shared/utils/displayNames'
-import { formatMoneyAmount } from '../../../shared/utils/money'
+import {
+  getAuthenticatedUserDisplayName,
+  getCourtDisplayName,
+} from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
@@ -35,7 +39,7 @@ type DateShortcut = 'today' | 'yesterday' | 'week'
 
 const dateShortcutLabels: Record<DateShortcut, string> = {
   today: 'اليوم',
-  week: 'هذا الأسبوع',
+  week: 'آخر 7 أيام',
   yesterday: 'أمس',
 }
 
@@ -45,9 +49,7 @@ function createShortcutQuery(shortcut: DateShortcut): DashboardSummaryQuery {
   const today = new Date()
 
   if (shortcut === 'yesterday') {
-    return {
-      date: formatDateInputValue(addDays(today, -1)),
-    }
+    return { date: formatDateInputValue(addDays(today, -1)) }
   }
 
   if (shortcut === 'week') {
@@ -57,19 +59,17 @@ function createShortcutQuery(shortcut: DateShortcut): DashboardSummaryQuery {
     }
   }
 
-  return {
-    date: formatDateInputValue(today),
-  }
+  return { date: formatDateInputValue(today) }
 }
 
 function getContextLabel(summary: DashboardSummaryResponse): string {
   const { date_from, date_to } = summary.context
 
-  return date_from === date_to ? date_from : `${date_from} إلى ${date_to}`
-}
+  if (date_from === date_to) {
+    return formatArabicDateWithWeekday(date_from)
+  }
 
-function formatCount(value: number | null | undefined): string | number {
-  return value ?? '-'
+  return `${formatArabicDateWithWeekday(date_from)} إلى ${formatArabicDateWithWeekday(date_to)}`
 }
 
 function getShortcutFromSearch(search: string): DateShortcut {
@@ -94,28 +94,63 @@ function getCourtQueryValue(court: string): number | undefined {
   return Number.isFinite(numericCourt) ? numericCourt : undefined
 }
 
+function getGreeting(displayName: string, now = new Date()): string {
+  const greeting = now.getHours() < 12 ? 'صباح الخير' : 'مساء الخير'
+
+  if (displayName === 'مستخدم سلوتي') {
+    return greeting
+  }
+
+  return `${greeting} يا ${displayName.split(/\s+/)[0]}`
+}
+
+function getBookingCountCopy(count: number, isToday: boolean): string {
+  if (count === 0) {
+    return isToday
+      ? 'مفيش حجوزات مسجلة النهاردة.'
+      : 'مفيش حجوزات مسجلة في الفترة دي.'
+  }
+
+  if (count === 1) {
+    return isToday ? 'حجز واحد مسجل النهاردة' : 'حجز واحد خلال الفترة'
+  }
+
+  return isToday
+    ? `${count} حجوزات مسجلة النهاردة`
+    : `${count} حجوزات خلال الفترة`
+}
+
 function renderLoadingSkeletons() {
   return (
-    <>
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {['bookings', 'action', 'collection', 'unsettled'].map((key) => (
-          <SummaryActionCard isLoading key={key} label="" value={null} />
-        ))}
-      </section>
-      <AppCard>
+    <section className="space-y-3" aria-label="جاري تحميل ملخص التشغيل">
+      <AppCard className="space-y-3">
+        <div className="h-5 w-28 rounded-full bg-[var(--sloty-bg)]" />
+        <div className="h-9 w-44 rounded-full bg-[var(--sloty-bg)]" />
         <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-          جاري تحميل الملخص...
+          جاري تحميل ملخص التشغيل...
         </p>
       </AppCard>
-    </>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <SummaryActionCard isLoading label="" value={null} />
+        <SummaryActionCard isLoading label="" value={null} />
+      </div>
+    </section>
   )
 }
 
 /**
- * Summary / Owner Home control center backed by the dashboard summary endpoint.
+ * Operational Home backed by the existing aggregate dashboard endpoint.
+ * Unsupported booking-level Home blocks stay absent until the backend returns
+ * authoritative booking summaries rather than frontend-derived guesses.
  */
 export function DashboardPage() {
-  const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const {
+    claims,
+    currentUser,
+    role,
+    selectedClubSlug,
+    selectedMembership,
+  } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [summary, setSummary] = useState<DashboardSummaryResponse | null>(null)
@@ -124,15 +159,17 @@ export function DashboardPage() {
   const [courts, setCourts] = useState<Court[]>([])
   const [isCourtsLoading, setIsCourtsLoading] = useState(false)
   const [courtOptionsError, setCourtOptionsError] = useState<string | null>(null)
+  const isStaff = role === 'STAFF' || selectedMembership?.role === 'STAFF'
   const assignedCourtId = getAssignedOperationalCourtId(
     role,
     selectedMembership,
   )
   const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
-  const activeShortcut = useMemo(
+  const requestedShortcut = useMemo(
     () => getShortcutFromSearch(location.search),
     [location.search],
   )
+  const activeShortcut: DateShortcut = isStaff ? 'today' : requestedShortcut
   const selectedCourtFromSearch = useMemo(
     () => getCourtFromSearch(location.search),
     [location.search],
@@ -156,8 +193,8 @@ export function DashboardPage() {
     ? !canChooseCourt && selectedMembership?.court?.name
       ? selectedMembership.court.name
       : selectedCourtOption
-      ? getCourtDisplayName(selectedCourtOption)
-      : `ملعب #${selectedCourt}`
+        ? getCourtDisplayName(selectedCourtOption)
+        : `ملعب #${selectedCourt}`
     : 'كل الملاعب'
   const linkContext = summary
     ? {
@@ -166,11 +203,14 @@ export function DashboardPage() {
       }
     : null
   const scopedSummary = summary && linkContext
-    ? {
-        ...summary,
-        context: linkContext,
-      }
+    ? { ...summary, context: linkContext }
     : summary
+  const displayName = getAuthenticatedUserDisplayName(
+    currentUser,
+    claims?.name,
+  )
+  const canManageStaffMoney = canManageSettlements(selectedMembership, role)
+  const isTodaySummary = activeShortcut === 'today'
 
   function updateDashboardQuery(nextValues: {
     shortcut?: DateShortcut
@@ -213,7 +253,12 @@ export function DashboardPage() {
       } catch (error) {
         if (isActive) {
           setSummary(null)
-          setError(getApiErrorMessage(error, 'تعذر تحميل ملخص النادي'))
+          setError(
+            getApiErrorMessage(
+              error,
+              'تعذر تحميل ملخص التشغيل. حاول مرة أخرى.',
+            ),
+          )
         }
       } finally {
         if (isActive) {
@@ -268,204 +313,211 @@ export function DashboardPage() {
     }
   }, [canChooseCourt, selectedClubSlug])
 
+  if (!selectedClubSlug) {
+    return (
+      <AppCard>
+        <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+          اختر ناديًا أولًا لعرض ملخص التشغيل.
+        </p>
+      </AppCard>
+    )
+  }
+
   return (
-    <div className="space-y-5">
-      {!selectedClubSlug ? (
+    <div className="space-y-6">
+      <section className="space-y-1" aria-label="سياق التشغيل اليومي">
+        <h2 className="text-xl font-black text-[var(--sloty-text-primary)] sm:text-2xl">
+          {getGreeting(displayName)}
+        </h2>
+        <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+          {selectedCourtLabel} ·{' '}
+          {formatArabicDateWithWeekday(formatDateInputValue(new Date()))}
+        </p>
+      </section>
+
+      {canChooseCourt ? (
+        <AppCard className="space-y-3">
+          <div>
+            <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+              نطاق الملعب
+            </p>
+            <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+              {isCourtsLoading ? 'جاري تحميل الملاعب...' : selectedCourtLabel}
+            </p>
+            {courtOptionsError ? (
+              <p className="mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {courtOptionsError}
+              </p>
+            ) : null}
+          </div>
+
+          {courts.length === 1 && !selectedCourt ? (
+            <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-black text-[var(--sloty-text-primary)]">
+              كل الملاعب
+            </div>
+          ) : courts.length <= 4 ? (
+            <div className="flex flex-wrap gap-2">
+              <AppButton
+                onClick={() => updateDashboardQuery({ court: '' })}
+                type="button"
+                variant={!selectedCourt ? 'primary' : 'secondary'}
+              >
+                كل الملاعب
+              </AppButton>
+              {courts.map((court) => (
+                <AppButton
+                  key={court.id}
+                  onClick={() =>
+                    updateDashboardQuery({ court: String(court.id) })
+                  }
+                  type="button"
+                  variant={
+                    selectedCourt === String(court.id) ? 'primary' : 'secondary'
+                  }
+                >
+                  {getCourtDisplayName(court)}
+                </AppButton>
+              ))}
+              {selectedCourt && !selectedCourtOption ? (
+                <AppButton type="button" variant="primary">
+                  {selectedCourtLabel}
+                </AppButton>
+              ) : null}
+            </div>
+          ) : (
+            <div className="max-w-sm">
+              <AppSelect
+                label="نطاق الملعب"
+                onChange={(value) => updateDashboardQuery({ court: value })}
+                options={[
+                  { value: '', label: 'كل الملاعب' },
+                  ...courts.map((court) => ({
+                    value: String(court.id),
+                    label: getCourtDisplayName(court),
+                  })),
+                  ...(selectedCourt && !selectedCourtOption
+                    ? [{ value: selectedCourt, label: selectedCourtLabel }]
+                    : []),
+                ]}
+                value={selectedCourt}
+              />
+            </div>
+          )}
+        </AppCard>
+      ) : null}
+
+      {isLoading ? renderLoadingSkeletons() : null}
+
+      {!isLoading && error ? (
         <AppCard>
-          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر ناديًا أولًا لعرض الملخص
+          <p className="text-sm font-bold text-[var(--sloty-danger)]">
+            {error}
           </p>
         </AppCard>
       ) : null}
 
-      {selectedClubSlug ? (
+      {!isLoading && scopedSummary ? (
         <>
-          <AppCard>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-                  فترة الملخص
-                </p>
-                <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
-                  {summary ? getContextLabel(summary) : 'حسب اختيار الفترة'}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                {dateShortcuts.map((shortcut) => (
-                  <AppButton
-                    key={shortcut}
-                    onClick={() => updateDashboardQuery({ shortcut })}
-                    variant={
-                      activeShortcut === shortcut ? 'primary' : 'secondary'
-                    }
-                  >
-                    {dateShortcutLabels[shortcut]}
-                  </AppButton>
-                ))}
-              </div>
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+                {isTodaySummary ? 'النهاردة' : 'ملخص الفترة'}
+              </h2>
+              <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+                {isTodaySummary
+                  ? formatArabicDateWithWeekday(scopedSummary.context.date_from)
+                  : getContextLabel(scopedSummary)}
+              </p>
             </div>
-          </AppCard>
 
-          <AppCard>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-                  نطاق الملعب
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <AppCard className="space-y-2">
+                <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                  الحجوزات
                 </p>
-                <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
-                  {isCourtsLoading ? 'جاري تحميل الملاعب...' : selectedCourtLabel}
+                <p className="text-2xl font-black text-[var(--sloty-primary-dark)]">
+                  {getBookingCountCopy(
+                    scopedSummary.summary.total_bookings,
+                    isTodaySummary,
+                  )}
                 </p>
-                {courtOptionsError ? (
-                  <p className="mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                    {courtOptionsError}
+              </AppCard>
+
+              {scopedSummary.summary.hold_bookings > 0 ? (
+                <Link
+                  className="block rounded-2xl border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-400"
+                  to={buildSummaryLink('/bookings', scopedSummary.context, {
+                    status: 'HOLD',
+                  })}
+                >
+                  <p className="text-sm font-bold text-amber-800">
+                    محتاجة متابعة
                   </p>
-                ) : null}
-              </div>
-
-              {!canChooseCourt ? (
-                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-black text-[var(--sloty-text-primary)]">
-                  {selectedCourtLabel}
-                </div>
-              ) : courts.length === 1 && !selectedCourt ? (
-                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-black text-[var(--sloty-text-primary)]">
-                  كل الملاعب
-                </div>
-              ) : courts.length <= 4 ? (
-                <div className="flex flex-wrap gap-2">
-                  <AppButton
-                    onClick={() => updateDashboardQuery({ court: '' })}
-                    type="button"
-                    variant={!selectedCourt ? 'primary' : 'secondary'}
-                  >
-                    كل الملاعب
-                  </AppButton>
-                  {courts.map((court) => (
-                    <AppButton
-                      key={court.id}
-                      onClick={() =>
-                        updateDashboardQuery({ court: String(court.id) })
-                      }
-                      type="button"
-                      variant={
-                        selectedCourt === String(court.id)
-                          ? 'primary'
-                          : 'secondary'
-                      }
-                    >
-                      {getCourtDisplayName(court)}
-                    </AppButton>
-                  ))}
-                  {selectedCourt && !selectedCourtOption ? (
-                    <AppButton type="button" variant="primary">
-                      {selectedCourtLabel}
-                    </AppButton>
-                  ) : null}
-                </div>
+                  <p className="mt-2 text-2xl font-black text-amber-900">
+                    {scopedSummary.summary.hold_bookings} بانتظار العربون
+                  </p>
+                  <p className="mt-2 text-xs font-bold text-amber-800">
+                    افتح الحجوزات وأضف العربون
+                  </p>
+                </Link>
               ) : (
-                <div className="min-w-56">
-                  <AppSelect
-                    label="نطاق الملعب"
-                    onChange={(value) =>
-                      updateDashboardQuery({ court: value })
-                    }
-                    options={[
-                      { value: '', label: 'كل الملاعب' },
-                      ...courts.map((court) => ({
-                        value: String(court.id),
-                        label: getCourtDisplayName(court),
-                      })),
-                      ...(selectedCourt && !selectedCourtOption ? [
-                        {
-                          value: selectedCourt,
-                          label: selectedCourtLabel,
-                        },
-                      ] : []),
-                    ]}
-                    value={selectedCourt}
-                  />
-                </div>
+                <AppCard>
+                  <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+                    مفيش حجوزات بانتظار العربون.
+                  </p>
+                </AppCard>
               )}
             </div>
-          </AppCard>
+          </section>
 
-          {isLoading ? renderLoadingSkeletons() : null}
+          <NeedsActionSection summary={scopedSummary} />
 
-          {!isLoading && error ? (
-            <AppCard>
-              <p className="text-sm font-bold text-[var(--sloty-danger)]">
-                {error}
+          {isStaff || canManageStaffMoney ? (
+            <StaffUnsettledMoneySection
+              mode={isStaff ? 'staff' : 'management'}
+              summary={scopedSummary}
+            />
+          ) : null}
+
+          <section className="space-y-5 border-t border-[var(--sloty-border)] pt-5">
+            <div>
+              <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+                متابعة وأرقام
+              </h2>
+              <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+                تفاصيل ثانوية بعد مهام التشغيل اليومية.
               </p>
-            </AppCard>
-          ) : null}
+            </div>
 
-          {!isLoading && summary ? (
-            <>
-              <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <SummaryActionCard
-                  helper="مقرر لعبها خلال الفترة"
-                  label="حجوزات اليوم"
-                  to={
-                    linkContext
-                      ? buildSummaryLink('/bookings', linkContext)
-                      : undefined
-                  }
-                  value={summary.summary.total_bookings}
-                />
+            {!isStaff ? (
+              <AppCard className="space-y-3">
+                <div>
+                  <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+                    فترة المتابعة
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+                    {getContextLabel(scopedSummary)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:max-w-md">
+                  {dateShortcuts.map((shortcut) => (
+                    <AppButton
+                      key={shortcut}
+                      onClick={() => updateDashboardQuery({ shortcut })}
+                      variant={
+                        activeShortcut === shortcut ? 'primary' : 'secondary'
+                      }
+                    >
+                      {dateShortcutLabels[shortcut]}
+                    </AppButton>
+                  ))}
+                </div>
+              </AppCard>
+            ) : null}
 
-                <SummaryActionCard
-                  helper="حجوزات تحتاج متابعة"
-                  label="تحتاج إجراء"
-                  to={
-                    linkContext
-                      ? buildSummaryLink('/bookings', linkContext, {
-                          needs_action: true,
-                        })
-                      : undefined
-                  }
-                  tone="amber"
-                  value={summary.summary.needs_action_count}
-                />
-
-                <SummaryActionCard
-                  helper="دفعات تم تحصيلها خلال الفترة"
-                  label="تحصيل اليوم"
-                  to={
-                    linkContext
-                      ? buildSummaryLink('/transactions', linkContext, {
-                          is_cancelled: false,
-                        })
-                      : undefined
-                  }
-                  tone="green"
-                  value={formatMoneyAmount(summary.summary.transaction_total)}
-                />
-
-                <SummaryActionCard
-                  helper={`${formatCount(
-                    summary.summary.unsettled_transaction_count,
-                  )} معاملات · ${
-                    summary.summary.staff_with_unsettled_transactions_count
-                  } موظفين`}
-                  label="مبالغ غير مسواة حالياً"
-                  to={buildPathWithQuery('/transactions', {
-                    settlement_status: 'unsettled',
-                    is_cancelled: false,
-                    court: linkContext?.court ?? undefined,
-                  })}
-                  tone="purple"
-                  value={formatMoneyAmount(
-                    summary.summary.unsettled_transaction_total_amount,
-                  )}
-                />
-              </section>
-
-              <NeedsActionSection summary={scopedSummary ?? summary} />
-              <BookingStatusBreakdown summary={scopedSummary ?? summary} />
-              <MoneySummarySection summary={scopedSummary ?? summary} />
-              <StaffUnsettledMoneySection summary={scopedSummary ?? summary} />
-            </>
-          ) : null}
+            <BookingStatusBreakdown summary={scopedSummary} />
+            <MoneySummarySection summary={scopedSummary} />
+          </section>
         </>
       ) : null}
     </div>

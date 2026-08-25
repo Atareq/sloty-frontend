@@ -1,26 +1,7 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
-import { formatArabicDateTime } from '../../../../shared/utils/date'
-import { formatMoneyAmount } from '../../../../shared/utils/money'
-import {
-  formatBookingDateTimeRangeWithWeekday,
-  getBookingCourtLabel,
-  hasRemainingAmount,
-} from '../../bookingDisplay.helpers'
+import { formatBookingDateTimeRangeWithWeekday } from '../../bookingDisplay.helpers'
 import type { Booking } from '../../bookings.types'
 import { bookingStatusLabels } from '../../bookings.types'
-
-function getOptionalBookingField(
-  booking: Booking,
-  key: string,
-): string | number | null {
-  const value = (booking as unknown as Record<string, unknown>)[key]
-
-  if (typeof value === 'string' || typeof value === 'number') {
-    return value
-  }
-
-  return null
-}
 
 function statusClassName(status: Booking['status']): string {
   const classes: Record<Booking['status'], string> = {
@@ -40,33 +21,38 @@ interface BookingListCardProps {
   onSelect?: (booking: Booking) => void
 }
 
+/** Compact history row; full operational context belongs to BookingActionSheet. */
 export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
-  const totalAmount = booking.total_price ?? getOptionalBookingField(booking, 'total_amount')
-  const notes = getOptionalBookingField(booking, 'notes')
-  const created = getOptionalBookingField(booking, 'created')
-  const createdLabel =
-    typeof created === 'string'
-      ? formatArabicDateTime(created)
-      : created === null
-        ? null
-        : created.toString()
   const isClickable = Boolean(onSelect)
-  const showsFinancialWarning =
-    booking.status === 'COMPLETED' && hasRemainingAmount(booking)
+  const isRecurring = booking.is_recurring
 
   const content = (
-    <>
+    <AppCard className="h-full space-y-3">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-            الحجز
-          </p>
-          <p className="mt-1 text-xl font-black text-[var(--sloty-primary-dark)]">
-            #{booking.id}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-base font-black text-[var(--sloty-text-primary)]">
+              {booking.customer_name || 'عميل بدون اسم'}
+            </p>
+            {isRecurring ? (
+              <span
+                aria-label="حجز أسبوعي"
+                className="shrink-0 text-sm font-black text-[var(--sloty-primary-dark)]"
+                role="img"
+              >
+                ↻
+              </span>
+            ) : null}
+          </div>
+          <p
+            className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]"
+            dir={booking.customer_phone ? 'ltr' : undefined}
+          >
+            {booking.customer_phone || 'بدون رقم هاتف'}
           </p>
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-black ${statusClassName(
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${statusClassName(
             booking.status,
           )}`}
         >
@@ -74,115 +60,27 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
         </span>
       </div>
 
-      <dl className="grid grid-cols-1 gap-2 text-sm">
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-          <dt className="font-bold text-[var(--sloty-text-muted)]">العميل</dt>
-          <dd className="font-black text-[var(--sloty-text-primary)]">
-            {booking.customer_name || '-'}
-          </dd>
-        </div>
-
-        {booking.customer_phone ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-            <dt className="font-bold text-[var(--sloty-text-muted)]">الهاتف</dt>
-            <dd className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
-              {booking.customer_phone}
-            </dd>
-          </div>
-        ) : null}
-
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-          <dt className="font-bold text-[var(--sloty-text-muted)]">الملعب</dt>
-          <dd className="font-black text-[var(--sloty-text-primary)]">
-            {getBookingCourtLabel(booking)}
-          </dd>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-          <dt className="font-bold text-[var(--sloty-text-muted)]">الموعد</dt>
-          <dd className="font-black text-[var(--sloty-text-primary)]">
-            {formatBookingDateTimeRangeWithWeekday(
-              booking.start_time,
-              booking.end_time,
-            )}
-          </dd>
-        </div>
-
-        {totalAmount ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-            <dt className="font-bold text-[var(--sloty-text-muted)]">الإجمالي</dt>
-            <dd className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
-              {formatMoneyAmount(totalAmount)}
-            </dd>
-          </div>
-        ) : null}
-
-        {booking.paid_amount ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-            <dt className="font-bold text-[var(--sloty-text-muted)]">المدفوع</dt>
-            <dd className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
-              {formatMoneyAmount(booking.paid_amount)}
-            </dd>
-          </div>
-        ) : null}
-
-        {booking.remaining_amount ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-            <dt className="font-bold text-[var(--sloty-text-muted)]">المتبقي</dt>
-            <dd className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
-              {formatMoneyAmount(booking.remaining_amount)}
-            </dd>
-          </div>
-        ) : null}
-
-        {createdLabel ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-            <dt className="font-bold text-[var(--sloty-text-muted)]">أُنشئ</dt>
-            <dd className="font-black text-[var(--sloty-text-primary)]">
-              {createdLabel}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-
-      {notes ? (
-        <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-          {String(notes)}
-        </p>
-      ) : null}
-
-      {showsFinancialWarning ? (
-        <p className="rounded-xl bg-amber-100 px-3 py-2 text-sm font-black text-amber-900">
-          حجز مكتمل به مبلغ متبقي — يحتاج مراجعة
-        </p>
-      ) : null}
-
-      <p className="text-xs font-black text-[var(--sloty-text-muted)]">
-        {booking.status === 'COMPLETED'
-          ? 'للعرض فقط'
-          : isClickable
-            ? 'اضغط للمراجعة'
-            : 'للعرض فقط'}
+      <p className="text-sm font-black text-[var(--sloty-primary-dark)]">
+        {formatBookingDateTimeRangeWithWeekday(
+          booking.start_time,
+          booking.end_time,
+        )}
       </p>
-    </>
+    </AppCard>
   )
 
   if (isClickable && onSelect) {
     return (
       <button
-        aria-label={`مراجعة الحجز #${booking.id}`}
+        aria-label={`مراجعة حجز ${booking.customer_name || 'العميل'}`}
         className="block h-full w-full rounded-2xl text-right transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30"
         onClick={() => onSelect(booking)}
         type="button"
       >
-        <AppCard className="h-full space-y-4">{content}</AppCard>
+        {content}
       </button>
     )
   }
 
-  return (
-    <AppCard className="space-y-4">
-      {content}
-    </AppCard>
-  )
+  return content
 }

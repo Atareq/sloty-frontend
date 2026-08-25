@@ -10,7 +10,9 @@ const chipFilterKeys = [
   'hold_expiring',
   'needs_action',
   'overdue',
-  'remaining_amount_gt',
+  'search',
+  'upcoming',
+  'has_remaining_amount',
   'status',
 ] as const
 
@@ -52,8 +54,16 @@ function getChipLabel(
     return 'وقتها عدى'
   }
 
-  if (key === 'remaining_amount_gt') {
+  if (key === 'has_remaining_amount') {
     return 'بها مبلغ متبقي'
+  }
+
+  if (key === 'upcoming') {
+    return 'قادمة'
+  }
+
+  if (key === 'search') {
+    return `بحث: ${value}`
   }
 
   if (key === 'ended') {

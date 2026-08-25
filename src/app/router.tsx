@@ -17,8 +17,6 @@ import { SettingsCourtDetailsPage } from '../features/courts/SettingsCourtDetail
 import { SettingsCourtsPage } from '../features/courts/SettingsCourtsPage/SettingsCourtsPage'
 import { PlaceholderPage } from '../features/placeholders/PlaceholderPage/PlaceholderPage'
 import { ReportsPage } from '../features/reports/ReportsPage/ReportsPage'
-import { RecurringAgreementDetailsPage } from '../features/recurringAgreements/RecurringAgreementDetailsPage/RecurringAgreementDetailsPage'
-import { RecurringAgreementsListPage } from '../features/recurringAgreements/RecurringAgreementsListPage/RecurringAgreementsListPage'
 import { SettlementDetailPage } from '../features/settlements/SettlementDetailPage/SettlementDetailPage'
 import { SettlementHistoryPage } from '../features/settlements/SettlementHistoryPage/SettlementHistoryPage'
 import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/SettlementsHubPage'
@@ -90,22 +88,6 @@ export const router = createBrowserRouter([
         element: (
           <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
             <BookingsListPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/recurring-agreements',
-        element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
-            <RecurringAgreementsListPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/recurring-agreements/:agreementId',
-        element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
-            <RecurringAgreementDetailsPage />
           </RoleRoute>
         ),
       },

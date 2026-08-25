@@ -4,7 +4,9 @@ import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
   BookingCancelPayload,
   BookingCancellationPreview,
+  BookingCompletePayload,
   BookingCreatePayload,
+  BookingEndRecurrencePayload,
   BookingListItem,
   BookingListParams,
   BookingSlotsParams,
@@ -91,6 +93,16 @@ export function createBooking(
   })
 }
 
+/** Loads the canonical booking record used by all booking-context actions. */
+export function getBooking(
+  clubSlug: string,
+  bookingId: number | string,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(
+    apiEndpoints.clubs.bookings.detail(clubSlug, bookingId),
+  )
+}
+
 /**
  * Cancels a confirmed booking from the Booking Details sheet.
  *
@@ -131,11 +143,28 @@ export function previewBookingCancellation(
 export function completeBooking(
   clubSlug: string,
   bookingId: number | string,
+  payload?: BookingCompletePayload,
 ): Promise<BookingListItem> {
   return apiRequest<BookingListItem>(
     apiEndpoints.clubs.bookings.complete(clubSlug, bookingId),
     {
       method: 'POST',
+      ...(payload ? { body: payload } : {}),
+    },
+  )
+}
+
+/** Stops the active weekly recurrence while keeping the booking record. */
+export function endBookingRecurrence(
+  clubSlug: string,
+  bookingId: number | string,
+  payload?: BookingEndRecurrencePayload,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(
+    apiEndpoints.clubs.bookings.endRecurrence(clubSlug, bookingId),
+    {
+      method: 'POST',
+      ...(payload ? { body: payload } : {}),
     },
   )
 }

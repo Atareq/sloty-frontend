@@ -16,6 +16,24 @@ function renderSheet(onSubmit = vi.fn()) {
 }
 
 describe('NoShowReasonSheet', () => {
+  it('warns that no-show ends an active weekly recurrence', () => {
+    render(
+      <NoShowReasonSheet
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        recurrenceWillEnd
+      />,
+    )
+
+    expect(
+      screen.getByText(
+        'تسجيل الحجز كعدم حضور هيوقف كمان التكرار الأسبوعي.',
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('submits optional reason and notes', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()

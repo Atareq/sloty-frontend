@@ -36,6 +36,18 @@ const workingHour: CourtWorkingDay = {
   ],
 }
 
+function bookingFixture(
+  booking: Omit<BookingListItem, 'is_recurring' | 'recurrence_status' | 'previous_recurring_booking_id' | 'next_recurring_booking_id'>,
+): BookingListItem {
+  return {
+    is_recurring: false,
+    recurrence_status: null,
+    previous_recurring_booking_id: null,
+    next_recurring_booking_id: null,
+    ...booking,
+  }
+}
+
 describe('scheduleBoard helpers', () => {
   const today = '2026-07-21'
   const now = new Date('2026-07-21T12:00:00Z')
@@ -53,6 +65,10 @@ describe('scheduleBoard helpers', () => {
     end_time: endTime,
     status,
     remaining_amount: remainingAmount,
+    is_recurring: false,
+    recurrence_status: null,
+    previous_recurring_booking_id: null,
+    next_recurring_booking_id: null,
   })
 
   it('returns no closing bookings for a future selected date', () => {
@@ -277,7 +293,7 @@ describe('scheduleBoard helpers', () => {
   })
 
   it('maps confirmed, hold, and cancelled bookings to board statuses', () => {
-    const bookings: BookingListItem[] = [
+    const bookings = [
       {
         id: 1,
         court: 7,
@@ -301,7 +317,9 @@ describe('scheduleBoard helpers', () => {
         end_time: '09:00',
         status: 'CANCELLED',
       },
-    ]
+    ].map((booking) => bookingFixture(
+      booking as Parameters<typeof bookingFixture>[0],
+    ))
     const result = generateSlotsFromWorkingHour(workingHour, 60, bookings)
 
     expect(result.slots.map((slot) => slot.status)).toEqual([
@@ -320,6 +338,10 @@ describe('scheduleBoard helpers', () => {
       slot_status: 'UNAVAILABLE',
       is_available: false,
       booking: null,
+      recurring_anchor_booking_id: null,
+      can_start_recurring: null,
+      recurring_blocked_reason: null,
+      first_recurring_conflict_start: null,
       label: null,
       slot_price: '350.00',
     }
@@ -335,6 +357,105 @@ describe('scheduleBoard helpers', () => {
       endTime: '11:00',
     })
     expect(result.booking).toBeUndefined()
+  })
+
+  it('maps backend recurring eligibility without calculating future conflicts', () => {
+    const result = mapBookingSlotToScheduleBooking(
+      {
+        date: '2026-09-01',
+        start_time: '18:00:00',
+        end_time: '19:00:00',
+        slot_status: 'FREE',
+        is_available: true,
+        booking: null,
+        recurring_anchor_booking_id: null,
+        label: 'متاح',
+        slot_price: '350.00',
+        can_start_recurring: false,
+        recurring_blocked_reason: 'FUTURE_CONFLICT',
+        first_recurring_conflict_start: '2026-09-08T18:00:00+03:00',
+      },
+      7,
+    )
+
+    expect(result).toMatchObject({
+      canStartRecurring: false,
+      recurringBlockedReason: 'FUTURE_CONFLICT',
+      firstRecurringConflictStart: '2026-09-08T18:00:00+03:00',
+    })
+  })
+
+  it('preserves recurring eligibility as true, false, or null', () => {
+    const makeEligibilitySlot = (
+      canStartRecurring: boolean | null,
+    ): BookingSlot => ({
+      date: '2026-09-01',
+      start_time: '18:00:00',
+      end_time: '19:00:00',
+      slot_status: 'FREE',
+      is_available: true,
+      booking: null,
+      recurring_anchor_booking_id: null,
+      can_start_recurring: canStartRecurring,
+      recurring_blocked_reason: null,
+      first_recurring_conflict_start: null,
+      label: 'متاح',
+      slot_price: '350.00',
+    })
+
+    expect(
+      [true, false, null].map(
+        (value) =>
+          mapBookingSlotToScheduleBooking(makeEligibilitySlot(value), 7)
+            .canStartRecurring,
+      ),
+    ).toEqual([true, false, null])
+  })
+
+  it('uses RECURRING_RESERVED as the authoritative state and preserves its anchor', () => {
+    const result = mapBookingSlotToScheduleBooking(
+      {
+        date: '2026-09-01',
+        start_time: '18:00:00',
+        end_time: '19:00:00',
+        slot_status: 'RECURRING_RESERVED',
+        is_available: false,
+        booking: null,
+        recurring_anchor_booking_id: 77,
+        can_start_recurring: null,
+        recurring_blocked_reason: null,
+        first_recurring_conflict_start: null,
+        label: 'مثبت أسبوعيًا',
+        slot_price: null,
+      },
+      7,
+    )
+
+    expect(result.status).toBe('recurring_reserved')
+    expect(result.recurringAnchorBookingId).toBe(77)
+    expect(result.booking).toBeUndefined()
+  })
+
+  it('does not infer a recurring reservation from an anchor on a FREE slot', () => {
+    const result = mapBookingSlotToScheduleBooking(
+      {
+        date: '2026-09-01',
+        start_time: '18:00:00',
+        end_time: '19:00:00',
+        slot_status: 'FREE',
+        is_available: true,
+        booking: null,
+        recurring_anchor_booking_id: 77,
+        can_start_recurring: true,
+        recurring_blocked_reason: null,
+        first_recurring_conflict_start: null,
+        label: 'متاح',
+        slot_price: '350.00',
+      },
+      7,
+    )
+
+    expect(result.status).toBe('available')
   })
 
   it('maps customer_phone from backend booking slot summaries', () => {
@@ -353,7 +474,13 @@ describe('scheduleBoard helpers', () => {
         total_booking_value: '250.00',
         total_paid_amount: '0.00',
         remaining_amount: '250.00',
+        is_recurring: false,
+        recurrence_status: null,
       },
+      recurring_anchor_booking_id: null,
+      can_start_recurring: null,
+      recurring_blocked_reason: null,
+      first_recurring_conflict_start: null,
       label: 'بانتظار العربون',
       slot_price: '250.00',
     }
@@ -364,7 +491,7 @@ describe('scheduleBoard helpers', () => {
   })
 
   it('keeps HOLD and COMPLETED visible while hiding lifecycle-only backend statuses', () => {
-    const bookings: BookingListItem[] = [
+    const bookings = [
       {
         id: 1,
         court: 7,
@@ -393,7 +520,9 @@ describe('scheduleBoard helpers', () => {
         end_time: '09:00',
         status: 'EXPIRED',
       },
-    ]
+    ].map((booking) => bookingFixture(
+      booking as Parameters<typeof bookingFixture>[0],
+    ))
     const result = generateSlotsFromWorkingHour(workingHour, 60, bookings)
 
     expect(getVisibleBookings(bookings)).toEqual([bookings[0], bookings[1]])
@@ -441,7 +570,9 @@ describe('scheduleBoard helpers', () => {
         end_time: '08:00',
         status: 'CONFIRMED',
       },
-    ])
+    ].map((booking) => bookingFixture(
+      booking as Parameters<typeof bookingFixture>[0],
+    )))
 
     expect(result.slots.map((slot) => slot.status)).toEqual([
       'completed',

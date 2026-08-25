@@ -5,6 +5,8 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
+import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
@@ -25,6 +27,7 @@ export interface CancelBookingReasonSheetProps {
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
   preview?: BookingCancellationPreview | null
+  recurrenceWillEnd?: boolean
   onClose: () => void
   onSubmit: (values: CancelBookingReasonValues) => Promise<void> | void
 }
@@ -50,6 +53,7 @@ export function CancelBookingReasonSheet({
   error,
   fieldErrors = null,
   preview = null,
+  recurrenceWillEnd = false,
   onClose,
   onSubmit,
 }: CancelBookingReasonSheetProps) {
@@ -60,6 +64,7 @@ export function CancelBookingReasonSheet({
   const [refundReference, setRefundReference] = useState('')
   const [refundNotes, setRefundNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
   const requiresNotes = reason === 'أخرى'
   const requiresRefundFields = hasRefund(preview)
   const canSubmitCancellation = preview?.can_cancel !== false
@@ -72,6 +77,21 @@ export function CancelBookingReasonSheet({
     fieldErrors,
     'refund_reference',
   )
+  const isDirty =
+    reason.length > 0 ||
+    notes.length > 0 ||
+    refundPaymentMethod !== 'CASH' ||
+    refundReference.length > 0 ||
+    refundNotes.length > 0
+
+  function requestClose(): boolean | void {
+    if (isDirty) {
+      setIsDiscardPromptOpen(true)
+      return false
+    }
+
+    onClose()
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -108,21 +128,17 @@ export function CancelBookingReasonSheet({
   }
 
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-      role="dialog"
-    >
-      <form
-        className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl"
-        onSubmit={handleSubmit}
-      >
+    <>
+      <AppSheet ariaLabel="إلغاء الحجز" onRequestClose={requestClose}>
+        <form className="p-5 pt-14" onSubmit={handleSubmit}>
         <div className="space-y-1">
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            إلغاء الحجز
+            إلغاء الحجز؟
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            اختر سبب الإلغاء قبل تنفيذ العملية
+            {recurrenceWillEnd
+              ? 'الحجز الحالي هيتلغي، وكمان تثبيت الموعد الأسبوعي هيتوقف.'
+              : 'هيتم إلغاء الحجز والمعاد هيبقى متاح للحجز من جديد.'}
           </p>
         </div>
 
@@ -139,17 +155,17 @@ export function CancelBookingReasonSheet({
               </div>
               <div>
                 <p className="font-bold text-[var(--sloty-text-muted)]">
-                  سياسة استرداد العربون
+                  سياسة استرداد التأمين
                 </p>
                 <p className="font-black text-[var(--sloty-text-primary)]">
                   {preview.refund_notice_days === null
                     ? 'لا توجد مهلة استرداد محددة'
-                    : `الإلغاء قبل الموعد بـ ${preview.refund_notice_days} يوم`}
+                    : `قبل الموعد بـ ${preview.refund_notice_days} أيام`}
                 </p>
               </div>
               <div>
                 <p className="font-bold text-[var(--sloty-text-muted)]">
-                  آخر موعد للاسترداد
+                  آخر موعد لاسترداد التأمين
                 </p>
                 <p className="font-black text-[var(--sloty-text-primary)]">
                   {formatArabicDateTime(preview.refund_deadline) ?? 'غير محدد'}
@@ -192,14 +208,14 @@ export function CancelBookingReasonSheet({
               <p
                 className={[
                   'rounded-xl px-3 py-2 text-sm font-black',
-                  hasRefund(preview)
+                  preview.full_refund
                     ? 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]'
                     : 'bg-amber-100 text-amber-900',
                 ].join(' ')}
               >
-                {hasRefund(preview)
-                  ? `يحق للعميل استرداد ${formatMoneyAmount(preview.refund_amount)} حسب المعاينة.`
-                  : 'لا يوجد مبلغ مستحق للاسترداد حسب المعاينة.'}
+                {preview.full_refund
+                  ? 'يحق للعميل استرداد التأمين.'
+                  : 'انتهت مهلة استرداد التأمين.'}
               </p>
             </section>
           ) : null}
@@ -230,7 +246,7 @@ export function CancelBookingReasonSheet({
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>ملاحظات</span>
               <textarea
-                className="min-h-24 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+              className="min-h-24 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
                 disabled={isSubmitting}
                 onChange={(event) => {
                   setNotes(event.target.value)
@@ -268,7 +284,7 @@ export function CancelBookingReasonSheet({
               <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
                 <span>مرجع الاسترداد</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
                   disabled={isSubmitting}
                   onChange={(event) => setRefundReference(event.target.value)}
                   value={refundReference}
@@ -282,7 +298,7 @@ export function CancelBookingReasonSheet({
               <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
                 <span>ملاحظات الاسترداد</span>
                 <textarea
-                  className="min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                  className="min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
                   disabled={isSubmitting}
                   onChange={(event) => setRefundNotes(event.target.value)}
                   value={refundNotes}
@@ -305,19 +321,28 @@ export function CancelBookingReasonSheet({
             type="submit"
             variant="danger"
           >
-            {isSubmitting ? 'جاري إلغاء الحجز...' : 'تأكيد إلغاء الحجز'}
+            {isSubmitting ? 'جاري إلغاء الحجز...' : 'إلغاء الحجز'}
           </AppButton>
           <AppButton
             disabled={isSubmitting}
             fullWidth
-            onClick={onClose}
+            onClick={requestClose}
             type="button"
             variant="secondary"
           >
             رجوع
           </AppButton>
         </div>
-      </form>
-    </div>
+        </form>
+      </AppSheet>
+      <UnsavedChangesPrompt
+        isOpen={isDiscardPromptOpen}
+        onContinueEditing={() => setIsDiscardPromptOpen(false)}
+        onDiscard={() => {
+          setIsDiscardPromptOpen(false)
+          onClose()
+        }}
+      />
+    </>
   )
 }

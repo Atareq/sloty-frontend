@@ -5,18 +5,21 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
+import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type {
   PaymentMethod,
-  TransactionCreatePayload,
 } from '../../transactions.types'
 import { paymentMethodLabels } from '../../transactions.types'
 
-export type RecordPaymentSheetValues = Omit<
-  TransactionCreatePayload,
-  'booking'
->
+export interface RecordPaymentSheetValues {
+  amount: string
+  payment_method: PaymentMethod
+  reference?: string
+  notes?: string
+}
 
 export interface RecordPaymentSheetProps {
   bookingId: number | string
@@ -24,22 +27,23 @@ export interface RecordPaymentSheetProps {
   fieldErrors?: Record<string, ApiFieldError[]> | null
   isSubmitting: boolean
   minimumDepositHint?: string | null
+  paymentPurpose?: 'deposit' | 'remaining'
   onClose: () => void
   onSubmit: (values: RecordPaymentSheetValues) => Promise<void> | void
 }
 
 /**
- * Presentational payment-recording form for confirmed bookings.
+ * Presentational payment-recording form for HOLD or confirmed bookings.
  *
  * It gathers the financial input only; the parent owns API calls and reloads so
  * this sheet can remain reusable from booking details or future transaction UI.
  */
 export function RecordPaymentSheet({
-  bookingId,
   error,
   fieldErrors = null,
   isSubmitting,
   minimumDepositHint = null,
+  paymentPurpose,
   onClose,
   onSubmit,
 }: RecordPaymentSheetProps) {
@@ -48,10 +52,25 @@ export function RecordPaymentSheet({
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
   const amountFieldError = getFirstFieldErrorMessage(fieldErrors, 'amount')
   const referenceFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'reference') ??
     getFirstFieldErrorMessage(fieldErrors, 'payment_reference')
+  const isDirty =
+    amount.length > 0 ||
+    paymentMethod !== 'CASH' ||
+    reference.length > 0 ||
+    notes.length > 0
+
+  function requestClose(): boolean | void {
+    if (isDirty) {
+      setIsDiscardPromptOpen(true)
+      return false
+    }
+
+    onClose()
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -85,24 +104,32 @@ export function RecordPaymentSheet({
   }
 
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-      role="dialog"
-    >
-      <form
-        className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl"
-        onSubmit={handleSubmit}
+    <>
+      <AppSheet
+        ariaLabel={
+          paymentPurpose === 'deposit'
+            ? 'تسجيل العربون'
+            : paymentPurpose === 'remaining'
+              ? 'تحصيل المبلغ المتبقي'
+              : 'إضافة دفعة'
+        }
+        onRequestClose={requestClose}
       >
+        <form className="p-5 pt-14" onSubmit={handleSubmit}>
         <div className="space-y-1">
-          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            حجز #{bookingId}
-          </p>
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            إضافة دفعة
+            {paymentPurpose === 'deposit'
+              ? 'تسجيل العربون'
+              : paymentPurpose === 'remaining'
+                ? 'تحصيل المبلغ المتبقي'
+                : 'إضافة دفعة'}
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            سجل دفعة جديدة لهذا الحجز
+            {paymentPurpose === 'deposit'
+              ? 'سجل العربون لتأكيد الحجز'
+              : paymentPurpose === 'remaining'
+                ? 'سجل المبلغ الذي تم تحصيله لهذا الحجز'
+                : 'سجل دفعة جديدة لهذا الحجز'}
           </p>
           {minimumDepositHint ? (
             <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-xs font-bold text-[var(--sloty-text-muted)]">
@@ -116,7 +143,7 @@ export function RecordPaymentSheet({
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>المبلغ</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
               dir="ltr"
               disabled={isSubmitting}
               inputMode="decimal"
@@ -144,7 +171,7 @@ export function RecordPaymentSheet({
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>رقم العملية</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
               disabled={isSubmitting}
               onChange={(event) => setReference(event.target.value)}
               value={reference}
@@ -162,7 +189,7 @@ export function RecordPaymentSheet({
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>
             <textarea
-              className="min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+              className="min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
               disabled={isSubmitting}
               onChange={(event) => setNotes(event.target.value)}
               value={notes}
@@ -183,19 +210,34 @@ export function RecordPaymentSheet({
             type="submit"
             variant="primary"
           >
-            {isSubmitting ? 'جاري التسجيل...' : 'تسجيل الدفعة'}
+            {isSubmitting
+              ? 'جاري التسجيل...'
+              : paymentPurpose === 'deposit'
+                ? 'تسجيل العربون'
+                : paymentPurpose === 'remaining'
+                  ? 'تسجيل التحصيل'
+                  : 'تسجيل الدفعة'}
           </AppButton>
           <AppButton
             disabled={isSubmitting}
             fullWidth
-            onClick={onClose}
+            onClick={requestClose}
             type="button"
             variant="secondary"
           >
             إلغاء
           </AppButton>
         </div>
-      </form>
-    </div>
+        </form>
+      </AppSheet>
+      <UnsavedChangesPrompt
+        isOpen={isDiscardPromptOpen}
+        onContinueEditing={() => setIsDiscardPromptOpen(false)}
+        onDiscard={() => {
+          setIsDiscardPromptOpen(false)
+          onClose()
+        }}
+      />
+    </>
   )
 }

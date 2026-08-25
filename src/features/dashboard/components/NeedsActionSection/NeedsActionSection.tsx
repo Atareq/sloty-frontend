@@ -6,22 +6,26 @@ import { buildSummaryLink } from '../../summaryLinks'
 const needsActionItems = [
   {
     key: 'hold_waiting_payment_count',
-    label: 'حجوزات بانتظار العربون',
+    label: 'بانتظار العربون',
+    helper: 'افتح الحجوزات وضيف العربون',
     query: { status: 'HOLD' },
   },
   {
     key: 'overdue_confirmed_count',
-    label: 'حجوزات وقتها عدى ولم تكتمل',
+    label: 'وقتها عدى ولسه مقفلتش',
+    helper: 'افتح الحجوزات المكتملة زمنيًا',
     query: { overdue: true, status: 'CONFIRMED' },
   },
   {
     key: 'remaining_after_slot_end_count',
-    label: 'حجوزات بها مبلغ متبقي بعد الوقت',
-    query: { ended: true, remaining_amount_gt: 0, status: 'CONFIRMED' },
+    label: 'خلصت ولسه عليها مبلغ',
+    helper: 'افتح الحجوزات وحصّل المتبقي',
+    query: { ended: true, has_remaining_amount: true, status: 'CONFIRMED' },
   },
   {
     key: 'expiring_hold_count',
-    label: 'حجوزات بانتظار العربون قاربت على الانتهاء',
+    label: 'عربونها قرب ينتهي',
+    helper: 'افتح الحجوزات القريبة من انتهاء المهلة',
     query: { hold_expiring: true, status: 'HOLD' },
   },
 ] as const
@@ -35,14 +39,11 @@ export function NeedsActionSection({ summary }: NeedsActionSectionProps) {
     return (
       <section className="space-y-3">
         <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-          تحتاج إجراء
+          محتاجين إجراء
         </h2>
         <AppCard>
           <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-            لا توجد حجوزات تحتاج إجراء
-          </p>
-          <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-            كل الحجوزات الحالية مستقرة.
+            مفيش حجوزات محتاجة إجراء دلوقتي.
           </p>
         </AppCard>
       </section>
@@ -52,20 +53,22 @@ export function NeedsActionSection({ summary }: NeedsActionSectionProps) {
   return (
     <section className="space-y-3">
       <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-        تحتاج إجراء
+        محتاجين إجراء
       </h2>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {needsActionItems.map((item) => (
-          <SummaryActionCard
-            helper="افتح الحجوزات المطابقة"
-            key={item.key}
-            label={item.label}
-            to={buildSummaryLink('/bookings', summary.context, item.query)}
-            tone="amber"
-            value={summary.needs_action_breakdown[item.key]}
-          />
-        ))}
+        {needsActionItems
+          .filter((item) => summary.needs_action_breakdown[item.key] > 0)
+          .map((item) => (
+            <SummaryActionCard
+              helper={item.helper}
+              key={item.key}
+              label={item.label}
+              to={buildSummaryLink('/bookings', summary.context, item.query)}
+              tone="amber"
+              value={summary.needs_action_breakdown[item.key]}
+            />
+          ))}
       </div>
     </section>
   )

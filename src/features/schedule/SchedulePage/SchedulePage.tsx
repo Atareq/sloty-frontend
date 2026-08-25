@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getApiErrorCode,
   getApiErrorDetails,
@@ -34,15 +34,10 @@ import {
   NoShowReasonSheet,
   type NoShowReasonValues,
 } from '../components/NoShowReasonSheet/NoShowReasonSheet'
-import { HoldBookingActionSheet } from '../components/HoldBookingActionSheet/HoldBookingActionSheet'
 import { ScheduleClosingSection } from '../components/ScheduleClosingSection/ScheduleClosingSection'
 import { ScheduleSummary } from '../components/ScheduleSummary/ScheduleSummary'
 import { BookingActionSheet } from '../../bookings/components/BookingActionSheet/BookingActionSheet'
-import {
-  createRecurringAgreement,
-  getRecurringAgreementAvailability,
-} from '../../recurringAgreements/recurringAgreementsApi'
-import type { RecurringAgreementAvailabilityResponse } from '../../recurringAgreements/recurringAgreements.types'
+import { hasActiveRecurrence } from '../../bookings/bookingRecurrence.helpers'
 import { createTransaction } from '../../transactions/transactionsApi'
 import {
   RecordPaymentSheet,
@@ -51,7 +46,6 @@ import {
 import {
   formatBookingDateTime,
   getBookingSummariesFromScheduleSlots,
-  getWeekdayFromDateValue,
   getScheduleClosingBookings,
   mapBookingSlotsResponseToScheduleBookings,
 } from '../scheduleBoard.helpers'
@@ -60,6 +54,8 @@ import {
   cancelBooking,
   completeBooking,
   createBooking,
+  endBookingRecurrence,
+  getBooking,
   listBookingSlots,
   markBookingNoShow,
   previewBookingCancellation,
@@ -98,6 +94,7 @@ const statusLegend = [
 ]
 
 const bookingConflictCodes = new Set([
+  'BOOKING_SLOT_UNAVAILABLE',
   'BOOKING_SLOT_ALREADY_TAKEN',
   'BOOKING_OVERLAP',
 ])
@@ -153,14 +150,6 @@ export function SchedulePage() {
   const [isHoldActionSubmitting, setIsHoldActionSubmitting] = useState(false)
   const [holdActionError, setHoldActionError] = useState<string | null>(null)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
-  const [
-    recurringAvailability,
-    setRecurringAvailability,
-  ] = useState<RecurringAgreementAvailabilityResponse | null>(null)
-  const [
-    isCheckingRecurringAvailability,
-    setIsCheckingRecurringAvailability,
-  ] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createFieldErrors, setCreateFieldErrors] = useState<Record<
     string,
@@ -195,6 +184,33 @@ export function SchedulePage() {
     ApiFieldError[]
   > | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [settledSlotsDate, setSettledSlotsDate] = useState<string | null>(null)
+  const slotsSectionRef = useRef<HTMLElement | null>(null)
+  const pendingSlotsScrollDateRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!successMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setSuccessMessage(null), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [successMessage])
+
+  useEffect(() => {
+    if (
+      isSlotsLoading ||
+      !settledSlotsDate ||
+      pendingSlotsScrollDateRef.current !== settledSlotsDate
+    ) {
+      return
+    }
+
+    pendingSlotsScrollDateRef.current = null
+    slotsSectionRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }, [isSlotsLoading, settledSlotsDate])
   const assignedCourt = useMemo(
     () =>
       selectedMembership?.court
@@ -310,7 +326,7 @@ export function SchedulePage() {
       setSlots(mapBookingSlotsResponseToScheduleBookings(response))
       setBoardMessage(
         response.slots.length === 0
-          ? response.message || 'لا توجد مواعيد متاحة لهذا اليوم'
+          ? response.message || 'مفيش مواعيد متاحة في اليوم ده.'
           : null,
       )
     } catch (error) {
@@ -354,15 +370,17 @@ export function SchedulePage() {
           setSlots(mapBookingSlotsResponseToScheduleBookings(response))
           setBoardMessage(
             response.slots.length === 0
-              ? response.message || 'لا توجد مواعيد متاحة لهذا اليوم'
+              ? response.message || 'مفيش مواعيد متاحة في اليوم ده.'
               : null,
           )
+          setSettledSlotsDate(date)
         }
       } catch (error) {
         if (isActive) {
           setSlots([])
           setBoardMessage(null)
           setError(getApiErrorMessage(error, 'تعذر تحميل مواعيد اليوم'))
+          setSettledSlotsDate(date)
         }
       } finally {
         if (isActive) {
@@ -394,39 +412,19 @@ export function SchedulePage() {
       const startTime = formatBookingDateTime(selectedDate, selectedSlot.startTime)
       const endTime = formatBookingDateTime(selectedDate, selectedSlot.endTime)
 
-      if (values.booking_type === 'weekly') {
-        await createRecurringAgreement(selectedClubSlug, {
-          court: selectedCourt.id,
-          customer_name: values.customer_name,
-          customer_phone: values.customer_phone,
-          weekday: getWeekdayFromDateValue(selectedDate),
-          start_time: `${selectedSlot.startTime}:00`,
-          end_time: `${selectedSlot.endTime}:00`,
-          start_date: selectedDate,
-          payment_method: values.payment_method ?? 'CASH',
-          ...(values.reference ? { reference: values.reference } : {}),
-          ...(values.notes ? { notes: values.notes } : {}),
-        })
-
-        setSelectedSlot(null)
-        setRecurringAvailability(null)
-        setSuccessMessage('تم إنشاء الحجز الأسبوعي بنجاح')
-        await reloadScheduleSlots()
-        return
-      }
-
       const createdBooking = await createBooking(selectedClubSlug, {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
         start_time: startTime,
         end_time: endTime,
-        source: 'MANUAL',
+        ...(values.booking_type === 'weekly' ? { is_recurring: true } : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       })
 
       setSelectedSlot(null)
       await reloadScheduleSlots()
+      setSuccessMessage('✓ تم حجز الموعد بنجاح')
 
       if (createdBooking.status === 'HOLD') {
         setSelectedSlot({
@@ -452,43 +450,6 @@ export function SchedulePage() {
       }
     } finally {
       setIsCreateSubmitting(false)
-    }
-  }
-
-  async function handleCheckRecurringAvailability(): Promise<void> {
-    if (!selectedClubSlug || !selectedCourt || !selectedSlot) {
-      return
-    }
-
-    setIsCheckingRecurringAvailability(true)
-    setCreateError(null)
-    setCreateFieldErrors(null)
-    setRecurringAvailability(null)
-
-    try {
-      const availability = await getRecurringAgreementAvailability(
-        selectedClubSlug,
-        {
-          court: selectedCourt.id,
-          weekday: getWeekdayFromDateValue(selectedDate),
-          start_time: `${selectedSlot.startTime}:00`,
-          end_time: `${selectedSlot.endTime}:00`,
-          start_date: selectedDate,
-        },
-      )
-
-      setRecurringAvailability(availability)
-
-      if (!availability.all_available) {
-        setCreateError('لا يمكن إنشاء الحجز الأسبوعي مع وجود تعارض')
-      }
-    } catch (error) {
-      setCreateError(
-        getApiErrorMessage(error, 'تعذر فحص إتاحة الحجز الأسبوعي'),
-      )
-      setCreateFieldErrors(getApiFieldErrors(error))
-    } finally {
-      setIsCheckingRecurringAvailability(false)
     }
   }
 
@@ -545,8 +506,6 @@ export function SchedulePage() {
 
       setCancellationPreview(preview)
       setCancellingBooking(booking)
-      setSelectedActionBooking(null)
-      setSelectedSlot(null)
     } catch (error) {
       if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
         setLifecycleError('انتهى وقت إلغاء هذا الحجز لأنه بدأ بالفعل.')
@@ -624,6 +583,29 @@ export function SchedulePage() {
     }
   }
 
+  async function handleEndRecurrence(booking: BookingListItem): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsLifecycleSubmitting(true)
+    setLifecycleError(null)
+
+    try {
+      await endBookingRecurrence(selectedClubSlug, booking.id)
+      setSelectedActionBooking(null)
+      setSelectedSlot(null)
+      setSuccessMessage('تم إيقاف التكرار الأسبوعي')
+      await reloadScheduleSlots()
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر إيقاف التكرار الأسبوعي. حاول مرة أخرى'),
+      )
+    } finally {
+      setIsLifecycleSubmitting(false)
+    }
+  }
+
   async function handleRecordPayment(
     values: RecordPaymentSheetValues,
   ): Promise<void> {
@@ -640,14 +622,20 @@ export function SchedulePage() {
         booking: paymentBooking.id,
         amount: values.amount,
         payment_method: values.payment_method,
-        ...(values.reference ? { reference: values.reference } : {}),
+        ...(values.reference
+          ? { payment_reference: values.reference }
+          : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       })
       setPaymentBooking(null)
       setSelectedActionBooking(null)
       setHoldBooking(null)
       setSelectedSlot(null)
-      setSuccessMessage('تم تسجيل الدفعة بنجاح')
+      setSuccessMessage(
+        paymentBooking.status === 'HOLD'
+          ? 'تم تسجيل العربون وتأكيد الحجز بنجاح'
+          : 'تم تسجيل التحصيل بنجاح',
+      )
       await reloadScheduleSlots()
     } catch (error) {
       const errorCode = getApiErrorCode(error)
@@ -679,34 +667,53 @@ export function SchedulePage() {
 
     try {
       await cancelBooking(selectedClubSlug, booking.id, {
-        reason: 'تحرير الحجز المؤقت',
-        notes: 'تم تحرير الموعد من لوحة الحجز',
+        reason: 'إلغاء الحجز المؤقت',
+        notes: 'تم إلغاء الحجز من لوحة الحجز',
       })
       setSelectedActionBooking(null)
       setHoldBooking(null)
       setSelectedSlot(null)
-      setSuccessMessage('تم تحرير الموعد بنجاح')
+      setSuccessMessage('تم إلغاء الحجز بنجاح')
       await reloadScheduleSlots()
     } catch (error) {
       setHoldActionError(
-        getApiErrorMessage(error, 'تعذر تحرير الموعد. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
       )
     } finally {
       setIsHoldActionSubmitting(false)
     }
   }
 
-  function handleSelectSlot(slot: ScheduleBooking): void {
+  async function handleSelectSlot(slot: ScheduleBooking): Promise<void> {
     setSuccessMessage(null)
     setSelectedActionBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
-    setRecurringAvailability(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
     setLifecycleError(null)
     setLifecycleFieldErrors(null)
     setHoldActionError(null)
+
+    if (
+      slot.status === 'recurring_reserved' &&
+      slot.recurringAnchorBookingId &&
+      selectedClubSlug
+    ) {
+      setIsLifecycleSubmitting(true)
+      try {
+        setSelectedActionBooking(
+          await getBooking(selectedClubSlug, slot.recurringAnchorBookingId),
+        )
+      } catch (error) {
+        setLifecycleError(
+          getApiErrorMessage(error, 'تعذر تحميل الحجز الأسبوعي. حاول مرة أخرى'),
+        )
+      } finally {
+        setIsLifecycleSubmitting(false)
+      }
+      return
+    }
 
     if (slot.status === 'available' && slot.isAvailable) {
       setSelectedSlot(slot)
@@ -739,7 +746,6 @@ export function SchedulePage() {
     setHoldBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
-    setRecurringAvailability(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
     setLifecycleError(null)
@@ -775,10 +781,11 @@ export function SchedulePage() {
   }
 
   function handleDateChange(nextDate: string): void {
-    if (!nextDate) {
+    if (!nextDate || nextDate === selectedDate) {
       return
     }
 
+    pendingSlotsScrollDateRef.current = nextDate
     setSelectedDate(nextDate)
     clearScheduleSelection()
   }
@@ -797,57 +804,136 @@ export function SchedulePage() {
     slots.length === 0
   const loadingMessage = isSetupLoading
     ? 'جاري تحميل إعدادات جدول الحجز...'
-    : 'جاري تحميل مواعيد الملعب...'
+    : 'جاري تحميل المواعيد...'
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
       <div className="space-y-4 md:space-y-6">
         <section className="space-y-4 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:px-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-1">
-              <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-                لوحة الحجز
-              </h2>
-              <p className="text-sm text-[var(--sloty-text-muted)]">
-                اختر فترة متاحة لإضافة حجز، أو فترة مشغولة لعرض الإجراء المناسب
-              </p>
-            </div>
-            {canChooseCourt && courts.length > 1 ? (
-              <AppSelect
-                className="w-full md:w-64"
-                label="الملعب"
-                onChange={handleCourtChange}
-                options={courts.map((court) => ({
-                  value: String(court.id),
-                  label: court.name || `ملعب #${court.id}`,
-                }))}
-                value={selectedCourtId !== null ? String(selectedCourtId) : ''}
-              />
-            ) : null}
-          </div>
+          {canChooseCourt && courts.length > 1 ? (
+            <AppSelect
+              className="w-full md:w-64"
+              label="الملعب"
+              onChange={handleCourtChange}
+              options={courts.map((court) => ({
+                value: String(court.id),
+                label: court.name || `ملعب #${court.id}`,
+              }))}
+              value={selectedCourtId !== null ? String(selectedCourtId) : ''}
+            />
+          ) : null}
 
           <div className="space-y-3">
+            <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+              اختار اليوم
+            </h2>
             <AppDateNavigator
               onChange={handleDateChange}
               value={selectedDate}
             />
-            <div className="flex flex-wrap gap-2">
-              {statusLegend.map((item) => (
-                <span
-                  className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-bg)] px-3 py-1 text-xs font-bold text-[var(--sloty-text-muted)]"
-                  key={item.label}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={[
-                      'h-3 w-3 rounded-full border-2',
-                      item.className,
-                    ].join(' ')}
-                  />
-                  {item.label}
-                </span>
-              ))}
+          </div>
+        </section>
+
+        <section
+          className="scroll-mt-24 space-y-3"
+          ref={slotsSectionRef}
+        >
+          <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+            اختار المعاد
+          </h2>
+          <div
+            aria-label="لوحة فترات الملعب"
+            className="relative overflow-hidden rounded-[28px] border border-[var(--sloty-border)] bg-cover bg-center shadow-[var(--sloty-shadow)]"
+            style={{
+              backgroundImage: "url('/images/sloty-court-board-bg.png')",
+            }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/30 via-emerald-900/10 to-slate-950/35" />
+            <div className="relative z-10 grid min-h-[560px] grid-cols-1 gap-3 p-2 sm:min-h-[560px] sm:gap-4 sm:p-4 md:min-h-[480px] md:grid-cols-2 md:p-5 lg:min-h-[540px] lg:p-6">
+              {isSetupLoading ||
+              isSlotsLoading ||
+              error ||
+              shouldShowBoardMessage ? (
+                <div className="flex items-center justify-center rounded-3xl border border-white/20 bg-white/88 p-5 text-center md:col-span-2">
+                  <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
+                    {error ??
+                      (isSetupLoading || isSlotsLoading
+                        ? loadingMessage
+                        : boardMessage)}
+                  </p>
+                </div>
+              ) : null}
+
+              {shouldShowBoardSlots ? (
+                <>
+                  <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
+                    <div>
+                      <p className="text-xs font-bold text-white/75">
+                        الفترة الصباحية · AM
+                      </p>
+                      <h3 className="text-lg font-black text-white">مواعيد ص</h3>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
+                      {amSlots.map((booking) => (
+                        <BookingCard
+                          booking={booking}
+                          key={booking.id}
+                          onSelect={
+                            booking.isAvailable || booking.booking
+                              ? (slot) => void handleSelectSlot(slot)
+                              : booking.recurringAnchorBookingId
+                                ? (slot) => void handleSelectSlot(slot)
+                              : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
+                    <div>
+                      <p className="text-xs font-bold text-white/75">
+                        الفترة المسائية · PM
+                      </p>
+                      <h3 className="text-lg font-black text-white">مواعيد م</h3>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
+                      {pmSlots.map((booking) => (
+                        <BookingCard
+                          booking={booking}
+                          key={booking.id}
+                          onSelect={
+                            booking.isAvailable || booking.booking
+                              ? (slot) => void handleSelectSlot(slot)
+                              : booking.recurringAnchorBookingId
+                                ? (slot) => void handleSelectSlot(slot)
+                              : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {statusLegend.map((item) => (
+              <span
+                className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-surface)] px-3 py-1 text-xs font-bold text-[var(--sloty-text-muted)]"
+                key={item.label}
+              >
+                <span
+                  aria-hidden="true"
+                  className={[
+                    'h-3 w-3 rounded-full border-2',
+                    item.className,
+                  ].join(' ')}
+                />
+                {item.label}
+              </span>
+            ))}
           </div>
         </section>
 
@@ -859,79 +945,6 @@ export function SchedulePage() {
           selectedDate={selectedDate}
           totalCount={closingBookings.totalCount}
         />
-
-        <section
-          aria-label="لوحة فترات الملعب"
-          className="relative overflow-hidden rounded-[28px] border border-[var(--sloty-border)] bg-cover bg-center shadow-[var(--sloty-shadow)]"
-          style={{
-            backgroundImage: "url('/images/sloty-court-board-bg.png')",
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/30 via-emerald-900/10 to-slate-950/35" />
-          <div className="relative z-10 grid min-h-[560px] grid-cols-1 gap-3 p-2 sm:min-h-[560px] sm:gap-4 sm:p-4 md:min-h-[480px] md:grid-cols-2 md:p-5 lg:min-h-[540px] lg:p-6">
-            {isSetupLoading ||
-            isSlotsLoading ||
-            error ||
-            shouldShowBoardMessage ? (
-              <div className="flex items-center justify-center rounded-3xl border border-white/20 bg-white/88 p-5 text-center md:col-span-2">
-                <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
-                  {error ??
-                    (isSetupLoading || isSlotsLoading
-                      ? loadingMessage
-                      : boardMessage)}
-                </p>
-              </div>
-            ) : null}
-
-            {shouldShowBoardSlots ? (
-              <>
-                <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
-                  <div>
-                    <p className="text-xs font-bold text-white/75">
-                      الفترة الصباحية · AM
-                    </p>
-                    <h3 className="text-lg font-black text-white">مواعيد ص</h3>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
-                    {amSlots.map((booking) => (
-                      <BookingCard
-                        booking={booking}
-                        key={booking.id}
-                        onSelect={
-                          booking.isAvailable || booking.booking
-                            ? handleSelectSlot
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
-                  <div>
-                    <p className="text-xs font-bold text-white/75">
-                     الفترة المسائية · PM
-                    </p>
-                    <h3 className="text-lg font-black text-white"> مواعيد م</h3>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
-                    {pmSlots.map((booking) => (
-                      <BookingCard
-                        booking={booking}
-                        key={booking.id}
-                        onSelect={
-                          booking.isAvailable || booking.booking
-                            ? handleSelectSlot
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </section>
       </div>
 
       {successMessage ? (
@@ -954,64 +967,45 @@ export function SchedulePage() {
       selectedSlot.isAvailable &&
       selectedCourt ? (
         <AddBookingSheet
+          canStartRecurring={selectedSlot.canStartRecurring}
           courtName={selectedCourt.name}
           dateLabel={selectedDateLabel}
           endTime={selectedSlot.endTime}
           error={createError}
           fieldErrors={createFieldErrors}
-          isCheckingRecurringAvailability={isCheckingRecurringAvailability}
+          firstRecurringConflictStart={selectedSlot.firstRecurringConflictStart}
           isSubmitting={isCreateSubmitting}
           onClose={() => {
             setSelectedSlot(null)
             setCreateError(null)
             setCreateFieldErrors(null)
-            setRecurringAvailability(null)
           }}
-          onCheckRecurringAvailability={handleCheckRecurringAvailability}
           onSubmit={handleCreateBooking}
-          recurringAvailability={recurringAvailability}
+          recurringBlockedReason={selectedSlot.recurringBlockedReason}
           startTime={selectedSlot.startTime}
           slotPrice={selectedSlot.slotPrice}
         />
       ) : null}
 
-      {selectedSlot?.status === 'hold' && holdBooking ? (
-        <HoldBookingActionSheet
-          booking={holdBooking}
-          courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
-          dateLabel={selectedDateLabel}
-          error={holdActionError}
-          isSubmitting={isHoldActionSubmitting}
-          onAddPayment={(booking) => {
-            setPaymentBooking(booking)
-            setHoldBooking(null)
-            setSelectedSlot(null)
-            setPaymentError(null)
-            setPaymentFieldErrors(null)
-          }}
-          onClose={() => {
-            setSelectedSlot(null)
-            setHoldBooking(null)
-            setHoldActionError(null)
-          }}
-          onFreeSlot={(booking) => {
-            void handleFreeHoldBooking(booking)
-          }}
-          slot={selectedSlot}
-        />
-      ) : null}
-
-      {selectedActionBooking ||
+      {!paymentBooking &&
+      !cancellingBooking &&
+      !completingBooking &&
+      !noShowBooking &&
+      (holdBooking ||
+      selectedActionBooking ||
       (selectedSlot &&
-        (selectedSlot.status === 'confirmed' ||
+        (selectedSlot.status === 'hold' ||
+          selectedSlot.status === 'confirmed' ||
           selectedSlot.status === 'completed' ||
-          selectedSlot.status === 'no_show')) ? (
+          selectedSlot.status === 'no_show'))) ? (
         <BookingActionSheet
-          booking={selectedActionBooking ?? selectedSlot?.booking ?? null}
+          booking={selectedActionBooking ?? holdBooking ?? selectedSlot?.booking ?? null}
           courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
           dateValue={selectedDate}
           error={
-            (selectedActionBooking ?? selectedSlot?.booking)?.status === 'HOLD'
+            paymentBooking || cancellingBooking || completingBooking || noShowBooking
+              ? null
+              : (selectedActionBooking ?? selectedSlot?.booking)?.status === 'HOLD'
               ? holdActionError
               : lifecycleError
           }
@@ -1023,8 +1017,6 @@ export function SchedulePage() {
           }
           onAddPayment={(booking) => {
             setPaymentBooking(booking)
-            setSelectedActionBooking(null)
-            setSelectedSlot(null)
             setPaymentError(null)
             setPaymentFieldErrors(null)
           }}
@@ -1049,18 +1041,17 @@ export function SchedulePage() {
           onComplete={(booking) => {
             setCompletingBooking(booking)
             setCompletingBookingRemainingAmount(null)
-            setSelectedActionBooking(null)
-            setSelectedSlot(null)
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
+          }}
+          onEndRecurrence={(booking) => {
+            void handleEndRecurrence(booking)
           }}
           onFreeHold={(booking) => {
             void handleFreeHoldBooking(booking)
           }}
           onNoShow={(booking) => {
             setNoShowBooking(booking)
-            setSelectedActionBooking(null)
-            setSelectedSlot(null)
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
           }}
@@ -1074,6 +1065,7 @@ export function SchedulePage() {
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
           minimumDepositHint={getCourtMinimumDeposit(selectedCourt)}
+          paymentPurpose={paymentBooking.status === 'HOLD' ? 'deposit' : 'remaining'}
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
@@ -1096,6 +1088,7 @@ export function SchedulePage() {
           }}
           onSubmit={handleCancelBooking}
           preview={cancellationPreview}
+          recurrenceWillEnd={hasActiveRecurrence(cancellingBooking)}
         />
       ) : null}
 
@@ -1137,6 +1130,7 @@ export function SchedulePage() {
             setLifecycleError(null)
           }}
           onSubmit={handleNoShowBooking}
+          recurrenceWillEnd={hasActiveRecurrence(noShowBooking)}
         />
       ) : null}
     </div>

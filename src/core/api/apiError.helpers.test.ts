@@ -67,4 +67,18 @@ describe('api error helpers', () => {
     expect(getApiRequestId(new Error('plain'))).toBeNull()
     expect(getFirstFieldErrorMessage(null, 'amount')).toBeNull()
   })
+
+  it.each([
+    ['BOOKING_SLOT_UNAVAILABLE', 'المعاد مبقاش متاح. اختار ميعاد تاني.'],
+    ['BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT', 'لازم تحصّل المبلغ المتبقي قبل إكمال الحجز.'],
+    ['RECURRENCE_CONTINUATION_DECISION_REQUIRED', 'اختار إذا كان الموعد الأسبوعي هيستمر ولا هيتوقف.'],
+    ['BOOKING_RECURRENCE_NOT_ACTIVE', 'التكرار الأسبوعي للحجز ده مش نشط.'],
+    ['RECURRING_BOOKING_RESCHEDULE_NOT_SUPPORTED', 'لتغيير المعاد الأسبوعي، أوقف التكرار الحالي واعمل حجز جديد.'],
+    ['SELF_SETTLEMENT_APPROVAL_FORBIDDEN', 'مينفعش تسوي عهدتك بنفسك.'],
+    ['NO_UNSETTLED_TRANSACTIONS', 'مفيش مبلغ غير مسوى للموظف ده دلوقتي.'],
+  ])('maps stable code %s without parsing backend message text', (code, message) => {
+    expect(
+      getApiErrorMessage(new ApiClientError('English backend message', 409, { code })),
+    ).toBe(message)
+  })
 })

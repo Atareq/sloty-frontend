@@ -6,9 +6,7 @@ import {
   type QueryParamValue,
 } from '../../shared/utils/buildPathWithQuery'
 import type {
-  ConfirmSettlementRequest,
   CreateSettlementPayload,
-  ReviewSettlementRequest,
   Settlement,
   SettlementPreview,
   SettlementPreviewQueryParams,
@@ -79,35 +77,6 @@ export function createSettlement(
       ...(payload.court !== undefined ? { court: payload.court } : {}),
       ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
     },
-  })
-}
-
-/**
- * Reviews all currently unsettled transactions collected by one club user.
- */
-export function reviewUserSettlement(
-  clubSlug: string,
-  payload: ReviewSettlementRequest,
-): Promise<SettlementPreview> {
-  return apiRequest<SettlementPreview>(
-    apiEndpoints.clubs.settlements.list(clubSlug),
-    {
-      method: 'POST',
-      body: payload,
-    },
-  )
-}
-
-/**
- * Confirms a settlement for every currently unsettled transaction of one user.
- */
-export function confirmUserSettlement(
-  clubSlug: string,
-  payload: ConfirmSettlementRequest,
-): Promise<Settlement> {
-  return apiRequest<Settlement>(apiEndpoints.clubs.settlements.list(clubSlug), {
-    method: 'POST',
-    body: payload,
   })
 }
 

@@ -129,7 +129,11 @@ describe('AdminUserFormPage', () => {
       first_name: 'مالك',
       last_name: '',
       role: 'OWNER',
-    })
+      user_summary: {
+        id: 20,
+        username: 'existing-user',
+      },
+    } as never)
   })
 
   it('shows platform admin account fields without club membership fields by default', async () => {

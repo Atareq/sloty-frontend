@@ -65,16 +65,16 @@ function EmptyPreviewState({ message, onRefresh }: EmptyPreviewStateProps) {
     <AppCard className="space-y-3">
       <div>
         <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-          {message ?? 'لا توجد معاملات غير مسواة لهذا الموظف'}
+          {message ?? 'مفيش عهدة حالية للموظف دلوقتي.'}
         </p>
         <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-          كل الدفعات الحالية تمت تسويتها أو لا توجد دفعات بعد.
+          كل التحصيلات الحالية اتسوت، أو لم تسجل تحصيلات بعد.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Link to="/settlements">
-          <AppButton variant="secondary">العودة إلى التسويات</AppButton>
+          <AppButton variant="secondary">العودة إلى عهد الموظفين</AppButton>
         </Link>
         {onRefresh ? (
           <AppButton onClick={onRefresh} variant="secondary">
@@ -141,9 +141,9 @@ export function SettlementPreviewPage() {
 
       if (isEmptySettlementError(error)) {
         setIsEmptyPreview(true)
-        setEmptyMessage('لا توجد دفعات غير مسواة حالياً لهذا الموظف')
+        setEmptyMessage('مفيش عهدة حالية للموظف دلوقتي.')
       } else {
-        setError(getApiErrorMessage(error, 'تعذر تحميل مراجعة التسوية'))
+        setError(getApiErrorMessage(error, 'تعذر تحميل مراجعة العهدة'))
       }
     } finally {
       setIsLoading(false)
@@ -189,7 +189,7 @@ export function SettlementPreviewPage() {
         ...(court !== null ? { court } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       })
-      const flashMessage = 'تم تأكيد التسوية بنجاح'
+      const flashMessage = 'تم استلام العهدة بنجاح'
 
       setIsConfirmOpen(false)
       setSuccessMessage(flashMessage)
@@ -208,11 +208,11 @@ export function SettlementPreviewPage() {
         setIsConfirmOpen(false)
         setPreview(null)
         setIsEmptyPreview(true)
-        setEmptyMessage('لا توجد دفعات غير مسواة حالياً لهذا الموظف')
+        setEmptyMessage('مفيش عهدة حالية للموظف دلوقتي.')
         await loadPreview()
       } else {
         setConfirmError(
-          getApiErrorMessage(error, 'تعذر تأكيد التسوية. حاول مرة أخرى'),
+          getApiErrorMessage(error, 'تعذر تأكيد استلام العهدة. حاول مرة أخرى'),
         )
 
         if (isApiClientError(error) && error.status === 403) {
@@ -228,14 +228,14 @@ export function SettlementPreviewPage() {
     <div className="space-y-5">
       <PageActions>
         <Link to="/settlements">
-          <AppButton variant="secondary">رجوع إلى التسويات</AppButton>
+          <AppButton variant="secondary">رجوع إلى عهد الموظفين</AppButton>
         </Link>
       </PageActions>
 
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر ناديًا أولًا لمراجعة التسوية
+            اختر ناديًا أولًا لمراجعة العهدة
           </p>
         </AppCard>
       ) : null}
@@ -243,7 +243,7 @@ export function SettlementPreviewPage() {
       {selectedClubSlug && !canSettle ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-danger)]">
-            ليس لديك صلاحية إنشاء التسويات.
+            ليس لديك صلاحية استلام عهد الموظفين.
           </p>
         </AppCard>
       ) : null}
@@ -251,7 +251,7 @@ export function SettlementPreviewPage() {
       {selectedClubSlug && canSettle && !queryParams ? (
         <AppCard className="space-y-3">
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر الموظف المحصل لمراجعة التسوية.
+            اختر الموظف المحصل لمراجعة العهدة.
           </p>
           <Link to="/settlements">
             <AppButton variant="secondary">العودة إلى التسويات</AppButton>
@@ -263,7 +263,7 @@ export function SettlementPreviewPage() {
         <AppCard>
           <div className="space-y-3">
             <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-              جاري تحميل مراجعة التسوية...
+              جاري تحميل مراجعة العهدة...
             </p>
             <div className="h-5 w-36 rounded-full bg-[var(--sloty-bg)]" />
             <div className="h-8 w-48 rounded-full bg-[var(--sloty-bg)]" />
@@ -304,7 +304,7 @@ export function SettlementPreviewPage() {
                 setIsConfirmOpen(true)
               }}
             >
-              تأكيد التسوية
+              تأكيد استلام العهدة
             </AppButton>
           </AppCard>
 

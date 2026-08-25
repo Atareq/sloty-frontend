@@ -1,9 +1,11 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../core/auth/useAuth'
 import { PageActions } from '../../shared/components/PageActions/PageActions'
+import { AppSheet } from '../../shared/components/AppSheet/AppSheet'
 import { AppShell } from './AppShell'
 
 vi.mock('../../core/auth/useAuth', () => ({
@@ -12,6 +14,26 @@ vi.mock('../../core/auth/useAuth', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth)
 const clearSelectedClub = vi.fn()
+
+function SheetHarness() {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <>
+      <p>سجل الحجوزات</p>
+      <button onClick={() => setIsOpen(true)} type="button">
+        افتح مهمة
+      </button>
+      <AppSheet
+        ariaLabel="مهمة حجز"
+        isOpen={isOpen}
+        onRequestClose={() => setIsOpen(false)}
+      >
+        محتوى المهمة
+      </AppSheet>
+    </>
+  )
+}
 
 function getAuthValue(
   membershipCount = 2,
@@ -89,6 +111,8 @@ function renderAppShell(
       <Routes>
         <Route element={<AppShell />}>
           <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
+          <Route element={<p>الجدول</p>} path="/schedule" />
+          <Route element={<SheetHarness />} path="/bookings" />
           <Route element={<p>سجل المعاملات المالية</p>} path="/transactions" />
           <Route
             element={
@@ -165,7 +189,7 @@ describe('AppShell', () => {
 
     renderAppShell()
 
-    expect(screen.getAllByText('التسويات المالية والجرد').length)
+    expect(screen.getAllByText('عهد الموظفين').length)
       .toBeGreaterThan(0)
 
     cleanup()
@@ -173,7 +197,7 @@ describe('AppShell', () => {
 
     renderAppShell()
 
-    expect(screen.getAllByText('التسويات المالية والجرد').length)
+    expect(screen.getAllByText('عهدتي').length)
       .toBeGreaterThan(0)
 
     cleanup()
@@ -181,7 +205,7 @@ describe('AppShell', () => {
 
     renderAppShell()
 
-    expect(screen.getAllByText('التسويات المالية والجرد').length)
+    expect(screen.getAllByText('عهدتي').length)
       .toBeGreaterThan(0)
 
     cleanup()
@@ -191,34 +215,17 @@ describe('AppShell', () => {
 
     renderAppShell()
 
-    expect(screen.getAllByText('التسويات المالية والجرد').length)
+    expect(screen.getAllByText('عهد الموظفين').length)
       .toBeGreaterThan(0)
   })
 
-  it('renders exactly the three approved mobile footer items', () => {
+  it('removes the mobile footer and shows the reused booking action', () => {
     renderAppShell()
 
-    const footer = screen.getByRole('navigation', { name: 'تنقل الموظف' })
-    const footerItems = within(footer).getAllByRole('button')
-
-    expect(footerItems).toHaveLength(3)
-    expect(footerItems[0]).toHaveAccessibleName('لوحة التحكم')
-    expect(footerItems[1]).toHaveAccessibleName('الجدول')
-    expect(footerItems[2]).toHaveAccessibleName('سجل الحجوزات')
-
-    for (const hiddenLabel of [
-      'المزيد',
-      'سجل المعاملات المالية',
-      'التسويات المالية والجرد',
-      'التقارير الاستهلاكية للملاعب',
-      'الإعدادات',
-      'إعدادات الملاعب',
-      'المستخدمون والصلاحيات',
-      'سجل النشاطات',
-    ]) {
-      expect(within(footer).queryByRole('button', { name: hiddenLabel }))
-        .not.toBeInTheDocument()
-    }
+    expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'حجز جديد' }))
+      .toBeInTheDocument()
   })
 
   it('keeps owner drawer navigation to direct primary items only', async () => {
@@ -235,8 +242,8 @@ describe('AppShell', () => {
       'لوحة التحكم',
       'الجدول',
       'سجل الحجوزات',
-      'سجل المعاملات المالية',
-      'التسويات المالية والجرد',
+      'التحصيلات',
+      'عهد الموظفين',
       'التقارير الاستهلاكية للملاعب',
       'الإعدادات',
     ]) {
@@ -253,6 +260,8 @@ describe('AppShell', () => {
     ).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: 'سجل النشاطات' }))
       .not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'الحجوزات الأسبوعية' }))
+      .not.toBeInTheDocument()
   })
 
   it('keeps desktop sidebar navigation to direct primary items only', () => {
@@ -267,8 +276,8 @@ describe('AppShell', () => {
       'لوحة التحكم',
       'الجدول',
       'سجل الحجوزات',
-      'سجل المعاملات المالية',
-      'التسويات المالية والجرد',
+      'التحصيلات',
+      'عهد الموظفين',
       'التقارير الاستهلاكية للملاعب',
       'الإعدادات',
     ]) {
@@ -285,6 +294,8 @@ describe('AppShell', () => {
     ).not.toBeInTheDocument()
     expect(within(sidebar).queryByRole('link', { name: /سجل النشاطات/ }))
       .not.toBeInTheDocument()
+    expect(within(sidebar).queryByRole('link', { name: /الحجوزات الأسبوعية/ }))
+      .not.toBeInTheDocument()
   })
 
   it('opens the hamburger menu and closes it after navigation', async () => {
@@ -299,16 +310,55 @@ describe('AppShell', () => {
     expect(dialog).toBeInTheDocument()
     expect(within(dialog).getByText('القائمة')).toBeInTheDocument()
     expect(within(dialog).getByText('التشغيل اليومي')).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'سجل المعاملات المالية' }))
+    expect(within(dialog).getByRole('button', { name: 'التحصيلات' }))
       .toBeInTheDocument()
 
     await user.click(
-      within(dialog).getByRole('button', { name: 'سجل المعاملات المالية' }),
+      within(dialog).getByRole('button', { name: 'التحصيلات' }),
     )
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'سجل المعاملات المالية' }))
+    expect(await screen.findByRole('heading', { name: 'التحصيلات' }))
       .toBeInTheDocument()
+  })
+
+  it('closes the mobile drawer from its X and browser Back', async () => {
+    const user = userEvent.setup()
+
+    renderAppShell()
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    expect(screen.queryByRole('button', { name: 'حجز جديد' }))
+      .not.toBeInTheDocument()
+
+    const closeButtons = screen.getAllByRole('button', {
+      name: 'إغلاق القائمة',
+    })
+    await user.click(closeButtons.at(-1)!)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    window.history.back()
+    expect(await screen.findByRole('button', { name: 'حجز جديد' }))
+      .toBeInTheDocument()
+  })
+
+  it('navigates the global booking action to Schedule and hides it for AppSheet tasks', async () => {
+    const user = userEvent.setup()
+
+    renderAppShell()
+    await user.click(screen.getByRole('button', { name: 'حجز جديد' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'الجدول' }))
+      .toBeInTheDocument()
+
+    cleanup()
+    renderAppShell('/bookings')
+    expect(screen.getByRole('button', { name: 'حجز جديد' }))
+      .toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'افتح مهمة' }))
+    expect(screen.getByRole('dialog', { name: 'مهمة حجز' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'حجز جديد' }))
+      .not.toBeInTheDocument()
   })
 
   it('updates route title when navigating between routes', async () => {
@@ -318,13 +368,13 @@ describe('AppShell', () => {
 
     await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
     await user.click(
-      screen.getByRole('button', { name: 'سجل المعاملات المالية' }),
+      screen.getByRole('button', { name: 'التحصيلات' }),
     )
 
     expect(
       screen.getByRole('heading', {
         level: 1,
-        name: 'سجل المعاملات المالية',
+        name: 'التحصيلات',
       }),
     ).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
@@ -364,9 +414,9 @@ describe('AppShell', () => {
       .toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'سجل الحجوزات' }))
       .toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'سجل المعاملات المالية' }))
+    expect(within(dialog).getByRole('button', { name: 'تحصيلاتي' }))
       .toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'التسويات المالية والجرد' }))
+    expect(within(dialog).getByRole('button', { name: 'عهدتي' }))
       .toBeInTheDocument()
     expect(within(dialog).queryByText('التقارير الاستهلاكية للملاعب'))
       .not.toBeInTheDocument()
@@ -401,7 +451,7 @@ describe('AppShell', () => {
 
     expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
       .toHaveAttribute('data-view-mode', 'mobile')
-    expect(screen.getByRole('navigation', { name: 'تنقل الموظف' }))
+    expect(screen.getByRole('button', { name: 'حجز جديد' }))
       .toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
@@ -413,7 +463,7 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
       .not.toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
+    expect(screen.queryByRole('button', { name: 'حجز جديد' }))
       .not.toBeInTheDocument()
   })
 
@@ -425,7 +475,7 @@ describe('AppShell', () => {
       .toHaveAttribute('data-view-mode', 'mobile')
     expect(screen.getByRole('button', { name: 'فتح القائمة' }))
       .toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'تنقل الموظف' }))
+    expect(screen.getByRole('button', { name: 'حجز جديد' }))
       .toBeInTheDocument()
   })
 
@@ -451,7 +501,7 @@ describe('AppShell', () => {
     expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
       .not.toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
+    expect(screen.queryByRole('button', { name: 'حجز جديد' }))
       .not.toBeInTheDocument()
   })
 
@@ -478,7 +528,7 @@ describe('AppShell', () => {
       .toHaveAttribute('data-view-mode', 'mobile')
     expect(screen.getByRole('button', { name: 'فتح القائمة' }))
       .toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'تنقل الموظف' }))
+    expect(screen.getByRole('button', { name: 'حجز جديد' }))
       .toBeInTheDocument()
   })
 
@@ -507,7 +557,7 @@ describe('AppShell', () => {
       .toHaveAttribute('data-view-mode', 'mobile')
     expect(screen.getByRole('button', { name: 'فتح القائمة' }))
       .toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'تنقل الموظف' }))
+    expect(screen.queryByRole('button', { name: 'حجز جديد' }))
       .not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
@@ -568,7 +618,7 @@ describe('AppShell', () => {
       .toHaveAttribute('data-view-mode', 'mobile')
     expect(screen.getByRole('button', { name: 'فتح القائمة' }))
       .toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'تنقل الموظف' }))
+    expect(screen.getByRole('button', { name: 'حجز جديد' }))
       .toBeInTheDocument()
   })
 
@@ -587,5 +637,18 @@ describe('AppShell', () => {
 
     expect(screen.queryByText('تم تحديث مواعيد العمل بنجاح'))
       .not.toBeInTheDocument()
+  })
+
+  it('clears standard success feedback after three seconds', () => {
+    vi.useFakeTimers()
+    renderAppShell({
+      pathname: '/dashboard',
+      state: { flashMessage: 'تم الحفظ بنجاح' },
+    })
+
+    expect(screen.getByText('تم الحفظ بنجاح')).toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(3000))
+    expect(screen.queryByText('تم الحفظ بنجاح')).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 })

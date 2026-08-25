@@ -16,11 +16,50 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 
 interface StaffUnsettledMoneySectionProps {
   summary: DashboardSummaryResponse
+  mode: 'staff' | 'management'
 }
 
 export function StaffUnsettledMoneySection({
+  mode,
   summary,
 }: StaffUnsettledMoneySectionProps) {
+  if (mode === 'staff') {
+    const amount = summary.summary.unsettled_transaction_total_amount
+    const transactionCount = summary.summary.unsettled_transaction_count ?? 0
+    const hasUnsettledMoney = Number(amount ?? 0) !== 0 || transactionCount > 0
+
+    return (
+      <section className="space-y-3">
+        <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
+          عهدتي
+        </h2>
+
+        <AppCard className="space-y-2">
+          {hasUnsettledMoney ? (
+            <>
+              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                معاك دلوقتي
+              </p>
+              <p
+                className="text-right text-3xl font-black text-[var(--sloty-primary-dark)]"
+                dir="ltr"
+              >
+                {formatMoneyAmount(amount, { suffix: 'ج.م' })}
+              </p>
+              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                من {transactionCount} عملية تحصيل
+              </p>
+            </>
+          ) : (
+            <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+              مفيش مبلغ غير مسوى عندك دلوقتي.
+            </p>
+          )}
+        </AppCard>
+      </section>
+    )
+  }
+
   const visibleCount = summary.staff_unsettled_money.length
   const totalCount = summary.summary.staff_with_unsettled_transactions_count
 
@@ -28,7 +67,7 @@ export function StaffUnsettledMoneySection({
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-          مبالغ الموظفين غير المسواة
+          عهد الموظفين
         </h2>
 
         {visibleCount < totalCount ? (
@@ -108,7 +147,7 @@ export function StaffUnsettledMoneySection({
                     court: staff.court,
                   })}
                 >
-                  مراجعة التسوية
+                  استلام العهدة
                 </Link>
               </AppCard>
             ))}

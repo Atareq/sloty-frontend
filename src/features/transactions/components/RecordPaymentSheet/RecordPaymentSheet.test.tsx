@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { chooseAppSelectOption } from '../../../../test/appSelectTestUtils'
@@ -61,7 +61,9 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
-    await user.type(screen.getByLabelText('المبلغ'), '150')
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '150' },
+    })
     await chooseAppSelectOption(
       user,
       screen.getByLabelText('طريقة الدفع'),
@@ -96,6 +98,54 @@ describe('RecordPaymentSheet', () => {
     await user.click(screen.getByRole('button', { name: 'إلغاء' }))
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('protects dirty values and lets the user continue or discard', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '150' },
+    })
+    await user.click(screen.getByRole('button', { name: 'إلغاء' }))
+    expect(screen.getByText('عندك تعديلات لسه متحفظتش.')).toBeInTheDocument()
+    onClose.mockClear()
+
+    await user.click(screen.getByRole('button', { name: 'كمل التعديل' }))
+    expect(screen.getByLabelText('المبلغ')).toHaveValue('150')
+
+    await user.click(screen.getByRole('button', { name: 'إلغاء' }))
+    await user.click(screen.getByRole('button', { name: 'اخرج من غير حفظ' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['deposit', 'تسجيل العربون', 'سجل العربون لتأكيد الحجز'],
+    ['remaining', 'تحصيل المبلغ المتبقي', 'سجل المبلغ الذي تم تحصيله لهذا الحجز'],
+  ] as const)('uses contextual %s payment copy', (paymentPurpose, title, description) => {
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        paymentPurpose={paymentPurpose}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
+    expect(screen.getByText(description)).toBeInTheDocument()
   })
 
   it('shows backend field errors near amount and reference fields', () => {

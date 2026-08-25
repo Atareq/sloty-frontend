@@ -1,5 +1,6 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { formatArabicDateTime } from '../../../../shared/utils/date'
 import type { SettlementPreviewTransaction } from '../../settlements.types'
 import { settlementPaymentMethodLabels } from '../../settlements.types'
 import {
@@ -7,50 +8,35 @@ import {
   transactionTypeLabels,
 } from '../../../transactions/transactions.types'
 
-function formatDate(value: string | undefined): string | null {
-  if (!value) {
-    return null
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
-}
-
 function getReference(transaction: SettlementPreviewTransaction): string | null {
-  return transaction.payment_reference || transaction.reference || null
+  return transaction.payment_reference || null
 }
 
 interface SettlementPreviewTransactionsListProps {
+  emptyMessage?: string
   transactions: SettlementPreviewTransaction[]
 }
 
 export function SettlementPreviewTransactionsList({
+  emptyMessage = 'لا توجد تحصيلات غير مسواة لهذا الموظف',
   transactions,
 }: SettlementPreviewTransactionsListProps) {
   return (
     <section className="space-y-3">
       <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-        الدفعات غير المسواة
+        التحصيلات غير المسواة
       </h2>
 
       {transactions.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            لا توجد معاملات غير مسواة لهذا الموظف
+            {emptyMessage}
           </p>
         </AppCard>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {transactions.map((transaction) => {
-            const createdLabel = formatDate(transaction.created)
+            const createdLabel = formatArabicDateTime(transaction.created)
             const reference = getReference(transaction)
             const transactionType = getTransactionType(transaction)
 

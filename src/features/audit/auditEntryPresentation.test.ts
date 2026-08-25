@@ -92,7 +92,6 @@ describe('getAuditEntryPresentation', () => {
       entry({
         action: 'RECURRING_AGREEMENT_AUTO_TERMINATED',
         metadata: {
-          recurring_agreement_id: 7,
           customer_name: 'أحمد',
           court_name: 'ملعب 1',
           cancellation_reason: 'PREVIOUS_OCCURRENCE_NOT_COMPLETED',

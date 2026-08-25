@@ -1,4 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { formatArabicDateTime } from '../../../../shared/utils/date'
 import type {
   SettlementLine,
   SettlementPreviewTransaction,
@@ -16,30 +17,9 @@ export interface SettlementTransactionsListProps {
   transactions: SettlementTransactionRow[]
 }
 
-function formatDate(value: string | undefined): string | null {
-  if (!value) {
-    return null
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
-}
-
 function getReference(transaction: SettlementTransactionRow): string | null {
   if ('payment_reference' in transaction && transaction.payment_reference) {
     return transaction.payment_reference
-  }
-
-  if ('reference' in transaction && transaction.reference) {
-    return transaction.reference
   }
 
   return null
@@ -66,7 +46,9 @@ export function SettlementTransactionsList({
     <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
       {transactions.map((transaction) => {
         const createdLabel =
-          'created' in transaction ? formatDate(transaction.created) : null
+          'created' in transaction
+            ? formatArabicDateTime(transaction.created)
+            : null
         const reference = getReference(transaction)
         const transactionType = getTransactionType(transaction)
 

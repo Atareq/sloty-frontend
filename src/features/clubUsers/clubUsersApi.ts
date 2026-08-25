@@ -2,6 +2,7 @@ import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type {
+  ClubMembership,
   ClubUser,
   ClubUsersQueryParams,
   CreateMembershipPayload,
@@ -106,8 +107,8 @@ export function listClubUsers(
 export function createClubMembership(
   clubSlug: string,
   payload: CreateMembershipPayload,
-): Promise<ClubUser> {
-  return apiRequest<ClubUser>(apiEndpoints.clubs.memberships.list(clubSlug), {
+): Promise<ClubMembership> {
+  return apiRequest<ClubMembership>(apiEndpoints.clubs.memberships.list(clubSlug), {
     method: 'POST',
     body: normalizeCreateMembershipPayload(payload),
   })
@@ -123,8 +124,8 @@ export function updateManagerPermissions(
   clubSlug: string,
   membershipId: number | string,
   payload: UpdateManagerPermissionsPayload,
-): Promise<ClubUser> {
-  return apiRequest<ClubUser>(
+): Promise<ClubMembership> {
+  return apiRequest<ClubMembership>(
     apiEndpoints.clubs.memberships.detail(clubSlug, membershipId),
     {
       method: 'PATCH',
@@ -145,8 +146,8 @@ export function updateMembershipActivity(
   clubSlug: string,
   membershipId: number | string,
   payload: UpdateMembershipActivityPayload,
-): Promise<ClubUser> {
-  return apiRequest<ClubUser>(
+): Promise<ClubMembership> {
+  return apiRequest<ClubMembership>(
     apiEndpoints.clubs.memberships.detail(clubSlug, membershipId),
     {
       method: 'PATCH',
@@ -154,5 +155,16 @@ export function updateMembershipActivity(
         is_active: payload.is_active,
       },
     },
+  )
+}
+
+/** Permanently removes a membership through Backend SafeDelete semantics. */
+export function deleteClubMembership(
+  clubSlug: string,
+  membershipId: number | string,
+): Promise<void> {
+  return apiRequest<void>(
+    apiEndpoints.clubs.memberships.detail(clubSlug, membershipId),
+    { method: 'DELETE' },
   )
 }

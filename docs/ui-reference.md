@@ -9,6 +9,14 @@ Current local working tree note:
 
 Approved staged/unstaged UI implementation in the local working tree is the source of truth during integration. Documentation should be synchronized to current approved implementation rather than used to restore older UI from stale docs, old commits, prototype code, or GitHub master.
 
+Current interaction and navigation foundation:
+
+- Non-full-page tasks use the shared `AppSheet` where applicable. On mobile it is a safe-area-aware bottom sheet; on desktop it is a centered modal. Its neutral X, backdrop, Escape, and browser/Android Back all request dismissal, while feature code protects genuine unsaved input.
+- Mobile navigation consists of the global `PageHeader`, a narrow burger drawer, and the reused floating `+ حجز جديد` action. The old mobile bottom navigation is removed; desktop keeps its sidebar.
+- The floating booking action appears only on authorized operational routes, hides during any modal task or open drawer, and returns users to the existing Schedule flow.
+- Recurrence is presented inside Booking and Schedule; there is no separate recurring-agreement route or product navigation.
+- Mobile text inputs use at least a 16px-equivalent font size without disabling browser zoom. Temporary success feedback lasts about 3 seconds; errors needing attention stay visible.
+
 Current Schedule date/control UX:
 
 - Schedule uses `AppDateNavigator`, not a native browser date input, as the primary date selector.
@@ -16,14 +24,22 @@ Current Schedule date/control UX:
 - Mobile calendar presentation behaves like a bottom sheet; desktop behaves like a compact modal.
 - Selecting a date already visible changes selection only; selecting an outside date rebuilds the 7-day range from that date.
 - Selected dates use Sloty's rounded green surface/button language. Today uses a subtle HOLD-palette amber marker (`border-amber-400`, `bg-amber-100`, `text-amber-900`) without competing with selected green.
-- Schedule control hierarchy is title/description and authorized Court selector first, date navigation second, and lightweight status legend third.
-- After those controls, Schedule shows a lightweight non-sticky operational summary, closing actions, and the Court board. It must not render another header/hero, page title, Club/date identity, or employee identity below the shell `PageHeader`.
+- Schedule's direct task hierarchy is the authorized Court selector when applicable, `اختار اليوم` with the canonical date navigator, then `اختار المعاد` and the Court board. It must not render another header/hero, page title, Club/date identity, or employee identity below the shell `PageHeader`.
+- Explicit date selection loads the corresponding slots and then smoothly scrolls once to `اختار المعاد`; initial load and Court changes do not auto-scroll. Loading feedback stays inside the slot workspace.
+- Schedule cards are scan controls, not detail cards: show only start time and human status, plus `↻` for an existing recurring booking or a FREE slot with backend `can_start_recurring: true`. Never show customer, phone, notes, price, or payment amounts on the card.
+- Booking creation keeps one optional `ثبّت نفس الموعد كل أسبوع` checkbox and one `تأكيد الحجز` action. A backend-ineligible free slot disables the checkbox and shows a human conflict reason/date from `recurring_blocked_reason` and `first_recurring_conflict_start`; do not calculate conflicts or expose an alternate-start, booking-type, availability-preview, or recurring-wizard flow.
+- `RECURRING_RESERVED` is a distinct backend Schedule state. Its card opens the canonical anchor Booking from `recurring_anchor_booking_id`; do not infer that state from other fields.
+- Active recurring Booking details show `↻ بيتكرر أسبوعيًا` and an end-recurrence action. Cancellation and no-show warnings explain that active recurrence also ends; unsupported recurring reschedule stays hidden.
+- `hold_expires_at` and `recurrence_next`, when returned, are authoritative presentation inputs. The UI must not derive HOLD expiry or calculate the next recurring date, price, or deposit.
+- Lightweight summary and closing actions follow the primary slot-selection workspace and must not turn Schedule into another Dashboard.
 - Active filter chips are one accessible clickable button per chip; clicking the chip removes only its own filter and buttons must not be nested.
 - AppSelect owns dropdown presentation and interaction with Sloty surface/border/green/soft-mint styling, Lucide ChevronDown/Check icons, RTL layout, and keyboard support.
 - AppSelect is for categorical choices. Boolean operational inclusion conditions use comfortable, whole-row checkbox controls; related Boolean state choices may use one shared `FilterCheckboxGroup` with RTL layout and Sloty green accent.
 - Never expose raw ISO timestamps as intentional product text; use the shared Arabic date-time formatter while preserving ISO API/query values.
 - Refund-policy presentation starts with the affected booking occurrence, then the Court notice policy and backend deadline, then the backend result. Deposit collection time is historical context only.
 - Destructive user wording in Club Settings must say `حذف المستخدم من النادي نهائيًا` and refer only to removing a Manager/Staff membership from that club, never deleting the global account or an Owner membership.
+- Deactivation is reversible through membership `is_active`; permanent deletion removes the membership row and never leaves a `DELETED` card.
+- Court Settings labels the HOLD duration `مدة انتظار الحجز بدون العربون` and the refund notice `سياسة استرداد التأمين`; transport fields remain `internal_hold_expiry_hours` and `cancellation_refund_notice_days`.
 
 1. UI Vision
 
@@ -754,61 +770,28 @@ Save without payment creates Hold.
 Save with payment creates Confirmed.
 Show clear success message after save.
 20. Booking Details Page
-Sections
-1. Booking Summary
-2. Customer Info
-3. Time & Court Info
-4. Price Summary
-5. Transactions
-6. Actions
-7. Audit History, owner/admin only
-Booking Summary
 
-Show:
+Use one canonical `BookingActionSheet` from Schedule booked slots, Schedule closing rows, and Booking History cards. HOLD must not use a separate details design.
 
-Status chip
-Time
-Court
-Total price
-Paid amount
-Remaining amount
+Information order:
 
-Example:
+1. Customer name and LTR phone when supplied.
+2. Weekday/date, time range, and smaller Court context.
+3. One human Egyptian-Arabic state sentence.
+4. Backend total, paid, and remaining values, including explicit zero values.
+5. At most one visible primary action.
+6. Valid secondary actions under `••• خيارات أخرى`.
 
-مؤكد
-8:00 م - 9:00 م
-Court 1
+State-driven primary actions:
 
-الإجمالي: 300 جنيه
-المدفوع: 50 جنيه
-المتبقي: 250 جنيه
-Actions by Status
-Hold
+- HOLD: `ضيف العربون وأكد الحجز`.
+- Positive remaining balance: `حصّل X ج.م`.
+- Ended, fully-paid confirmed booking: `إكمال`.
+- Active fully-paid confirmed and final read-only statuses: no fabricated primary action.
 
-Show:
+Use `إلغاء الحجز؟` with a danger `إلغاء الحجز` confirmation. Show the booking appointment, `سياسة استرداد التأمين`, backend refund deadline, and backend eligibility result before confirmation. Do not show reschedule/backend roadmap explanations. Recurring details may show `↻ بيتكرر أسبوعيًا`, but must not expose a normal recurring-page link or unsupported single-occurrence cancellation.
 
-إضافة دفعة
-تغيير الموعد
-إلغاء
-Confirmed
-
-Show:
-
-إضافة دفعة
-إكمال الحجز
-تغيير الموعد
-لم يحضر
-إلغاء
-Completed
-
-Show:
-
-View only
-Cancelled / Expired / No-show
-
-Show:
-
-View only or limited actions depending on future rules
+HOLD expiry text may use only authoritative `hold_expires_at`. When the field is absent, omit the countdown; never derive the deadline from Court `internal_hold_expiry_hours` or booking creation time.
 21. Add Payment Page / Modal
 
 This should be a small focused form.
@@ -910,41 +893,21 @@ If lower price:
 سيتم الاحتفاظ بالسعر الأصلي إلا إذا قام المالك بتعديله.
 25. Owner Dashboard
 
-Owner dashboard should focus on visibility and money.
+`/dashboard` is the one operational Home for Staff, Manager, and Owner; do not create a second Home route or parallel page.
 
-First Screen Cards
-حجوزات اليوم
-حجوزات الأسبوع
-المبالغ المتبقية
-المبالغ غير المسواة
+Primary hierarchy:
 
-Optional cards:
+1. Real user greeting plus assigned/selected Court and human date.
+2. Accurate today's booking total and backend HOLD count.
+3. `محتاجين إجراء`, using backend aggregate classifications and filtered Booking links until item summaries exist.
+4. Staff `عهدتي`, or permission-gated management `عهد الموظفين`.
+5. Period controls, status breakdown, and financial analytics as secondary content.
 
-الحجوزات المكتملة
-الإلغاءات
-No-shows
-إجمالي التحصيل اليوم
-Suggested Owner Dashboard Sections
-1. Summary cards
-2. Today schedule
-3. Remaining payments
-4. Staff unsettled money
-5. Recent activity
-6. Weekly summary
-Owner Dashboard Card Examples
-حجوزات اليوم
-12 حجز
+The current aggregate response does not identify upcoming bookings, nearest HOLD expiry, next booking, or individual action records. Omit those blocks until the backend supplies authoritative values. Never relabel all bookings as upcoming, calculate a HOLD deadline from Court policy, download full history to derive Home, or construct fake booking details.
 
-المتبقي
-1,150 جنيه
+Staff remains fixed to today and the assigned Court, sees no Court/period selectors, and can never settle their own custody. Owner and Manager settlement actions use centralized permissions. A rolling seven-day range is labeled `آخر 7 أيام`, not `هذا الأسبوع`, and period metrics use neutral wording.
 
-غير مسوى
-2,400 جنيه
-
-حجوزات الأسبوع
-54 حجز
-
-Do not overload the dashboard with advanced charts in MVP.
+When booking-level Home records become available, their state sentences and primary CTA labels must come from the same canonical booking-action presentation helper used by `BookingActionSheet`; Home must not duplicate lifecycle mutations.
 
 26. Settlement Page
 
@@ -1442,9 +1405,10 @@ Payment Labels
 المدفوع
 الإجمالي
 Settlement Labels
-تسوية
-مبالغ غير مسواة
-تأكيد التسوية
+عهدتي
+عهد الموظفين
+مراجعة العهدة
+تأكيد استلام العهدة
 إجمالي الكاش
 إجمالي إنستاباي
 إجمالي المحفظة
@@ -1503,3 +1467,9 @@ If the staff page is slow, confusing, or crowded, the product will fail even if 
 The most important screen in the whole MVP is:
 
 Staff Today Schedule
+
+48. Booking History Review
+
+Booking History is a compact lookup and review surface, not a financial detail grid. The visible card contains customer name, phone, human appointment, human status, and only a subtle recurring marker when returned by the backend. Opening the whole card uses the canonical booking action sheet.
+
+The page starts with supported review checkboxes for bookings needing action and bookings with a remaining balance. Detailed Court, status, date, overdue, ended, and expiring-HOLD filters open in the same responsive sheet on mobile, tablet, and desktop. Do not display unsupported customer search or upcoming controls until the paginated backend contract provides them.

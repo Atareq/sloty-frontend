@@ -20,13 +20,31 @@ function renderSheet(onSubmit = vi.fn()) {
 }
 
 describe('CancelBookingReasonSheet', () => {
+  it('warns that cancelling an active recurring booking also ends recurrence', () => {
+    render(
+      <CancelBookingReasonSheet
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        recurrenceWillEnd
+      />,
+    )
+
+    expect(
+      screen.getByText(
+        'الحجز الحالي هيتلغي، وكمان تثبيت الموعد الأسبوعي هيتوقف.',
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('requires a cancellation reason', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
 
     renderSheet(onSubmit)
 
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
     expect(screen.getByText('سبب الإلغاء مطلوب')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
@@ -39,7 +57,7 @@ describe('CancelBookingReasonSheet', () => {
     renderSheet(onSubmit)
 
     await chooseAppSelectOption(user, screen.getByLabelText('سبب الإلغاء'), 'أخرى')
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
     expect(screen.getByText('اكتب ملاحظة توضح سبب الإلغاء'))
       .toBeInTheDocument()
@@ -54,7 +72,7 @@ describe('CancelBookingReasonSheet', () => {
 
     await chooseAppSelectOption(user, screen.getByLabelText('سبب الإلغاء'), 'أخرى')
     await user.type(screen.getByLabelText('ملاحظات'), 'ظرف طارئ')
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       reason: 'أخرى',
@@ -114,12 +132,12 @@ describe('CancelBookingReasonSheet', () => {
     expect(screen.getByText('مبلغ الاسترداد')).toBeInTheDocument()
     expect(screen.getByText('200.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('موعد الحجز')).toBeInTheDocument()
-    expect(screen.getByText('سياسة استرداد العربون')).toBeInTheDocument()
-    expect(screen.getByText('الإلغاء قبل الموعد بـ 3 يوم')).toBeInTheDocument()
-    expect(screen.getByText('آخر موعد للاسترداد')).toBeInTheDocument()
+    expect(screen.getByText('سياسة استرداد التأمين')).toBeInTheDocument()
+    expect(screen.getByText('قبل الموعد بـ 3 أيام')).toBeInTheDocument()
+    expect(screen.getByText('آخر موعد لاسترداد التأمين')).toBeInTheDocument()
     expect(screen.queryByText('2026-07-22T18:00:00Z')).not.toBeInTheDocument()
     expect(
-      screen.getByText('يحق للعميل استرداد 200.00 جنيه حسب المعاينة.'),
+      screen.getByText('انتهت مهلة استرداد التأمين.'),
     ).toBeInTheDocument()
 
     await chooseAppSelectOption(
@@ -134,7 +152,7 @@ describe('CancelBookingReasonSheet', () => {
     )
     await user.type(screen.getByLabelText('مرجع الاسترداد'), ' RF-1 ')
     await user.type(screen.getByLabelText('ملاحظات الاسترداد'), ' تم التحويل ')
-    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء الحجز' }))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       reason: 'العميل ألغى',

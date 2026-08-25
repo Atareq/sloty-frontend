@@ -83,8 +83,16 @@ describe('SettlementsHubPage', () => {
       club: 1,
       collected_by: 1,
       collected_by_name: 'أحمد علي',
+      is_self_preview: true,
+      can_approve: false,
+      approval_required: true,
+      period_start: '2026-08-16T10:00:00Z',
+      period_end: '2026-08-16T11:00:00Z',
       transaction_count: 1,
       total_amount: '150.00',
+      booking_payments: '150.00',
+      booking_refunds: '0.00',
+      net_amount: '150.00',
       totals_by_payment_method: { CASH: '150.00' },
       transactions: [
         {
@@ -129,11 +137,11 @@ describe('SettlementsHubPage', () => {
     renderHub()
 
     expect(
-      await screen.findByText('المبلغ الحالي غير المسوى'),
+      await screen.findByText('عهدتي'),
     ).toBeInTheDocument()
     expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
-    expect(screen.queryByText('مراجعة دفعات موظف')).not.toBeInTheDocument()
-    expect(screen.queryByText('تأكيد التسوية')).not.toBeInTheDocument()
+    expect(screen.queryByText('عهد الموظفين')).not.toBeInTheDocument()
+    expect(screen.queryByText('تأكيد استلام العهدة')).not.toBeInTheDocument()
     await waitFor(() => {
       expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
     })
@@ -146,7 +154,7 @@ describe('SettlementsHubPage', () => {
 
     renderHub()
 
-    expect(await screen.findByText('مراجعة دفعات موظف')).toBeInTheDocument()
+    expect(await screen.findByText('عهد الموظفين')).toBeInTheDocument()
     expect(screen.getAllByText('الموظف المحصل').length).toBeGreaterThan(0)
     await waitFor(() => {
       expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')

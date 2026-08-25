@@ -34,10 +34,13 @@ const bookingSlotStatusToBoardStatus: Record<
 > = {
   FREE: 'available',
   UNAVAILABLE: 'unavailable',
+  RECURRING_RESERVED: 'recurring_reserved',
   HOLD: 'hold',
   CONFIRMED: 'confirmed',
   COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
   NO_SHOW: 'no_show',
+  EXPIRED: 'available',
 }
 
 const hiddenBookingStatuses = new Set([
@@ -241,12 +244,10 @@ export function mapBookingSlotToScheduleBooking(
         paid_amount: slot.booking.total_paid_amount,
         remaining_amount: slot.booking.remaining_amount,
         ...(slot.booking.source ? { source: slot.booking.source } : {}),
-        ...(slot.booking.is_recurring === undefined
-          ? {}
-          : { is_recurring: slot.booking.is_recurring }),
-        ...(slot.booking.recurring_agreement_id === undefined
-          ? {}
-          : { recurring_agreement_id: slot.booking.recurring_agreement_id }),
+        is_recurring: slot.booking.is_recurring,
+        recurrence_status: slot.booking.recurrence_status,
+        previous_recurring_booking_id: null,
+        next_recurring_booking_id: null,
       }
     : undefined
 
@@ -261,6 +262,10 @@ export function mapBookingSlotToScheduleBooking(
     label: slot.label,
     isAvailable: slot.is_available,
     slotPrice: slot.slot_price,
+    canStartRecurring: slot.can_start_recurring,
+    recurringAnchorBookingId: slot.recurring_anchor_booking_id,
+    recurringBlockedReason: slot.recurring_blocked_reason,
+    firstRecurringConflictStart: slot.first_recurring_conflict_start,
     startTime,
     endTime,
     period: getSlotPeriod(startMinutes),

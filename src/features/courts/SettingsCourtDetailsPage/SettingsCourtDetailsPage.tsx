@@ -181,14 +181,14 @@ export function SettingsCourtDetailsPage() {
             </h2>
             {!canEditRefundPolicy ? (
               <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                سياسة استرداد العربون للعرض فقط في هذا الحساب.
+                سياسة استرداد التأمين للعرض فقط في هذا الحساب.
               </p>
             ) : null}
             <form className="grid gap-3 md:grid-cols-2" onSubmit={handleSavePolicy}>
               <label className="space-y-2 text-sm font-semibold">
                 <span>الحد الأدنى للعربون</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60"
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
                   disabled={!canEditRefundPolicy}
                   inputMode="decimal"
                   onChange={(event) => setMinimumDeposit(event.target.value)}
@@ -196,21 +196,24 @@ export function SettingsCourtDetailsPage() {
                 />
               </label>
               <label className="space-y-2 text-sm font-semibold">
-                <span>مهلة استرداد العربون</span>
+                <span>سياسة استرداد التأمين</span>
+                <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
+                  يسترد العميل التأمين عند الإلغاء قبل الموعد بـ
+                </span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60"
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
                   disabled={!canEditRefundPolicy}
                   inputMode="numeric"
                   max="30"
                   min="0"
                   onChange={(event) => setRefundNoticeDays(event.target.value)}
-                  placeholder="بدون مهلة"
+                  placeholder="عدد الأيام"
                   type="number"
                   value={refundNoticeDays}
                 />
               </label>
               <p className="text-xs font-bold text-[var(--sloty-text-muted)] md:col-span-2">
-                الأسعار الفعلية تأتي من فترات العمل والأسعار لكل يوم. أول دفعة وسياسة الاسترداد تتحقق من الخلفية.
+                الأيام بتتحسب قبل موعد الحجز، وسياسة الاسترداد المحفوظة هي اللي بتظهر وقت الإلغاء.
               </p>
               <div className="flex items-end md:col-span-2">
                 <AppButton

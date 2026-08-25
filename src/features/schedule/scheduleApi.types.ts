@@ -12,10 +12,13 @@ export const BACKEND_BOOKING_STATUSES = [
 export const BOOKING_SLOT_STATUSES = [
   'FREE',
   'UNAVAILABLE',
+  'RECURRING_RESERVED',
   'HOLD',
   'CONFIRMED',
   'COMPLETED',
+  'CANCELLED',
   'NO_SHOW',
+  'EXPIRED',
 ] as const
 
 export const BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT =
@@ -24,6 +27,17 @@ export const BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT =
 export type BackendBookingStatus = (typeof BACKEND_BOOKING_STATUSES)[number]
 
 export type BookingSlotStatus = (typeof BOOKING_SLOT_STATUSES)[number]
+
+export type BookingRecurrenceStatus = 'ACTIVE' | 'RENEWED' | 'ENDED'
+
+export interface BookingRecurrenceNext {
+  can_continue: boolean
+  start_time: string
+  end_time: string
+  total_price: string | null
+  required_deposit: string | null
+  blocked_reason?: string | null
+}
 
 export interface BookingListItem {
   id: number
@@ -41,8 +55,12 @@ export interface BookingListItem {
   paid_amount?: string | null
   remaining_amount?: string | null
   source?: 'MANUAL' | 'ADMIN_CORRECTION' | 'RECURRING'
-  is_recurring?: boolean
-  recurring_agreement_id?: number | null
+  is_recurring: boolean
+  recurrence_status: BookingRecurrenceStatus | null
+  previous_recurring_booking_id: number | null
+  next_recurring_booking_id: number | null
+  hold_expires_at?: string | null
+  recurrence_next?: BookingRecurrenceNext | null
 }
 
 export interface BookingCreatePayload {
@@ -51,7 +69,7 @@ export interface BookingCreatePayload {
   customer_phone: string
   start_time: string
   end_time: string
-  source?: 'MANUAL' | 'ADMIN_CORRECTION'
+  is_recurring?: boolean
   notes?: string
 }
 
@@ -83,8 +101,8 @@ export interface BookingSlotBookingSummary {
   total_paid_amount: string
   remaining_amount: string
   source?: 'MANUAL' | 'ADMIN_CORRECTION' | 'RECURRING'
-  is_recurring?: boolean
-  recurring_agreement_id?: number | null
+  is_recurring: boolean
+  recurrence_status: BookingRecurrenceStatus | null
 }
 
 export interface BookingSlot {
@@ -95,6 +113,10 @@ export interface BookingSlot {
   is_available: boolean
   slot_price: string | null
   booking: BookingSlotBookingSummary | null
+  recurring_anchor_booking_id: number | null
+  can_start_recurring: boolean | null
+  recurring_blocked_reason: string | null
+  first_recurring_conflict_start: string | null
   label: string | null
 }
 
@@ -139,3 +161,15 @@ export interface BookingSlotsRangeParams {
 export type BookingSlotsParams =
   | BookingSlotsSingleDayParams
   | BookingSlotsRangeParams
+
+export interface BookingCompletePayload {
+  confirm_collect_remaining_cash?: boolean
+  continue_recurring?: boolean | null
+  next_deposit_payment_method?: PaymentMethod
+  next_deposit_payment_reference?: string
+  next_deposit_notes?: string
+}
+
+export interface BookingEndRecurrencePayload {
+  reason?: string
+}

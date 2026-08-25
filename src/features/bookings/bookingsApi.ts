@@ -21,7 +21,9 @@ function buildBookingsListPath(
     needs_action: params.needs_action,
     overdue: params.overdue,
     page: params.page,
-    remaining_amount_gt: params.remaining_amount_gt,
+    search: params.search,
+    upcoming: params.upcoming,
+    has_remaining_amount: params.has_remaining_amount,
     status: params.status,
   }
 

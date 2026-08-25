@@ -3,10 +3,12 @@ import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   createClubMembership,
+  deleteClubMembership,
   listClubUsers,
   updateMembershipActivity,
   updateManagerPermissions,
 } from './clubUsersApi'
+import { getMembershipUiState } from './clubUsers.types'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -15,6 +17,11 @@ vi.mock('../../core/api/apiClient', () => ({
 const mockedApiRequest = vi.mocked(apiRequest)
 
 describe('clubUsersApi', () => {
+  it('resolves only active and deactivated membership UI states', () => {
+    expect(getMembershipUiState({ is_active: true })).toBe('ACTIVE')
+    expect(getMembershipUiState({ is_active: false })).toBe('DEACTIVATED')
+  })
+
   it('lists club users through the club-scoped users endpoint', async () => {
     mockedApiRequest.mockResolvedValueOnce([])
 
@@ -86,6 +93,22 @@ describe('clubUsersApi', () => {
         },
       },
     )
+  })
+
+  it('permanently removes only the membership resource with DELETE', async () => {
+    mockedApiRequest.mockResolvedValueOnce(undefined)
+
+    await deleteClubMembership('nasr-club', 102)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.memberships.detail('nasr-club', 102),
+      { method: 'DELETE' },
+    )
+    expect(
+      mockedApiRequest.mock.calls.some(([path]) =>
+        String(path).startsWith('users/'),
+      ),
+    ).toBe(false)
   })
 
   it('creates a new manager membership with user and manager permission fields', async () => {

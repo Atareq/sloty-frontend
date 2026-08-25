@@ -28,11 +28,11 @@ export function SettlementTotalsCard({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-            إجمالي المعاملات
+            إجمالي العهدة
           </h2>
           {transactionCount !== undefined ? (
             <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-              عدد المعاملات: {transactionCount}
+              عدد التحصيلات: {transactionCount}
             </p>
           ) : null}
         </div>

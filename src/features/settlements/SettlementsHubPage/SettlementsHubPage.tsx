@@ -11,6 +11,7 @@ import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
+import { formatArabicDateTime } from '../../../shared/utils/date'
 import {
   buildPathWithQuery,
   type QueryParamValue,
@@ -27,11 +28,12 @@ import type {
   SettlementActor,
   SettlementPreview,
   SettlementQueryParams,
+  SettlementStatus,
 } from '../settlements.types'
 
 interface HubFilterState {
   collected_by: string
-  status: string
+  status: SettlementStatus | ''
   court: string
 }
 
@@ -45,31 +47,26 @@ const settlementFilterKeys = [
 const statusLabels: Record<string, string> = {
   PENDING: 'قيد المراجعة',
   SETTLED: 'مسواة',
-  CANCELLED: 'ملغاة',
 }
 
 const settlementStatusFilterOptions = [
   { value: '', label: 'كل الحالات' },
   { value: 'PENDING', label: 'قيد المراجعة' },
   { value: 'SETTLED', label: 'مسواة' },
-  { value: 'CANCELLED', label: 'ملغاة' },
 ]
 
 function parseSettlementQuery(search: string): SettlementQueryParams {
   const queryObject = toQueryObject(search)
-  const params: SettlementQueryParams = {}
+  const status = queryObject.status
 
-  settlementFilterKeys.forEach((key) => {
-    const value = queryObject[key]
-
-    if (!value) {
-      return
-    }
-
-    params[key] = value
-  })
-
-  return params
+  return {
+    ...(queryObject.collected_by
+      ? { collected_by: queryObject.collected_by }
+      : {}),
+    ...(status === 'PENDING' || status === 'SETTLED' ? { status } : {}),
+    ...(queryObject.court ? { court: queryObject.court } : {}),
+    ...(queryObject.page ? { page: queryObject.page } : {}),
+  }
 }
 
 function filterStateFromParams(params: SettlementQueryParams): HubFilterState {
@@ -99,23 +96,6 @@ function paramsFromFilters(filters: HubFilterState): SettlementQueryParams {
 
 function getSettlementsSearch(params: SettlementQueryParams): string {
   return buildPathWithQuery('', params as Record<string, QueryParamValue>)
-}
-
-function formatDate(value: string | null | undefined): string | null {
-  if (!value) {
-    return null
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
 }
 
 function formatActor(actor: number | SettlementActor | null | undefined): string {
@@ -473,33 +453,14 @@ export function SettlementsHubPage() {
 
   return (
     <div className="space-y-5">
-      {isOwnMode ? (
-        <AppCard className="space-y-4">
-          <div>
-            <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-              المبلغ الحالي غير المسوى
-            </h2>
-            <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-              يعرض الخادم دفعاتك غير المسواة الحالية بدون اختيار موظف آخر.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link to="/transactions?settlement_status=unsettled&is_cancelled=false">
-              <AppButton variant="secondary">عرض الدفعات غير المسواة</AppButton>
-            </Link>
-          </div>
-        </AppCard>
-      ) : null}
-
       {canSettle ? (
         <AppCard className="space-y-4">
           <div>
             <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-              مراجعة دفعات موظف
+              عهد الموظفين
             </h2>
             <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-              اختر الموظف المحصل لمراجعة الدفعات غير المسواة قبل تأكيد التسوية.
+              اختر الموظف لمراجعة المبلغ الذي معه قبل تأكيد الاستلام.
             </p>
           </div>
 
@@ -523,7 +484,7 @@ export function SettlementsHubPage() {
                 fullWidth
                 type="submit"
               >
-                مراجعة التسوية
+                مراجعة العهدة
               </AppButton>
             </div>
           </form>
@@ -533,7 +494,7 @@ export function SettlementsHubPage() {
               <AppButton variant="secondary">عرض لوحة التحكم</AppButton>
             </Link>
             <Link to="/transactions?settlement_status=unsettled&is_cancelled=false">
-              <AppButton variant="secondary">عرض الدفعات غير المسواة</AppButton>
+              <AppButton variant="secondary">عرض التحصيلات غير المسواة</AppButton>
             </Link>
           </div>
         </AppCard>
@@ -550,7 +511,7 @@ export function SettlementsHubPage() {
           {isOwnPreviewLoading ? (
             <AppCard>
               <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                جاري تحميل المبلغ الحالي غير المسوى...
+                جاري تحميل عهدتك...
               </p>
             </AppCard>
           ) : null}
@@ -563,8 +524,29 @@ export function SettlementsHubPage() {
             </AppCard>
           ) : null}
 
-          {!isOwnPreviewLoading && !ownPreviewError && ownPreview ? (
-            <SettlementPreviewContent preview={ownPreview} />
+          {!isOwnPreviewLoading &&
+          !ownPreviewError &&
+          ownPreview &&
+          ownPreview.transaction_count > 0 ? (
+            <>
+              <SettlementPreviewContent mode="staff" preview={ownPreview} />
+              <Link to="/transactions?settlement_status=unsettled&is_cancelled=false">
+                <AppButton variant="secondary">
+                  عرض تفاصيل التحصيلات
+                </AppButton>
+              </Link>
+            </>
+          ) : null}
+
+          {!isOwnPreviewLoading &&
+          !ownPreviewError &&
+          ownPreview &&
+          ownPreview.transaction_count === 0 ? (
+            <AppCard>
+              <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+                مفيش مبلغ غير مسوى عندك دلوقتي.
+              </p>
+            </AppCard>
           ) : null}
         </>
       ) : null}
@@ -573,7 +555,7 @@ export function SettlementsHubPage() {
         <>
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-              سجل التسويات
+              {isOwnMode ? 'سجل عهدتي' : 'سجل استلام العهد'}
             </h2>
             {canSettle ? (
               <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
@@ -600,7 +582,7 @@ export function SettlementsHubPage() {
           <FilterSheet
             isOpen={isFilterSheetOpen}
             onClose={() => setIsFilterSheetOpen(false)}
-            title="فلترة التسويات"
+                title="فلترة سجل العهد"
           >
             <SettlementFiltersForm
               courts={courts}
@@ -648,10 +630,14 @@ export function SettlementsHubPage() {
         <AppCard className="space-y-3">
           <div>
             <p className="text-base font-black text-[var(--sloty-text-primary)]">
-              لا توجد تسويات مسجلة حتى الآن
+              {isOwnMode
+                ? 'مفيش عهد سابقة حتى الآن.'
+                : 'مفيش عهد مستلمة مسجلة حتى الآن.'}
             </p>
             <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-              عند تأكيد تسوية موظف ستظهر هنا كسجل مالي مغلق.
+              {isOwnMode
+                ? 'ستظهر هنا العهد التي تم استلامها منك.'
+                : 'عند تأكيد استلام عهدة موظف ستظهر هنا في السجل.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -659,7 +645,7 @@ export function SettlementsHubPage() {
               <AppButton variant="secondary">عرض لوحة التحكم</AppButton>
             </Link>
             <Link to="/transactions?settlement_status=unsettled&is_cancelled=false">
-              <AppButton variant="secondary">عرض الدفعات غير المسواة</AppButton>
+              <AppButton variant="secondary">عرض التحصيلات غير المسواة</AppButton>
             </Link>
           </div>
         </AppCard>
@@ -671,12 +657,12 @@ export function SettlementsHubPage() {
       settlements.length > 0 ? (
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {settlements.map((settlement) => {
-            const periodStart = formatDate(settlement.period_start)
-            const periodEnd = formatDate(settlement.period_end)
-            const createdDate = formatDate(
+            const periodStart = formatArabicDateTime(settlement.period_start)
+            const periodEnd = formatArabicDateTime(settlement.period_end)
+            const createdDate = formatArabicDateTime(
               settlement.created ?? settlement.created_at,
             )
-            const settledDate = formatDate(settlement.settled_at)
+            const settledDate = formatArabicDateTime(settlement.settled_at)
             const status = settlement.status
               ? statusLabels[settlement.status] ?? settlement.status
               : 'غير محدد'
@@ -686,10 +672,13 @@ export function SettlementsHubPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                      رقم التسوية
+                      الموظف
                     </p>
-                    <p className="mt-1 text-xl font-black text-[var(--sloty-text-primary)]">
-                      #{settlement.id}
+                    <p className="mt-1 text-lg font-black text-[var(--sloty-text-primary)]">
+                      {settlement.collected_by_name ??
+                        (settlement.collected_by
+                          ? `#${settlement.collected_by}`
+                          : 'غير محدد')}
                     </p>
                   </div>
                   {settlement.total_amount ? (
@@ -705,17 +694,6 @@ export function SettlementsHubPage() {
                 <dl className="grid grid-cols-1 gap-2 text-sm">
                   <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                     <dt className="font-bold text-[var(--sloty-text-muted)]">
-                      الموظف المحصل
-                    </dt>
-                    <dd className="font-black text-[var(--sloty-text-primary)]">
-                      {settlement.collected_by_name ??
-                        (settlement.collected_by
-                          ? `#${settlement.collected_by}`
-                          : 'غير محدد')}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                    <dt className="font-bold text-[var(--sloty-text-muted)]">
                       الحالة
                     </dt>
                     <dd className="font-black text-[var(--sloty-text-primary)]">
@@ -725,7 +703,7 @@ export function SettlementsHubPage() {
                   {settlement.transaction_count !== undefined ? (
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                       <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        عدد المعاملات
+                        عدد التحصيلات
                       </dt>
                       <dd className="font-black text-[var(--sloty-text-primary)]">
                         {settlement.transaction_count}

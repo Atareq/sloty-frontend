@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +13,7 @@ import {
 } from '../../schedule/scheduleApi'
 import { createTransaction } from '../../transactions/transactionsApi'
 import { listBookings } from '../bookingsApi'
+import type { Booking } from '../bookings.types'
 import { BookingsListPage } from './BookingsListPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -45,16 +46,26 @@ const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedPreviewBookingCancellation = vi.mocked(previewBookingCancellation)
 const mockedCreateTransaction = vi.mocked(createTransaction)
-const defaultFilters = {
-  date: '2026-07-21',
+function bookingFixture(
+  booking: Omit<Booking, 'is_recurring' | 'recurrence_status' | 'previous_recurring_booking_id' | 'next_recurring_booking_id'>,
+): Booking {
+  return {
+    is_recurring: false,
+    recurrence_status: null,
+    previous_recurring_booking_id: null,
+    next_recurring_booking_id: null,
+    ...booking,
+  }
 }
 
-function paginatedResponse<T>(results: T[]) {
+function paginatedResponse(
+  results: Array<Parameters<typeof bookingFixture>[0]>,
+) {
   return {
     count: results.length,
     next: null,
     previous: null,
-    results,
+    results: results.map(bookingFixture),
   }
 }
 
@@ -66,7 +77,10 @@ function renderBookingsPage(initialEntry = '/bookings') {
   )
 }
 
-function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
+function mockAuth(
+  selectedClubSlug: string | null = 'nasr-club',
+  role: 'MANAGER' | 'STAFF' = 'MANAGER',
+) {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
@@ -75,7 +89,7 @@ function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
     selectedMembership: selectedClubSlug
       ? {
           id: 10,
-          role: 'MANAGER',
+          role,
           club: {
             id: 1,
             name: 'نادي النصر',
@@ -83,10 +97,10 @@ function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
             city: 'ASSIUT',
             is_active: true,
           },
-          court: null,
+          court: role === 'STAFF' ? { id: 3, name: 'ملعب 1' } : null,
         }
       : null,
-    role: 'MANAGER',
+    role,
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,
@@ -158,19 +172,19 @@ describe('BookingsListPage', () => {
     vi.useRealTimers()
   })
 
-  it('defaults to today when no query filters exist', async () => {
+  it('loads unrestricted paginated history without a silent date default', async () => {
     mockedListBookings.mockResolvedValueOnce(paginatedResponse([]))
 
     renderBookingsPage()
 
     expect(
-      await screen.findByText('لا توجد حجوزات مطابقة للفلاتر الحالية'),
+      await screen.findByText('مفيش حجوزات لعرضها.'),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('تاريخ محدد')).toHaveValue('2026-07-21')
-    expect(mockedListBookings).toHaveBeenCalledWith(
-      'nasr-club',
-      defaultFilters,
-    )
+    expect(screen.queryByLabelText('تاريخ محدد')).not.toBeInTheDocument()
+    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {})
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'القادمة فقط' }))
+      .not.toBeInTheDocument()
   })
 
   it('respects needs_action summary redirect filters', async () => {
@@ -181,7 +195,7 @@ describe('BookingsListPage', () => {
     expect(
       await screen.findByRole('button', { name: 'إزالة فلتر تحتاج إجراء' }),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('تاريخ محدد')).toHaveValue('')
+    expect(screen.getByRole('checkbox', { name: 'تحتاج إجراء' })).toBeChecked()
     expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
       needs_action: 'true',
     })
@@ -229,7 +243,7 @@ describe('BookingsListPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('applies the needs-closing quick filter for today', async () => {
+  it('applies the primary review toggles immediately and preserves filters', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -240,32 +254,17 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    await user.click(
-      await screen.findByRole('button', { name: 'تحتاج إغلاق' }),
-    )
+    await screen.findByText('مفيش حجوزات لعرضها.')
+    await user.click(screen.getByRole('checkbox', { name: 'تحتاج إجراء' }))
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
-      date: '2026-07-21',
       needs_action: 'true',
     })
-  })
-
-  it('applies the HOLD quick filter for today', async () => {
-    const user = userEvent.setup({
-      advanceTimers: vi.advanceTimersByTime,
-    })
-
-    mockedListBookings
-      .mockResolvedValueOnce(paginatedResponse([]))
-      .mockResolvedValueOnce(paginatedResponse([]))
-
-    renderBookingsPage()
-
-    await user.click(await screen.findByRole('button', { name: 'بانتظار العربون' }))
+    await user.click(screen.getByRole('checkbox', { name: 'بها مبلغ متبقي' }))
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
-      date: '2026-07-21',
-      status: 'HOLD',
+      needs_action: 'true',
+      has_remaining_amount: 'true',
     })
   })
 
@@ -278,10 +277,9 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    await user.click(await screen.findByRole('button', { name: 'فلترة' }))
+    await user.click(await screen.findByRole('button', { name: 'فلاتر إضافية' }))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('فلترة الحجوزات')).toBeInTheDocument()
     expect(screen.getAllByLabelText('الملعب')).not.toHaveLength(0)
   })
 
@@ -296,14 +294,13 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    await screen.findByText('لا توجد حجوزات مطابقة للفلاتر الحالية')
-
+    await screen.findByText('مفيش حجوزات لعرضها.')
+    await user.click(screen.getByRole('button', { name: 'فلاتر إضافية' }))
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
       court: '3',
-      date: '2026-07-21',
     })
   })
 
@@ -312,32 +309,28 @@ describe('BookingsListPage', () => {
       advanceTimers: vi.advanceTimersByTime,
     })
 
-    mockedListBookings
-      .mockResolvedValueOnce(paginatedResponse([]))
-      .mockResolvedValueOnce(paginatedResponse([]))
+    mockedListBookings.mockResolvedValue(paginatedResponse([]))
 
-    renderBookingsPage()
+    renderBookingsPage('/bookings?needs_action=true&has_remaining_amount=true')
 
-    await screen.findByText('لا توجد حجوزات مطابقة للفلاتر الحالية')
-    await user.click(screen.getByRole('checkbox', { name: 'تحتاج إجراء' }))
+    await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.')
+    await user.click(screen.getByRole('button', { name: 'فلاتر إضافية' }))
     await user.click(screen.getByRole('checkbox', { name: 'متأخرة' }))
-    await user.click(screen.getByRole('checkbox', { name: 'بها مبلغ متبقي' }))
     await user.click(screen.getByRole('checkbox', { name: 'انتهى وقتها' }))
     await user.click(
       screen.getByRole('checkbox', { name: 'انتظار قاربت على الانتهاء' }),
     )
+    expect(screen.getByLabelText('الملعب')).toBeInTheDocument()
+    expect(screen.getByLabelText('الحالة')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
-      date: '2026-07-21',
       ended: 'true',
       hold_expiring: 'true',
       needs_action: 'true',
       overdue: 'true',
-      remaining_amount_gt: '0',
+      has_remaining_amount: 'true',
     })
-    expect(screen.getByLabelText('الملعب')).toBeInTheDocument()
-    expect(screen.getByLabelText('الحالة')).toBeInTheDocument()
   })
 
   it('removes only the selected operational filter chip', async () => {
@@ -375,7 +368,7 @@ describe('BookingsListPage', () => {
     })
   })
 
-  it('resets filters to today', async () => {
+  it('resets advanced filters while preserving primary review toggles', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -384,16 +377,89 @@ describe('BookingsListPage', () => {
       .mockResolvedValueOnce(paginatedResponse([]))
       .mockResolvedValueOnce(paginatedResponse([]))
 
-    renderBookingsPage('/bookings?needs_action=true')
+    renderBookingsPage('/bookings?needs_action=true&status=HOLD&date=2026-07-21')
 
-    await screen.findByText('لا توجد حجوزات مطابقة للفلاتر الحالية')
+    await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.')
+    await user.click(screen.getByRole('button', { name: 'فلاتر إضافية' }))
     await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
 
-    expect(screen.getByLabelText('تاريخ محدد')).toHaveValue('2026-07-21')
-    expect(mockedListBookings).toHaveBeenLastCalledWith(
-      'nasr-club',
-      defaultFilters,
-    )
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      needs_action: 'true',
+    })
+  })
+
+  it('keeps Staff Court scope backend-owned and ignores URL overrides', async () => {
+    mockAuth('nasr-club', 'STAFF')
+    mockedListBookings.mockResolvedValueOnce(paginatedResponse([]))
+
+    renderBookingsPage('/bookings?court=4&status=HOLD')
+
+    await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.')
+    expect(mockedListCourts).not.toHaveBeenCalled()
+    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
+      status: 'HOLD',
+    })
+    expect(screen.queryByRole('button', { name: /ملعب/ })).not.toBeInTheDocument()
+  })
+
+  it('preserves filters while navigating server-side pages', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    const booking = bookingFixture({
+      id: 50,
+      court: 3,
+      customer_name: 'سارة محمد',
+      start_time: '2026-07-21T18:00:00Z',
+      end_time: '2026-07-21T19:00:00Z',
+      status: 'CONFIRMED' as const,
+    })
+    mockedListBookings
+      .mockResolvedValueOnce({
+        count: 24,
+        next: '/bookings?page=2',
+        previous: null,
+        results: [booking],
+      })
+      .mockResolvedValueOnce({
+        count: 24,
+        next: null,
+        previous: '/bookings',
+        results: [booking],
+      })
+
+    renderBookingsPage('/bookings?status=CONFIRMED')
+
+    await user.click(await screen.findByRole('button', { name: 'التالي' }))
+
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      page: '2',
+      status: 'CONFIRMED',
+    })
+    expect(screen.getByText('صفحة 2 · 24 حجز')).toBeInTheDocument()
+  })
+
+  it('moves back one page when a paginated mutation result becomes empty', async () => {
+    mockedListBookings
+      .mockResolvedValueOnce({
+        count: 20,
+        next: null,
+        previous: '/bookings?page=2',
+        results: [],
+      })
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderBookingsPage('/bookings?status=HOLD&page=3')
+
+    await waitFor(() => {
+      expect(mockedListBookings).toHaveBeenCalledTimes(2)
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+        page: '2',
+        status: 'HOLD',
+      })
+    })
+    expect(await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.'))
+      .toBeInTheDocument()
   })
 
   it('shows no selected club message', async () => {
@@ -427,8 +493,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    expect(await screen.findByText('#30')).toBeInTheDocument()
-    expect(screen.getByText('أحمد علي')).toBeInTheDocument()
+    expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
     expect(screen.getByText('+201000000000')).toBeInTheDocument()
     expect(screen.getAllByText('مكتمل')).not.toHaveLength(0)
     expect(
@@ -439,7 +504,7 @@ describe('BookingsListPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows a financial warning for completed bookings with remaining amount', async () => {
+  it('keeps financial details out of compact history cards', async () => {
     mockedListBookings.mockResolvedValueOnce(
       paginatedResponse([
         {
@@ -457,9 +522,10 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    expect(
-      await screen.findByText('حجز مكتمل به مبلغ متبقي — يحتاج مراجعة'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
+    expect(screen.queryByText('100.00')).not.toBeInTheDocument()
+    expect(screen.queryByText('حجز مكتمل به مبلغ متبقي — يحتاج مراجعة'))
+      .not.toBeInTheDocument()
   })
 
   it('opens the reusable action sheet from a confirmed booking card', async () => {
@@ -485,18 +551,33 @@ describe('BookingsListPage', () => {
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
     await user.click(
-      await screen.findByRole('button', { name: 'مراجعة الحجز #32' }),
+      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
     )
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('حجز مؤكد')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'إضافة دفعة' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'إكمال الحجز' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'تسجيل عدم حضور' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'إلغاء الحجز' })).toBeInTheDocument()
+    expect(screen.getByText('متبقي 200.00 ج.م')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'حصّل 200.00 ج.م' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'إكمال' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'عدم حضور' }))
+      .not.toBeInTheDocument()
+    await user.click(screen.getByText('••• خيارات أخرى'))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
+    expect(await screen.findByRole('heading', { name: 'إلغاء الحجز؟' }))
+      .toBeInTheDocument()
+
+    const cancelDialogs = screen.getAllByRole('dialog')
+    await user.click(
+      within(cancelDialogs.at(-1) as HTMLElement).getByRole('button', {
+        name: 'إغلاق',
+      }),
+    )
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'ليلى حسن' }))
+      .toBeInTheDocument()
   })
 
-  it('opens payment flow instead of completing unpaid bookings', async () => {
+  it('opens the remaining-payment flow directly for unpaid bookings', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -519,24 +600,24 @@ describe('BookingsListPage', () => {
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
     await user.click(
-      await screen.findByRole('button', { name: 'مراجعة الحجز #36' }),
+      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
     )
-    await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
-
-    expect(
-      screen.getByText(
-        'يوجد مبلغ متبقي على هذا الحجز. يجب تسجيل الدفعة أولًا قبل إكمال الحجز.',
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
-      .toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+    await user.click(screen.getByRole('button', { name: 'حصّل 200.00 ج.م' }))
 
     expect(mockedCompleteBooking).not.toHaveBeenCalled()
-    expect(screen.getByRole('heading', { name: 'إضافة دفعة' }))
+    expect(screen.getByRole('heading', { name: 'تحصيل المبلغ المتبقي' }))
       .toBeInTheDocument()
-    expect(screen.getByText('حجز #36')).toBeInTheDocument()
+    expect(screen.queryByText('حجز #36')).not.toBeInTheDocument()
+
+    const paymentDialogs = screen.getAllByRole('dialog')
+    await user.click(
+      within(paymentDialogs.at(-1) as HTMLElement).getByRole('button', {
+        name: 'إغلاق',
+      }),
+    )
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'ليلى حسن' }))
+      .toBeInTheDocument()
   })
 
   it('completes fully paid bookings from the confirmation sheet', async () => {
@@ -551,8 +632,8 @@ describe('BookingsListPage', () => {
             id: 37,
             court: 3,
             customer_name: 'ليلى حسن',
-            start_time: '2026-07-21T18:00:00Z',
-            end_time: '2026-07-21T19:00:00Z',
+            start_time: '2026-07-21T08:00:00Z',
+            end_time: '2026-07-21T09:00:00Z',
             status: 'CONFIRMED' as const,
             paid_amount: '300.00',
             remaining_amount: '0.00',
@@ -560,21 +641,21 @@ describe('BookingsListPage', () => {
         ]),
       )
       .mockResolvedValueOnce(paginatedResponse([]))
-    mockedCompleteBooking.mockResolvedValueOnce({
+    mockedCompleteBooking.mockResolvedValueOnce(bookingFixture({
       id: 37,
       court: 3,
       customer_name: 'ليلى حسن',
-      start_time: '2026-07-21T18:00:00Z',
-      end_time: '2026-07-21T19:00:00Z',
+      start_time: '2026-07-21T08:00:00Z',
+      end_time: '2026-07-21T09:00:00Z',
       status: 'COMPLETED' as const,
-    })
+    }))
 
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
     await user.click(
-      await screen.findByRole('button', { name: 'مراجعة الحجز #37' }),
+      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
     )
-    await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
+    await user.click(screen.getByRole('button', { name: 'إكمال' }))
     await user.click(
       screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
     )
@@ -601,8 +682,8 @@ describe('BookingsListPage', () => {
           id: 38,
           court: 3,
           customer_name: 'ليلى حسن',
-          start_time: '2026-07-21T18:00:00Z',
-          end_time: '2026-07-21T19:00:00Z',
+          start_time: '2026-07-21T08:00:00Z',
+          end_time: '2026-07-21T09:00:00Z',
           status: 'CONFIRMED' as const,
           paid_amount: '300.00',
           remaining_amount: '0.00',
@@ -619,21 +700,21 @@ describe('BookingsListPage', () => {
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
     await user.click(
-      await screen.findByRole('button', { name: 'مراجعة الحجز #38' }),
+      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
     )
-    await user.click(screen.getByRole('button', { name: 'إكمال الحجز' }))
+    await user.click(screen.getByRole('button', { name: 'إكمال' }))
     await user.click(
       screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
     )
 
-    expect(await screen.findByText('يجب تسجيل المتبقي أولًا'))
+    expect(await screen.findByText('لازم تحصّل المبلغ المتبقي قبل إكمال الحجز.'))
       .toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
       .toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
 
-    expect(screen.getByRole('heading', { name: 'إضافة دفعة' }))
+    expect(screen.getByRole('heading', { name: 'تحصيل المبلغ المتبقي' }))
       .toBeInTheDocument()
   })
 
@@ -667,14 +748,14 @@ describe('BookingsListPage', () => {
       is_cancelled: false,
     })
 
-    renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
+    renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED&page=3')
 
     await user.click(
-      await screen.findByRole('button', { name: 'مراجعة الحجز #33' }),
+      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
     )
-    await user.click(screen.getByRole('button', { name: 'إضافة دفعة' }))
+    await user.click(screen.getByRole('button', { name: 'حصّل 200.00 ج.م' }))
     await user.type(screen.getByLabelText('المبلغ'), '50')
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+    await user.click(screen.getByRole('button', { name: 'تسجيل التحصيل' }))
 
     await waitFor(() => {
       expect(mockedCreateTransaction).toHaveBeenCalledWith('nasr-club', {
@@ -686,10 +767,11 @@ describe('BookingsListPage', () => {
     await waitFor(() => {
       expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
         date: '2026-07-21',
+        page: '3',
         status: 'CONFIRMED',
       })
     })
-    expect(await screen.findByText('تم تسجيل الدفعة بنجاح')).toBeInTheDocument()
+    expect(await screen.findByText('تم تسجيل التحصيل بنجاح')).toBeInTheDocument()
   })
 
   it('keeps completed booking cards clickable but read-only', async () => {
@@ -714,13 +796,13 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=COMPLETED')
 
-    expect(await screen.findByText('للعرض فقط')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'مراجعة الحجز #34' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'مراجعة حجز أحمد علي' }),
+    )
 
-    expect(
-      screen.getByText('هذا الحجز مكتمل ومغلق للعرض فقط'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('عرض التفاصيل فقط')).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText('مكتمل'))
+      .toBeInTheDocument()
+    expect(screen.queryByText('عرض التفاصيل فقط')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'إضافة دفعة' }),
     ).not.toBeInTheDocument()
@@ -748,26 +830,27 @@ describe('BookingsListPage', () => {
         ]),
       )
       .mockResolvedValueOnce(paginatedResponse([]))
-    mockedCancelBooking.mockResolvedValueOnce({
+    mockedCancelBooking.mockResolvedValueOnce(bookingFixture({
       id: 35,
       court: 3,
       customer_name: 'مروان سمير',
       start_time: '2026-07-21T18:00:00Z',
       end_time: '2026-07-21T19:00:00Z',
       status: 'CANCELLED' as const,
-    })
+    }))
 
     renderBookingsPage('/bookings?date=2026-07-21&status=HOLD')
 
     await user.click(
-      await screen.findByRole('button', { name: 'مراجعة الحجز #35' }),
+      await screen.findByRole('button', { name: 'مراجعة حجز مروان سمير' }),
     )
-    await user.click(screen.getByRole('button', { name: 'تحرير الموعد' }))
+    await user.click(screen.getByText('••• خيارات أخرى'))
+    await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
     await waitFor(() => {
       expect(mockedCancelBooking).toHaveBeenCalledWith('nasr-club', 35, {
-        reason: 'تحرير الحجز المؤقت',
-        notes: 'تم تحرير الموعد من سجل الحجوزات',
+        reason: 'إلغاء الحجز المؤقت',
+        notes: 'تم إلغاء الحجز من سجل الحجوزات',
       })
     })
     await waitFor(() => {
@@ -776,6 +859,6 @@ describe('BookingsListPage', () => {
         status: 'HOLD',
       })
     })
-    expect(await screen.findByText('تم تحرير الموعد بنجاح')).toBeInTheDocument()
+    expect(await screen.findByText('تم إلغاء الحجز بنجاح')).toBeInTheDocument()
   })
 })

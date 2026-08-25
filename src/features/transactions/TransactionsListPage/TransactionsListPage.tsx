@@ -359,7 +359,7 @@ function TransactionsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>من تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
           onChange={(event) => updateFilter('date_from', event.target.value)}
           type="date"
           value={filters.date_from}
@@ -369,7 +369,7 @@ function TransactionsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>إلى تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
           onChange={(event) => updateFilter('date_to', event.target.value)}
           type="date"
           value={filters.date_to}
@@ -550,6 +550,14 @@ export function TransactionsListPage() {
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [collectorOptions, setCollectorOptions] = useState<FilterOption[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!successMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setSuccessMessage(null), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [successMessage])
   const filterLabelMaps = useMemo<FilterLabelMaps>(
     () => ({
       collectorLabels: Object.fromEntries(
@@ -648,7 +656,7 @@ export function TransactionsListPage() {
       if (!selectedClubSlug) {
         setTransactions([])
         setError(null)
-        setMessage('اختر ناديًا أولًا لعرض المعاملات')
+        setMessage('اختر ناديًا أولًا لعرض التحصيلات')
         setIsLoading(false)
         return
       }
@@ -672,7 +680,7 @@ export function TransactionsListPage() {
           setError(
             getApiErrorMessage(
               error,
-              'تعذر تحميل المعاملات. حاول مرة أخرى',
+              'تعذر تحميل التحصيلات. حاول مرة أخرى',
             ),
           )
         }
@@ -779,11 +787,11 @@ export function TransactionsListPage() {
     try {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
-      setSuccessMessage('تم إلغاء تسجيل الدفعة بنجاح')
+      setSuccessMessage('تم إلغاء التحصيل بنجاح')
       await reloadTransactions()
     } catch (error) {
       setCancelError(
-        getApiErrorMessage(error, 'تعذر إلغاء تسجيل الدفعة. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر إلغاء التحصيل. حاول مرة أخرى'),
       )
       setCancelFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -830,7 +838,7 @@ export function TransactionsListPage() {
       <FilterSheet
         isOpen={isFilterSheetOpen}
         onClose={() => setIsFilterSheetOpen(false)}
-        title="فلترة المعاملات"
+        title="فلترة التحصيلات"
       >
         <TransactionsFilterForm
           canChooseCourt={canChooseCourt}
@@ -848,20 +856,16 @@ export function TransactionsListPage() {
       {hasActiveFilters ? (
         <div className="flex flex-wrap gap-2">
           {activeFilterChips.map((chip) => (
-            <span
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]"
+            <button
+              aria-label={`إزالة فلتر ${chip.label}`}
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)] transition hover:bg-emerald-100"
               key={chip.key}
+              onClick={() => handleRemoveFilter(chip.key)}
+              type="button"
             >
               {chip.label}
-              <button
-                aria-label={`إزالة فلتر ${chip.label}`}
-                className="rounded-full px-1 text-sm leading-none hover:bg-white/70"
-                onClick={() => handleRemoveFilter(chip.key)}
-                type="button"
-              >
-                ×
-              </button>
-            </span>
+              <span aria-hidden="true" className="text-sm leading-none">×</span>
+            </button>
           ))}
         </div>
       ) : null}
@@ -884,7 +888,7 @@ export function TransactionsListPage() {
       {isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            جاري تحميل المعاملات...
+            جاري تحميل التحصيلات...
           </p>
         </AppCard>
       ) : null}
@@ -908,8 +912,8 @@ export function TransactionsListPage() {
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             {hasActiveFilters
-              ? 'لا توجد دفعات مطابقة للفلاتر الحالية'
-              : 'لا توجد معاملات مسجلة حتى الآن'}
+              ? 'مفيش تحصيلات مطابقة للفلاتر الحالية.'
+              : 'مفيش تحصيلات مسجلة حتى الآن.'}
           </p>
         </AppCard>
       ) : null}
@@ -923,6 +927,15 @@ export function TransactionsListPage() {
             )
             const cancelledByName = getActorName(transaction.cancelled_by)
             const createdById = getActorId(transaction.created_by)
+            const collectorName =
+              transaction.created_by_username ||
+              getActorName(transaction.created_by) ||
+              (createdById
+                ? filterLabelMaps.collectorLabels[String(createdById)]
+                : null)
+            const bookingTimeLabel = formatArabicDateTime(
+              transaction.booking_start_time,
+            )
             const transactionType = getTransactionType(transaction)
             const isRefund = isRefundTransaction(transaction)
             const canCancel =
@@ -968,7 +981,16 @@ export function TransactionsListPage() {
                 </div>
 
                 <dl className="grid grid-cols-1 gap-2 text-sm">
-                  {transaction.booking ? (
+                  {bookingTimeLabel ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                      <dt className="font-bold text-[var(--sloty-text-muted)]">
+                        موعد الحجز
+                      </dt>
+                      <dd className="font-black text-[var(--sloty-text-primary)]">
+                        {bookingTimeLabel}
+                      </dd>
+                    </div>
+                  ) : transaction.booking ? (
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                       <dt className="font-bold text-[var(--sloty-text-muted)]">
                         الحجز
@@ -981,13 +1003,31 @@ export function TransactionsListPage() {
                       </dd>
                     </div>
                   ) : null}
-                  {transaction.reference ? (
+                  {transaction.court_name ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                      <dt className="font-bold text-[var(--sloty-text-muted)]">الملعب</dt>
+                      <dd className="font-black text-[var(--sloty-text-primary)]">
+                        {transaction.court_name}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {collectorName ? (
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                      <dt className="font-bold text-[var(--sloty-text-muted)]">
+                        الموظف المحصل
+                      </dt>
+                      <dd className="font-black text-[var(--sloty-text-primary)]">
+                        {collectorName}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {transaction.payment_reference ? (
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                       <dt className="font-bold text-[var(--sloty-text-muted)]">
                         المرجع
                       </dt>
                       <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {transaction.reference}
+                        {transaction.payment_reference}
                       </dd>
                     </div>
                   ) : null}
@@ -1043,7 +1083,7 @@ export function TransactionsListPage() {
                     }}
                     variant="danger"
                   >
-                    إلغاء تسجيل الدفعة
+                    إلغاء التحصيل
                   </AppButton>
                 ) : null}
               </AppCard>
