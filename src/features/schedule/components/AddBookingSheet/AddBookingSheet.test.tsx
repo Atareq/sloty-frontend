@@ -79,6 +79,7 @@ describe('AddBookingSheet', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       customer_name: 'أحمد علي',
       customer_phone: '+201012345678',
+      is_recurring: false,
       notes: undefined,
     })
   })
@@ -148,9 +149,9 @@ describe('AddBookingSheet', () => {
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
-      booking_type: 'weekly',
       customer_name: 'أحمد علي',
       customer_phone: '+201012345678',
+      is_recurring: true,
       notes: undefined,
     })
     expect(screen.queryByText('فحص الإتاحة')).not.toBeInTheDocument()
@@ -184,6 +185,30 @@ describe('AddBookingSheet', () => {
     expect(screen.getByText(/فيه حجز آخر يوم/)).toBeInTheDocument()
     expect(screen.queryByText('FUTURE_CONFLICT')).not.toBeInTheDocument()
     expect(screen.queryByText(/ابدأ من/)).not.toBeInTheDocument()
+  })
+
+  it('falls back safely for an unknown recurring blocked reason', () => {
+    render(
+      <AddBookingSheet
+        canStartRecurring={false}
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        firstRecurringConflictStart="2026-09-08T18:00:00+03:00"
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        recurringBlockedReason="NEW_BACKEND_REASON"
+        startTime="18:00"
+      />,
+    )
+
+    expect(
+      screen.getByText('غير متاح تثبيت الموعد لهذا الحجز.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('NEW_BACKEND_REASON')).not.toBeInTheDocument()
+    expect(screen.queryByText(/فيه حجز آخر يوم/)).not.toBeInTheDocument()
   })
 
   it('blocks invalid phone numbers', async () => {

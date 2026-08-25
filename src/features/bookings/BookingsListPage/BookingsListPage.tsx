@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from 'react'
@@ -13,7 +14,10 @@ import {
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
-import { canChooseOperationalCourt } from '../../../core/auth/auth.types'
+import {
+  canChooseOperationalCourt,
+  getAssignedOperationalCourtId,
+} from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -60,6 +64,7 @@ import {
 } from '../../schedule/scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
+  type BookingCompletePayload,
   type BookingCancellationPreview,
 } from '../../schedule/scheduleApi.types'
 import {
@@ -80,7 +85,6 @@ interface FilterState {
   hold_expiring: string
   needs_action: string
   overdue: string
-  search: string
   upcoming: string
   has_remaining_amount: string
   status: BookingStatus | ''
@@ -180,7 +184,6 @@ function filterStateFromParams(params: BookingsQueryParams): FilterState {
     needs_action:
       params.needs_action === undefined ? '' : String(params.needs_action),
     overdue: params.overdue === undefined ? '' : String(params.overdue),
-    search: params.search ?? '',
     upcoming: params.upcoming === undefined ? '' : String(params.upcoming),
     has_remaining_amount:
       params.has_remaining_amount === undefined
@@ -200,7 +203,6 @@ function paramsFromFilterState(filters: FilterState): BookingsQueryParams {
     ...(filters.hold_expiring ? { hold_expiring: filters.hold_expiring } : {}),
     ...(filters.needs_action ? { needs_action: filters.needs_action } : {}),
     ...(filters.overdue ? { overdue: filters.overdue } : {}),
-    ...(filters.search.trim() ? { search: filters.search.trim() } : {}),
     ...(filters.upcoming ? { upcoming: filters.upcoming } : {}),
     ...(filters.has_remaining_amount
       ? { has_remaining_amount: filters.has_remaining_amount }
@@ -275,23 +277,13 @@ function BookingsFilterForm({
 
   return (
     <form
-      className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
+      className="grid grid-cols-1 gap-3 md:grid-cols-2"
       onSubmit={handleSubmit}
     >
-      <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)] md:col-span-2 xl:col-span-5">
-        <span>بحث بالعميل أو رقم الهاتف</span>
-        <input
-          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 font-semibold text-[var(--sloty-text-primary)] outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-          onChange={(event) => updateFilter('search', event.target.value)}
-          type="search"
-          value={filters.search}
-        />
-      </label>
-
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>تاريخ محدد</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date', event.target.value)}
           type="date"
           value={filters.date}
@@ -301,7 +293,7 @@ function BookingsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>من تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_from', event.target.value)}
           type="date"
           value={filters.date_from}
@@ -311,7 +303,7 @@ function BookingsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>إلى تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_to', event.target.value)}
           type="date"
           value={filters.date_to}
@@ -335,7 +327,7 @@ function BookingsFilterForm({
       />
 
       <FilterCheckboxGroup
-        className="md:col-span-2 xl:col-span-3"
+        className="md:col-span-2"
         label="فلاتر تشغيلية"
         onChange={updateOperationalFilter}
         options={[
@@ -373,9 +365,82 @@ function BookingsFilterForm({
         >
           إعادة ضبط
         </AppButton>
-        {onClose ? (
-          <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
-            إغلاق
+      </div>
+    </form>
+  )
+}
+
+interface BookingSearchFormProps {
+  initialSearch: string
+  isLoading: boolean
+  onSearch: (value: string) => void
+}
+
+/** Keeps unified backend search prominent without requesting on every keypress. */
+function BookingSearchForm({
+  initialSearch,
+  isLoading,
+  onSearch,
+}: BookingSearchFormProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<number | null>(null)
+
+  useEffect(() => () => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  function submitSearch(): void {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current)
+    }
+    onSearch(inputRef.current?.value.trim() ?? '')
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-2 sm:flex-row sm:items-end"
+      onSubmit={(event) => {
+        event.preventDefault()
+        submitSearch()
+      }}
+      role="search"
+    >
+      <label className="min-w-0 flex-1 space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+        <span>اسم العميل أو رقم الهاتف</span>
+        <input
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] px-3 font-semibold text-[var(--sloty-text-primary)] outline-none transition focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          defaultValue={initialSearch}
+          disabled={isLoading}
+          onChange={(event) => {
+            if (debounceRef.current !== null) {
+              window.clearTimeout(debounceRef.current)
+            }
+            const value = event.target.value.trim()
+            debounceRef.current = window.setTimeout(() => onSearch(value), 400)
+          }}
+          ref={inputRef}
+          type="search"
+        />
+      </label>
+      <div className="grid grid-cols-2 gap-2 sm:flex">
+        <AppButton disabled={isLoading} type="submit">
+          بحث
+        </AppButton>
+        {initialSearch ? (
+          <AppButton
+            disabled={isLoading}
+            onClick={() => {
+              if (inputRef.current) {
+                inputRef.current.value = ''
+              }
+              onSearch('')
+            }}
+            type="button"
+            variant="secondary"
+          >
+            مسح البحث
           </AppButton>
         ) : null}
       </div>
@@ -391,6 +456,10 @@ export function BookingsListPage() {
   const navigate = useNavigate()
   const { role, selectedClubSlug, selectedMembership } = useAuth()
   const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
+  const assignedCourtId = getAssignedOperationalCourtId(
+    role,
+    selectedMembership,
+  )
   const [bookings, setBookings] = useState<Booking[]>([])
   const [pagination, setPagination] = useState<PaginationState>({
     count: 0,
@@ -447,8 +516,11 @@ export function BookingsListPage() {
 
     const staffParams = { ...urlParams }
     delete staffParams.court
+    if (assignedCourtId !== null) {
+      staffParams.court = assignedCourtId
+    }
     return staffParams
-  }, [canChooseCourt, urlParams])
+  }, [assignedCourtId, canChooseCourt, urlParams])
   const initialFilters = useMemo(
     () => filterStateFromParams(effectiveParams),
     [effectiveParams],
@@ -459,8 +531,17 @@ export function BookingsListPage() {
     ),
     [courtOptions],
   )
+  const visibleFilterParams = useMemo(() => {
+    if (canChooseCourt) {
+      return effectiveParams
+    }
+
+    const params = { ...effectiveParams }
+    delete params.court
+    return params
+  }, [canChooseCourt, effectiveParams])
   const activeFilterChips = getActiveBookingFilterChips(
-    effectiveParams,
+    visibleFilterParams,
     courtLabels,
   )
   const hasActiveFilters = activeFilterChips.length > 0
@@ -569,7 +650,10 @@ export function BookingsListPage() {
   }, [reloadBookings])
 
   function handleApplyFilters(nextFilters: FilterState): void {
-    const nextParams = paramsFromFilterState(nextFilters)
+    const nextParams = {
+      ...paramsFromFilterState(nextFilters),
+      ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
+    }
     delete nextParams.page
     if (!canChooseCourt) {
       delete nextParams.court
@@ -593,6 +677,10 @@ export function BookingsListPage() {
       ...(effectiveParams.has_remaining_amount !== undefined
         ? { has_remaining_amount: effectiveParams.has_remaining_amount }
         : {}),
+      ...(effectiveParams.upcoming !== undefined
+        ? { upcoming: effectiveParams.upcoming }
+        : {}),
+      ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
     }
 
     navigate(
@@ -605,7 +693,7 @@ export function BookingsListPage() {
   }
 
   function handleRemoveFilter(key: BookingFilterChipKey): void {
-    const nextParams = { ...effectiveParams }
+    const nextParams = { ...urlParams }
 
     delete nextParams[key]
     delete nextParams.page
@@ -622,7 +710,7 @@ export function BookingsListPage() {
   }
 
   function handlePrimaryFilter(key: string, checked: boolean): void {
-    const nextParams = { ...effectiveParams }
+    const nextParams = { ...urlParams }
     delete nextParams.page
 
     if (key === 'needs_action') {
@@ -658,8 +746,29 @@ export function BookingsListPage() {
     )
   }
 
+  function handleSearch(value: string): void {
+    const nextParams = { ...urlParams }
+    delete nextParams.page
+    if (value) {
+      nextParams.search = value
+    } else {
+      delete nextParams.search
+    }
+    if (!canChooseCourt) {
+      delete nextParams.court
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: true },
+    )
+  }
+
   function handlePageChange(nextPage: number): void {
-    const nextParams = { ...effectiveParams }
+    const nextParams = { ...urlParams }
 
     if (nextPage <= 1) {
       delete nextParams.page
@@ -832,7 +941,9 @@ export function BookingsListPage() {
     }
   }
 
-  async function handleCompleteBooking(): Promise<void> {
+  async function handleCompleteBooking(
+    payload?: BookingCompletePayload,
+  ): Promise<void> {
     if (!selectedClubSlug || !completingBooking) {
       return
     }
@@ -841,7 +952,11 @@ export function BookingsListPage() {
     setActionError(null)
 
     try {
-      await completeBooking(selectedClubSlug, completingBooking.id)
+      if (payload) {
+        await completeBooking(selectedClubSlug, completingBooking.id, payload)
+      } else {
+        await completeBooking(selectedClubSlug, completingBooking.id)
+      }
       setCompletingBooking(null)
       setCompletingBookingRemainingAmount(null)
       setSelectedBooking(null)
@@ -902,9 +1017,12 @@ export function BookingsListPage() {
     setActionError(null)
 
     try {
-      await endBookingRecurrence(selectedClubSlug, booking.id)
-      setSelectedBooking(null)
-      setSuccessMessage('تم إيقاف التكرار الأسبوعي')
+      const updatedBooking = await endBookingRecurrence(
+        selectedClubSlug,
+        booking.id,
+      )
+      setSelectedBooking(updatedBooking)
+      setSuccessMessage('تم إيقاف تكرار الحجز')
       await reloadBookings()
     } catch (error) {
       setActionError(
@@ -917,12 +1035,24 @@ export function BookingsListPage() {
 
   return (
     <div className="space-y-5">
+      <BookingSearchForm
+        initialSearch={effectiveParams.search ?? ''}
+        isLoading={isLoading}
+        key={effectiveParams.search ?? 'empty-search'}
+        onSearch={handleSearch}
+      />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <FilterCheckboxGroup
           className="min-w-0 flex-1"
           label="مراجعة سريعة"
           onChange={handlePrimaryFilter}
           options={[
+            {
+              key: 'upcoming',
+              label: 'الحجوزات القادمة فقط',
+              checked: effectiveParams.upcoming === 'true',
+            },
             {
               key: 'needs_action',
               label: 'تحتاج إجراء',
@@ -932,11 +1062,6 @@ export function BookingsListPage() {
               key: 'has_remaining_amount',
               label: 'بها مبلغ متبقي',
               checked: effectiveParams.has_remaining_amount === 'true',
-            },
-            {
-              key: 'upcoming',
-              label: 'قادمة',
-              checked: effectiveParams.upcoming === 'true',
             },
           ]}
         />
@@ -999,8 +1124,10 @@ export function BookingsListPage() {
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             {hasActiveFilters
-              ? 'ملقيناش حجوزات مطابقة للفلاتر الحالية.'
-              : 'مفيش حجوزات لعرضها.'}
+              ? effectiveParams.search
+                ? 'ملقيناش حجوزات مطابقة للبحث.'
+                : 'مفيش حجوزات مطابقة للفلاتر الحالية.'
+              : 'مفيش حجوزات لسه.'}
           </p>
         </AppCard>
       ) : null}
@@ -1152,6 +1279,7 @@ export function BookingsListPage() {
 
       {completingBooking ? (
         <CompleteBookingConfirmSheet
+          booking={completingBooking}
           error={actionError}
           isSubmitting={isActionSubmitting}
           onClose={() => {

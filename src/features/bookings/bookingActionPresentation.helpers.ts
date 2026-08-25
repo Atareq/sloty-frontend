@@ -8,9 +8,10 @@ import {
   canBookingNoShow,
   hasRemainingAmount,
 } from './bookingDisplay.helpers'
+import { hasActiveRecurrence } from './bookingRecurrence.helpers'
 
 export type BookingPrimaryAction = 'PAYMENT' | 'COMPLETE'
-export type BookingSecondaryAction = 'CANCEL' | 'NO_SHOW'
+export type BookingSecondaryAction = 'CANCEL' | 'NO_SHOW' | 'END_RECURRENCE'
 
 export interface BookingActionCapabilities {
   canAddPayment: boolean
@@ -18,6 +19,7 @@ export interface BookingActionCapabilities {
   canComplete: boolean
   canFreeHold: boolean
   canNoShow: boolean
+  canEndRecurrence: boolean
 }
 
 export interface BookingActionPresentation {
@@ -121,6 +123,10 @@ export function getBookingActionPresentation(
     canBookingNoShow(booking.status)
   ) {
     secondaryActions.push('NO_SHOW')
+  }
+
+  if (capabilities.canEndRecurrence && hasActiveRecurrence(booking)) {
+    secondaryActions.push('END_RECURRENCE')
   }
 
   return { primaryAction, secondaryActions, stateMessage }

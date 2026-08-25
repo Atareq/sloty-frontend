@@ -1,20 +1,13 @@
-import type { TransactionType } from '../transactions/transactions.types'
+import {
+  paymentMethodLabels,
+  type PaymentMethod,
+  type TransactionType,
+} from '../transactions/transactions.types'
 
-export type SettlementPaymentMethod =
-  | 'CASH'
-  | 'DIGITAL_WALLET'
-  | 'BANK_TRANSFER'
-  | 'OTHER'
+export type SettlementPaymentMethod = PaymentMethod
 
-export const settlementPaymentMethodLabels: Record<
-  SettlementPaymentMethod,
-  string
-> = {
-  CASH: 'كاش',
-  DIGITAL_WALLET: 'محفظة إلكترونية',
-  BANK_TRANSFER: 'تحويل بنكي',
-  OTHER: 'أخرى',
-}
+/** Settlement rows use the same backend payment-method contract as transactions. */
+export const settlementPaymentMethodLabels = paymentMethodLabels
 
 export interface SettlementPreviewTransaction {
   id: number

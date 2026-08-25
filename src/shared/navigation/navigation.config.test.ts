@@ -77,7 +77,7 @@ describe('navigation config', () => {
     }).map((item) => item.label)
 
     expect(ownerPrimaryLabels).toEqual([
-      'لوحة التحكم',
+      'الرئيسية',
       'الجدول',
       'سجل الحجوزات',
       'التحصيلات',
@@ -96,7 +96,7 @@ describe('navigation config', () => {
 
   it('can return the three daily mobile footer items for each club role', () => {
     const expectedMobileLabels = [
-      'لوحة التحكم',
+      'الرئيسية',
       'الجدول',
       'سجل الحجوزات',
     ]
@@ -155,7 +155,7 @@ describe('navigation config', () => {
 
     expect(labels).toEqual(
       expect.arrayContaining([
-        'لوحة التحكم',
+        'الرئيسية',
         'الجدول',
         'سجل الحجوزات',
         'التحصيلات',

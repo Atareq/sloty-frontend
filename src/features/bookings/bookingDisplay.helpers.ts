@@ -107,6 +107,43 @@ export function hasRemainingAmount(booking: BookingListItem): boolean {
   return hasPositiveRemainingAmount(booking.remaining_amount)
 }
 
+/**
+ * Formats the backend-owned HOLD deadline without making lifecycle decisions.
+ * A missing/invalid value stays silent because Court policy is not a deadline.
+ */
+export function formatHoldExpiryMessage(
+  holdExpiresAt: string | null | undefined,
+  now = new Date(),
+): string | null {
+  if (!holdExpiresAt) {
+    return null
+  }
+
+  const deadline = new Date(holdExpiresAt)
+
+  if (Number.isNaN(deadline.getTime())) {
+    return null
+  }
+
+  const remainingMinutes = Math.ceil(
+    (deadline.getTime() - now.getTime()) / (60 * 1000),
+  )
+
+  if (remainingMinutes <= 0) {
+    return 'انتهت مهلة دفع العربون'
+  }
+
+  if (remainingMinutes < 60) {
+    return `باقي ${remainingMinutes} دقيقة قبل إلغاء الحجز تلقائيًا`
+  }
+
+  const remainingHours = Math.ceil(remainingMinutes / 60)
+
+  return remainingHours === 2
+    ? 'هيتلغي تلقائي بعد ساعتين'
+    : `هيتلغي تلقائي بعد ${remainingHours} ساعات`
+}
+
 export function isBookingReadOnlyStatus(status: BackendBookingStatus): boolean {
   return ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'EXPIRED'].includes(status)
 }

@@ -62,6 +62,7 @@ import {
 } from '../scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
+  type BookingCompletePayload,
   type BookingCancellationPreview,
   type BookingListItem,
 } from '../scheduleApi.types'
@@ -408,32 +409,22 @@ export function SchedulePage() {
     setCreateFieldErrors(null)
 
     try {
-      const slot = selectedSlot
       const startTime = formatBookingDateTime(selectedDate, selectedSlot.startTime)
       const endTime = formatBookingDateTime(selectedDate, selectedSlot.endTime)
 
-      const createdBooking = await createBooking(selectedClubSlug, {
+      await createBooking(selectedClubSlug, {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
         start_time: startTime,
         end_time: endTime,
-        ...(values.booking_type === 'weekly' ? { is_recurring: true } : {}),
+        is_recurring: values.is_recurring,
         ...(values.notes ? { notes: values.notes } : {}),
       })
 
       setSelectedSlot(null)
       await reloadScheduleSlots()
       setSuccessMessage('✓ تم حجز الموعد بنجاح')
-
-      if (createdBooking.status === 'HOLD') {
-        setSelectedSlot({
-          ...slot,
-          status: 'hold',
-          booking: createdBooking,
-        })
-        setHoldBooking(createdBooking)
-      }
     } catch (error) {
       const errorCode = getApiErrorCode(error)
 
@@ -521,7 +512,9 @@ export function SchedulePage() {
     }
   }
 
-  async function handleCompleteBooking(): Promise<void> {
+  async function handleCompleteBooking(
+    payload?: BookingCompletePayload,
+  ): Promise<void> {
     if (!selectedClubSlug || !selectedCourt || !completingBooking) {
       return
     }
@@ -531,7 +524,11 @@ export function SchedulePage() {
     setLifecycleFieldErrors(null)
 
     try {
-      await completeBooking(selectedClubSlug, completingBooking.id)
+      if (payload) {
+        await completeBooking(selectedClubSlug, completingBooking.id, payload)
+      } else {
+        await completeBooking(selectedClubSlug, completingBooking.id)
+      }
       setCompletingBooking(null)
       setCompletingBookingRemainingAmount(null)
       setSelectedActionBooking(null)
@@ -592,10 +589,13 @@ export function SchedulePage() {
     setLifecycleError(null)
 
     try {
-      await endBookingRecurrence(selectedClubSlug, booking.id)
-      setSelectedActionBooking(null)
+      const updatedBooking = await endBookingRecurrence(
+        selectedClubSlug,
+        booking.id,
+      )
+      setSelectedActionBooking(updatedBooking)
       setSelectedSlot(null)
-      setSuccessMessage('تم إيقاف التكرار الأسبوعي')
+      setSuccessMessage('تم إيقاف تكرار الحجز')
       await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
@@ -695,11 +695,12 @@ export function SchedulePage() {
     setLifecycleFieldErrors(null)
     setHoldActionError(null)
 
-    if (
-      slot.status === 'recurring_reserved' &&
-      slot.recurringAnchorBookingId &&
-      selectedClubSlug
-    ) {
+    if (slot.status === 'recurring_reserved') {
+      if (!slot.recurringAnchorBookingId || !selectedClubSlug) {
+        setLifecycleError('تعذر تحميل تفاصيل الحجز.')
+        return
+      }
+
       setIsLifecycleSubmitting(true)
       try {
         setSelectedActionBooking(
@@ -707,7 +708,7 @@ export function SchedulePage() {
         )
       } catch (error) {
         setLifecycleError(
-          getApiErrorMessage(error, 'تعذر تحميل الحجز الأسبوعي. حاول مرة أخرى'),
+          getApiErrorMessage(error, 'تعذر تحميل تفاصيل الحجز.'),
         )
       } finally {
         setIsLifecycleSubmitting(false)
@@ -841,6 +842,15 @@ export function SchedulePage() {
           <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
             اختار المعاد
           </h2>
+          {isLifecycleSubmitting && !selectedActionBooking ? (
+            <p className="rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-sm font-bold text-[var(--sloty-primary-dark)]">
+              جاري تحميل تفاصيل الحجز...
+            </p>
+          ) : lifecycleError && !selectedActionBooking ? (
+            <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+              {lifecycleError}
+            </p>
+          ) : null}
           <div
             aria-label="لوحة فترات الملعب"
             className="relative overflow-hidden rounded-[28px] border border-[var(--sloty-border)] bg-cover bg-center shadow-[var(--sloty-shadow)]"
@@ -878,13 +888,7 @@ export function SchedulePage() {
                         <BookingCard
                           booking={booking}
                           key={booking.id}
-                          onSelect={
-                            booking.isAvailable || booking.booking
-                              ? (slot) => void handleSelectSlot(slot)
-                              : booking.recurringAnchorBookingId
-                                ? (slot) => void handleSelectSlot(slot)
-                              : undefined
-                          }
+                          onSelect={(slot) => void handleSelectSlot(slot)}
                         />
                       ))}
                     </div>
@@ -902,13 +906,7 @@ export function SchedulePage() {
                         <BookingCard
                           booking={booking}
                           key={booking.id}
-                          onSelect={
-                            booking.isAvailable || booking.booking
-                              ? (slot) => void handleSelectSlot(slot)
-                              : booking.recurringAnchorBookingId
-                                ? (slot) => void handleSelectSlot(slot)
-                              : undefined
-                          }
+                          onSelect={(slot) => void handleSelectSlot(slot)}
                         />
                       ))}
                     </div>
@@ -1094,6 +1092,7 @@ export function SchedulePage() {
 
       {completingBooking ? (
         <CompleteBookingConfirmSheet
+          booking={completingBooking}
           error={lifecycleError}
           isSubmitting={isLifecycleSubmitting}
           onClose={() => {

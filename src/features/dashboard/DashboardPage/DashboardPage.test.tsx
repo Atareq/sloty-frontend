@@ -492,7 +492,15 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(await screen.findByText('مساء الخير يا محمد')).toBeInTheDocument()
-    expect(screen.getByText('النهاردة')).toBeInTheDocument()
+    const dailySection = screen.getByText('النهاردة').closest('section')
+    const analyticsSection = screen.getByText('متابعة وأرقام').closest('section')
+
+    expect(dailySection).toBeInTheDocument()
+    expect(analyticsSection).toBeInTheDocument()
+    expect(
+      dailySection?.compareDocumentPosition(analyticsSection as Node)
+      ?? 0,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(screen.getByText('18 حجوزات مسجلة النهاردة')).toBeInTheDocument()
     expect(screen.getByText('2 بانتظار العربون').closest('a')).toHaveAttribute(
       'href',
@@ -505,6 +513,19 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('هذا الأسبوع')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'آخر 7 أيام' }))
       .toBeInTheDocument()
+  })
+
+  it('does not fabricate unsupported booking-level Home dependencies', async () => {
+    renderDashboard()
+
+    expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
+      .toBeInTheDocument()
+    expect(baseSummaryResponse).not.toHaveProperty('next_booking')
+    expect(baseSummaryResponse).not.toHaveProperty('hold_attention')
+    expect(baseSummaryResponse).not.toHaveProperty('action_items')
+    expect(baseSummaryResponse).not.toHaveProperty('my_custody')
+    expect(screen.queryByText('الحجز الجاي')).not.toBeInTheDocument()
+    expect(screen.queryByText(/ينتهي بعد/)).not.toBeInTheDocument()
   })
 
   it('preserves selected court in operational and settlement links', async () => {

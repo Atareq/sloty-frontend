@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import { listCourts } from '../../courts/courtsApi'
 import {
   cancelBooking,
   completeBooking,
+  endBookingRecurrence,
   previewBookingCancellation,
 } from '../../schedule/scheduleApi'
 import { createTransaction } from '../../transactions/transactionsApi'
@@ -31,6 +32,7 @@ vi.mock('../../courts/courtsApi', () => ({
 vi.mock('../../schedule/scheduleApi', () => ({
   cancelBooking: vi.fn(),
   completeBooking: vi.fn(),
+  endBookingRecurrence: vi.fn(),
   markBookingNoShow: vi.fn(),
   previewBookingCancellation: vi.fn(),
 }))
@@ -44,6 +46,7 @@ const mockedListBookings = vi.mocked(listBookings)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedCancelBooking = vi.mocked(cancelBooking)
 const mockedCompleteBooking = vi.mocked(completeBooking)
+const mockedEndBookingRecurrence = vi.mocked(endBookingRecurrence)
 const mockedPreviewBookingCancellation = vi.mocked(previewBookingCancellation)
 const mockedCreateTransaction = vi.mocked(createTransaction)
 function bookingFixture(
@@ -178,13 +181,16 @@ describe('BookingsListPage', () => {
     renderBookingsPage()
 
     expect(
-      await screen.findByText('مفيش حجوزات لعرضها.'),
+      await screen.findByText('مفيش حجوزات لسه.'),
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('تاريخ محدد')).not.toBeInTheDocument()
     expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {})
-    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: 'القادمة فقط' }))
-      .not.toBeInTheDocument()
+    expect(
+      screen.getByRole('searchbox', { name: 'اسم العميل أو رقم الهاتف' }),
+    ).toHaveClass('sloty-mobile-safe-input')
+    expect(
+      screen.getByRole('checkbox', { name: 'الحجوزات القادمة فقط' }),
+    ).toBeInTheDocument()
   })
 
   it('respects needs_action summary redirect filters', async () => {
@@ -199,6 +205,40 @@ describe('BookingsListPage', () => {
     expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
       needs_action: 'true',
     })
+  })
+
+  it('debounces unified server search, resets page, and preserves review filters', async () => {
+    mockedListBookings.mockResolvedValue(paginatedResponse([]))
+
+    renderBookingsPage('/bookings?page=5&upcoming=true')
+
+    await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.')
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'اسم العميل أو رقم الهاتف',
+    })
+
+    fireEvent.change(searchInput, { target: { value: '01012345678' } })
+    await act(async () => {
+      vi.advanceTimersByTime(399)
+    })
+    expect(mockedListBookings).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      vi.advanceTimersByTime(1)
+    })
+    await waitFor(() => {
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+        search: '01012345678',
+        upcoming: 'true',
+      })
+    })
+    expect(
+      screen.getByRole('button', {
+        name: 'إزالة فلتر بحث: 01012345678',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'الحجوزات القادمة فقط' }))
+      .toBeChecked()
   })
 
   it('shows date and HOLD chips from URL filters', async () => {
@@ -254,7 +294,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    await screen.findByText('مفيش حجوزات لعرضها.')
+    await screen.findByText('مفيش حجوزات لسه.')
     await user.click(screen.getByRole('checkbox', { name: 'تحتاج إجراء' }))
 
     expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
@@ -294,7 +334,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage()
 
-    await screen.findByText('مفيش حجوزات لعرضها.')
+    await screen.findByText('مفيش حجوزات لسه.')
     await user.click(screen.getByRole('button', { name: 'فلاتر إضافية' }))
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
@@ -313,7 +353,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?needs_action=true&has_remaining_amount=true')
 
-    await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.')
+    await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.')
     await user.click(screen.getByRole('button', { name: 'فلاتر إضافية' }))
     await user.click(screen.getByRole('checkbox', { name: 'متأخرة' }))
     await user.click(screen.getByRole('checkbox', { name: 'انتهى وقتها' }))
@@ -379,7 +419,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?needs_action=true&status=HOLD&date=2026-07-21')
 
-    await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.')
+    await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.')
     await user.click(screen.getByRole('button', { name: 'فلاتر إضافية' }))
     await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
 
@@ -394,9 +434,10 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?court=4&status=HOLD')
 
-    await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.')
+    await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.')
     expect(mockedListCourts).not.toHaveBeenCalled()
     expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
+      court: 3,
       status: 'HOLD',
     })
     expect(screen.queryByRole('button', { name: /ملعب/ })).not.toBeInTheDocument()
@@ -458,7 +499,7 @@ describe('BookingsListPage', () => {
         status: 'HOLD',
       })
     })
-    expect(await screen.findByText('ملقيناش حجوزات مطابقة للفلاتر الحالية.'))
+    expect(await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.'))
       .toBeInTheDocument()
   })
 
@@ -671,6 +712,59 @@ describe('BookingsListPage', () => {
     })
   })
 
+  it('sends the backend-owned recurring completion decision without a deposit amount', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const recurringBooking = {
+      ...bookingFixture({
+        id: 41,
+        court: 3,
+        customer_name: 'ليلى الأسبوعية',
+        start_time: '2026-07-21T08:00:00Z',
+        end_time: '2026-07-21T09:00:00Z',
+        status: 'CONFIRMED',
+        paid_amount: '300.00',
+        remaining_amount: '0.00',
+      }),
+      is_recurring: true,
+      recurrence_status: 'ACTIVE' as const,
+      recurrence_next: {
+        can_continue: true,
+        start_time: '2026-07-28T08:00:00Z',
+        end_time: '2026-07-28T09:00:00Z',
+        total_price: '350.00',
+        required_deposit: '0.00',
+      },
+    }
+
+    mockedListBookings.mockResolvedValueOnce({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [recurringBooking],
+    })
+    mockedCompleteBooking.mockResolvedValueOnce({
+      ...recurringBooking,
+      status: 'COMPLETED',
+    })
+
+    renderBookingsPage('/bookings?date=2026-07-21')
+    await user.click(
+      await screen.findByRole('button', { name: 'مراجعة حجز ليلى الأسبوعية' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'إكمال' }))
+    await user.click(
+      screen.getByRole('button', { name: 'إكمال واستمرار أسبوعيًا' }),
+    )
+
+    await waitFor(() => {
+      expect(mockedCompleteBooking).toHaveBeenCalledWith('nasr-club', 41, {
+        continue_recurring: true,
+      })
+    })
+    expect(mockedCompleteBooking.mock.calls.at(-1)?.[2])
+      .not.toHaveProperty('next_deposit_amount')
+  })
+
   it('uses backend full-payment errors to guide users to payment', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
@@ -860,5 +954,54 @@ describe('BookingsListPage', () => {
       })
     })
     expect(await screen.findByText('تم إلغاء الحجز بنجاح')).toBeInTheDocument()
+  })
+
+  it('ends active recurrence from the shared details sheet and refreshes it', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const activeRecurringBooking = {
+      ...bookingFixture({
+        id: 40,
+        court: 3,
+        customer_name: 'أحمد الأسبوعي',
+        start_time: '2026-07-21T08:00:00Z',
+        end_time: '2026-07-21T09:00:00Z',
+        status: 'CONFIRMED',
+        paid_amount: '300.00',
+        remaining_amount: '0.00',
+      }),
+      is_recurring: true,
+      recurrence_status: 'ACTIVE' as const,
+    }
+    const endedRecurringBooking = {
+      ...activeRecurringBooking,
+      recurrence_status: 'ENDED' as const,
+    }
+
+    mockedListBookings.mockResolvedValueOnce({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [activeRecurringBooking],
+    })
+    mockedEndBookingRecurrence.mockResolvedValueOnce(endedRecurringBooking)
+
+    renderBookingsPage('/bookings?date=2026-07-21')
+    await user.click(
+      await screen.findByRole('button', { name: 'مراجعة حجز أحمد الأسبوعي' }),
+    )
+    await user.click(screen.getByText('••• خيارات أخرى'))
+    await user.click(screen.getByRole('button', { name: 'إيقاف التكرار' }))
+    const stopButtons = screen.getAllByRole('button', {
+      name: 'إيقاف التكرار',
+    })
+    await user.click(stopButtons.at(-1)!)
+
+    await waitFor(() => {
+      expect(mockedEndBookingRecurrence).toHaveBeenCalledWith('nasr-club', 40)
+    })
+    expect(await screen.findByText('تم إيقاف تكرار الحجز')).toBeInTheDocument()
+    expect(screen.getByText('↻ حجز أسبوعي')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'إيقاف التكرار' }))
+      .not.toBeInTheDocument()
   })
 })

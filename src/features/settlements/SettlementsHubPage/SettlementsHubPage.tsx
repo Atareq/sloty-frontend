@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
-import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
+import {
+  getApiErrorCode,
+  getApiErrorMessage,
+} from '../../../core/api/apiError.helpers'
 import {
   canManageSettlements,
   canViewOwnSettlements,
@@ -12,6 +15,7 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { formatArabicDateTime } from '../../../shared/utils/date'
+import { formatMoneyAmount } from '../../../shared/utils/money'
 import {
   buildPathWithQuery,
   type QueryParamValue,
@@ -22,10 +26,13 @@ import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import { getSettlementPreview, listSettlements } from '../settlementsApi'
+import {
+  formatSettlementActor,
+  getSettlementCollectorName,
+} from '../settlementDisplay.helpers'
 import { SettlementPreviewContent } from '../components/SettlementPreviewContent/SettlementPreviewContent'
 import type {
   Settlement,
-  SettlementActor,
   SettlementPreview,
   SettlementQueryParams,
   SettlementStatus,
@@ -98,25 +105,13 @@ function getSettlementsSearch(params: SettlementQueryParams): string {
   return buildPathWithQuery('', params as Record<string, QueryParamValue>)
 }
 
-function formatActor(actor: number | SettlementActor | null | undefined): string {
-  if (!actor) {
-    return 'غير محدد'
-  }
-
-  if (typeof actor === 'number') {
-    return `#${actor}`
-  }
-
-  return actor.name ?? `#${actor.id}`
-}
-
 function getUserName(user: ClubUser): string {
   const fullName = [user.first_name, user.last_name]
     .map((part) => part.trim())
     .filter(Boolean)
     .join(' ')
 
-  return fullName || user.username || `#${user.id}`
+  return fullName || user.username || 'مستخدم النادي'
 }
 
 function normalizeClubUsers(
@@ -168,7 +163,7 @@ function SettlementFiltersForm({
       ? [
         {
           value: localFilters.collected_by,
-          label: `الموظف #${localFilters.collected_by}`,
+          label: 'موظف محدد',
         },
       ]
       : []),
@@ -182,7 +177,7 @@ function SettlementFiltersForm({
     { value: '', label: 'كل الملاعب' },
     ...(localFilters.court
     && !courts.some((court) => String(court.id) === localFilters.court)
-      ? [{ value: localFilters.court, label: `ملعب #${localFilters.court}` }]
+      ? [{ value: localFilters.court, label: 'ملعب محدد' }]
       : []),
     ...courts.map((court) => ({
       value: String(court.id),
@@ -250,7 +245,7 @@ function SettlementFiltersForm({
 export function SettlementsHubPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [users, setUsers] = useState<ClubUser[]>([])
   const [courts, setCourts] = useState<Court[]>([])
@@ -263,6 +258,7 @@ export function SettlementsHubPage() {
   const [ownPreview, setOwnPreview] = useState<SettlementPreview | null>(null)
   const [isOwnPreviewLoading, setIsOwnPreviewLoading] = useState(false)
   const [ownPreviewError, setOwnPreviewError] = useState<string | null>(null)
+  const [isOwnPreviewEmpty, setIsOwnPreviewEmpty] = useState(false)
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
   const canSettle = canManageSettlements(selectedMembership, role)
   const canViewOwn = canViewOwnSettlements(selectedMembership, role)
@@ -276,6 +272,10 @@ export function SettlementsHubPage() {
     [queryParams],
   )
   const hasAccess = Boolean(selectedClubSlug && canViewOwn)
+  const reviewableUsers = useMemo(
+    () => users.filter((user) => user.id !== currentUser?.id),
+    [currentUser?.id, users],
+  )
 
   useEffect(() => {
     let isActive = true
@@ -302,9 +302,20 @@ export function SettlementsHubPage() {
 
       if (usersResult.status === 'fulfilled') {
         const nextUsers = normalizeClubUsers(usersResult.value)
+        const nextReviewableUsers = nextUsers.filter(
+          (user) => user.id !== currentUser?.id,
+        )
 
         setUsers(nextUsers)
-        setSelectedCollectorId((current) => current || String(nextUsers[0]?.id ?? ''))
+        setSelectedCollectorId((current) => {
+          const isCurrentReviewable = nextReviewableUsers.some(
+            (user) => String(user.id) === current,
+          )
+
+          return isCurrentReviewable
+            ? current
+            : String(nextReviewableUsers[0]?.id ?? '')
+        })
       } else {
         setUsers([])
         setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
@@ -325,7 +336,7 @@ export function SettlementsHubPage() {
     return () => {
       isActive = false
     }
-  }, [canSettle, hasAccess, selectedClubSlug])
+  }, [canSettle, currentUser?.id, hasAccess, selectedClubSlug])
 
   useEffect(() => {
     let isActive = true
@@ -334,25 +345,32 @@ export function SettlementsHubPage() {
       if (!selectedClubSlug || !isOwnMode) {
         setOwnPreview(null)
         setOwnPreviewError(null)
+        setIsOwnPreviewEmpty(false)
         setIsOwnPreviewLoading(false)
         return
       }
 
       setIsOwnPreviewLoading(true)
       setOwnPreviewError(null)
+      setIsOwnPreviewEmpty(false)
 
       try {
         const response = await getSettlementPreview(selectedClubSlug, {})
 
         if (isActive) {
           setOwnPreview(response)
+          setIsOwnPreviewEmpty(response.transaction_count <= 0)
         }
       } catch (error) {
         if (isActive) {
           setOwnPreview(null)
-          setOwnPreviewError(
-            getApiErrorMessage(error, 'تعذر تحميل المبلغ الحالي غير المسوى'),
-          )
+          if (getApiErrorCode(error) === 'NO_UNSETTLED_TRANSACTIONS') {
+            setIsOwnPreviewEmpty(true)
+          } else {
+            setOwnPreviewError(
+              getApiErrorMessage(error, 'تعذر تحميل المبلغ الحالي غير المسوى'),
+            )
+          }
         }
       } finally {
         if (isActive) {
@@ -466,11 +484,11 @@ export function SettlementsHubPage() {
 
           <form className="grid gap-3 md:grid-cols-[1fr_auto]" onSubmit={handleReviewSubmit}>
             <AppSelect
-              disabled={isLoadingFilters || users.length === 0}
+              disabled={isLoadingFilters || reviewableUsers.length === 0}
               emptyLabel="لا يوجد موظفون متاحون"
               label="الموظف المحصل"
               onChange={setSelectedCollectorId}
-              options={users.map((user) => ({
+              options={reviewableUsers.map((user) => ({
                 value: String(user.id),
                 label: getUserName(user),
               }))}
@@ -540,8 +558,7 @@ export function SettlementsHubPage() {
 
           {!isOwnPreviewLoading &&
           !ownPreviewError &&
-          ownPreview &&
-          ownPreview.transaction_count === 0 ? (
+          isOwnPreviewEmpty ? (
             <AppCard>
               <p className="text-sm font-black text-[var(--sloty-text-primary)]">
                 مفيش مبلغ غير مسوى عندك دلوقتي.
@@ -675,10 +692,7 @@ export function SettlementsHubPage() {
                       الموظف
                     </p>
                     <p className="mt-1 text-lg font-black text-[var(--sloty-text-primary)]">
-                      {settlement.collected_by_name ??
-                        (settlement.collected_by
-                          ? `#${settlement.collected_by}`
-                          : 'غير محدد')}
+                      {getSettlementCollectorName(settlement)}
                     </p>
                   </div>
                   {settlement.total_amount ? (
@@ -686,7 +700,7 @@ export function SettlementsHubPage() {
                       className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-sm font-black text-[var(--sloty-primary-dark)]"
                       dir="ltr"
                     >
-                      {settlement.total_amount}
+                      {formatMoneyAmount(settlement.total_amount)}
                     </p>
                   ) : null}
                 </div>
@@ -725,7 +739,7 @@ export function SettlementsHubPage() {
                       أنشئت بواسطة
                     </dt>
                     <dd className="font-black text-[var(--sloty-text-primary)]">
-                      {formatActor(settlement.created_by)}
+                      {formatSettlementActor(settlement.created_by)}
                     </dd>
                   </div>
                   {createdDate ? (
@@ -744,7 +758,7 @@ export function SettlementsHubPage() {
                         تم التسوية بواسطة
                       </dt>
                       <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {formatActor(settlement.settled_by)}
+                        {formatSettlementActor(settlement.settled_by)}
                       </dd>
                     </div>
                   ) : null}

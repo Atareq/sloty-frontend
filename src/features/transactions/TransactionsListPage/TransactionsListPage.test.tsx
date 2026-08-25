@@ -186,7 +186,8 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    expect(await screen.findByText('150.00')).toBeInTheDocument()
+    expect(await screen.findByText('150.00 جنيه')).toBeInTheDocument()
+    expect(screen.getByText('تحصيل')).toBeInTheDocument()
     expect(screen.getByText('محفظة رقمية')).toBeInTheDocument()
     expect(screen.getByText('ملعب النجوم')).toBeInTheDocument()
     expect(screen.getByText('collector')).toBeInTheDocument()
@@ -222,11 +223,13 @@ describe('TransactionsListPage', () => {
 
     expect((await screen.findAllByText('ملعب 1')).length).toBeGreaterThan(0)
     expect(screen.queryByText('كل الملاعب')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('الموظف المحصل')).not.toBeInTheDocument()
     expect(mockedListCourts).not.toHaveBeenCalled()
+    expect(mockedListClubUsers).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
         court: '3',
-        created_by: '15',
+        ...defaultFilters,
       })
     })
   })
@@ -237,7 +240,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(
-      await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.'),
+      await screen.findByText('مفيش عمليات مالية لسه.'),
     ).toBeInTheDocument()
   })
 
@@ -273,7 +276,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    expect(await screen.findByText('ملغي')).toBeInTheDocument()
+    expect(await screen.findByText('ملغية')).toBeInTheDocument()
     expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
     expect(screen.getByText('أحمد')).toBeInTheDocument()
     expect(
@@ -300,7 +303,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(await screen.findByText('استرداد')).toBeInTheDocument()
-    expect(screen.getByText('-250.00')).toBeInTheDocument()
+    expect(screen.getByText('-250.00 جنيه')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
     ).not.toBeInTheDocument()
@@ -355,7 +358,7 @@ describe('TransactionsListPage', () => {
         settlement_status: 'unsettled',
       },
     )
-    expect(await screen.findByText('تم إلغاء التحصيل بنجاح')).toBeInTheDocument()
+    expect(await screen.findByText('تم إلغاء العملية')).toBeInTheDocument()
   })
 
   it('respects summary redirect filters without adding default dates', async () => {
@@ -426,6 +429,25 @@ describe('TransactionsListPage', () => {
     })
   })
 
+  it('resets pagination when a quick filter changes', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage('/transactions?page=3&settlement_status=settled')
+
+    await user.click(await screen.findByRole('button', { name: 'اليوم' }))
+
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      date_from: '2026-07-20',
+      date_to: '2026-07-20',
+    })
+  })
+
   it('opens advanced filters in a filter sheet', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
@@ -453,7 +475,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
+    await screen.findByText('مفيش عمليات مالية لسه.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.clear(screen.getByLabelText('إلى تاريخ'))
@@ -492,7 +514,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
+    await screen.findByText('مفيش عمليات مالية لسه.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
@@ -526,7 +548,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
+    await screen.findByText('مفيش عمليات مالية لسه.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.click(screen.getByRole('checkbox', { name: 'غير مسواة' }))
@@ -567,7 +589,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage('/transactions?settlement_status=unsettled')
 
-    await screen.findByText('مفيش تحصيلات مطابقة للفلاتر الحالية.')
+    await screen.findByText('مفيش عمليات مالية مطابقة للفلاتر الحالية.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))

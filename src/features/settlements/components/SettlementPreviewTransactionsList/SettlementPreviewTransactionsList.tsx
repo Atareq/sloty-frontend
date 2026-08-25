@@ -62,17 +62,6 @@ export function SettlementPreviewTransactionsList({
                 </div>
 
                 <dl className="grid grid-cols-1 gap-2 text-sm">
-                  {transaction.booking ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        الحجز
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        حجز #{transaction.booking}
-                      </dd>
-                    </div>
-                  ) : null}
-
                   {transaction.court_name ? (
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                       <dt className="font-bold text-[var(--sloty-text-muted)]">

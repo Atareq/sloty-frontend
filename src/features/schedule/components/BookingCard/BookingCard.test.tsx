@@ -12,6 +12,18 @@ const confirmedBooking: ScheduleBooking = {
   period: 'am',
 }
 
+const confirmedBookingDetails = {
+  id: 10,
+  court: 7,
+  start_time: '2026-07-20T08:00:00',
+  end_time: '2026-07-20T09:00:00',
+  status: 'CONFIRMED' as const,
+  is_recurring: false,
+  recurrence_status: null,
+  previous_recurring_booking_id: null,
+  next_recurring_booking_id: null,
+}
+
 describe('BookingCard', () => {
   it('renders a compact booked slot with time and human status', () => {
     render(<BookingCard booking={confirmedBooking} />)
@@ -96,6 +108,26 @@ describe('BookingCard', () => {
     expect(screen.getByText('بانتظار العربون')).toBeInTheDocument()
   })
 
+  it('renders a virtual recurring reservation as a normal reserved slot', () => {
+    render(
+      <BookingCard
+        booking={{
+          ...confirmedBooking,
+          status: 'recurring_reserved',
+          label: 'مثبت أسبوعيًا',
+          recurringAnchorBookingId: 77,
+        }}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', { name: '8:00 ص محجوز' }),
+    ).toHaveClass('sloty-green-surface-button')
+    expect(screen.getByText('↻')).toBeInTheDocument()
+    expect(screen.queryByText('مثبت أسبوعيًا')).not.toBeInTheDocument()
+  })
+
   it('renders UNAVAILABLE as a disabled fallback slot', () => {
     render(
       <BookingCard
@@ -125,6 +157,10 @@ describe('BookingCard', () => {
           ...confirmedBooking,
           status: 'completed',
           startTime: '09:00',
+          booking: {
+            ...confirmedBookingDetails,
+            status: 'COMPLETED',
+          },
         }}
         onSelect={onSelect}
       />,
@@ -147,7 +183,7 @@ describe('BookingCard', () => {
 
     const { rerender } = render(
       <BookingCard
-        booking={confirmedBooking}
+        booking={{ ...confirmedBooking, booking: confirmedBookingDetails }}
         onSelect={onSelect}
       />,
     )
@@ -158,9 +194,16 @@ describe('BookingCard', () => {
       }),
     )
 
-    expect(onSelect).toHaveBeenCalledWith(confirmedBooking)
+    expect(onSelect).toHaveBeenCalledWith({
+      ...confirmedBooking,
+      booking: confirmedBookingDetails,
+    })
 
-    rerender(<BookingCard booking={confirmedBooking} />)
+    rerender(
+      <BookingCard
+        booking={{ ...confirmedBooking, booking: confirmedBookingDetails }}
+      />,
+    )
 
     await user.click(
       screen.getByRole('button', {

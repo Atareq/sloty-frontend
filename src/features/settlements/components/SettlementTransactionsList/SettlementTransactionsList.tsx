@@ -1,5 +1,6 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type {
   SettlementLine,
   SettlementPreviewTransaction,
@@ -63,7 +64,7 @@ export function SettlementTransactionsList({
                   className="mt-1 text-xl font-black text-[var(--sloty-primary-dark)]"
                   dir="ltr"
                 >
-                  {transaction.amount}
+                  {formatMoneyAmount(transaction.amount)}
                 </p>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
@@ -84,32 +85,6 @@ export function SettlementTransactionsList({
                   </dt>
                   <dd className="font-black text-[var(--sloty-text-primary)]">
                     {transaction.court_name}
-                  </dd>
-                </div>
-              ) : null}
-              {'booking' in transaction && transaction.booking ? (
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                  <dt className="font-bold text-[var(--sloty-text-muted)]">
-                    الحجز
-                  </dt>
-                  <dd
-                    className="font-black text-[var(--sloty-text-primary)]"
-                    dir="ltr"
-                  >
-                    #{transaction.booking}
-                  </dd>
-                </div>
-              ) : null}
-              {'transaction' in transaction ? (
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                  <dt className="font-bold text-[var(--sloty-text-muted)]">
-                    المعاملة
-                  </dt>
-                  <dd
-                    className="font-black text-[var(--sloty-text-primary)]"
-                    dir="ltr"
-                  >
-                    #{transaction.transaction}
                   </dd>
                 </div>
               ) : null}

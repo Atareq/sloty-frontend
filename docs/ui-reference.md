@@ -27,10 +27,11 @@ Current Schedule date/control UX:
 - Schedule's direct task hierarchy is the authorized Court selector when applicable, `اختار اليوم` with the canonical date navigator, then `اختار المعاد` and the Court board. It must not render another header/hero, page title, Club/date identity, or employee identity below the shell `PageHeader`.
 - Explicit date selection loads the corresponding slots and then smoothly scrolls once to `اختار المعاد`; initial load and Court changes do not auto-scroll. Loading feedback stays inside the slot workspace.
 - Schedule cards are scan controls, not detail cards: show only start time and human status, plus `↻` for an existing recurring booking or a FREE slot with backend `can_start_recurring: true`. Never show customer, phone, notes, price, or payment amounts on the card.
-- Booking creation keeps one optional `ثبّت نفس الموعد كل أسبوع` checkbox and one `تأكيد الحجز` action. A backend-ineligible free slot disables the checkbox and shows a human conflict reason/date from `recurring_blocked_reason` and `first_recurring_conflict_start`; do not calculate conflicts or expose an alternate-start, booking-type, availability-preview, or recurring-wizard flow.
-- `RECURRING_RESERVED` is a distinct backend Schedule state. Its card opens the canonical anchor Booking from `recurring_anchor_booking_id`; do not infer that state from other fields.
-- Active recurring Booking details show `↻ بيتكرر أسبوعيًا` and an end-recurrence action. Cancellation and no-show warnings explain that active recurrence also ends; unsupported recurring reschedule stays hidden.
-- `hold_expires_at` and `recurrence_next`, when returned, are authoritative presentation inputs. The UI must not derive HOLD expiry or calculate the next recurring date, price, or deposit.
+- Booking creation keeps one optional `ثبّت نفس الموعد كل أسبوع` checkbox and one `تأكيد الحجز` action, sending the choice directly as `is_recurring`. A backend-ineligible free slot disables the checkbox and shows a human conflict reason/date from `recurring_blocked_reason` and `first_recurring_conflict_start`; do not calculate conflicts or expose an alternate-start, booking-type, availability-preview, or recurring-wizard flow.
+- `RECURRING_RESERVED` is a distinct backend Schedule state, but its card uses the ordinary `محجوز` label plus a subtle `↻`. It opens the canonical anchor Booking from `recurring_anchor_booking_id`; missing or failed anchors show a safe local error, and the state is never inferred from other fields.
+- Successful creation closes the Add Booking sheet, refreshes slots without changing Court/date, and shows the same short success feedback for normal and recurring Bookings. It does not auto-open the returned HOLD Booking.
+- Recurring Booking details show contextual `↻ حجز أسبوعي`. Strictly active recurrence adds secondary `إيقاف التكرار`; its confirmation explains that the current Booking remains, while cancellation and no-show warn that recurrence also ends. Unsupported active recurring reschedule stays hidden.
+- `hold_expires_at` and `recurrence_next`, when returned, are authoritative presentation inputs. Missing HOLD expiry omits countdown copy. Recurring completion presents backend next occurrence/price/deposit and continue availability, collects next-deposit method/reference/notes only when required, and never derives or sends a next amount.
 - Lightweight summary and closing actions follow the primary slot-selection workspace and must not turn Schedule into another Dashboard.
 - Active filter chips are one accessible clickable button per chip; clicking the chip removes only its own filter and buttons must not be nested.
 - AppSelect owns dropdown presentation and interaction with Sloty surface/border/green/soft-mint styling, Lucide ChevronDown/Check icons, RTL layout, and keyboard support.
@@ -38,7 +39,7 @@ Current Schedule date/control UX:
 - Never expose raw ISO timestamps as intentional product text; use the shared Arabic date-time formatter while preserving ISO API/query values.
 - Refund-policy presentation starts with the affected booking occurrence, then the Court notice policy and backend deadline, then the backend result. Deposit collection time is historical context only.
 - Destructive user wording in Club Settings must say `حذف المستخدم من النادي نهائيًا` and refer only to removing a Manager/Staff membership from that club, never deleting the global account or an Owner membership.
-- Deactivation is reversible through membership `is_active`; permanent deletion removes the membership row and never leaves a `DELETED` card.
+- Deactivation is reversible through membership `is_active`: `إيقاف المستخدم` leads to `متوقف مؤقتًا`, while `تفعيل المستخدم` restores `نشط`. Permanent deletion warns that historical bookings, payments, and operations remain, removes the membership row, and never leaves a `DELETED` card.
 - Court Settings labels the HOLD duration `مدة انتظار الحجز بدون العربون` and the refund notice `سياسة استرداد التأمين`; transport fields remain `internal_hold_expiry_hours` and `cancellation_refund_notice_days`.
 
 1. UI Vision
@@ -789,9 +790,11 @@ State-driven primary actions:
 - Ended, fully-paid confirmed booking: `إكمال`.
 - Active fully-paid confirmed and final read-only statuses: no fabricated primary action.
 
-Use `إلغاء الحجز؟` with a danger `إلغاء الحجز` confirmation. Show the booking appointment, `سياسة استرداد التأمين`, backend refund deadline, and backend eligibility result before confirmation. Do not show reschedule/backend roadmap explanations. Recurring details may show `↻ بيتكرر أسبوعيًا`, but must not expose a normal recurring-page link or unsupported single-occurrence cancellation.
+Use `إلغاء الحجز؟` with a danger `إلغاء الحجز` confirmation. Show the booking appointment, `سياسة استرداد التأمين`, backend refund deadline, and backend eligibility result before confirmation. Do not show reschedule/backend roadmap explanations. Recurring details show contextual `↻ حجز أسبوعي`, but must not expose a recurring page, `RecurringAgreement`, or unsupported single-occurrence cancellation.
 
 HOLD expiry text may use only authoritative `hold_expires_at`. When the field is absent, omit the countdown; never derive the deadline from Court `internal_hold_expiry_hours` or booking creation time.
+
+For active recurring completion, use backend `recurrence_next` to present the next occurrence, total price, required deposit, continuation availability, and human blocked reason. `إكمال واستمرار أسبوعيًا` may send next-deposit method/reference/notes; `إكمال وإيقاف التكرار` sends `continue_recurring: false`. Never calculate next-week data or send a next-deposit amount.
 21. Add Payment Page / Modal
 
 This should be a small focused form.
@@ -893,7 +896,7 @@ If lower price:
 سيتم الاحتفاظ بالسعر الأصلي إلا إذا قام المالك بتعديله.
 25. Owner Dashboard
 
-`/dashboard` is the one operational Home for Staff, Manager, and Owner; do not create a second Home route or parallel page.
+`/dashboard`, labeled `الرئيسية`, is the one operational Home for Staff, Manager, and Owner; do not create a second Home route or parallel page.
 
 Primary hierarchy:
 
@@ -1396,9 +1399,10 @@ Booking Actions
 Payment Labels
 المبلغ
 طريقة الدفع
-كاش
-إنستاباي
-محفظة إلكترونية
+نقدي
+محفظة رقمية
+تحويل بنكي
+أخرى
 رقم العملية
 ملاحظات
 المتبقي
@@ -1409,9 +1413,8 @@ Settlement Labels
 عهد الموظفين
 مراجعة العهدة
 تأكيد استلام العهدة
-إجمالي الكاش
-إجمالي إنستاباي
-إجمالي المحفظة
+إجمالي العهدة
+تفصيل طرق الدفع
 الموظف
 الفترة
 44. Recommended First Design Prototype
@@ -1472,4 +1475,4 @@ Staff Today Schedule
 
 Booking History is a compact lookup and review surface, not a financial detail grid. The visible card contains customer name, phone, human appointment, human status, and only a subtle recurring marker when returned by the backend. Opening the whole card uses the canonical booking action sheet.
 
-The page starts with supported review checkboxes for bookings needing action and bookings with a remaining balance. Detailed Court, status, date, overdue, ended, and expiring-HOLD filters open in the same responsive sheet on mobile, tablet, and desktop. Do not display unsupported customer search or upcoming controls until the paginated backend contract provides them.
+The page starts with a visible unified customer name/phone search, followed by the three supported primary review checkboxes: upcoming bookings, bookings needing action, and bookings with a remaining balance. Search is debounced, URL-backed, and server-side; it must not filter only the loaded page. Detailed Court, status, date, overdue, ended, and expiring-HOLD filters open in the same responsive sheet on mobile, tablet, and desktop. Staff stays scoped to the assigned membership Court without exposing a Court selector or accepting a Court URL override.

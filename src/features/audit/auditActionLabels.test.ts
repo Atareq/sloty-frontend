@@ -13,9 +13,6 @@ describe('audit action labels', () => {
     expect(getAuditActionLabel('SETTLEMENT_MARKED_SETTLED')).toBe(
       'تعليم التسوية كمكتملة',
     )
-    expect(getAuditActionLabel('RECURRING_DEPOSIT_FORFEITED')).toBe(
-      'احتجاز تأمين الحجز الأسبوعي',
-    )
   })
 
   it('falls back safely for unknown actions', () => {

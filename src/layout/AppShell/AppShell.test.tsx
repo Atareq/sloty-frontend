@@ -153,7 +153,7 @@ describe('AppShell', () => {
     renderAppShell()
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(screen.getByRole('heading', { level: 1, name: 'لوحة التحكم' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'الرئيسية' }))
       .toBeInTheDocument()
   })
 
@@ -239,7 +239,7 @@ describe('AppShell', () => {
     const dialog = screen.getByRole('dialog')
 
     for (const label of [
-      'لوحة التحكم',
+      'الرئيسية',
       'الجدول',
       'سجل الحجوزات',
       'التحصيلات',
@@ -273,7 +273,7 @@ describe('AppShell', () => {
     const sidebar = screen.getByRole('navigation', { name: 'تنقل التطبيق' })
 
     for (const label of [
-      'لوحة التحكم',
+      'الرئيسية',
       'الجدول',
       'سجل الحجوزات',
       'التحصيلات',
@@ -408,7 +408,7 @@ describe('AppShell', () => {
     await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
     const dialog = screen.getByRole('dialog')
 
-    expect(within(dialog).getByRole('button', { name: 'لوحة التحكم' }))
+    expect(within(dialog).getByRole('button', { name: 'الرئيسية' }))
       .toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'الجدول' }))
       .toBeInTheDocument()

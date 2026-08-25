@@ -235,7 +235,7 @@ export function AuditLogsPage() {
               <label className="space-y-2 text-sm font-semibold">
                 <span>من تاريخ</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   onChange={(event) =>
                     updateFilter('date_from', event.target.value)
                   }
@@ -246,7 +246,7 @@ export function AuditLogsPage() {
               <label className="space-y-2 text-sm font-semibold">
                 <span>إلى تاريخ</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   onChange={(event) =>
                     updateFilter('date_to', event.target.value)
                   }

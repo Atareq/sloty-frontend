@@ -115,11 +115,93 @@ describe('BookingActionSheet', () => {
       { onCancel: vi.fn(), onNoShow: vi.fn() },
     )
 
-    expect(screen.getByText('↻ بيتكرر أسبوعيًا')).toBeInTheDocument()
+    expect(screen.getByText('↻ حجز أسبوعي')).toBeInTheDocument()
     expect(screen.queryByText('عرض الحجز الأسبوعي')).not.toBeInTheDocument()
     expect(screen.getByText('••• خيارات أخرى')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'إلغاء الحجز' }))
       .toBeInTheDocument()
+  })
+
+  it('keeps the weekly marker for ended recurrence without stop action', async () => {
+    const user = userEvent.setup()
+
+    renderSheet(
+      { ...baseBooking, is_recurring: true, recurrence_status: 'ENDED' },
+      { onEndRecurrence: vi.fn() },
+    )
+
+    expect(screen.getByText('↻ حجز أسبوعي')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'إيقاف التكرار' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByText('••• خيارات أخرى')).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+  })
+
+  it('keeps stop recurrence secondary and returns to details when confirmation closes', async () => {
+    const user = userEvent.setup()
+    const onEndRecurrence = vi.fn()
+
+    renderSheet(
+      { ...baseBooking, is_recurring: true, recurrence_status: 'ACTIVE' },
+      { onEndRecurrence },
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'إيقاف التكرار' }).closest('details'),
+    ).not.toHaveAttribute('open')
+    await user.click(screen.getByText('••• خيارات أخرى'))
+    await user.click(screen.getByRole('button', { name: 'إيقاف التكرار' }))
+
+    expect(screen.getByRole('heading', { name: 'إيقاف تكرار الحجز؟' }))
+      .toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'الحجز الحالي هيفضل زي ما هو، لكن نفس المعاد مش هيتحجز تلقائيًا بعد كده.',
+      ),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'رجوع' }))
+    expect(screen.queryByRole('heading', { name: 'إيقاف تكرار الحجز؟' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'أحمد علي' })).toBeInTheDocument()
+
+    await user.click(screen.getByText('••• خيارات أخرى'))
+    await user.click(screen.getByRole('button', { name: 'إيقاف التكرار' }))
+    const stopButtons = screen.getAllByRole('button', { name: 'إيقاف التكرار' })
+    await user.click(stopButtons.at(-1)!)
+    expect(onEndRecurrence).toHaveBeenCalledWith(
+      expect.objectContaining({ id: baseBooking.id }),
+    )
+  })
+
+  it('uses hold_expires_at and omits a countdown when it is missing', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-25T12:00:00Z'))
+
+    const { rerender } = render(
+      <BookingActionSheet
+        booking={{
+          ...baseBooking,
+          status: 'HOLD',
+          hold_expires_at: '2026-08-25T12:25:00Z',
+        }}
+        isOpen
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('باقي 25 دقيقة قبل إلغاء الحجز تلقائيًا'))
+      .toBeInTheDocument()
+
+    rerender(
+      <BookingActionSheet
+        booking={{ ...baseBooking, status: 'HOLD', hold_expires_at: null }}
+        isOpen
+        onClose={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText(/قبل إلغاء الحجز تلقائيًا/)).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it.each(['COMPLETED', 'CANCELLED', 'EXPIRED', 'NO_SHOW'] as const)(

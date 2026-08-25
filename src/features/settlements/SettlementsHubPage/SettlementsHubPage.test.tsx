@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
@@ -34,7 +35,19 @@ function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF', canSettle = false) {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
-    currentUser: null,
+    currentUser: {
+      id: 1,
+      username: 'current-user',
+      email: 'manager@example.com',
+      first_name: 'Current',
+      last_name: 'User',
+      phone_number: null,
+      is_active: true,
+      is_platform_admin: false,
+      account_created_by: null,
+      requires_club_selection: false,
+      memberships: [],
+    },
     selectedClubSlug: 'nasr-club',
     selectedMembership: {
       id: 10,
@@ -160,5 +173,55 @@ describe('SettlementsHubPage', () => {
       expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
     })
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
+  })
+
+  it('shows the staff empty-custody state for NO_UNSETTLED_TRANSACTIONS', async () => {
+    mockedGetSettlementPreview.mockRejectedValueOnce(
+      new ApiClientError('No unsettled transactions', 404, {
+        code: 'NO_UNSETTLED_TRANSACTIONS',
+      }),
+    )
+
+    renderHub()
+
+    expect(
+      await screen.findByText('مفيش مبلغ غير مسوى عندك دلوقتي.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No unsettled transactions')).not.toBeInTheDocument()
+  })
+
+  it('does not offer the signed-in manager as a custody review target', async () => {
+    mockAuth('MANAGER', true)
+    mockedListClubUsers.mockResolvedValueOnce({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: 1,
+          membership_id: 99,
+          username: 'current-user',
+          first_name: 'Current',
+          last_name: 'User',
+          role: 'MANAGER',
+        },
+        {
+          id: 15,
+          membership_id: 100,
+          username: 'collector',
+          first_name: 'أحمد',
+          last_name: 'محمد',
+          role: 'STAFF',
+        },
+      ],
+    })
+
+    renderHub()
+
+    expect(await screen.findByText('عهد الموظفين')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('Current User')).not.toBeInTheDocument()
+    })
+    expect(screen.getAllByText('أحمد محمد').length).toBeGreaterThan(0)
   })
 })

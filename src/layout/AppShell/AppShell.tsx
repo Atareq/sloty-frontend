@@ -34,7 +34,7 @@ const mobileMenuGroups: NavigationGroup[] = [
     paths: ['/dashboard', '/schedule', '/bookings'],
   },
   {
-    title: 'الأموال والجرد',
+    title: 'التحصيل والعهد',
     paths: ['/transactions', '/settlements'],
   },
   {

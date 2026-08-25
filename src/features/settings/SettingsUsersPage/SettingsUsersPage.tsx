@@ -71,7 +71,7 @@ const userRoleFilterOptions = [
 const userStatusFilterOptions = [
   { value: '', label: 'الكل' },
   { value: 'true', label: 'نشط' },
-  { value: 'false', label: 'غير نشط' },
+  { value: 'false', label: 'متوقف مؤقتًا' },
 ]
 
 const createMembershipRoleOptions = [
@@ -304,7 +304,7 @@ function ActiveBadge({ isActive }: { isActive: boolean | undefined }) {
           : 'bg-slate-100 text-slate-700',
       ].join(' ')}
     >
-      {isActive ? 'نشط' : 'غير نشط'}
+      {isActive ? 'نشط' : 'متوقف مؤقتًا'}
     </span>
   )
 }
@@ -812,7 +812,7 @@ function UserCard({
   courts,
   onEditPermissions,
   onDeleteMembership,
-  onUpdateMembershipActivity,
+  onRequestMembershipActivityUpdate,
   updatingMembershipId,
   user,
 }: {
@@ -820,7 +820,10 @@ function UserCard({
   courts: Court[]
   onEditPermissions: (user: ClubUser) => void
   onDeleteMembership: (user: ClubUser) => void
-  onUpdateMembershipActivity: (user: ClubUser, isActive: boolean) => void
+  onRequestMembershipActivityUpdate: (
+    user: ClubUser,
+    isActive: boolean,
+  ) => void
   updatingMembershipId: number | null
   user: ClubUser
 }) {
@@ -863,12 +866,6 @@ function UserCard({
             </dd>
           </div>
         ) : null}
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-          <dt className="font-bold text-[var(--sloty-text-muted)]">رقم العضوية</dt>
-          <dd className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
-            #{user.membership_id}
-          </dd>
-        </div>
       </dl>
 
       <UserPermissions user={user} />
@@ -890,7 +887,7 @@ function UserCard({
             disabled={updatingMembershipId === user.membership_id}
             fullWidth
             onClick={() =>
-              onUpdateMembershipActivity(
+              onRequestMembershipActivityUpdate(
                 user,
                 user.membership_is_active === false,
               )
@@ -901,7 +898,7 @@ function UserCard({
             {updatingMembershipId === user.membership_id
               ? 'جاري تحديث العضوية...'
               : user.membership_is_active === false
-                ? 'تفعيل العضوية'
+                ? 'تفعيل المستخدم'
                 : 'إيقاف المستخدم'}
           </AppButton>
           <AppButton
@@ -943,6 +940,14 @@ export function SettingsUsersPage() {
   >(null)
   const [membershipPendingDeletion, setMembershipPendingDeletion] =
     useState<ClubUser | null>(null)
+  const [membershipPendingDeactivation, setMembershipPendingDeactivation] =
+    useState<ClubUser | null>(null)
+  const [membershipDeletionError, setMembershipDeletionError] = useState<
+    string | null
+  >(null)
+  const [membershipActivityError, setMembershipActivityError] = useState<
+    string | null
+  >(null)
   const [permissionsError, setPermissionsError] = useState<string | null>(null)
   const [permissionsFieldErrors, setPermissionsFieldErrors] = useState<
     Partial<Record<keyof UpdateManagerPermissionsPayload, string>>
@@ -959,6 +964,16 @@ export function SettingsUsersPage() {
     [queryParams],
   )
   const isOwner = selectedMembership?.role === 'OWNER'
+
+  useEffect(() => {
+    if (!message?.startsWith('✓ ')) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setMessage(null), 3_000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [message])
 
   useEffect(() => {
     let isActive = true
@@ -1015,7 +1030,7 @@ export function SettingsUsersPage() {
 
       setIsLoading(true)
       setError(null)
-      setMessage(null)
+      setMessage((current) => current?.startsWith('✓ ') ? current : null)
 
       try {
         const usersResponse = await listClubUsers(selectedClubSlug, queryParams)
@@ -1155,21 +1170,30 @@ export function SettingsUsersPage() {
 
     setUpdatingMembershipId(user.membership_id)
     setError(null)
+    setMembershipActivityError(null)
 
     try {
       await updateMembershipActivity(selectedClubSlug, user.membership_id, {
         is_active: isActive,
       })
+      setMembershipPendingDeactivation(null)
       setUsersReloadKey((current) => current + 1)
-      setMessage(isActive ? 'تم تفعيل العضوية' : 'تم تعطيل العضوية')
+      setMessage(isActive ? '✓ تم تفعيل المستخدم' : '✓ تم إيقاف المستخدم')
 
       if (selectedMembership?.id === user.membership_id) {
         await refreshCurrentUser()
       }
     } catch (error) {
-      setError(
-        getApiErrorMessage(error, 'تعذر تحديث حالة العضوية. حاول مرة أخرى'),
+      const errorMessage = getApiErrorMessage(
+        error,
+        'تعذر تحديث حالة العضوية. حاول مرة أخرى',
       )
+
+      if (!isActive && membershipPendingDeactivation) {
+        setMembershipActivityError(errorMessage)
+      } else {
+        setError(errorMessage)
+      }
 
       if (isApiClientError(error) && error.status === 403) {
         await refreshCurrentUser()
@@ -1186,7 +1210,7 @@ export function SettingsUsersPage() {
 
     const membershipId = membershipPendingDeletion.membership_id
     setUpdatingMembershipId(membershipId)
-    setError(null)
+    setMembershipDeletionError(null)
 
     try {
       await deleteClubMembership(selectedClubSlug, membershipId)
@@ -1195,11 +1219,15 @@ export function SettingsUsersPage() {
       )
       setMembershipPendingDeletion(null)
       setUsersReloadKey((current) => current + 1)
-      setMessage('تم حذف المستخدم من النادي نهائيًا')
+      setMessage('✓ تم حذف المستخدم من النادي نهائيًا')
     } catch (error) {
-      setError(
+      setMembershipDeletionError(
         getApiErrorMessage(error, 'تعذر حذف المستخدم من النادي. حاول مرة أخرى'),
       )
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
     } finally {
       setUpdatingMembershipId(null)
     }
@@ -1365,8 +1393,19 @@ export function SettingsUsersPage() {
                 setPermissionsFieldErrors({})
                 setEditingManager(user)
               }}
-              onDeleteMembership={setMembershipPendingDeletion}
-              onUpdateMembershipActivity={handleUpdateMembershipActivity}
+              onDeleteMembership={(user) => {
+                setMembershipDeletionError(null)
+                setMembershipPendingDeletion(user)
+              }}
+              onRequestMembershipActivityUpdate={(user, isActive) => {
+                if (isActive) {
+                  void handleUpdateMembershipActivity(user, true)
+                  return
+                }
+
+                setMembershipActivityError(null)
+                setMembershipPendingDeactivation(user)
+              }}
               updatingMembershipId={updatingMembershipId}
               user={user}
             />
@@ -1419,9 +1458,17 @@ export function SettingsUsersPage() {
               حذف المستخدم من النادي نهائيًا؟
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
-              سيتم حذف عضوية {getClubUserDisplayName(membershipPendingDeletion)} نهائيًا.
-              الإيقاف المؤقت يظل متاحًا من زر «إيقاف المستخدم».
+              هيتم حذف عضوية {getClubUserDisplayName(membershipPendingDeletion)} من
+              النادي، ومش هيقدر يستخدم العضوية دي مرة تانية.
             </p>
+            <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
+              الحجوزات والمدفوعات والعمليات السابقة هتفضل محفوظة.
+            </p>
+            {membershipDeletionError ? (
+              <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+                {membershipDeletionError}
+              </p>
+            ) : null}
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <AppButton
                 disabled={updatingMembershipId !== null}
@@ -1430,12 +1477,65 @@ export function SettingsUsersPage() {
                 type="button"
                 variant="danger"
               >
-                {updatingMembershipId !== null ? 'جاري الحذف...' : 'تأكيد الحذف النهائي'}
+                {updatingMembershipId !== null ? 'جاري الحذف...' : 'حذف نهائي'}
               </AppButton>
               <AppButton
                 disabled={updatingMembershipId !== null}
                 fullWidth
                 onClick={() => setMembershipPendingDeletion(null)}
+                type="button"
+                variant="secondary"
+              >
+                رجوع
+              </AppButton>
+            </div>
+          </div>
+        </AppSheet>
+      ) : null}
+
+      {membershipPendingDeactivation ? (
+        <AppSheet
+          ariaLabel="إيقاف المستخدم"
+          onRequestClose={() => {
+            if (updatingMembershipId === null) {
+              setMembershipPendingDeactivation(null)
+            }
+          }}
+        >
+          <div className="p-5 pt-14">
+            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
+              إيقاف المستخدم؟
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
+              {getClubUserDisplayName(membershipPendingDeactivation)} مش هيقدر
+              يدخل النادي لحد ما يتم تفعيله مرة تانية.
+            </p>
+            {membershipActivityError ? (
+              <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+                {membershipActivityError}
+              </p>
+            ) : null}
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <AppButton
+                disabled={updatingMembershipId !== null}
+                fullWidth
+                onClick={() =>
+                  void handleUpdateMembershipActivity(
+                    membershipPendingDeactivation,
+                    false,
+                  )
+                }
+                type="button"
+                variant="danger"
+              >
+                {updatingMembershipId !== null
+                  ? 'جاري الإيقاف...'
+                  : 'إيقاف المستخدم'}
+              </AppButton>
+              <AppButton
+                disabled={updatingMembershipId !== null}
+                fullWidth
+                onClick={() => setMembershipPendingDeactivation(null)}
                 type="button"
                 variant="secondary"
               >

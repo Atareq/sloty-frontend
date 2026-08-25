@@ -529,6 +529,7 @@ describe('SchedulePage', () => {
         customer_phone: '+201000000000',
         start_time: `${today}T09:00:00`,
         end_time: `${today}T10:00:00`,
+        is_recurring: false,
       })
     })
     expect(await screen.findByText('✓ تم حجز الموعد بنجاح'))
@@ -672,6 +673,7 @@ describe('SchedulePage', () => {
         customer_phone: '+201000000000',
         start_time: `${today}T09:00:00`,
         end_time: `${today}T10:00:00`,
+        is_recurring: false,
       })
     })
     await waitFor(() => {
@@ -679,7 +681,7 @@ describe('SchedulePage', () => {
     })
   })
 
-  it('keeps customer phone when a newly created booking returns HOLD', async () => {
+  it('closes creation after a HOLD response and uses the standard success message', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const today = createDateFilterOptions()[0].date
     mockedCreateBooking.mockResolvedValueOnce(bookingFixture({
@@ -699,12 +701,9 @@ describe('SchedulePage', () => {
     await user.type(screen.getByLabelText('رقم الهاتف'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
-    expect(
-      within(await screen.findByRole('dialog')).getByText('بانتظار العربون'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('عميل جديد')).toBeInTheDocument()
-    expect(screen.getByText('+201012345678')).toBeInTheDocument()
-    expect(screen.queryByText('غير متوفر')).not.toBeInTheDocument()
+    expect(await screen.findByText('✓ تم حجز الموعد بنجاح'))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('creates weekly recurrence through the booking endpoint', async () => {
@@ -747,6 +746,34 @@ describe('SchedulePage', () => {
     })
     await waitFor(() => {
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('uses the stable slot-unavailable code and refreshes the scoped board', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedCreateBooking.mockRejectedValueOnce(
+      new ApiClientError('409 Conflict', 409, {
+        code: 'BOOKING_SLOT_UNAVAILABLE',
+      }),
+    )
+
+    render(<SchedulePage />)
+
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الهاتف'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(
+      await screen.findByText('المعاد مبقاش متاح. اختار ميعاد تاني.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('409 Conflict')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
+      expect(mockedListBookingSlots).toHaveBeenLastCalledWith('nasr-club', {
+        court: 7,
+        date: createDateFilterOptions()[0].date,
+      })
     })
   })
 
@@ -805,7 +832,7 @@ describe('SchedulePage', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: '9:00 ص مثبت أسبوعيًا حجز متكرر',
+        name: '9:00 ص محجوز',
       }),
     )
 
@@ -813,6 +840,105 @@ describe('SchedulePage', () => {
     expect(
       await screen.findByRole('heading', { name: 'عميل الموعد الأسبوعي' }),
     ).toBeInTheDocument()
+  })
+
+  it('shows localized loading while fetching a recurring reservation anchor', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    let resolveAnchor!: (booking: BookingListItem) => void
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'RECURRING_RESERVED',
+          is_available: false,
+          booking: null,
+          recurring_anchor_booking_id: 77,
+        }),
+      ]),
+    )
+    mockedGetBooking.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAnchor = resolve
+        }),
+    )
+
+    render(<SchedulePage />)
+    await user.click(
+      await screen.findByRole('button', { name: '9:00 ص محجوز' }),
+    )
+
+    expect(screen.getByText('جاري تحميل تفاصيل الحجز...'))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveAnchor(
+        bookingFixture({
+          id: 77,
+          court: 7,
+          customer_name: 'عميل الموعد الأسبوعي',
+          start_time: `${createDateFilterOptions()[0].date}T09:00:00`,
+          end_time: `${createDateFilterOptions()[0].date}T10:00:00`,
+          status: 'CONFIRMED',
+        }),
+      )
+    })
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('handles a recurring reservation with no anchor without crashing', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'RECURRING_RESERVED',
+          is_available: false,
+          booking: null,
+          recurring_anchor_booking_id: null,
+        }),
+      ]),
+    )
+
+    render(<SchedulePage />)
+    await user.click(
+      await screen.findByRole('button', { name: '9:00 ص محجوز' }),
+    )
+
+    expect(screen.getByText('تعذر تحميل تفاصيل الحجز.'))
+      .toBeInTheDocument()
+    expect(mockedGetBooking).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows a human error when the recurring reservation anchor fails', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'RECURRING_RESERVED',
+          is_available: false,
+          booking: null,
+          recurring_anchor_booking_id: 77,
+        }),
+      ]),
+    )
+    mockedGetBooking.mockRejectedValueOnce(new Error('technical failure'))
+
+    render(<SchedulePage />)
+    await user.click(
+      await screen.findByRole('button', { name: '9:00 ص محجوز' }),
+    )
+
+    expect(await screen.findByText('تعذر تحميل تفاصيل الحجز.'))
+      .toBeInTheDocument()
+    expect(screen.queryByText('technical failure')).not.toBeInTheDocument()
   })
 
   it('ends recurrence through the booking action endpoint', async () => {
@@ -857,12 +983,12 @@ describe('SchedulePage', () => {
         name: '9:00 ص مؤكد حجز متكرر',
       }),
     )
-    await user.click(
-      screen.getByRole('button', { name: 'إيقاف التكرار الأسبوعي' }),
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'تأكيد إيقاف التكرار' }),
-    )
+    await user.click(screen.getByText('••• خيارات أخرى'))
+    await user.click(screen.getByRole('button', { name: 'إيقاف التكرار' }))
+    const stopButtons = screen.getAllByRole('button', {
+      name: 'إيقاف التكرار',
+    })
+    await user.click(stopButtons.at(-1)!)
 
     await waitFor(() => {
       expect(mockedEndBookingRecurrence).toHaveBeenCalledWith('nasr-club', 77)

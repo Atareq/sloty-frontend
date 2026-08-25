@@ -15,9 +15,9 @@ import { formatArabicDateTime } from '../../../../shared/utils/date'
 import { formatTime12Hour } from '../../scheduleBoard.helpers'
 
 export interface AddBookingSheetValues {
-  booking_type?: 'weekly'
   customer_name: string
   customer_phone: string
+  is_recurring: boolean
   notes?: string
 }
 
@@ -37,11 +37,30 @@ export interface AddBookingSheetProps {
   onSubmit: (values: AddBookingSheetValues) => Promise<void>
 }
 
+function getRecurringBlockedMessage(
+  reason: string | null,
+  conflictStart: string | null,
+): string | null {
+  if (reason === 'ACTIVE_RECURRENCE') {
+    return 'الموعد ده مثبت أسبوعيًا لعميل آخر.'
+  }
+
+  if (reason !== 'FUTURE_CONFLICT') {
+    return null
+  }
+
+  const conflictDate = formatArabicDateTime(conflictStart)
+
+  return conflictDate
+    ? `فيه حجز آخر يوم ${conflictDate}.`
+    : 'فيه حجز آخر بيتعارض مع تثبيت الموعد أسبوعيًا.'
+}
+
 /**
  * Quick manual booking sheet for available/cancelled Booking Board slots.
  *
- * It keeps one-time and weekly creation in the same customer-first form.
- * Weekly availability validation remains internal to the submit callback.
+ * Weekly recurrence is one optional Booking field; final validation remains
+ * authoritative in the Booking create endpoint.
  */
 export function AddBookingSheet({
   canStartRecurring = null,
@@ -72,7 +91,8 @@ export function AddBookingSheet({
     getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')
   const isRecurringBlocked = canStartRecurring === false
-  const recurringConflictDate = formatArabicDateTime(
+  const recurringBlockedMessage = getRecurringBlockedMessage(
+    recurringBlockedReason,
     firstRecurringConflictStart,
   )
 
@@ -112,9 +132,9 @@ export function AddBookingSheet({
     setValidationError(null)
 
     const values: AddBookingSheetValues = {
-      ...(isRecurring ? { booking_type: 'weekly' as const } : {}),
       customer_name: trimmedName,
       customer_phone: customerPhone,
+      is_recurring: isRecurring,
       notes: trimmedNotes || undefined,
     }
 
@@ -201,13 +221,9 @@ export function AddBookingSheet({
                     ? 'غير متاح تثبيت الموعد لهذا الحجز.'
                     : 'هيتحجز نفس اليوم والساعة للعميل كل أسبوع.'}
                 </span>
-                {isRecurringBlocked && recurringBlockedReason ? (
+                {isRecurringBlocked && recurringBlockedMessage ? (
                   <span className="mt-1 block text-xs font-bold leading-5 text-amber-800">
-                    {recurringBlockedReason === 'ACTIVE_RECURRENCE'
-                      ? 'الموعد ده مثبت أسبوعيًا لعميل آخر.'
-                      : recurringConflictDate
-                        ? `فيه حجز آخر يوم ${recurringConflictDate}.`
-                        : 'فيه حجز آخر بيتعارض مع تثبيت الموعد أسبوعيًا.'}
+                    {recurringBlockedMessage}
                   </span>
                 ) : null}
               </span>

@@ -1,4 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type { SettlementPaymentMethod } from '../../settlements.types'
 import { settlementPaymentMethodLabels } from '../../settlements.types'
 
@@ -41,7 +42,7 @@ export function SettlementTotalsCard({
             className="sloty-green-surface rounded-2xl px-4 py-2 text-lg font-black text-white"
             dir="ltr"
           >
-            {totalAmount}
+            {formatMoneyAmount(totalAmount)}
           </p>
         ) : null}
       </div>
@@ -59,7 +60,7 @@ export function SettlementTotalsCard({
               className="mt-1 text-lg font-black text-[var(--sloty-text-primary)]"
               dir="ltr"
             >
-              {totalsByPaymentMethod[method] ?? '0.00'}
+              {formatMoneyAmount(totalsByPaymentMethod[method] ?? '0.00')}
             </dd>
           </div>
         ))}

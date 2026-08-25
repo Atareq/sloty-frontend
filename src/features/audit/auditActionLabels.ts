@@ -13,10 +13,6 @@ export type SupportedAuditAction =
   | 'RECURRING_AGREEMENT_CREATED'
   | 'RECURRING_AGREEMENT_CANCELLED'
   | 'RECURRING_AGREEMENT_AUTO_TERMINATED'
-  | 'RECURRING_DEPOSIT_COLLECTED'
-  | 'RECURRING_DEPOSIT_REFUND_DUE'
-  | 'RECURRING_DEPOSIT_REFUNDED'
-  | 'RECURRING_DEPOSIT_FORFEITED'
   | 'RECURRING_OCCURRENCE_GENERATED'
   | 'RECURRING_GENERATION_FAILED'
 
@@ -35,10 +31,6 @@ export const auditActionLabelMap: Record<SupportedAuditAction, string> = {
   RECURRING_AGREEMENT_CREATED: 'إنشاء حجز أسبوعي',
   RECURRING_AGREEMENT_CANCELLED: 'إلغاء حجز أسبوعي',
   RECURRING_AGREEMENT_AUTO_TERMINATED: 'إنهاء الحجز الأسبوعي تلقائيًا',
-  RECURRING_DEPOSIT_COLLECTED: 'تحصيل تأمين الحجز الأسبوعي',
-  RECURRING_DEPOSIT_REFUND_DUE: 'استحقاق استرداد تأمين الحجز الأسبوعي',
-  RECURRING_DEPOSIT_REFUNDED: 'استرداد تأمين الحجز الأسبوعي',
-  RECURRING_DEPOSIT_FORFEITED: 'احتجاز تأمين الحجز الأسبوعي',
   RECURRING_OCCURRENCE_GENERATED: 'إنشاء حجز أسبوعي تلقائي',
   RECURRING_GENERATION_FAILED: 'تعذر إنشاء الحجز الأسبوعي',
 }

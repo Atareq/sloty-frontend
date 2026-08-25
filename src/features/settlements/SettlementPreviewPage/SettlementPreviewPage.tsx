@@ -110,6 +110,12 @@ export function SettlementPreviewPage() {
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const hasTransactions = Boolean(preview && preview.transaction_count > 0)
+  const canApprovePreview = Boolean(
+    canSettle &&
+      preview?.can_approve &&
+      !preview.is_self_preview &&
+      hasTransactions,
+  )
 
   const loadPreview = useCallback(async (): Promise<void> => {
     if (!selectedClubSlug || !canSettle || !queryParams) {
@@ -167,7 +173,7 @@ export function SettlementPreviewPage() {
   }, [loadPreview])
 
   async function handleConfirmSettlement(): Promise<void> {
-    if (!selectedClubSlug || !queryParams || !preview) {
+    if (!selectedClubSlug || !queryParams || !preview || !canApprovePreview) {
       return
     }
 
@@ -296,17 +302,24 @@ export function SettlementPreviewPage() {
         <>
           <SettlementPreviewContent preview={preview} />
 
-          <AppCard className="space-y-4">
-            <AppButton
-              disabled={!hasTransactions}
-              onClick={() => {
-                setConfirmError(null)
-                setIsConfirmOpen(true)
-              }}
-            >
-              تأكيد استلام العهدة
-            </AppButton>
-          </AppCard>
+          {canApprovePreview ? (
+            <AppCard className="space-y-4">
+              <AppButton
+                onClick={() => {
+                  setConfirmError(null)
+                  setIsConfirmOpen(true)
+                }}
+              >
+                تأكيد استلام العهدة
+              </AppButton>
+            </AppCard>
+          ) : (
+            <AppCard>
+              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                تقدر تراجع العهدة هنا، لكن استلام عهدتك بنفسك غير مسموح.
+              </p>
+            </AppCard>
+          )}
 
           {successMessage ? (
             <AppCard>
@@ -316,18 +329,20 @@ export function SettlementPreviewPage() {
             </AppCard>
           ) : null}
 
-          <ConfirmSettlementDialog
-            collectorName={preview.collected_by_name}
-            error={confirmError}
-            isOpen={isConfirmOpen}
-            isSubmitting={isConfirmSubmitting}
-            notes={notes}
-            onClose={() => setIsConfirmOpen(false)}
-            onConfirm={handleConfirmSettlement}
-            onNotesChange={setNotes}
-            totalAmount={preview.total_amount}
-            transactionCount={preview.transaction_count}
-          />
+          {canApprovePreview ? (
+            <ConfirmSettlementDialog
+              collectorName={preview.collected_by_name}
+              error={confirmError}
+              isOpen={isConfirmOpen}
+              isSubmitting={isConfirmSubmitting}
+              notes={notes}
+              onClose={() => setIsConfirmOpen(false)}
+              onConfirm={handleConfirmSettlement}
+              onNotesChange={setNotes}
+              totalAmount={preview.total_amount}
+              transactionCount={preview.transaction_count}
+            />
+          ) : null}
         </>
       ) : null}
     </div>

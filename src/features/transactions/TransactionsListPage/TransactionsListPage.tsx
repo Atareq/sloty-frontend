@@ -22,6 +22,7 @@ import {
   formatDateInputValue,
   getLastSevenDaysRange,
 } from '../../../shared/utils/date'
+import { formatMoneyAmount } from '../../../shared/utils/money'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
@@ -30,6 +31,7 @@ import type { Court } from '../../courts/courts.types'
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import { cancelTransaction, listTransactions } from '../transactionsApi'
+import { getSinglePairValue } from '../transactionFilters.helpers'
 import type {
   PaymentMethod,
   Transaction,
@@ -156,12 +158,12 @@ function paramsFromFilterState(filters: FilterState): TransactionQueryParams {
     ...(filters.created_by ? { created_by: filters.created_by } : {}),
     ...(filters.date_from ? { date_from: filters.date_from } : {}),
     ...(filters.date_to ? { date_to: filters.date_to } : {}),
-    ...(filters.is_cancelled.length === 1
-      ? { is_cancelled: filters.is_cancelled[0] }
+    ...(getSinglePairValue(filters.is_cancelled) !== undefined
+      ? { is_cancelled: getSinglePairValue(filters.is_cancelled) }
       : {}),
     ...(filters.payment_method ? { payment_method: filters.payment_method } : {}),
-    ...(filters.settlement_status.length === 1
-      ? { settlement_status: filters.settlement_status[0] }
+    ...(getSinglePairValue(filters.settlement_status) !== undefined
+      ? { settlement_status: getSinglePairValue(filters.settlement_status) }
       : {}),
   }
 }
@@ -191,11 +193,11 @@ function getChipLabel(
   }
 
   if (key === 'court') {
-    return labels.courtLabels[String(value)] ?? `ملعب #${value}`
+    return labels.courtLabels[String(value)] ?? 'ملعب محدد'
   }
 
   if (key === 'created_by') {
-    return labels.collectorLabels[String(value)] ?? `الموظف المحصل #${value}`
+    return labels.collectorLabels[String(value)] ?? 'موظف محدد'
   }
 
   if (key === 'payment_method') {
@@ -248,7 +250,7 @@ function getClubUserName(user: ClubUser): string {
     .filter(Boolean)
     .join(' ')
 
-  return fullName || user.username || `#${user.id}`
+  return fullName || user.username || 'مستخدم النادي'
 }
 
 function getActorId(
@@ -268,10 +270,11 @@ function getActorName(
     return null
   }
 
-  return value.name ?? `#${value.id}`
+  return value.name ?? null
 }
 
 interface TransactionsFilterFormProps {
+  canChooseCollector: boolean
   canChooseCourt: boolean
   collectorOptions: FilterOption[]
   courtOptions: FilterOption[]
@@ -283,6 +286,7 @@ interface TransactionsFilterFormProps {
 }
 
 function TransactionsFilterForm({
+  canChooseCollector,
   canChooseCourt,
   collectorOptions,
   courtOptions,
@@ -332,7 +336,7 @@ function TransactionsFilterForm({
     { value: '', label: 'كل الملاعب' },
     ...(filters.court
     && !courtOptions.some((option) => option.value === filters.court)
-      ? [{ value: filters.court, label: `ملعب #${filters.court}` }]
+      ? [{ value: filters.court, label: 'ملعب محدد' }]
       : []),
     ...courtOptions,
   ]
@@ -344,7 +348,7 @@ function TransactionsFilterForm({
       ? [
         {
           value: filters.created_by,
-          label: `الموظف المحصل #${filters.created_by}`,
+          label: 'موظف محدد',
         },
       ]
       : []),
@@ -359,7 +363,7 @@ function TransactionsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>من تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_from', event.target.value)}
           type="date"
           value={filters.date_from}
@@ -369,7 +373,7 @@ function TransactionsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>إلى تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_to', event.target.value)}
           type="date"
           value={filters.date_to}
@@ -455,12 +459,14 @@ function TransactionsFilterForm({
         </div>
       )}
 
-      <AppSelect
-        label="الموظف المحصل"
-        onChange={(value) => updateFilter('created_by', value)}
-        options={collectorFilterOptions}
-        value={filters.created_by}
-      />
+      {canChooseCollector ? (
+        <AppSelect
+          label="الموظف المحصل"
+          onChange={(value) => updateFilter('created_by', value)}
+          options={collectorFilterOptions}
+          value={filters.created_by}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-2 md:justify-end">
         <AppButton disabled={isLoading} fullWidth type="submit">
@@ -478,11 +484,6 @@ function TransactionsFilterForm({
         >
           إعادة ضبط
         </AppButton>
-        {onClose ? (
-          <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
-            إغلاق
-          </AppButton>
-        ) : null}
       </div>
     </form>
   )
@@ -500,12 +501,23 @@ export function TransactionsListPage() {
     selectedMembership,
   )
   const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
+  const canChooseCollector = canChooseCourt
   const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
   const urlParams = useMemo(
     () => parseTransactionQueryParams(location.search),
     [location.search],
   )
-  const urlHasTransactionFilters = hasTransactionFilters(urlParams)
+  const scopedUrlParams = useMemo(() => {
+    if (canChooseCourt) {
+      return urlParams
+    }
+
+    const staffParams = { ...urlParams }
+    delete staffParams.court
+    delete staffParams.created_by
+    return staffParams
+  }, [canChooseCourt, urlParams])
+  const urlHasTransactionFilters = hasTransactionFilters(scopedUrlParams)
   const effectiveParams = useMemo(() => {
     const fixedCourtParams =
       !canChooseCourt && assignedCourtId
@@ -514,7 +526,7 @@ export function TransactionsListPage() {
 
     if (urlHasTransactionFilters) {
       return {
-        ...urlParams,
+        ...scopedUrlParams,
         ...fixedCourtParams,
       }
     }
@@ -527,7 +539,7 @@ export function TransactionsListPage() {
     assignedCourtId,
     canChooseCourt,
     urlHasTransactionFilters,
-    urlParams,
+    scopedUrlParams,
     usesUnfilteredEmptyUrl,
   ])
   const initialFilters = useMemo(
@@ -569,7 +581,20 @@ export function TransactionsListPage() {
     }),
     [collectorOptions, courtOptions],
   )
-  const activeFilterChips = getActiveFilterChips(effectiveParams, filterLabelMaps)
+  const visibleEffectiveParams = useMemo(() => {
+    if (canChooseCourt) {
+      return effectiveParams
+    }
+
+    const visibleParams = { ...effectiveParams }
+    delete visibleParams.court
+    delete visibleParams.created_by
+    return visibleParams
+  }, [canChooseCourt, effectiveParams])
+  const activeFilterChips = getActiveFilterChips(
+    visibleEffectiveParams,
+    filterLabelMaps,
+  )
   const hasActiveFilters = activeFilterChips.length > 0
 
   useEffect(() => {
@@ -588,7 +613,9 @@ export function TransactionsListPage() {
       try {
         const [courtsResponse, usersResponse] = await Promise.all([
           canChooseCourt ? listCourts(selectedClubSlug) : Promise.resolve(null),
-          listClubUsers(selectedClubSlug, { is_active: true }),
+          canChooseCollector
+            ? listClubUsers(selectedClubSlug, { is_active: true })
+            : Promise.resolve(null),
         ])
 
         if (!isActive) {
@@ -613,10 +640,12 @@ export function TransactionsListPage() {
               : [],
         )
         setCollectorOptions(
-          normalizeClubUsersResponse(usersResponse).map((user) => ({
-            value: String(user.id),
-            label: getClubUserName(user),
-          })),
+          usersResponse
+            ? normalizeClubUsersResponse(usersResponse).map((user) => ({
+                value: String(user.id),
+                label: getClubUserName(user),
+              }))
+            : [],
         )
       } catch {
         if (isActive) {
@@ -632,7 +661,7 @@ export function TransactionsListPage() {
     return () => {
       isActive = false
     }
-  }, [canChooseCourt, selectedClubSlug, selectedMembership])
+  }, [canChooseCollector, canChooseCourt, selectedClubSlug, selectedMembership])
 
   async function reloadTransactions(
     nextParams = effectiveParams,
@@ -700,6 +729,11 @@ export function TransactionsListPage() {
 
   function handleApplyFilters(nextFilters: FilterState): void {
     const nextParams = paramsFromFilterState(nextFilters)
+    delete nextParams.page
+    if (!canChooseCourt) {
+      delete nextParams.court
+      delete nextParams.created_by
+    }
     const nextSearch = getTransactionSearch(nextParams)
 
     setUsesUnfilteredEmptyUrl(!nextSearch)
@@ -757,9 +791,10 @@ export function TransactionsListPage() {
   }
 
   function handleRemoveFilter(key: (typeof chipFilterKeys)[number]): void {
-    const nextParams = { ...effectiveParams }
+    const nextParams = { ...scopedUrlParams }
 
     delete nextParams[key]
+    delete nextParams.page
 
     const nextSearch = getTransactionSearch(nextParams)
 
@@ -787,7 +822,7 @@ export function TransactionsListPage() {
     try {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
-      setSuccessMessage('تم إلغاء التحصيل بنجاح')
+      setSuccessMessage('تم إلغاء العملية')
       await reloadTransactions()
     } catch (error) {
       setCancelError(
@@ -824,6 +859,7 @@ export function TransactionsListPage() {
 
       <AppCard className="hidden md:block">
         <TransactionsFilterForm
+          canChooseCollector={canChooseCollector}
           canChooseCourt={canChooseCourt}
           collectorOptions={collectorOptions}
           courtOptions={courtOptions}
@@ -841,6 +877,7 @@ export function TransactionsListPage() {
         title="فلترة التحصيلات"
       >
         <TransactionsFilterForm
+          canChooseCollector={canChooseCollector}
           canChooseCourt={canChooseCourt}
           collectorOptions={collectorOptions}
           courtOptions={courtOptions}
@@ -911,9 +948,11 @@ export function TransactionsListPage() {
       {!isLoading && !error && !message && transactions.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            {hasActiveFilters
-              ? 'مفيش تحصيلات مطابقة للفلاتر الحالية.'
-              : 'مفيش تحصيلات مسجلة حتى الآن.'}
+            {urlHasTransactionFilters
+              ? 'مفيش عمليات مالية مطابقة للفلاتر الحالية.'
+              : role === 'STAFF'
+                ? 'مفيش عمليات تحصيل لسه.'
+                : 'مفيش عمليات مالية لسه.'}
           </p>
         </AppCard>
       ) : null}
@@ -955,7 +994,7 @@ export function TransactionsListPage() {
                       className="mt-1 text-xl font-black text-[var(--sloty-primary-dark)]"
                       dir="ltr"
                     >
-                      {transaction.amount}
+                      {formatMoneyAmount(transaction.amount)}
                     </p>
                   </div>
                   <div className="flex flex-wrap justify-end gap-2">
@@ -974,9 +1013,12 @@ export function TransactionsListPage() {
                     </span>
                     {transaction.is_cancelled ? (
                       <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-black text-[var(--sloty-danger)]">
-                        ملغي
+                        ملغية
                       </span>
                     ) : null}
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                      {transaction.is_settled ? 'مسواة' : 'غير مسواة'}
+                    </span>
                   </div>
                 </div>
 
@@ -988,18 +1030,6 @@ export function TransactionsListPage() {
                       </dt>
                       <dd className="font-black text-[var(--sloty-text-primary)]">
                         {bookingTimeLabel}
-                      </dd>
-                    </div>
-                  ) : transaction.booking ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        الحجز
-                      </dt>
-                      <dd
-                        className="font-black text-[var(--sloty-text-primary)]"
-                        dir="ltr"
-                      >
-                        #{transaction.booking}
                       </dd>
                     </div>
                   ) : null}

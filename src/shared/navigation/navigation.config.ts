@@ -34,8 +34,8 @@ const allRoles: AuthRole[] = [
 export const navigationItems: NavigationItem[] = [
   {
     path: '/dashboard',
-    label: 'لوحة التحكم',
-    marker: 'ل',
+    label: 'الرئيسية',
+    marker: 'ر',
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: true,
     showInPrimaryNav: true,
@@ -140,8 +140,8 @@ export const navigationItems: NavigationItem[] = [
 
 export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   '/dashboard': {
-    title: 'لوحة التحكم',
-    subtitle: 'متابعة الحجوزات والتحصيل والمبالغ غير المسواة',
+    title: 'الرئيسية',
+    subtitle: 'متابعة شغل النهاردة والحجوزات اللي محتاجة إجراء',
   },
   '/schedule': {
     title: 'الجدول',
@@ -160,8 +160,8 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
     subtitle: 'مراجعة المبالغ التي مع الموظفين وسجل الاستلام',
   },
   '/settlements/history': {
-    title: 'التسويات المالية والجرد',
-    subtitle: 'متابعة التسويات السابقة وحالات الجرد',
+    title: 'سجل العهد',
+    subtitle: 'متابعة العهد التي تم استلامها سابقًا',
   },
   '/settlements/preview': {
     title: 'مراجعة العهدة',

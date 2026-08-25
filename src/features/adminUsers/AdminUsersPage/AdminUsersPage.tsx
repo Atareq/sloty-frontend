@@ -191,7 +191,7 @@ function AdminUsersFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)] md:col-span-2">
         <span>البحث</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateValue('search', event.target.value)}
           placeholder="اسم المستخدم أو الهاتف"
           value={values.search}

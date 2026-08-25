@@ -21,26 +21,15 @@ import {
   getSettlement,
   markSettlementSettled,
 } from '../settlementsApi'
-import type {
-  Settlement,
-  SettlementActor,
-} from '../settlements.types'
+import {
+  formatSettlementActor,
+  getSettlementCollectorName,
+} from '../settlementDisplay.helpers'
+import type { Settlement } from '../settlements.types'
 
 const statusLabels: Record<string, string> = {
   PENDING: 'قيد المراجعة',
   SETTLED: 'مسواة',
-}
-
-function formatActor(actor: number | SettlementActor | null | undefined): string {
-  if (!actor) {
-    return 'غير محدد'
-  }
-
-  if (typeof actor === 'number') {
-    return `#${actor}`
-  }
-
-  return actor.name ?? `#${actor.id}`
 }
 
 function getTransactions(settlement: Settlement) {
@@ -52,8 +41,13 @@ function getTransactions(settlement: Settlement) {
  */
 export function SettlementDetailPage() {
   const { settlementId } = useParams()
-  const { refreshCurrentUser, role, selectedClubSlug, selectedMembership } =
-    useAuth()
+  const {
+    currentUser,
+    refreshCurrentUser,
+    role,
+    selectedClubSlug,
+    selectedMembership,
+  } = useAuth()
   const [settlement, setSettlement] = useState<Settlement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMarkingSettled, setIsMarkingSettled] = useState(false)
@@ -62,6 +56,13 @@ export function SettlementDetailPage() {
   const [message, setMessage] = useState<string | null>(null)
   const canSettle = canManageSettlements(selectedMembership, role)
   const canViewOwn = canViewOwnSettlements(selectedMembership, role)
+  const canMarkSettled = Boolean(
+    canSettle &&
+      settlement?.status === 'PENDING' &&
+      currentUser?.id &&
+      settlement.collected_by &&
+      currentUser.id !== settlement.collected_by,
+  )
 
   useEffect(() => {
     let isActive = true
@@ -121,7 +122,7 @@ export function SettlementDetailPage() {
   }, [canViewOwn, selectedClubSlug, settlementId])
 
   async function handleMarkSettled(): Promise<void> {
-    if (!selectedClubSlug || !settlementId) {
+    if (!selectedClubSlug || !settlementId || !canMarkSettled) {
       return
     }
 
@@ -210,13 +211,10 @@ export function SettlementDetailPage() {
                   الموظف
                 </p>
                 <h2 className="mt-1 text-2xl font-black text-[var(--sloty-text-primary)]">
-                  {settlement.collected_by_name ??
-                    (settlement.collected_by
-                      ? `#${settlement.collected_by}`
-                      : 'غير محدد')}
+                  {getSettlementCollectorName(settlement)}
                 </h2>
               </div>
-              {canSettle && settlement.status === 'PENDING' ? (
+              {canMarkSettled ? (
                 <AppButton
                   disabled={isMarkingSettled}
                   onClick={() => setIsConfirmOpen(true)}
@@ -232,10 +230,7 @@ export function SettlementDetailPage() {
                   المستخدم
                 </dt>
                 <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                  {settlement.collected_by_name ??
-                    (settlement.collected_by
-                      ? `#${settlement.collected_by}`
-                      : 'غير محدد')}
+                  {getSettlementCollectorName(settlement)}
                 </dd>
               </div>
               <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
@@ -267,7 +262,7 @@ export function SettlementDetailPage() {
                   أنشئت بواسطة
                 </dt>
                 <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                  {formatActor(settlement.created_by)}
+                  {formatSettlementActor(settlement.created_by)}
                 </dd>
               </div>
               <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
@@ -283,7 +278,7 @@ export function SettlementDetailPage() {
                   تم الاستلام بواسطة
                 </dt>
                 <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                  {formatActor(settlement.settled_by)}
+                  {formatSettlementActor(settlement.settled_by)}
                 </dd>
               </div>
               <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">

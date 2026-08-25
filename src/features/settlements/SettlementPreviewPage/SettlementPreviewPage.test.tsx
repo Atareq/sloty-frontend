@@ -178,10 +178,10 @@ describe('SettlementPreviewPage', () => {
     expect(screen.getByText('700.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('تفصيل طرق الدفع')).toBeInTheDocument()
     expect(screen.getAllByText('500.00 جنيه')).not.toHaveLength(0)
-    expect(screen.getAllByText('كاش')).not.toHaveLength(0)
-    expect(screen.getAllByText('محفظة إلكترونية')).not.toHaveLength(0)
+    expect(screen.getAllByText('نقدي')).not.toHaveLength(0)
+    expect(screen.getAllByText('محفظة رقمية')).not.toHaveLength(0)
     expect(screen.getByText('التحصيلات غير المسواة')).toBeInTheDocument()
-    expect(screen.getByText('حجز #123')).toBeInTheDocument()
+    expect(screen.queryByText('حجز #123')).not.toBeInTheDocument()
     expect(screen.getAllByText('رقم العملية')).not.toHaveLength(0)
     expect(screen.getByText('REF-1')).toBeInTheDocument()
   })
@@ -213,6 +213,46 @@ describe('SettlementPreviewPage', () => {
     expect(
       screen.queryByRole('button', { name: 'تأكيد استلام العهدة' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('keeps self previews read-only and never creates a settlement', async () => {
+    mockedGetSettlementPreview.mockResolvedValueOnce({
+      club: 1,
+      collected_by: 1,
+      collected_by_name: 'أحمد المحصل',
+      court: 3,
+      court_name: 'ملعب 3',
+      is_self_preview: true,
+      can_approve: false,
+      approval_required: true,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
+      transaction_count: 1,
+      total_amount: '500.00',
+      booking_payments: '500.00',
+      booking_refunds: '0.00',
+      net_amount: '500.00',
+      totals_by_payment_method: { CASH: '500.00' },
+      transactions: [
+        {
+          id: 11,
+          amount: '500.00',
+          payment_method: 'CASH',
+        },
+      ],
+    })
+
+    renderPage('/settlements/preview?collected_by=1')
+
+    expect(
+      await screen.findByText(
+        'تقدر تراجع العهدة هنا، لكن استلام عهدتك بنفسك غير مسموح.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تأكيد استلام العهدة' }),
+    ).not.toBeInTheDocument()
+    expect(mockedCreateSettlement).not.toHaveBeenCalled()
   })
 
   it('normalizes no-unsettled backend errors into a friendly empty state', async () => {

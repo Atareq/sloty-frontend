@@ -9,6 +9,7 @@ const allCapabilities: BookingActionCapabilities = {
   canAddPayment: true,
   canCancel: true,
   canComplete: true,
+  canEndRecurrence: true,
   canFreeHold: true,
   canNoShow: true,
 }
@@ -123,5 +124,18 @@ describe('getBookingActionPresentation', () => {
 
     expect(result.secondaryActions).toContain('CANCEL')
     expect(result.secondaryActions).toContain('NO_SHOW')
+    expect(result.secondaryActions).toContain('END_RECURRENCE')
+  })
+
+  it('does not expose stop recurrence for non-active recurrence states', () => {
+    for (const recurrenceStatus of ['RENEWED', 'ENDED'] as const) {
+      expect(
+        getBookingActionPresentation(
+          { ...baseBooking, is_recurring: true, recurrence_status: recurrenceStatus },
+          allCapabilities,
+          now,
+        ).secondaryActions,
+      ).not.toContain('END_RECURRENCE')
+    }
   })
 })

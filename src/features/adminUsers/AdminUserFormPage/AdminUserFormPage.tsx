@@ -417,7 +417,7 @@ export function AdminUserFormPage() {
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>الاسم الأول</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
               disabled={isSubmitting}
               onChange={(event) => updateValue('first_name', event.target.value)}
               value={values.first_name}
@@ -432,7 +432,7 @@ export function AdminUserFormPage() {
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>اسم العائلة</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
               disabled={isSubmitting}
               onChange={(event) => updateValue('last_name', event.target.value)}
               value={values.last_name}
@@ -442,7 +442,7 @@ export function AdminUserFormPage() {
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>اسم المستخدم</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
               disabled={isSubmitting}
               onChange={(event) => updateValue('username', event.target.value)}
               value={values.username}
@@ -472,7 +472,7 @@ export function AdminUserFormPage() {
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>البريد الإلكتروني</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
               disabled={isSubmitting}
               onChange={(event) => updateValue('email', event.target.value)}
               type="email"
@@ -483,7 +483,7 @@ export function AdminUserFormPage() {
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>كلمة المرور</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
               disabled={isSubmitting}
               onChange={(event) => updateValue('password', event.target.value)}
               type="password"
@@ -508,7 +508,7 @@ export function AdminUserFormPage() {
             <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>البحث عن المستخدم</span>
               <input
-                className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                 disabled={isSubmitting || isSearchingUsers}
                 onChange={(event) => setExistingUserSearch(event.target.value)}
                 placeholder="الاسم أو اسم المستخدم أو الهاتف أو البريد"

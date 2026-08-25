@@ -155,10 +155,10 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('2000.00')).toBeInTheDocument()
+    expect(await screen.findByText('2,000.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('عهد الموظفين')).toBeInTheDocument()
     expect(screen.getAllByText('Ahmed Staff').length).toBeGreaterThan(0)
-    expect(screen.getByText('2000.00')).toBeInTheDocument()
+    expect(screen.getByText('2,000.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('عدد التحصيلات')).toBeInTheDocument()
     expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
     expect(screen.getByRole('link', { name: 'عرض التفاصيل' })).toHaveAttribute(
@@ -179,7 +179,7 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    await screen.findByText('2000.00')
+    await screen.findByText('2,000.00 جنيه')
     await chooseAppSelectOption(
       user,
       screen.getAllByLabelText('الموظف المحصل')[1],

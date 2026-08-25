@@ -7,6 +7,7 @@ import { getBookingActionPresentation } from '../../bookingActionPresentation.he
 import { hasActiveRecurrence } from '../../bookingRecurrence.helpers'
 import {
   formatBookingDateTimeRangeWithWeekday,
+  formatHoldExpiryMessage,
   getBookingCourtLabel,
   getBookingDateFallback,
   getBookingNotes,
@@ -55,11 +56,12 @@ export function BookingActionSheet({
   onNoShow,
 }: BookingActionSheetProps) {
   const [isEndRecurrenceConfirming, setIsEndRecurrenceConfirming] = useState(false)
-  const fallbackDate = dateValue ?? (booking ? getBookingDateFallback(booking) : null)
+  const fallbackDate =
+    dateValue ?? (booking ? getBookingDateFallback(booking) : null)
   const notes = booking ? getBookingNotes(booking) : null
-  const hasActiveWeeklyRecurrence = booking
-    ? hasActiveRecurrence(booking)
-    : false
+  const holdExpiryMessage = booking
+    ? formatHoldExpiryMessage(booking.hold_expires_at)
+    : null
   const presentation = booking
     ? getBookingActionPresentation(booking, {
         canAddPayment: Boolean(onAddPayment),
@@ -67,8 +69,14 @@ export function BookingActionSheet({
         canComplete: Boolean(onComplete),
         canFreeHold: Boolean(onFreeHold),
         canNoShow: Boolean(onNoShow),
+        canEndRecurrence: Boolean(onEndRecurrence),
       })
     : null
+
+  function closeDetails(): void {
+    setIsEndRecurrenceConfirming(false)
+    onClose()
+  }
 
   function runPrimaryAction(): void {
     if (!booking || !presentation?.primaryAction) {
@@ -83,13 +91,20 @@ export function BookingActionSheet({
     onComplete?.(booking)
   }
 
-  function runSecondaryAction(action: 'CANCEL' | 'NO_SHOW'): void {
+  function runSecondaryAction(
+    action: 'CANCEL' | 'NO_SHOW' | 'END_RECURRENCE',
+  ): void {
     if (!booking) {
       return
     }
 
     if (action === 'NO_SHOW') {
       onNoShow?.(booking)
+      return
+    }
+
+    if (action === 'END_RECURRENCE') {
+      setIsEndRecurrenceConfirming(true)
       return
     }
 
@@ -102,11 +117,12 @@ export function BookingActionSheet({
   }
 
   return (
-    <AppSheet
-      ariaLabel="تفاصيل الحجز"
-      isOpen={isOpen}
-      onRequestClose={onClose}
-    >
+    <>
+      <AppSheet
+        ariaLabel="تفاصيل الحجز"
+        isOpen={isOpen}
+        onRequestClose={closeDetails}
+      >
       <div className="p-5 pt-14">
         {booking ? (
           <>
@@ -132,9 +148,9 @@ export function BookingActionSheet({
               <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
                 {getBookingCourtLabel(booking, courtName)}
               </p>
-              {hasActiveWeeklyRecurrence ? (
+              {booking.is_recurring ? (
                 <p className="mt-3 inline-flex rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
-                  ↻ بيتكرر أسبوعيًا
+                  ↻ حجز أسبوعي
                 </p>
               ) : null}
             </header>
@@ -146,6 +162,11 @@ export function BookingActionSheet({
               <p className="text-lg font-black text-[var(--sloty-primary-dark)]">
                 {presentation?.stateMessage}
               </p>
+              {booking.status === 'HOLD' && holdExpiryMessage ? (
+                <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+                  {holdExpiryMessage}
+                </p>
+              ) : null}
             </section>
 
             {hasMoneyValue(booking.total_price) ||
@@ -244,50 +265,19 @@ export function BookingActionSheet({
                       {isSubmitting ? 'جاري الإلغاء...' : 'إلغاء الحجز'}
                     </AppButton>
                   ) : null}
+                  {presentation.secondaryActions.includes('END_RECURRENCE') ? (
+                    <AppButton
+                      disabled={isSubmitting}
+                      fullWidth
+                      onClick={() => runSecondaryAction('END_RECURRENCE')}
+                      type="button"
+                      variant="secondary"
+                    >
+                      إيقاف التكرار
+                    </AppButton>
+                  ) : null}
                 </div>
               </details>
-            ) : null}
-
-            {hasActiveWeeklyRecurrence && onEndRecurrence ? (
-              <section className="mt-4 rounded-2xl border border-[var(--sloty-border)] p-3">
-                {isEndRecurrenceConfirming ? (
-                  <div className="space-y-3">
-                    <p className="text-sm font-bold leading-6 text-[var(--sloty-text-primary)]">
-                      سيتم إيقاف تثبيت الموعد الأسبوعي، والحجز الحالي سيظل كما هو.
-                    </p>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <AppButton
-                        disabled={isSubmitting}
-                        fullWidth
-                        onClick={() => onEndRecurrence(booking)}
-                        type="button"
-                        variant="danger"
-                      >
-                        تأكيد إيقاف التكرار
-                      </AppButton>
-                      <AppButton
-                        disabled={isSubmitting}
-                        fullWidth
-                        onClick={() => setIsEndRecurrenceConfirming(false)}
-                        type="button"
-                        variant="secondary"
-                      >
-                        رجوع
-                      </AppButton>
-                    </div>
-                  </div>
-                ) : (
-                  <AppButton
-                    disabled={isSubmitting}
-                    fullWidth
-                    onClick={() => setIsEndRecurrenceConfirming(true)}
-                    type="button"
-                    variant="secondary"
-                  >
-                    إيقاف التكرار الأسبوعي
-                  </AppButton>
-                )}
-              </section>
             ) : null}
           </>
         ) : (
@@ -296,6 +286,43 @@ export function BookingActionSheet({
           </p>
         )}
       </div>
-    </AppSheet>
+      </AppSheet>
+      {booking && hasActiveRecurrence(booking) && isEndRecurrenceConfirming ? (
+        <AppSheet
+          ariaLabel="إيقاف تكرار الحجز"
+          isOpen
+          onRequestClose={() => setIsEndRecurrenceConfirming(false)}
+        >
+        <div className="p-5 pt-14">
+          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
+            إيقاف تكرار الحجز؟
+          </h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
+            الحجز الحالي هيفضل زي ما هو، لكن نفس المعاد مش هيتحجز تلقائيًا بعد كده.
+          </p>
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <AppButton
+              disabled={isSubmitting}
+              fullWidth
+              onClick={() => onEndRecurrence?.(booking)}
+              type="button"
+              variant="danger"
+            >
+              {isSubmitting ? 'جاري إيقاف التكرار...' : 'إيقاف التكرار'}
+            </AppButton>
+            <AppButton
+              disabled={isSubmitting}
+              fullWidth
+              onClick={() => setIsEndRecurrenceConfirming(false)}
+              type="button"
+              variant="secondary"
+            >
+              رجوع
+            </AppButton>
+          </div>
+        </div>
+        </AppSheet>
+      ) : null}
+    </>
   )
 }

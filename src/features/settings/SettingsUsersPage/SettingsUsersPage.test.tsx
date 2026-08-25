@@ -274,7 +274,7 @@ describe('SettingsUsersPage', () => {
     expect(screen.getAllByText('مدير').length).toBeGreaterThan(0)
     expect(screen.getAllByText('موظف').length).toBeGreaterThan(0)
     expect(screen.getAllByText('نشط').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('غير نشط').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('متوقف مؤقتًا').length).toBeGreaterThan(0)
     expect(screen.getAllByText('ملعب 1').length).toBeGreaterThan(0)
     expect(screen.getByText('صلاحيات كاملة كمالك')).toBeInTheDocument()
     expect(screen.getByText('موظف تشغيل')).toBeInTheDocument()
@@ -309,7 +309,7 @@ describe('SettingsUsersPage', () => {
 
     renderUsersPage()
 
-    await user.click(await screen.findByRole('button', { name: 'تفعيل العضوية' }))
+    await user.click(await screen.findByRole('button', { name: 'تفعيل المستخدم' }))
 
     expect(mockedUpdateMembershipActivity).toHaveBeenCalledWith(
       'nasr-club',
@@ -326,6 +326,32 @@ describe('SettingsUsersPage', () => {
       }),
     )
     await waitFor(() => expect(mockedListClubUsers).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('✓ تم تفعيل المستخدم')).toBeInTheDocument()
+  })
+
+  it('confirms deactivation and keeps the membership row after PATCH', async () => {
+    const user = userEvent.setup()
+    mockedListClubUsers
+      .mockResolvedValueOnce([ownerUser, { ...managerUser, membership_is_active: true }])
+      .mockResolvedValueOnce([ownerUser, managerUser])
+
+    renderUsersPage()
+
+    await user.click(await screen.findByRole('button', { name: 'إيقاف المستخدم' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'إيقاف المستخدم' })
+    expect(within(dialog).getByText('إيقاف المستخدم؟')).toBeInTheDocument()
+    expect(within(dialog).getByText(/\u0645\u0646\u0649 \u0645\u062f\u064a\u0631 \u0645\u0634 \u0647\u064a\u0642\u062f\u0631 \u064a\u062f\u062e\u0644 \u0627\u0644\u0646\u0627\u062f\u064a/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'إيقاف المستخدم' }))
+
+    expect(mockedUpdateMembershipActivity).toHaveBeenCalledWith(
+      'nasr-club',
+      102,
+      { is_active: false },
+    )
+    await waitFor(() => expect(mockedListClubUsers).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('✓ تم إيقاف المستخدم')).toBeInTheDocument()
+    expect(screen.getByText('منى مدير')).toBeInTheDocument()
   })
 
   it('permanently deletes a non-owner membership and removes its row', async () => {
@@ -344,16 +370,55 @@ describe('SettingsUsersPage', () => {
         name: 'حذف المستخدم من النادي نهائيًا',
       }),
     )
+    const deleteDialog = screen.getByRole('dialog', {
+      name: 'حذف المستخدم من النادي',
+    })
+    expect(
+      within(deleteDialog).getByText(/\u0647\u064a\u062a\u0645 \u062d\u0630\u0641 \u0639\u0636\u0648\u064a\u0629 \u0645\u0646\u0649 \u0645\u062f\u064a\u0631/),
+    ).toBeInTheDocument()
+    expect(
+      within(deleteDialog).getByText(
+        'الحجوزات والمدفوعات والعمليات السابقة هتفضل محفوظة.',
+      ),
+    ).toBeInTheDocument()
     await user.click(
-      screen.getByRole('button', { name: 'تأكيد الحذف النهائي' }),
+      screen.getByRole('button', { name: 'حذف نهائي' }),
     )
 
     expect(mockedDeleteClubMembership).toHaveBeenCalledWith('nasr-club', 102)
+    expect(mockedUpdateMembershipActivity).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(screen.queryByText('منى مدير')).not.toBeInTheDocument()
     })
     expect(mockedListClubUsers).toHaveBeenCalledTimes(2)
     expect(screen.queryByText('DELETED')).not.toBeInTheDocument()
+  })
+
+  it('shows a rejected membership DELETE without falling back to deactivation', async () => {
+    const user = userEvent.setup()
+    mockedDeleteClubMembership.mockRejectedValueOnce(
+      new ApiClientError('العضوية مرتبطة بقيود لا تسمح بحذفها.', 409, {
+        code: 'MEMBERSHIP_DELETE_BLOCKED',
+      }),
+    )
+
+    renderUsersPage()
+
+    await screen.findByText('منى مدير')
+    const managerCard = screen.getByText('منى مدير').closest('section')
+    await user.click(
+      within(managerCard as HTMLElement).getByRole('button', {
+        name: 'حذف المستخدم من النادي نهائيًا',
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'حذف نهائي' }))
+
+    expect(
+      await screen.findByText('العضوية مرتبطة بقيود لا تسمح بحذفها.'),
+    ).toBeInTheDocument()
+    expect(mockedDeleteClubMembership).toHaveBeenCalledTimes(1)
+    expect(mockedUpdateMembershipActivity).not.toHaveBeenCalled()
+    expect(screen.getByText('منى مدير')).toBeInTheDocument()
   })
 
   it('does not show manager permission edit action for unauthorized roles', async () => {
@@ -384,6 +449,13 @@ describe('SettingsUsersPage', () => {
     expect(dialog.getByText('مستخدم جديد')).toBeInTheDocument()
     expect(dialog.getByText('مستخدم موجود')).toBeInTheDocument()
     expect(dialog.queryByText(/غير متاح حتى يتم تأكيد/)).not.toBeInTheDocument()
+
+    await user.click(dialog.getByLabelText('الدور'))
+    await user.click(dialog.getByRole('button', { name: 'إغلاق' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'إضافة مستخدم' }))
+        .not.toBeInTheDocument()
+    })
   })
 
   it('protects unfinished add-user input when AppSheet dismissal is requested', async () => {
@@ -395,7 +467,9 @@ describe('SettingsUsersPage', () => {
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.click(dialog.getByRole('button', { name: 'إغلاق' }))
 
-    expect(screen.getByText('عندك تعديلات لسه متحفظتش.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('عندك تعديلات لسه متحفظتش.'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'إضافة مستخدم' }))
       .toBeInTheDocument()
   })
@@ -900,7 +974,11 @@ describe('SettingsUsersPage', () => {
     await screen.findByText('أحمد مالك')
 
     await chooseAppSelectOption(user, screen.getByLabelText('الدور'), 'مدير')
-    await chooseAppSelectOption(user, screen.getByLabelText('الحالة'), 'غير نشط')
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('الحالة'),
+      'متوقف مؤقتًا',
+    )
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 

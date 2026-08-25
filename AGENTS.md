@@ -200,17 +200,18 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Bookings List supports URL query filters used by Summary cards, and Summary redirects must not be overwritten by default page filters.
 - Bookings List loads unrestricted server-paginated history when the URL has no filters; do not silently default it to today.
 - Bookings List previous/next controls keep `page` in the URL, preserve all active filters, and step back when a later page becomes empty after a mutation.
-- Bookings List primary review filters are URL-driven checkboxes for `needs_action=true`, `upcoming=true`, and `has_remaining_amount=true`; never emit `remaining_amount_gt` for the remaining-money checkbox. Court, status, search, date, overdue, ended, and HOLD-expiry filters live in the shared responsive `FilterSheet` on every viewport.
-- Customer name/phone search sends one backend `search` query, and upcoming sends `upcoming=true`; do not filter only the loaded page, normalize phone numbers locally, or derive upcoming state.
-- Staff Bookings List Court scope comes from backend authorization and the active membership. Staff must not load/show a Court selector or send a Court URL override; Owner and Manager may use the named Court filter.
+- Bookings List keeps a visible URL-backed customer name/phone search above the URL-driven primary checkboxes for `upcoming=true`, `needs_action=true`, and `has_remaining_amount=true`; never emit `remaining_amount_gt` for the remaining-money checkbox. Court, status, date, overdue, ended, and HOLD-expiry filters live in the shared responsive `FilterSheet` on every viewport.
+- Customer name/phone search sends one debounced backend `search` query, and upcoming sends `upcoming=true`; do not request on every keystroke, filter only the loaded page, normalize phone numbers locally, or derive upcoming state.
+- Staff Bookings List sends the assigned Court from the active membership as request scope, while ignoring/removing Court URL overrides and hiding the Court selector/chip. Owner and Manager may use the named URL-driven Court filter. Backend authorization remains authoritative.
 - Active filter chips must remain URL-driven and removable.
 - Active filter chips are one accessible button per chip; clicking anywhere on the chip removes only that filter while preserving other active filters, and buttons must not be nested.
 - Court filters must display court names instead of raw IDs while still sending numeric court IDs to the backend.
 - Bookings List cards are compact clickable review entries showing only customer name, phone, human appointment, human status, and an optional recurring marker. They open the shared `BookingActionSheet`; do not put IDs, Court, money, creation timestamps, notes, transaction detail, or a separate edit flow on history cards.
 - `BookingActionSheet` is the one canonical details presentation for Schedule occupied slots, Schedule closing rows, and Bookings List cards, including HOLD. The entry page must not choose the primary action; booking state and current implemented capabilities do.
 - Booking details put customer/phone and appointment identity first, followed by a human Egyptian-Arabic state, financial summary, and at most one visible primary action. HOLD uses `ضيف العربون وأكد الحجز`; a known positive remaining balance uses `حصّل X ج.م`; an ended fully-paid confirmed booking uses `إكمال`.
-- Valid secondary booking actions live under `••• خيارات أخرى`; use `إلغاء الحجز` for HOLD and confirmed cancellation wording. Do not show backend-roadmap copy, a separate recurring domain, or unsupported single-occurrence cancellation from booking details.
-- `hold_expires_at`, when supplied by the booking contract, is the authoritative display deadline. Until it exists, omit HOLD countdown copy; never calculate a booking expiry from Court `internal_hold_expiry_hours` or booking creation time.
+- Valid secondary booking actions live under `••• خيارات أخرى`; use `إلغاء الحجز` for HOLD and confirmed cancellation wording. Active recurrence may additionally show `إيقاف التكرار`, whose confirmation must explain that the current Booking remains unchanged. Do not show backend-roadmap copy, a separate recurring domain, or unsupported single-occurrence cancellation from booking details.
+- Recurring identity is contextual `↻ حجز أسبوعي` metadata for every recurring Booking. Only strict `is_recurring === true && recurrence_status === 'ACTIVE'` enables stop-recurrence and the cancellation/no-show recurrence-ending warnings; `RENEWED` and `ENDED` are not active.
+- `hold_expires_at`, when supplied by the booking contract, is the authoritative display deadline. When absent, omit HOLD countdown copy; never calculate a booking expiry from Court `internal_hold_expiry_hours` or booking creation time.
 - Booking Board remains availability-focused; Bookings List is for reviewing and filtering existing bookings.
 - Completed bookings are locked/read-only. Completed bookings with remaining amount are financial warnings, not normal daily actions.
 - The frontend must not calculate `needs_action`; backend summary/list filters own that action classification.
@@ -234,10 +235,12 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Transactions collector filters must display staff/user names instead of raw IDs while still sending numeric user IDs to the backend.
 - `/transactions` is product-labeled `تحصيلاتي` for Staff and `التحصيلات` for Owner/Manager. Keep route and API terminology unchanged internally.
 - Transaction Boolean filters remain paired checkboxes: neither or both checked omits the query parameter; exactly one checked sends its scalar backend value. Court, payment method, and collector remain `AppSelect` controls.
+- Staff Transactions must ignore URL `court`/`created_by` overrides, send the assigned Court only, and hide the collector selector. Owner/Manager may use named Court and collector filters.
+- Transaction and settlement surfaces share the canonical payment-method labels and money formatter. Prefer historical names returned by finance responses and use calm unavailable/former-user copy instead of exposing raw user, Court, Booking, or Transaction IDs.
 - Frontend transaction lists must not calculate settlement totals; backend Summary endpoints own financial totals.
 - Sprint 7 implements backend-calculated dashboard, reports, and audit logs; these pages use `selectedClubSlug` from `useAuth()`.
 - Dashboard and report financial metrics must come from backend summary/report endpoints. Do not fake numbers or manually count cancelled transactions in totals; cancelled transactions remain visible while backend summaries decide accounting.
-- `DashboardPage` is the Summary / Owner Home control center: lightweight, current, action-oriented, and backed by the backend dashboard summary response.
+- `DashboardPage` is the role-aware operational Home labeled `الرئيسية`: lightweight, current, action-oriented, and backed by the backend dashboard summary response.
 - `/dashboard` is the single operational Home; do not create a separate Home route/page. Greeting, today's work, HOLD exceptions, needs-action aggregates, and money custody appear before secondary analytics.
 - Dashboard must not relabel `total_bookings` as upcoming bookings. Upcoming count, nearest HOLD expiry, next booking, and booking-level action cards render only when authoritative backend fields exist; never derive them from full booking history or Court hold policy.
 - Dashboard action labels must reuse `getBookingActionPresentation()` when booking-level records become available. Aggregate-only action data links to filtered Bookings instead of duplicating booking lifecycle mutations or fabricating `BookingActionSheet` data.
@@ -260,6 +263,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Own settlement preview uses `GET clubs/{club_slug}/settlements/preview/` without `collected_by`; do not create separate Staff/Manager/Owner settlement pages.
 - Staff and restricted Managers can view their own settlement preview, history, and detail through backend self-scoped settlement authorization, but cannot create settlements, mark settlements settled, or manage another user's settlement.
 - Owner can settle and manager can settle only when `can_manage_settlements` allows it.
+- Settlement creation additionally requires preview `can_approve === true` and `is_self_preview === false`; pending detail actions must also reject the signed-in collector. Staff and restricted Managers never self-settle.
+- Treat `NO_UNSETTLED_TRANSACTIONS` as a friendly custody empty state. After a settlement mutation 403, refresh `/me` once and never retry the mutation automatically.
 - Settlement management navigation and actions must use the centralized settlement permission helper; refresh `/me` after 403 settlement mutations and do not retry automatically.
 - Completed bookings with remaining money are future financial warnings, not normal needs-action.
 - Do not show fake zeroes while Summary data is loading.
@@ -289,11 +294,13 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Do not integrate `minimum_slot_price` or `maximum_slot_price` until the backend provides them.
 - Weekly recurrence belongs to Booking through strict `is_recurring`, `recurrence_status`, and previous/next recurring Booking IDs; do not recreate a `RecurringAgreement`, recurring deposit, or recurring settlement product domain.
 - Extend and reuse `AddBookingSheet` for recurring creation; do not create duplicate customer forms, phone inputs, recurring schedule pages, or recurring booking cards.
-- `RECURRING_RESERVED` is the authoritative Schedule state. Its `recurring_anchor_booking_id` loads the canonical Booking detail; never infer the state from a null booking plus an anchor.
+- `RECURRING_RESERVED` is the authoritative Schedule state. Render it as the normal reserved label `محجوز` with a subtle `↻`; its `recurring_anchor_booking_id` loads the canonical Booking detail, and a missing/failed anchor must show a safe local error without opening an empty sheet. Never infer the state from a null booking plus an anchor.
 - Preserve `can_start_recurring` as tri-state: true means normal and weekly creation are available, false means only normal creation is available, and null means recurrence eligibility does not apply.
 - Backend `recurring_blocked_reason` and `first_recurring_conflict_start` provide recurrence-conflict context; the frontend must not calculate conflicts or generate dates locally.
+- Add Booking submits the checkbox directly as `is_recurring`; successful normal or recurring creation closes the form, refreshes the same Court/date slots, and uses the same `تم حجز الموعد بنجاح` feedback without opening Booking details automatically.
 - Active recurrence ends through `POST clubs/{club_slug}/bookings/{id}/end-recurrence/`; normal Booking/Transaction cancellation and refund flows remain authoritative for their own domains.
-- `recurrence_next`, when supplied, is the authoritative completion continuation preview. Never calculate the next date, price, or required deposit, never expose raw blocked-reason enums, and never send a next-deposit amount.
+- Cancelling or marking an active recurring Booking as no-show ends its recurrence; ending recurrence directly preserves the current Booking. Active recurring reschedule remains unsupported and hidden.
+- `recurrence_next`, when supplied, is the authoritative completion continuation preview. Eligible active recurring completion asks whether to continue or stop; continuing may send the selected next-deposit method/reference/notes, but never a next-deposit amount. Never calculate the next date, price, or required deposit or expose raw blocked-reason enums.
 - Staff recurring Court comes from `selectedMembership.court`; reuse the centralized Staff Court-scope helpers and do not add a separate role/Court matrix.
 - Backend owns recurring occurrence generation, lifecycle enforcement, and future-occurrence cleanup; the frontend must not implement timers or local automatic cancellation.
 - Expire and non-transaction financial actions are deferred to later sprints.
@@ -311,7 +318,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Pricing edit actions must use the centralized pricing permission helper, and working-hours edit actions must use the centralized working-hours permission helper.
 - Users & Permissions may add Manager/Staff memberships and edit existing Manager permission flags; it must not create Owner users or edit Staff/Owner permissions.
 - `/clubs/{slug}/users/` returns the flattened `ClubUser` product list, while membership POST/PATCH returns the separate `ClubMembership` resource shape.
-- Normal membership UI states are only active and deactivated from `is_active`. Permanent removal DELETEs a Manager/Staff membership from the current club, removes/refetches its row, and never creates a `DELETED` card state or deletes the global account. Use `حذف المستخدم من النادي نهائيًا` and never offer it for Owner memberships.
+- Normal membership UI states are only `نشط` and `متوقف مؤقتًا` from `is_active`. Deactivation and reactivation PATCH only `is_active`, keep the row visible, and use `إيقاف المستخدم` / `تفعيل المستخدم`. Permanent removal DELETEs a Manager/Staff membership from the current club, removes/refetches its row, preserves historical business records, and never creates a `DELETED` card state or deletes the global account. Use `حذف المستخدم من النادي نهائيًا` and never offer it for Owner memberships.
 - Users & Permissions badges use effective club-users fields (`can_change_pricing`, `can_manage_working_hours`, `can_manage_settlements`) and never raw backend field names.
 - Backend remains the authority for permission enforcement.
 - Authenticated pages use exactly one shell-level page header rendered by `AppShell` through `src/shared/components/PageHeader/PageHeader.tsx`; do not add duplicate visible page title cards inside shell pages.
@@ -328,7 +335,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Desktop Overview must expose logout in the sidebar.
 - Mobile navigation uses the shell header, hamburger drawer, and route-gated `NewBookingFAB`; desktop navigation uses the sidebar.
 - Finance, admin, history, reports, audit, settlements, and settings links live in the hamburger menu and desktop sidebar.
-- Primary drawer/sidebar club navigation contains only direct hub pages: `لوحة التحكم`, `الجدول`, `سجل الحجوزات`, role-aware collections/custody labels, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
+- Primary drawer/sidebar club navigation contains only direct hub pages: `الرئيسية`, `الجدول`, `سجل الحجوزات`, role-aware collections/custody labels, `التقارير الاستهلاكية للملاعب`, and `الإعدادات`.
 - Settings sub-pages live inside Settings; keep detail links such as `إعدادات الملاعب`, `المستخدمون والصلاحيات`, and `سجل النشاطات` out of primary drawer/sidebar navigation.
 - Do not restore a mobile footer or add a `المزيد` navigation item; use the hamburger icon, not a three-dots icon.
 - Logout and change-club actions belong in the account menu, not the visible header area.
