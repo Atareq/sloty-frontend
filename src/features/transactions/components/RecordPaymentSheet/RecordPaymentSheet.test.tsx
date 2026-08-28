@@ -69,7 +69,7 @@ describe('RecordPaymentSheet', () => {
       screen.getByLabelText('طريقة الدفع'),
       'محفظة رقمية',
     )
-    await user.type(screen.getByLabelText('رقم العملية'), ' REF-123 ')
+    await user.type(screen.getByLabelText('مرجع الدفع'), ' REF-123 ')
     await user.type(screen.getByLabelText('ملاحظات'), ' دفعة مقدمة ')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
 
@@ -148,7 +148,9 @@ describe('RecordPaymentSheet', () => {
     expect(screen.getByText(description)).toBeInTheDocument()
   })
 
-  it('shows backend field errors near amount and reference fields', () => {
+  it('shows backend field errors near amount and reference fields', async () => {
+    const user = userEvent.setup()
+
     render(
       <RecordPaymentSheet
         bookingId={10}
@@ -163,7 +165,7 @@ describe('RecordPaymentSheet', () => {
           reference: [
             {
               code: 'PAYMENT_REFERENCE_REQUIRED',
-              message: 'رقم العملية مطلوب',
+              message: 'مرجع الدفع مطلوب',
             },
           ],
         }}
@@ -173,8 +175,10 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
+    await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'محفظة رقمية')
+
     expect(screen.getByText('المبلغ أكبر من المتبقي')).toBeInTheDocument()
-    expect(screen.getByText('رقم العملية مطلوب')).toBeInTheDocument()
+    expect(screen.getByText('مرجع الدفع مطلوب')).toBeInTheDocument()
   })
 
   it('shows minimum deposit guidance without blocking local validation', () => {
@@ -186,12 +190,11 @@ describe('RecordPaymentSheet', () => {
         minimumDepositHint="100.00"
         onClose={vi.fn()}
         onSubmit={vi.fn()}
+        paymentPurpose="deposit"
       />,
     )
 
-    expect(
-      screen.getByText(/الحد الأدنى للعربون في إعدادات الملعب/),
-    ).toBeInTheDocument()
-    expect(screen.getByText('100.00 جنيه')).toBeInTheDocument()
+    expect(screen.getByText('العربون المطلوب')).toBeInTheDocument()
+    expect(screen.getByText('100.00 ج.م')).toBeInTheDocument()
   })
 })

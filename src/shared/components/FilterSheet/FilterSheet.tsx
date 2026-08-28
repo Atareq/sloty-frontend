@@ -28,7 +28,7 @@ export function FilterSheet({
       onRequestClose={onClose}
     >
       <div className="w-full min-w-0 max-w-full overflow-x-hidden p-5 pt-14">
-        <h2 className="mb-5 text-xl font-black text-[var(--sloty-text-primary)]">
+        <h2 className="mb-5 text-xl font-extrabold text-[var(--sloty-text-primary)]">
           {title}
         </h2>
         {children}

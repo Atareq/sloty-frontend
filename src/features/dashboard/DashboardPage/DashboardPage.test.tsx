@@ -248,7 +248,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('عهدتي')).toBeInTheDocument()
     expect(screen.getByText('700.00 ج.م')).toBeInTheDocument()
     expect(screen.getByText('من 7 عملية تحصيل')).toBeInTheDocument()
-    expect(screen.queryByText('استلام العهدة')).not.toBeInTheDocument()
+    expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
     expect(screen.queryByText('سوّي عهدتك')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'آخر 7 أيام' }))
       .not.toBeInTheDocument()
@@ -288,8 +288,8 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
       .toBeInTheDocument()
-    expect(screen.queryByText('عهد الموظفين')).not.toBeInTheDocument()
-    expect(screen.queryByText('استلام العهدة')).not.toBeInTheDocument()
+    expect(screen.queryByText('المبالغ مع الموظفين')).not.toBeInTheDocument()
+    expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
   })
 
   it('preserves employee custody management for an authorized Manager', async () => {
@@ -317,8 +317,8 @@ describe('DashboardPage', () => {
 
     renderDashboard()
 
-    expect(await screen.findByText('عهد الموظفين')).toBeInTheDocument()
-    expect(screen.getByText('استلام العهدة')).toHaveAttribute(
+    expect(await screen.findByText('المبالغ مع الموظفين')).toBeInTheDocument()
+    expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
       'href',
       '/settlements/preview?collected_by=15&court=3',
     )
@@ -353,9 +353,9 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(
-      await screen.findByText('مفيش مبلغ غير مسوى عندك دلوقتي.'),
+      await screen.findByText('مفيش مبالغ معاك دلوقتي.'),
     ).toBeInTheDocument()
-    expect(screen.queryByText('استلام العهدة')).not.toBeInTheDocument()
+    expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
     expect(screen.queryByText('سوّي عهدتك')).not.toBeInTheDocument()
   })
 
@@ -537,7 +537,7 @@ describe('DashboardPage', () => {
       'href',
       '/bookings?court=3&date=2026-07-21&status=HOLD',
     )
-    expect(screen.getByText('استلام العهدة')).toHaveAttribute(
+    expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
       'href',
       '/settlements/preview?collected_by=15&court=3',
     )
@@ -564,7 +564,7 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(await screen.findByText('أحمد المحصل')).toBeInTheDocument()
-    expect(screen.getByText('استلام العهدة')).toHaveAttribute(
+    expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
       'href',
       '/settlements/preview?collected_by=15&court=3',
     )
@@ -599,7 +599,7 @@ describe('DashboardPage', () => {
       await screen.findByText('مفيش حجوزات محتاجة إجراء دلوقتي.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('لا توجد مبالغ غير مسواة حالياً'),
+      screen.getByText('مفيش مبالغ مع الموظفين دلوقتي'),
     ).toBeInTheDocument()
     expect(screen.getAllByText('-')).not.toHaveLength(0)
     expect(screen.getAllByText('0 جنيه')).not.toHaveLength(0)

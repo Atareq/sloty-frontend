@@ -13,9 +13,14 @@ Current interaction and navigation foundation:
 
 - Non-full-page tasks use the shared `AppSheet` where applicable. On mobile it is a safe-area-aware bottom sheet; on desktop it is a centered modal. Its neutral X, backdrop, Escape, and browser/Android Back all request dismissal, while feature code protects genuine unsaved input.
 - Mobile navigation consists of the global `PageHeader`, a narrow burger drawer, and the reused floating `+ حجز جديد` action. The old mobile bottom navigation is removed; desktop keeps its sidebar.
-- The floating booking action appears only on authorized operational routes, hides during any modal task or open drawer, and returns users to the existing Schedule flow.
+- The floating booking action appears on mobile `/dashboard` and `/bookings` only, hides during any modal task or open drawer, and returns users to Schedule. It is hidden on `/schedule`.
+- PageHeader may expose an explicit Home affordance to `/schedule` on non-Home pages; Home and Back remain distinct. Mobile places the burger on the RTL/top-right start edge and Home on the opposite/top-left edge.
 - Recurrence is presented inside Booking and Schedule; there is no separate recurring-agreement route or product navigation.
-- Mobile text inputs use at least a 16px-equivalent font size without disabling browser zoom. Temporary success feedback lasts about 3 seconds; errors needing attention stay visible.
+- `RECURRING_RESERVED` opens virtual recurring slot details from the selected Schedule slot and `recurring_context`. Do not load the anchor Booking as the selected future occurrence.
+- Canonical product copy lives in `src/shared/copy/appCopy.ts` and `docs/product-copy.md`.
+- Mobile text inputs use at least a 16px-equivalent font size without disabling browser zoom. Temporary success feedback uses `AppSuccessNotice` (~3 seconds); errors needing attention stay visible.
+
+Later sections of this file still contain historical screen inventories and old bottom-navigation sketches (`المزيد`, cash/Instapay wording). Those sketches are not current product architecture. Current navigation has no `/more` route and no mobile bottom nav.
 
 Current Schedule date/control UX:
 
@@ -28,10 +33,10 @@ Current Schedule date/control UX:
 - Explicit date selection loads the corresponding slots and then smoothly scrolls once to `اختار المعاد`; initial load and Court changes do not auto-scroll. Loading feedback stays inside the slot workspace.
 - Schedule cards are scan controls, not detail cards: show only start time and human status, plus `↻` for an existing recurring booking or a FREE slot with backend `can_start_recurring: true`. Never show customer, phone, notes, price, or payment amounts on the card.
 - Booking creation keeps one optional `ثبّت نفس الموعد كل أسبوع` checkbox and one `تأكيد الحجز` action, sending the choice directly as `is_recurring`. A backend-ineligible free slot disables the checkbox and shows a human conflict reason/date from `recurring_blocked_reason` and `first_recurring_conflict_start`; do not calculate conflicts or expose an alternate-start, booking-type, availability-preview, or recurring-wizard flow.
-- `RECURRING_RESERVED` is a distinct backend Schedule state, but its card uses the ordinary `محجوز` label plus a subtle `↻`. It opens the canonical anchor Booking from `recurring_anchor_booking_id`; missing or failed anchors show a safe local error, and the state is never inferred from other fields.
+- `RECURRING_RESERVED` is a distinct backend Schedule state. Its card uses the ordinary `محجوز` label plus a subtle top-right `↻`. It opens `VirtualRecurringSlotDetailsSheet` using the selected future slot date/time and `recurring_context`; never open the anchor Booking as the selected occurrence, and never infer the state from other fields.
 - Successful creation closes the Add Booking sheet, refreshes slots without changing Court/date, and shows the same short success feedback for normal and recurring Bookings. It does not auto-open the returned HOLD Booking.
-- Recurring Booking details show contextual `↻ حجز أسبوعي`. Strictly active recurrence adds secondary `إيقاف التكرار`; its confirmation explains that the current Booking remains, while cancellation and no-show warn that recurrence also ends. Unsupported active recurring reschedule stays hidden.
-- `hold_expires_at` and `recurrence_next`, when returned, are authoritative presentation inputs. Missing HOLD expiry omits countdown copy. Recurring completion presents backend next occurrence/price/deposit and continue availability, collects next-deposit method/reference/notes only when required, and never derives or sends a next amount.
+- Recurring Booking details show contextual `↻ حجز أسبوعي`. Strictly active recurrence adds inline `إيقاف الحجز الأسبوعي`; its confirmation explains that the current Booking remains, while cancellation and no-show warn that recurrence also ends. Unsupported active recurring reschedule stays hidden. `إلغاء الحجز` stays last under `••• خيارات أخرى` with danger styling.
+- `hold_expires_at` is the authoritative HOLD countdown input. Missing HOLD expiry omits countdown copy. Recurring completion loads `GET recurrence-next/` for active confirmed recurrence and presents backend next occurrence/price/deposit plus `requires_payment_reference`; it never derives or sends a next amount.
 - Lightweight summary and closing actions follow the primary slot-selection workspace and must not turn Schedule into another Dashboard.
 - Active filter chips are one accessible clickable button per chip; clicking the chip removes only its own filter and buttons must not be nested.
 - AppSelect owns dropdown presentation and interaction with Sloty surface/border/green/soft-mint styling, Lucide ChevronDown/Check icons, RTL layout, and keyboard support.
@@ -780,21 +785,21 @@ Information order:
 2. Weekday/date, time range, and smaller Court context.
 3. One human Egyptian-Arabic state sentence.
 4. Backend total, paid, and remaining values, including explicit zero values.
-5. At most one visible primary action.
+5. At most one visible primary action, except ended fully-paid confirmed bookings which show both `إكمال` and `عدم حضور`.
 6. Valid secondary actions under `••• خيارات أخرى`.
 
 State-driven primary actions:
 
-- HOLD: `ضيف العربون وأكد الحجز`.
+- HOLD: `سجّل العربون وأكّد الحجز`.
 - Positive remaining balance: `حصّل X ج.م`.
-- Ended, fully-paid confirmed booking: `إكمال`.
+- Ended, fully-paid confirmed booking: visible `إكمال` and `عدم حضور`.
 - Active fully-paid confirmed and final read-only statuses: no fabricated primary action.
 
 Use `إلغاء الحجز؟` with a danger `إلغاء الحجز` confirmation. Show the booking appointment, `سياسة استرداد التأمين`, backend refund deadline, and backend eligibility result before confirmation. Do not show reschedule/backend roadmap explanations. Recurring details show contextual `↻ حجز أسبوعي`, but must not expose a recurring page, `RecurringAgreement`, or unsupported single-occurrence cancellation.
 
 HOLD expiry text may use only authoritative `hold_expires_at`. When the field is absent, omit the countdown; never derive the deadline from Court `internal_hold_expiry_hours` or booking creation time.
 
-For active recurring completion, use backend `recurrence_next` to present the next occurrence, total price, required deposit, continuation availability, and human blocked reason. `إكمال واستمرار أسبوعيًا` may send next-deposit method/reference/notes; `إكمال وإيقاف التكرار` sends `continue_recurring: false`. Never calculate next-week data or send a next-deposit amount.
+For active recurring completion, use backend `recurrence_next` to present the next occurrence, total price, required deposit, continuation availability, and human blocked reason. `إكمال واستمرار أسبوعيًا` may send next-deposit method/reference/notes; `إكمال وإيقاف الحجز الأسبوعي` sends `continue_recurring: false`. Never calculate next-week data or send a next-deposit amount.
 21. Add Payment Page / Modal
 
 This should be a small focused form.
@@ -896,14 +901,16 @@ If lower price:
 سيتم الاحتفاظ بالسعر الأصلي إلا إذا قام المالك بتعديله.
 25. Owner Dashboard
 
-`/dashboard`, labeled `الرئيسية`, is the one operational Home for Staff, Manager, and Owner; do not create a second Home route or parallel page.
+`/dashboard` remains routed as `المتابعة`. It is follow-up analytics, not the normal operational Home.
 
-Primary hierarchy:
+The visible Home labeled `الرئيسية` is `/schedule`. Do not create a second Home page or restore Dashboard as the landing destination.
+
+Primary hierarchy for the retained Dashboard/follow-up page:
 
 1. Real user greeting plus assigned/selected Court and human date.
 2. Accurate today's booking total and backend HOLD count.
 3. `محتاجين إجراء`, using backend aggregate classifications and filtered Booking links until item summaries exist.
-4. Staff `عهدتي`, or permission-gated management `عهد الموظفين`.
+4. Staff `عهدتي`, or permission-gated management `إدارة الأموال`.
 5. Period controls, status breakdown, and financial analytics as secondary content.
 
 The current aggregate response does not identify upcoming bookings, nearest HOLD expiry, next booking, or individual action records. Omit those blocks until the backend supplies authoritative values. Never relabel all bookings as upcoming, calculate a HOLD deadline from Court policy, download full history to derive Home, or construct fake booking details.
@@ -1410,10 +1417,14 @@ Payment Labels
 الإجمالي
 Settlement Labels
 عهدتي
-عهد الموظفين
-مراجعة العهدة
-تأكيد استلام العهدة
-إجمالي العهدة
+إدارة الأموال
+المبالغ مع الموظفين
+مبالغ محتاجة استلام
+تم استلامها سابقًا
+مراجعة المبالغ المستلمة سابقًا
+استلام المبلغ
+تأكيد استلام المبلغ
+إجمالي المبلغ
 تفصيل طرق الدفع
 الموظف
 الفترة

@@ -1,5 +1,6 @@
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
+import { financeCopy } from '../../../../shared/copy/appCopy'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 
 interface ConfirmSettlementDialogProps {
@@ -36,7 +37,7 @@ export function ConfirmSettlementDialog({
           onClose()
         }
       }}
-      title="تأكيد استلام العهدة"
+      title={financeCopy.confirmReceiveAmount}
     >
       <section className="p-4 sm:p-5">
         <div className="space-y-4 pt-7">
@@ -44,19 +45,19 @@ export function ConfirmSettlementDialog({
             <h2
               className="text-lg font-black text-[var(--sloty-text-primary)]"
             >
-              تأكيد استلام العهدة
+              {financeCopy.confirmReceiveAmount}
             </h2>
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
               هل تؤكد استلام {formatMoneyAmount(totalAmount)} من{' '}
               {collectorName}؟
             </p>
             <p className="mt-1 text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-              بعد التأكيد لن تظهر هذه التحصيلات ضمن عهدة الموظف الحالية.
+              بعد التأكيد المبلغ مش هيفضل ظاهر ضمن المبالغ اللي لسه مع الموظف.
             </p>
           </div>
 
           <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3 text-sm font-bold text-[var(--sloty-text-primary)]">
-            عدد التحصيلات: {transactionCount}
+            عدد العمليات: {transactionCount}
           </div>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
@@ -78,7 +79,7 @@ export function ConfirmSettlementDialog({
             <AppButton disabled={isSubmitting} onClick={onConfirm}>
               {isSubmitting
                 ? 'جاري تأكيد الاستلام...'
-                : 'تأكيد استلام العهدة'}
+                : financeCopy.confirmReceiveAmount}
             </AppButton>
             <AppButton
               disabled={isSubmitting}

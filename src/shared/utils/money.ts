@@ -14,6 +14,18 @@ function formatNumericMoney(value: string): string {
 /**
  * Formats backend money strings without changing their decimal precision.
  */
+export function isNonZeroMoneyAmount(
+  value: string | number | null | undefined,
+): boolean {
+  if (value === null || value === undefined || value === '') {
+    return false
+  }
+
+  const numericValue = Number(value)
+
+  return Number.isFinite(numericValue) && numericValue !== 0
+}
+
 export function formatMoneyAmount(
   value: string | number | null | undefined,
   options: FormatMoneyAmountOptions = {},

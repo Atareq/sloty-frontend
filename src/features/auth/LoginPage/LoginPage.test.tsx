@@ -67,7 +67,8 @@ function renderLoginPageWithRoutes() {
         <Routes>
           <Route element={<AuthLandingRedirect />} path="/" />
           <Route element={<LoginPage />} path="/login" />
-          <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
+          <Route element={<p>لوحة التحكم</p>} path="/schedule" />
+          <Route element={<p>المتابعة</p>} path="/dashboard" />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,

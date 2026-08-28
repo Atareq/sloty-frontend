@@ -8,6 +8,11 @@ import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
+import {
+  bookingActionCopy,
+  financeCopy,
+  validationCopy,
+} from '../../../../shared/copy/appCopy'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type {
   PaymentMethod,
@@ -21,8 +26,15 @@ export interface RecordPaymentSheetValues {
   notes?: string
 }
 
+export interface RecordPaymentBookingMoney {
+  totalPrice?: string | null
+  paidAmount?: string | null
+  remainingAmount?: string | null
+}
+
 export interface RecordPaymentSheetProps {
   bookingId: number | string
+  bookingMoney?: RecordPaymentBookingMoney | null
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
   isSubmitting: boolean
@@ -32,6 +44,10 @@ export interface RecordPaymentSheetProps {
   onSubmit: (values: RecordPaymentSheetValues) => Promise<void> | void
 }
 
+function hasMoneyValue(value: string | number | null | undefined): boolean {
+  return value !== null && value !== undefined && value !== ''
+}
+
 /**
  * Presentational payment-recording form for HOLD or confirmed bookings.
  *
@@ -39,6 +55,7 @@ export interface RecordPaymentSheetProps {
  * this sheet can remain reusable from booking details or future transaction UI.
  */
 export function RecordPaymentSheet({
+  bookingMoney = null,
   error,
   fieldErrors = null,
   isSubmitting,
@@ -51,12 +68,18 @@ export function RecordPaymentSheet({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
-  const [validationError, setValidationError] = useState<string | null>(null)
+  const [amountValidationError, setAmountValidationError] = useState<string | null>(
+    null,
+  )
   const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
   const amountFieldError = getFirstFieldErrorMessage(fieldErrors, 'amount')
   const referenceFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'reference') ??
     getFirstFieldErrorMessage(fieldErrors, 'payment_reference')
+  const displayedAmountError = amountFieldError ?? amountValidationError
+  const bannerError =
+    error && error !== displayedAmountError ? error : null
+  const showPaymentReference = paymentMethod !== 'CASH'
   const isDirty =
     amount.length > 0 ||
     paymentMethod !== 'CASH' ||
@@ -81,21 +104,39 @@ export function RecordPaymentSheet({
     const numericAmount = Number(trimmedAmount)
 
     if (!trimmedAmount) {
-      setValidationError('المبلغ مطلوب')
+      setAmountValidationError(validationCopy.amountRequired)
       return
     }
 
     if (Number.isNaN(numericAmount) || numericAmount <= 0) {
-      setValidationError('المبلغ يجب أن يكون أكبر من صفر')
+      setAmountValidationError(validationCopy.amountPositive)
       return
     }
 
-    setValidationError(null)
+    if (paymentPurpose === 'deposit' && minimumDepositHint) {
+      const minimumDeposit = Number(minimumDepositHint)
+
+      if (
+        !Number.isNaN(minimumDeposit) &&
+        numericAmount < minimumDeposit
+      ) {
+        setAmountValidationError(
+          validationCopy.firstPaymentMinimum(
+            formatMoneyAmount(minimumDepositHint, { suffix: 'ج.م' }),
+          ),
+        )
+        return
+      }
+    }
+
+    setAmountValidationError(null)
     try {
       await onSubmit({
         amount: trimmedAmount,
         payment_method: paymentMethod,
-        reference: trimmedReference || undefined,
+        reference: showPaymentReference
+          ? trimmedReference || undefined
+          : undefined,
         notes: trimmedNotes || undefined,
       })
     } catch {
@@ -131,11 +172,52 @@ export function RecordPaymentSheet({
                 ? 'سجل المبلغ الذي تم تحصيله لهذا الحجز'
                 : 'سجل دفعة جديدة لهذا الحجز'}
           </p>
-          {minimumDepositHint ? (
-            <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-xs font-bold text-[var(--sloty-text-muted)]">
-              الحد الأدنى للعربون في إعدادات الملعب:{' '}
-              <span dir="ltr">{formatMoneyAmount(minimumDepositHint)}</span>
+          {paymentPurpose === 'deposit' && minimumDepositHint ? (
+            <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+              {bookingActionCopy.requiredDeposit}
+              <span className="ms-2" dir="ltr">
+                {formatMoneyAmount(minimumDepositHint, { suffix: 'ج.م' })}
+              </span>
             </p>
+          ) : null}
+          {bookingMoney &&
+          (hasMoneyValue(bookingMoney.totalPrice) ||
+            hasMoneyValue(bookingMoney.paidAmount) ||
+            hasMoneyValue(bookingMoney.remainingAmount)) ? (
+            <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {hasMoneyValue(bookingMoney.totalPrice) ? (
+                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                  <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                    {bookingActionCopy.bookingTotal}
+                  </dt>
+                  <dd className="mt-1 font-black" dir="ltr">
+                    {formatMoneyAmount(bookingMoney.totalPrice, { suffix: 'ج.م' })}
+                  </dd>
+                </div>
+              ) : null}
+              {hasMoneyValue(bookingMoney.paidAmount) ? (
+                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                  <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                    {bookingActionCopy.paidAmount}
+                  </dt>
+                  <dd className="mt-1 font-black" dir="ltr">
+                    {formatMoneyAmount(bookingMoney.paidAmount, { suffix: 'ج.م' })}
+                  </dd>
+                </div>
+              ) : null}
+              {hasMoneyValue(bookingMoney.remainingAmount) ? (
+                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                  <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                    {bookingActionCopy.remainingNowLabel}
+                  </dt>
+                  <dd className="mt-1 font-black" dir="ltr">
+                    {formatMoneyAmount(bookingMoney.remainingAmount, {
+                      suffix: 'ج.م',
+                    })}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
           ) : null}
         </div>
 
@@ -151,9 +233,9 @@ export function RecordPaymentSheet({
               value={amount}
             />
           </label>
-          {amountFieldError ? (
+          {displayedAmountError ? (
             <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-              {amountFieldError}
+              {displayedAmountError}
             </p>
           ) : null}
 
@@ -168,23 +250,24 @@ export function RecordPaymentSheet({
             value={paymentMethod}
           />
 
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>رقم العملية</span>
-            <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
-              disabled={isSubmitting}
-              onChange={(event) => setReference(event.target.value)}
-              value={reference}
-            />
-          </label>
-          {referenceFieldError ? (
-            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-              {referenceFieldError}
-            </p>
+          {showPaymentReference ? (
+            <>
+              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>{financeCopy.paymentReference}</span>
+                <input
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
+                  disabled={isSubmitting}
+                  onChange={(event) => setReference(event.target.value)}
+                  value={reference}
+                />
+              </label>
+              {referenceFieldError ? (
+                <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                  {referenceFieldError}
+                </p>
+              ) : null}
+            </>
           ) : null}
-          <p className="-mt-2 text-xs font-bold text-[var(--sloty-text-muted)]">
-            اختياري حسب طريقة الدفع وسياسة الملعب
-          </p>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>
@@ -197,9 +280,9 @@ export function RecordPaymentSheet({
           </label>
         </div>
 
-        {validationError || error ? (
+        {bannerError ? (
           <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-            {validationError ?? error}
+            {bannerError}
           </p>
         ) : null}
 

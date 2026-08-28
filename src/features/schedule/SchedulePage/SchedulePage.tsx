@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorCode,
   getApiErrorDetails,
@@ -6,13 +7,14 @@ import {
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
-import { useAuth } from '../../../core/auth/useAuth'
+import { bookingStatusCopy } from '../../../shared/copy/appCopy'
 import {
   canChooseOperationalCourt,
   getAssignedOperationalCourtId,
   type CurrentUserMembershipClub,
   type CurrentUserMembershipCourt,
 } from '../../../core/auth/auth.types'
+import { useAuth } from '../../../core/auth/useAuth'
 import { AppDateNavigator } from '../../../shared/components/AppDateNavigator/AppDateNavigator'
 import {
   formatArabicDateWithWeekday,
@@ -36,8 +38,11 @@ import {
 } from '../components/NoShowReasonSheet/NoShowReasonSheet'
 import { ScheduleClosingSection } from '../components/ScheduleClosingSection/ScheduleClosingSection'
 import { ScheduleSummary } from '../components/ScheduleSummary/ScheduleSummary'
+import { VirtualRecurringSlotDetailsSheet } from '../components/VirtualRecurringSlotDetailsSheet/VirtualRecurringSlotDetailsSheet'
 import { BookingActionSheet } from '../../bookings/components/BookingActionSheet/BookingActionSheet'
-import { hasActiveRecurrence } from '../../bookings/bookingRecurrence.helpers'
+import { EditBookingDetailsSheet } from '../../bookings/components/EditBookingDetailsSheet/EditBookingDetailsSheet'
+import { RescheduleBookingSheet } from '../../bookings/components/RescheduleBookingSheet/RescheduleBookingSheet'
+import { hasActiveRecurrence, shouldRefreshRecurrencePreview } from '../../bookings/bookingRecurrence.helpers'
 import { createTransaction } from '../../transactions/transactionsApi'
 import {
   RecordPaymentSheet,
@@ -59,14 +64,19 @@ import {
   listBookingSlots,
   markBookingNoShow,
   previewBookingCancellation,
+  rescheduleBooking,
+  updateBookingCustomer,
 } from '../scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
   type BookingCompletePayload,
   type BookingCancellationPreview,
+  type BookingCustomerUpdatePayload,
   type BookingListItem,
+  type BookingReschedulePayload,
 } from '../scheduleApi.types'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
 
 const BOOKING_CANCELLATION_TIME_PASSED = 'BOOKING_CANCELLATION_TIME_PASSED'
 const FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT = 'FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT'
@@ -81,11 +91,11 @@ const statusLegend = [
     className: 'border-amber-400 bg-amber-100',
   },
   {
-    label: 'مؤكد',
+    label: bookingStatusCopy.CONFIRMED,
     className: 'sloty-green-surface-button border-[var(--sloty-primary-dark)]',
   },
   {
-    label: 'مكتمل',
+    label: bookingStatusCopy.COMPLETED,
     className: 'border-slate-400 bg-slate-200',
   },
   {
@@ -129,6 +139,8 @@ function getCourtMinimumDeposit(
  */
 export function SchedulePage() {
   const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState(formatDateInputValue(new Date()))
   const selectedClub: CurrentUserMembershipClub | null =
     selectedMembership?.club ?? null
@@ -178,6 +190,11 @@ export function SchedulePage() {
   const [noShowBooking, setNoShowBooking] = useState<BookingListItem | null>(
     null,
   )
+  const [editingBooking, setEditingBooking] = useState<BookingListItem | null>(
+    null,
+  )
+  const [reschedulingBooking, setReschedulingBooking] =
+    useState<BookingListItem | null>(null)
   const [isLifecycleSubmitting, setIsLifecycleSubmitting] = useState(false)
   const [lifecycleError, setLifecycleError] = useState<string | null>(null)
   const [lifecycleFieldErrors, setLifecycleFieldErrors] = useState<Record<
@@ -187,15 +204,23 @@ export function SchedulePage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [settledSlotsDate, setSettledSlotsDate] = useState<string | null>(null)
   const slotsSectionRef = useRef<HTMLElement | null>(null)
+  const daySectionRef = useRef<HTMLElement | null>(null)
   const pendingSlotsScrollDateRef = useRef<string | null>(null)
+
   useEffect(() => {
-    if (!successMessage) {
+    const navigationState = location.state as { beginAtDayChoice?: boolean } | null
+
+    if (!navigationState?.beginAtDayChoice) {
       return
     }
 
-    const timeoutId = window.setTimeout(() => setSuccessMessage(null), 3000)
-    return () => window.clearTimeout(timeoutId)
-  }, [successMessage])
+    pendingSlotsScrollDateRef.current = null
+    daySectionRef.current?.scrollIntoView({ block: 'start' })
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: null,
+    })
+  }, [location.pathname, location.search, location.state, navigate])
 
   useEffect(() => {
     if (
@@ -549,6 +574,9 @@ export function SchedulePage() {
       setLifecycleError(
         getApiErrorMessage(error, 'تعذر إكمال الحجز. حاول مرة أخرى'),
       )
+      if (shouldRefreshRecurrencePreview(getApiErrorCode(error))) {
+        throw error
+      }
     } finally {
       setIsLifecycleSubmitting(false)
     }
@@ -595,12 +623,166 @@ export function SchedulePage() {
       )
       setSelectedActionBooking(updatedBooking)
       setSelectedSlot(null)
-      setSuccessMessage('تم إيقاف تكرار الحجز')
+      setSuccessMessage('تم إيقاف الحجز الأسبوعي')
       await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
-        getApiErrorMessage(error, 'تعذر إيقاف التكرار الأسبوعي. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر إيقاف الحجز الأسبوعي. حاول مرة أخرى'),
       )
+    } finally {
+      setIsLifecycleSubmitting(false)
+    }
+  }
+
+  async function refreshCanonicalBooking(bookingId: number): Promise<BookingListItem | null> {
+    if (!selectedClubSlug) {
+      return null
+    }
+
+    const freshBooking = await getBooking(selectedClubSlug, bookingId)
+    setSelectedActionBooking(freshBooking)
+    setHoldBooking((current) =>
+      current && current.id === freshBooking.id ? freshBooking : current,
+    )
+    setSelectedSlot((current) =>
+      current?.booking?.id === freshBooking.id
+        ? { ...current, booking: freshBooking }
+        : current,
+    )
+    return freshBooking
+  }
+
+  async function handleStartEditCustomer(booking: BookingListItem): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsLifecycleSubmitting(true)
+    setLifecycleError(null)
+
+    try {
+      const freshBooking = await getBooking(selectedClubSlug, booking.id)
+      setEditingBooking(freshBooking)
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر تحميل بيانات الحجز. حاول مرة أخرى'),
+      )
+    } finally {
+      setIsLifecycleSubmitting(false)
+    }
+  }
+
+  async function handleUpdateBookingCustomer(
+    payload: BookingCustomerUpdatePayload,
+  ): Promise<void> {
+    if (!selectedClubSlug || !editingBooking) {
+      return
+    }
+
+    setIsLifecycleSubmitting(true)
+    setLifecycleError(null)
+    setLifecycleFieldErrors(null)
+
+    try {
+      await updateBookingCustomer(selectedClubSlug, editingBooking.id, payload)
+      const freshBooking = await refreshCanonicalBooking(editingBooking.id)
+      setEditingBooking(null)
+      if (freshBooking) {
+        setSelectedActionBooking(freshBooking)
+      }
+      setSuccessMessage('تم تحديث بيانات الحجز')
+      await reloadScheduleSlots()
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر تحديث بيانات الحجز. حاول مرة أخرى'),
+      )
+      setLifecycleFieldErrors(getApiFieldErrors(error))
+    } finally {
+      setIsLifecycleSubmitting(false)
+    }
+  }
+
+  async function handleStartReschedule(booking: BookingListItem): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsLifecycleSubmitting(true)
+    setLifecycleError(null)
+
+    try {
+      const freshBooking = await getBooking(selectedClubSlug, booking.id)
+      setReschedulingBooking(freshBooking)
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر تحميل بيانات الحجز. حاول مرة أخرى'),
+      )
+    } finally {
+      setIsLifecycleSubmitting(false)
+    }
+  }
+
+  async function handleRescheduleBooking(
+    payload: BookingReschedulePayload,
+  ): Promise<void> {
+    if (!selectedClubSlug || !reschedulingBooking) {
+      return
+    }
+
+    setIsLifecycleSubmitting(true)
+    setLifecycleError(null)
+    setLifecycleFieldErrors(null)
+
+    try {
+      await rescheduleBooking(selectedClubSlug, reschedulingBooking.id, payload)
+      const freshBooking = await refreshCanonicalBooking(reschedulingBooking.id)
+      setReschedulingBooking(null)
+      setSelectedSlot(null)
+      if (freshBooking) {
+        setSelectedActionBooking(freshBooking)
+      }
+      setSuccessMessage('تم تغيير الموعد بنجاح')
+      await reloadScheduleSlots()
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر تغيير الموعد. حاول مرة أخرى'),
+      )
+      setLifecycleFieldErrors(getApiFieldErrors(error))
+      throw error
+    } finally {
+      setIsLifecycleSubmitting(false)
+    }
+  }
+
+  /**
+   * Ends weekly recurrence from a virtual RECURRING_RESERVED slot.
+   * Uses the anchor Booking ID only as recurrenceContextBookingId — never as
+   * the selected future occurrence Booking ID.
+   */
+  async function handleEndVirtualRecurrence(
+    recurrenceContextBookingId: number,
+  ): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsLifecycleSubmitting(true)
+    setLifecycleError(null)
+
+    try {
+      await endBookingRecurrence(selectedClubSlug, recurrenceContextBookingId)
+      setSelectedSlot(null)
+      setSuccessMessage('تم إيقاف الحجز الأسبوعي')
+      await reloadScheduleSlots()
+    } catch (error) {
+      setLifecycleError(
+        getApiErrorMessage(error, 'تعذر إيقاف الحجز الأسبوعي. حاول مرة أخرى'),
+      )
+      await reloadScheduleSlots()
+
+      if (getApiErrorCode(error) === 'BOOKING_RECURRENCE_NOT_ACTIVE') {
+        setSelectedSlot(null)
+      }
     } finally {
       setIsLifecycleSubmitting(false)
     }
@@ -695,48 +877,24 @@ export function SchedulePage() {
     setLifecycleFieldErrors(null)
     setHoldActionError(null)
 
-    if (slot.status === 'recurring_reserved') {
-      if (!slot.recurringAnchorBookingId || !selectedClubSlug) {
-        setLifecycleError('تعذر تحميل تفاصيل الحجز.')
-        return
-      }
-
-      setIsLifecycleSubmitting(true)
-      try {
-        setSelectedActionBooking(
-          await getBooking(selectedClubSlug, slot.recurringAnchorBookingId),
-        )
-      } catch (error) {
-        setLifecycleError(
-          getApiErrorMessage(error, 'تعذر تحميل تفاصيل الحجز.'),
-        )
-      } finally {
-        setIsLifecycleSubmitting(false)
-      }
-      return
-    }
-
+    // FREE → create booking. Virtual recurrence is an explicit status branch,
+    // never inferred from a missing booking summary.
     if (slot.status === 'available' && slot.isAvailable) {
       setSelectedSlot(slot)
       setHoldBooking(null)
       return
     }
 
-    if (slot.status === 'hold') {
-      setSelectedSlot(slot)
-      setHoldBooking(slot.booking ?? null)
-      return
-    }
-
-    if (slot.status === 'confirmed') {
+    if (slot.status === 'recurring_reserved') {
       setSelectedSlot(slot)
       setHoldBooking(null)
       return
     }
 
-    if (slot.status === 'completed' || slot.status === 'no_show') {
-      setSelectedSlot(slot.booking ? slot : null)
-      setHoldBooking(null)
+    if (slot.booking) {
+      setSelectedSlot(slot)
+      setHoldBooking(slot.status === 'hold' ? slot.booking : null)
+      return
     }
   }
 
@@ -810,7 +968,10 @@ export function SchedulePage() {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
       <div className="space-y-4 md:space-y-6">
-        <section className="space-y-4 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:px-5">
+        <section
+          className="space-y-4 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:px-5"
+          ref={daySectionRef}
+        >
           {canChooseCourt && courts.length > 1 ? (
             <AppSelect
               className="w-full md:w-64"
@@ -825,7 +986,7 @@ export function SchedulePage() {
           ) : null}
 
           <div className="space-y-3">
-            <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+            <h2 className="text-lg font-extrabold text-[var(--sloty-text-primary)]">
               اختار اليوم
             </h2>
             <AppDateNavigator
@@ -839,14 +1000,18 @@ export function SchedulePage() {
           className="scroll-mt-24 space-y-3"
           ref={slotsSectionRef}
         >
-          <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+          <h2 className="text-lg font-extrabold text-[var(--sloty-text-primary)]">
             اختار المعاد
           </h2>
-          {isLifecycleSubmitting && !selectedActionBooking ? (
-            <p className="rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-sm font-bold text-[var(--sloty-primary-dark)]">
-              جاري تحميل تفاصيل الحجز...
-            </p>
-          ) : lifecycleError && !selectedActionBooking ? (
+          {lifecycleError &&
+          !selectedSlot &&
+          !selectedActionBooking &&
+          !holdBooking &&
+          !cancellingBooking &&
+          !completingBooking &&
+          !noShowBooking &&
+          !editingBooking &&
+          !reschedulingBooking ? (
             <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
               {lifecycleError}
             </p>
@@ -878,10 +1043,9 @@ export function SchedulePage() {
                 <>
                   <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
                     <div>
-                      <p className="text-xs font-bold text-white/75">
-                        الفترة الصباحية · AM
-                      </p>
-                      <h3 className="text-lg font-black text-white">مواعيد ص</h3>
+                      <h3 className="text-lg font-bold text-white">
+                        مواعيد الصباح
+                      </h3>
                     </div>
                     <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                       {amSlots.map((booking) => (
@@ -896,10 +1060,9 @@ export function SchedulePage() {
 
                   <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
                     <div>
-                      <p className="text-xs font-bold text-white/75">
-                        الفترة المسائية · PM
-                      </p>
-                      <h3 className="text-lg font-black text-white">مواعيد م</h3>
+                      <h3 className="text-lg font-bold text-white">
+                        مواعيد المساء
+                      </h3>
                     </div>
                     <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                       {pmSlots.map((booking) => (
@@ -946,18 +1109,10 @@ export function SchedulePage() {
       </div>
 
       {successMessage ? (
-        <div className="fixed left-4 top-4 z-[70] max-w-sm rounded-2xl border border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)] px-4 py-3 text-sm font-bold text-[var(--sloty-primary-dark)] shadow-[var(--sloty-shadow)]">
-          <div className="flex items-center gap-3">
-            <span>{successMessage}</span>
-            <button
-              className="rounded-lg px-2 py-1 text-xs hover:bg-white/70"
-              onClick={() => setSuccessMessage(null)}
-              type="button"
-            >
-              إغلاق
-            </button>
-          </div>
-        </div>
+        <AppSuccessNotice
+          message={successMessage}
+          onDismiss={() => setSuccessMessage(null)}
+        />
       ) : null}
 
       {selectedSlot &&
@@ -985,13 +1140,35 @@ export function SchedulePage() {
         />
       ) : null}
 
+      {selectedSlot &&
+      selectedSlot.status === 'recurring_reserved' &&
+      selectedCourt ? (
+        <VirtualRecurringSlotDetailsSheet
+          courtName={selectedCourt.name || 'لا يوجد ملعب'}
+          error={lifecycleError}
+          isSubmitting={isLifecycleSubmitting}
+          onClose={() => {
+            setSelectedSlot(null)
+            setLifecycleError(null)
+          }}
+          onEndRecurrence={(anchorBookingId) => {
+            void handleEndVirtualRecurrence(anchorBookingId)
+          }}
+          slot={selectedSlot}
+        />
+      ) : null}
+
       {!paymentBooking &&
       !cancellingBooking &&
       !completingBooking &&
       !noShowBooking &&
+      !editingBooking &&
+      !reschedulingBooking &&
       (holdBooking ||
       selectedActionBooking ||
       (selectedSlot &&
+        selectedSlot.status !== 'recurring_reserved' &&
+        selectedSlot.booking &&
         (selectedSlot.status === 'hold' ||
           selectedSlot.status === 'confirmed' ||
           selectedSlot.status === 'completed' ||
@@ -1032,6 +1209,8 @@ export function SchedulePage() {
             setCancellationPreview(null)
             setCompletingBooking(null)
             setNoShowBooking(null)
+            setEditingBooking(null)
+            setReschedulingBooking(null)
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
             setHoldActionError(null)
@@ -1041,6 +1220,9 @@ export function SchedulePage() {
             setCompletingBookingRemainingAmount(null)
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
+          }}
+          onEditCustomer={(booking) => {
+            void handleStartEditCustomer(booking)
           }}
           onEndRecurrence={(booking) => {
             void handleEndRecurrence(booking)
@@ -1053,12 +1235,20 @@ export function SchedulePage() {
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
           }}
+          onReschedule={(booking) => {
+            void handleStartReschedule(booking)
+          }}
         />
       ) : null}
 
       {paymentBooking ? (
         <RecordPaymentSheet
           bookingId={paymentBooking.id}
+          bookingMoney={{
+            totalPrice: paymentBooking.total_price,
+            paidAmount: paymentBooking.paid_amount,
+            remainingAmount: paymentBooking.remaining_amount,
+          }}
           error={paymentError}
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
@@ -1090,9 +1280,10 @@ export function SchedulePage() {
         />
       ) : null}
 
-      {completingBooking ? (
+      {completingBooking && selectedClubSlug ? (
         <CompleteBookingConfirmSheet
           booking={completingBooking}
+          clubSlug={selectedClubSlug}
           error={lifecycleError}
           isSubmitting={isLifecycleSubmitting}
           onClose={() => {
@@ -1117,6 +1308,39 @@ export function SchedulePage() {
           remainingAmount={
             completingBookingRemainingAmount ?? completingBooking.remaining_amount
           }
+        />
+      ) : null}
+
+      {editingBooking && selectedClubSlug ? (
+        <EditBookingDetailsSheet
+          booking={editingBooking}
+          error={lifecycleError}
+          fieldErrors={lifecycleFieldErrors}
+          isSubmitting={isLifecycleSubmitting}
+          onClose={() => {
+            setEditingBooking(null)
+            setLifecycleError(null)
+            setLifecycleFieldErrors(null)
+          }}
+          onSubmit={handleUpdateBookingCustomer}
+        />
+      ) : null}
+
+      {reschedulingBooking && selectedClubSlug ? (
+        <RescheduleBookingSheet
+          assignedCourtId={assignedCourtId}
+          booking={reschedulingBooking}
+          canChooseCourt={canChooseCourt}
+          clubSlug={selectedClubSlug}
+          error={lifecycleError}
+          fieldErrors={lifecycleFieldErrors}
+          isSubmitting={isLifecycleSubmitting}
+          onClose={() => {
+            setReschedulingBooking(null)
+            setLifecycleError(null)
+            setLifecycleFieldErrors(null)
+          }}
+          onSubmit={handleRescheduleBooking}
         />
       ) : null}
 

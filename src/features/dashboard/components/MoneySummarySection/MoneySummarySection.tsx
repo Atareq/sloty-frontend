@@ -94,7 +94,7 @@ export function MoneySummarySection({ summary }: MoneySummarySectionProps) {
 
             <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
               <dt className="font-bold text-[var(--sloty-text-muted)]">
-                مبالغ غير مسواة حالياً
+                مبالغ محتاجة استلام
               </dt>
               <dd className="font-black text-[var(--sloty-text-primary)]">
                 {formatMoneyAmount(

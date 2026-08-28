@@ -69,6 +69,12 @@ describe('router report routes', () => {
   })
 })
 
+describe('router leftover bottom-nav routes', () => {
+  it('does not keep the obsolete /more placeholder', () => {
+    expect(getProtectedChildRoute('/more')).toBeNull()
+  })
+})
+
 describe('router platform admin users routes', () => {
   it('maps /admin/users to the real admin users page', () => {
     const routeElement = getProtectedChildRoute('/admin/users')

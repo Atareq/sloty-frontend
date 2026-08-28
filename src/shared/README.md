@@ -1,5 +1,12 @@
 # Shared
 
-`src/shared` owns reusable presentational components, generic hooks, and small utility helpers that can be used by more than one feature.
+`src/shared` owns reusable product-agnostic or cross-feature code:
 
-Do not place booking, payment, settlement, club, court, or auth business rules here. Shared components should stay visual and receive typed props from feature code.
+- `components/` — canonical UI primitives (`AppButton`, `AppCard`, `AppSheet`, `AppSelect`, `AppDateNavigator`, `PageHeader`, `NewBookingFAB`, `FilterSheet`, `FilterCheckboxGroup`, `PhoneNumberInput`, `AppSuccessNotice`, `PageActions`, `StatusChip`)
+- `copy/` — canonical repeated product vocabulary
+- `navigation/` — route constants, nav items, page-header titles
+- `api/` — endpoint registry and shared API types
+- `utils/` — date, money, query, and display-name helpers
+- `validation/` — shared input validation
+
+Do not place booking lifecycle, payment mutation, settlement authorization, or Staff Court-scope rules here. Those belong in `src/features` or `src/core/auth`. Shared components stay presentational and receive typed props from feature code.

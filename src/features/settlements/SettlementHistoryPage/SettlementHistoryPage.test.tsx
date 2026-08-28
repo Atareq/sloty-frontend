@@ -1,11 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
-import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
+import { getDashboardSummary } from '../../dashboard/dashboardApi'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
-import { listCourts } from '../../courts/courtsApi'
 import { getSettlementPreview, listSettlements } from '../settlementsApi'
 import { SettlementHistoryPage } from './SettlementHistoryPage'
 
@@ -17,8 +15,8 @@ vi.mock('../../clubUsers/clubUsersApi', () => ({
   listClubUsers: vi.fn(),
 }))
 
-vi.mock('../../courts/courtsApi', () => ({
-  listCourts: vi.fn(),
+vi.mock('../../dashboard/dashboardApi', () => ({
+  getDashboardSummary: vi.fn(),
 }))
 
 vi.mock('../settlementsApi', () => ({
@@ -27,19 +25,10 @@ vi.mock('../settlementsApi', () => ({
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedGetDashboardSummary = vi.mocked(getDashboardSummary)
 const mockedGetSettlementPreview = vi.mocked(getSettlementPreview)
 const mockedListClubUsers = vi.mocked(listClubUsers)
-const mockedListCourts = vi.mocked(listCourts)
 const mockedListSettlements = vi.mocked(listSettlements)
-
-function paginatedResponse<T>(results: T[]) {
-  return {
-    count: results.length,
-    next: null,
-    previous: null,
-    results,
-  }
-}
 
 function mockAuth(options: {
   canManageSettlements?: boolean
@@ -51,7 +40,19 @@ function mockAuth(options: {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
-    currentUser: null,
+    currentUser: {
+      id: 1,
+      username: 'manager',
+      email: 'manager@example.com',
+      first_name: 'Current',
+      last_name: 'User',
+      phone_number: null,
+      is_active: true,
+      is_platform_admin: false,
+      account_created_by: null,
+      requires_club_selection: false,
+      memberships: [],
+    },
     selectedClubSlug,
     selectedMembership: selectedClubSlug
       ? {
@@ -86,49 +87,43 @@ describe('SettlementHistoryPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuth()
-    mockedListClubUsers.mockResolvedValue([
-      {
-        id: 5,
-        membership_id: 50,
-        username: 'staff_ahmed',
-        first_name: 'Ahmed',
-        last_name: 'Staff',
-        role: 'STAFF',
+    mockedListClubUsers.mockResolvedValue([])
+    mockedGetDashboardSummary.mockResolvedValue({
+      context: {
+        club_id: 1,
+        club_name: 'نادي النصر',
+        date_from: '2026-07-19',
+        date_to: '2026-07-19',
       },
-    ])
-    mockedListCourts.mockResolvedValue(
-      paginatedResponse([
-        {
-          id: 3,
-          club: 1,
-          name: 'Court A',
-          sport_type: 'FOOTBALL',
-          default_price: '300.00',
-          minimum_deposit: '100.00',
-          cancellation_refund_notice_days: 3,
-          slot_duration_minutes: 60,
-          is_active: true,
-          requires_digital_payment_reference: false,
-          internal_hold_expiry_hours: 12,
-        },
-      ]),
-    )
-    mockedListSettlements.mockResolvedValue(
-      paginatedResponse([
-        {
-          id: 9,
-          collected_by: 5,
-          collected_by_name: 'Ahmed Staff',
-          total_amount: '2000.00',
-          transaction_count: 8,
-          period_start: '2026-07-19T10:00:00Z',
-          period_end: '2026-07-19T15:20:00Z',
-          status: 'PENDING',
-          created_by: { id: 1, name: 'Owner User' },
-          created: '2026-07-19T15:20:00Z',
-        },
-      ]),
-    )
+      needs_action_breakdown: {
+        expiring_hold_count: 0,
+        hold_waiting_payment_count: 0,
+        overdue_confirmed_count: 0,
+        remaining_after_slot_end_count: 0,
+      },
+      payment_method_totals: {},
+      staff_unsettled_money: [],
+      summary: {
+        cancelled_bookings: 0,
+        completed_bookings: 0,
+        confirmed_bookings: 0,
+        expired_bookings: 0,
+        hold_bookings: 0,
+        needs_action_count: 0,
+        no_show_bookings: 0,
+        settled_transaction_amount: '0.00',
+        settled_transaction_count: 0,
+        staff_with_unsettled_transactions_count: 0,
+        total_booking_value: '0.00',
+        total_bookings: 0,
+        total_paid_amount: '0.00',
+        total_remaining_amount: null,
+        transaction_count: 0,
+        transaction_total: '0.00',
+        unsettled_transaction_total_amount: '0.00',
+        unsettled_transaction_count: 0,
+      },
+    })
     mockedGetSettlementPreview.mockResolvedValue({
       club: 1,
       collected_by: 1,
@@ -146,54 +141,30 @@ describe('SettlementHistoryPage', () => {
       totals_by_payment_method: {},
       transactions: [],
     })
+    mockedListSettlements.mockResolvedValue({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
   })
 
-  it('renders settlement cards with collected-by and backend-generated period', async () => {
+  it('reuses the money-management hub instead of a separate history page', async () => {
     render(
       <MemoryRouter>
         <SettlementHistoryPage />
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('2,000.00 جنيه')).toBeInTheDocument()
-    expect(screen.getByText('عهد الموظفين')).toBeInTheDocument()
-    expect(screen.getAllByText('Ahmed Staff').length).toBeGreaterThan(0)
-    expect(screen.getByText('2,000.00 جنيه')).toBeInTheDocument()
-    expect(screen.getByText('عدد التحصيلات')).toBeInTheDocument()
-    expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
-    expect(screen.getByRole('link', { name: 'عرض التفاصيل' })).toHaveAttribute(
-      'href',
-      '/settlements/9',
-    )
-    expect(screen.queryByText(/dry_run/i)).not.toBeInTheDocument()
-    expect(screen.queryByText('تجربة')).not.toBeInTheDocument()
-    expect(screen.queryByText(/pending settlement draft/i)).not.toBeInTheDocument()
-  })
-
-  it('submits collected_by/status/court filters', async () => {
-    const user = userEvent.setup()
-
-    render(
-      <MemoryRouter>
-        <SettlementHistoryPage />
-      </MemoryRouter>,
-    )
-
-    await screen.findByText('2,000.00 جنيه')
-    await chooseAppSelectOption(
-      user,
-      screen.getAllByLabelText('الموظف المحصل')[1],
-      'Ahmed Staff',
-    )
-    await chooseAppSelectOption(user, screen.getByLabelText('الحالة'), 'قيد المراجعة')
-    await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'Court A')
-    await user.click(screen.getByRole('button', { name: 'تحديث السجل' }))
-
+    expect(await screen.findByText('المبالغ مع الموظفين')).toBeInTheDocument()
+    expect(screen.getByText('مراجعة المبالغ المستلمة سابقًا')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'عرض الرئيسية' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'عرض التحصيلات المفتوحة' }))
+      .not.toBeInTheDocument()
     await waitFor(() => {
-      expect(mockedListSettlements).toHaveBeenLastCalledWith('nasr-club', {
-        collected_by: '5',
-        status: 'PENDING',
-        court: '3',
+      expect(mockedGetDashboardSummary).toHaveBeenCalledWith('nasr-club', {
+        settlement_status: 'unsettled',
       })
     })
   })
@@ -207,11 +178,11 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('مفيش مبلغ غير مسوى عندك دلوقتي.'))
+    expect(await screen.findByText('مفيش مبالغ معاك دلوقتي.'))
       .toBeInTheDocument()
-    expect(screen.queryByText('عهد الموظفين')).not.toBeInTheDocument()
+    expect(screen.queryByText('المبالغ مع الموظفين')).not.toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
-    expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club')
+    expect(mockedListSettlements).not.toHaveBeenCalled()
   })
 
   it('shows no selected club message', async () => {
@@ -224,32 +195,8 @@ describe('SettlementHistoryPage', () => {
     )
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لعرض التسويات.'),
+      await screen.findByText('اختر ناديًا أولًا لعرض المبالغ.'),
     ).toBeInTheDocument()
     expect(mockedListSettlements).not.toHaveBeenCalled()
-  })
-
-  it('renders helpful empty state actions', async () => {
-    mockedListSettlements.mockResolvedValueOnce(paginatedResponse([]))
-
-    render(
-      <MemoryRouter>
-        <SettlementHistoryPage />
-      </MemoryRouter>,
-    )
-
-    expect(
-      await screen.findByText('مفيش عهد مستلمة مسجلة حتى الآن.'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('عند تأكيد استلام عهدة موظف ستظهر هنا في السجل.'),
-    ).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'عرض لوحة التحكم' })[0])
-      .toHaveAttribute('href', '/dashboard')
-    expect(screen.getAllByRole('link', { name: 'عرض التحصيلات غير المسواة' })[0])
-      .toHaveAttribute(
-        'href',
-        '/transactions?settlement_status=unsettled&is_cancelled=false',
-      )
   })
 })

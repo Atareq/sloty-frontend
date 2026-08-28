@@ -9,10 +9,13 @@ import {
   createBooking,
   endBookingRecurrence,
   getBooking,
+  getBookingRecurrenceNext,
   listBookingSlots,
   listBookingsForCourtDay,
   markBookingNoShow,
   previewBookingCancellation,
+  rescheduleBooking,
+  updateBookingCustomer,
 } from './scheduleApi'
 import {
   BACKEND_BOOKING_STATUSES,
@@ -252,6 +255,73 @@ describe('scheduleApi', () => {
       {
         method: 'POST',
         body: { reason: 'طلب العميل' },
+      },
+    )
+  })
+
+  it('loads recurrence-next through the booking endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      can_continue: true,
+      next_start_time: '2026-09-15T20:00:00+03:00',
+      next_end_time: '2026-09-15T21:00:00+03:00',
+      next_total_price: '350.00',
+      next_required_deposit: '150.00',
+      requires_payment_reference: false,
+    })
+
+    await getBookingRecurrenceNext('nasr-club', 20)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.recurrenceNext('nasr-club', 20),
+    )
+  })
+
+  it('patches customer fields through the booking detail endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      customer_name: 'منى',
+      customer_phone: '+201011111111',
+      notes: '',
+    })
+
+    await updateBookingCustomer('nasr-club', 20, {
+      customer_name: 'منى',
+      customer_phone: '+201011111111',
+      notes: '',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.detail('nasr-club', 20),
+      {
+        method: 'PATCH',
+        body: {
+          customer_name: 'منى',
+          customer_phone: '+201011111111',
+          notes: '',
+        },
+      },
+    )
+  })
+
+  it('reschedules through the booking reschedule endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ id: 20 })
+
+    await rescheduleBooking('nasr-club', 20, {
+      court: 7,
+      start_time: '2026-12-01T18:00:00',
+      end_time: '2026-12-01T19:00:00',
+      reason: 'طلب العميل',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.reschedule('nasr-club', 20),
+      {
+        method: 'POST',
+        body: {
+          court: 7,
+          start_time: '2026-12-01T18:00:00',
+          end_time: '2026-12-01T19:00:00',
+          reason: 'طلب العميل',
+        },
       },
     )
   })

@@ -1,4 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { financeCopy } from '../../../../shared/copy/appCopy'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
 import type { SettlementPreviewTransaction } from '../../settlements.types'
@@ -9,6 +10,10 @@ import {
 } from '../../../transactions/transactions.types'
 
 function getReference(transaction: SettlementPreviewTransaction): string | null {
+  if (transaction.payment_method === 'CASH') {
+    return null
+  }
+
   return transaction.payment_reference || null
 }
 
@@ -18,13 +23,13 @@ interface SettlementPreviewTransactionsListProps {
 }
 
 export function SettlementPreviewTransactionsList({
-  emptyMessage = 'لا توجد تحصيلات غير مسواة لهذا الموظف',
+  emptyMessage = 'لا توجد عمليات مرتبطة لهذا الموظف',
   transactions,
 }: SettlementPreviewTransactionsListProps) {
   return (
     <section className="space-y-3">
       <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-        التحصيلات غير المسواة
+        المعاملات المرتبطة
       </h2>
 
       {transactions.length === 0 ? (
@@ -87,7 +92,7 @@ export function SettlementPreviewTransactionsList({
                   {reference ? (
                     <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                       <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        رقم العملية
+                        {financeCopy.paymentReference}
                       </dt>
                       <dd className="font-black text-[var(--sloty-text-primary)]">
                         {reference}

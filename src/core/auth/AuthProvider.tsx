@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getApiErrorMessage } from '../api/apiError.helpers'
-import { ApiClientError } from '../api/apiClient'
+import {
+  ApiClientError,
+  subscribeAccessToken,
+  subscribeSessionExpired,
+} from '../api/apiClient'
 import type {
   AuthClaims,
   AuthContextValue,
@@ -14,6 +18,7 @@ import { AuthContext } from './authContext'
 import {
   clearAuthTokens,
   getAccessToken,
+  getRefreshToken,
   setAccessToken,
   setRefreshToken,
 } from './authStorage'
@@ -28,11 +33,19 @@ function getClaims(accessToken: string | null): AuthClaims | null {
   return decodeAccessToken(accessToken)
 }
 
-function hasUsableStoredToken(): boolean {
+function hasHydratableSession(): boolean {
   const storedAccessToken = getAccessToken()
   const storedClaims = getClaims(storedAccessToken)
 
-  return Boolean(storedAccessToken && storedClaims && !isJwtExpired(storedClaims))
+  if (!storedAccessToken || !storedClaims) {
+    return false
+  }
+
+  if (!isJwtExpired(storedClaims)) {
+    return true
+  }
+
+  return Boolean(getRefreshToken())
 }
 
 /**
@@ -50,11 +63,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [selectedClubSlug, setSelectedClubSlugState] = useState<string | null>(
     () => getSelectedClubSlug(),
   )
-  const [isLoadingSession, setIsLoadingSession] = useState(hasUsableStoredToken)
+  const [isLoadingSession, setIsLoadingSession] = useState(hasHydratableSession)
+  const [hasRefreshToken, setHasRefreshToken] = useState(() =>
+    Boolean(getRefreshToken()),
+  )
   const [sessionError, setSessionError] = useState<string | null>(null)
   const claims = useMemo(() => getClaims(accessToken), [accessToken])
   const isTokenExpired = isJwtExpired(claims)
-  const isAuthenticated = Boolean(accessToken && claims && !isTokenExpired)
+  const isAuthenticated = Boolean(
+    accessToken && claims && (!isTokenExpired || hasRefreshToken),
+  )
   const selectedMembership = useMemo(() => {
     if (!currentUser || !selectedClubSlug) {
       return null
@@ -78,6 +96,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     clearAuthTokens()
     clearSelectedClubSlug()
     setAccessTokenState(null)
+    setHasRefreshToken(false)
     setCurrentUser(null)
     setSelectedClubSlugState(null)
     setSessionError(null)
@@ -87,6 +106,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const setTokens = useCallback((tokens: AuthTokens): void => {
     setAccessToken(tokens.accessToken)
     setRefreshToken(tokens.refreshToken)
+    setHasRefreshToken(Boolean(tokens.refreshToken))
     setCurrentUser(null)
     setSessionError(null)
     setIsLoadingSession(true)
@@ -104,8 +124,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const refreshCurrentUser = useCallback(async (): Promise<void> => {
-    if (!accessToken || !claims || isJwtExpired(claims)) {
-      clearSession()
+    if (!accessToken || !claims) {
+      if (!getRefreshToken()) {
+        clearSession()
+      }
       setIsLoadingSession(false)
       return
     }
@@ -116,13 +138,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const profile = await fetchCurrentUserProfile()
 
-      if (getAccessToken() !== accessToken) {
+      if (!getAccessToken()) {
         return
       }
 
       setCurrentUser(profile)
     } catch (error) {
-      if (getAccessToken() !== accessToken) {
+      if (!getAccessToken()) {
         return
       }
 
@@ -137,7 +159,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setCurrentUser(null)
       setSessionError(getApiErrorMessage(error, 'تعذر تحميل بيانات الحساب'))
     } finally {
-      if (getAccessToken() === accessToken) {
+      if (getAccessToken()) {
         setIsLoadingSession(false)
       }
     }
@@ -177,6 +199,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       })
     }
   }, [clearSelectedClub, currentUser, selectClub, selectedClubSlug])
+
+  useEffect(() => {
+    return subscribeAccessToken((token) => {
+      setAccessTokenState(token)
+    })
+  }, [])
+
+  useEffect(() => {
+    return subscribeSessionExpired(() => {
+      clearSession()
+    })
+  }, [clearSession])
 
   useEffect(() => {
     if (!accessToken) {

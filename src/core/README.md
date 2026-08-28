@@ -1,5 +1,8 @@
 # Core
 
-`src/core` owns cross-feature frontend foundations such as auth state helpers, API access helpers, configuration, and shared models/types.
+`src/core` owns cross-feature infrastructure:
 
-Do not place feature-specific screens, presentational UI components, or backend implementation details here. API modules in this folder must not invent production endpoints or payload contracts before they are agreed.
+- Auth session, `/me` hydration, token helpers, and route guards (`ProtectedRoute`, `RoleRoute`)
+- Shared API client and error helpers
+
+Do not place feature screens, presentational UI, or domain pages here. Route guards are UX helpers; the backend remains the permission authority.

@@ -326,7 +326,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <section className="space-y-1" aria-label="سياق التشغيل اليومي">
-        <h2 className="text-xl font-black text-[var(--sloty-text-primary)] sm:text-2xl">
+        <h2 className="text-xl font-extrabold text-[var(--sloty-text-primary)] sm:text-2xl">
           {getGreeting(displayName)}
         </h2>
         <p className="text-sm font-bold text-[var(--sloty-text-muted)]">

@@ -1,17 +1,28 @@
 import { formatMoneyAmount } from '../../shared/utils/money'
+import {
+  bookingActionCopy,
+  bookingStatusCopy,
+} from '../../shared/copy/appCopy'
 import type { BookingListItem } from '../schedule/scheduleApi.types'
 import {
   canBookingAddPayment,
   canBookingCancel,
   canBookingComplete,
+  canBookingEditCustomer,
   canBookingFreeHold,
   canBookingNoShow,
+  canBookingReschedule,
   hasRemainingAmount,
 } from './bookingDisplay.helpers'
 import { hasActiveRecurrence } from './bookingRecurrence.helpers'
 
 export type BookingPrimaryAction = 'PAYMENT' | 'COMPLETE'
-export type BookingSecondaryAction = 'CANCEL' | 'NO_SHOW' | 'END_RECURRENCE'
+export type BookingSecondaryAction =
+  | 'EDIT_CUSTOMER'
+  | 'RESCHEDULE'
+  | 'CANCEL'
+  | 'NO_SHOW'
+  | 'END_RECURRENCE'
 
 export interface BookingActionCapabilities {
   canAddPayment: boolean
@@ -20,6 +31,8 @@ export interface BookingActionCapabilities {
   canFreeHold: boolean
   canNoShow: boolean
   canEndRecurrence: boolean
+  canEditCustomer: boolean
+  canReschedule: boolean
 }
 
 export interface BookingActionPresentation {
@@ -28,6 +41,8 @@ export interface BookingActionPresentation {
     type: BookingPrimaryAction
     label: string
   } | null
+  /** Visible beside the primary action for ended fully-paid operational decisions. */
+  parallelActions: BookingSecondaryAction[]
   secondaryActions: BookingSecondaryAction[]
 }
 
@@ -54,61 +69,82 @@ export function getBookingActionPresentation(
   })
   let stateMessage: string
   let primaryAction: BookingActionPresentation['primaryAction'] = null
+  const parallelActions: BookingSecondaryAction[] = []
 
   switch (booking.status) {
     case 'HOLD':
-      stateMessage = 'بانتظار العربون'
+      stateMessage = bookingStatusCopy.HOLD
       if (
         capabilities.canAddPayment &&
         canBookingAddPayment(booking.status)
       ) {
         primaryAction = {
           type: 'PAYMENT',
-          label: 'ضيف العربون وأكد الحجز',
+          label: bookingActionCopy.recordDepositAndConfirm,
         }
       }
       break
     case 'CONFIRMED':
       if (hasRemaining) {
         stateMessage = ended
-          ? `الحجز خلص ولسه عليه ${formattedRemaining}`
-          : `متبقي ${formattedRemaining}`
+          ? bookingActionCopy.remainingAfterEnd(formattedRemaining)
+          : bookingActionCopy.remainingNow(formattedRemaining)
         if (
           capabilities.canAddPayment &&
           canBookingAddPayment(booking.status)
         ) {
           primaryAction = {
             type: 'PAYMENT',
-            label: `حصّل ${formattedRemaining}`,
+            label: bookingActionCopy.collectRemaining(formattedRemaining),
           }
         }
       } else if (ended) {
-        stateMessage = 'الحجز خلص ولسه مقفلتوش'
+        stateMessage = bookingActionCopy.endedNeedsClose
         if (
           capabilities.canComplete &&
           canBookingComplete(booking.status)
         ) {
-          primaryAction = { type: 'COMPLETE', label: 'إكمال' }
+          primaryAction = {
+            type: 'COMPLETE',
+            label: bookingActionCopy.complete,
+          }
+        }
+        if (
+          capabilities.canNoShow &&
+          canBookingNoShow(booking.status)
+        ) {
+          parallelActions.push('NO_SHOW')
         }
       } else {
-        stateMessage = 'مؤكد'
+        stateMessage = bookingStatusCopy.CONFIRMED
       }
       break
     case 'COMPLETED':
-      stateMessage = 'مكتمل'
+      stateMessage = bookingStatusCopy.COMPLETED
       break
     case 'CANCELLED':
-      stateMessage = 'ملغي'
+      stateMessage = bookingStatusCopy.CANCELLED
       break
     case 'NO_SHOW':
-      stateMessage = 'عدم حضور'
+      stateMessage = bookingStatusCopy.NO_SHOW
       break
     case 'EXPIRED':
-      stateMessage = 'انتهت المهلة'
+      stateMessage = bookingStatusCopy.EXPIRED
       break
   }
 
   const secondaryActions: BookingSecondaryAction[] = []
+
+  if (
+    capabilities.canEditCustomer &&
+    canBookingEditCustomer(booking.status)
+  ) {
+    secondaryActions.push('EDIT_CUSTOMER')
+  }
+
+  if (capabilities.canReschedule && canBookingReschedule(booking)) {
+    secondaryActions.push('RESCHEDULE')
+  }
 
   if (
     (capabilities.canCancel && canBookingCancel(booking.status)) ||
@@ -120,7 +156,8 @@ export function getBookingActionPresentation(
   if (
     ended &&
     capabilities.canNoShow &&
-    canBookingNoShow(booking.status)
+    canBookingNoShow(booking.status) &&
+    !parallelActions.includes('NO_SHOW')
   ) {
     secondaryActions.push('NO_SHOW')
   }
@@ -129,5 +166,5 @@ export function getBookingActionPresentation(
     secondaryActions.push('END_RECURRENCE')
   }
 
-  return { primaryAction, secondaryActions, stateMessage }
+  return { parallelActions, primaryAction, secondaryActions, stateMessage }
 }

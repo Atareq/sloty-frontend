@@ -20,7 +20,7 @@ export function SettlementPreviewContent({
       />
       <SettlementPreviewTransactionsList
         emptyMessage={
-          mode === 'staff' ? 'مفيش مبلغ غير مسوى عندك دلوقتي.' : undefined
+          mode === 'staff' ? 'مفيش مبلغ عندك دلوقتي.' : undefined
         }
         transactions={preview.transactions}
       />

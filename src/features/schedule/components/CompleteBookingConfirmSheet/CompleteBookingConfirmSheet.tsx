@@ -1,24 +1,32 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getApiErrorCode, getApiErrorMessage } from '../../../../core/api/apiError.helpers'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
+import { financeCopy } from '../../../../shared/copy/appCopy'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
-import { formatBookingDateTimeRangeWithWeekday } from '../../../bookings/bookingDisplay.helpers'
+import {
+  formatBookingDateWithWeekday,
+  formatBookingTimeRange,
+} from '../../../bookings/bookingDisplay.helpers'
 import { hasPositiveRemainingAmount } from '../../../bookings/bookingPayment.helpers'
 import {
-  getRecurrenceBlockedReasonMessage,
   hasActiveRecurrence,
+  shouldLoadRecurrenceNextPreview,
 } from '../../../bookings/bookingRecurrence.helpers'
 import type { PaymentMethod } from '../../../transactions/transactions.types'
 import { paymentMethodLabels } from '../../../transactions/transactions.types'
+import { getBookingRecurrenceNext } from '../../scheduleApi'
 import type {
   BookingCompletePayload,
   BookingListItem,
+  BookingRecurrenceNextPreview,
 } from '../../scheduleApi.types'
 
 export interface CompleteBookingConfirmSheetProps {
   booking: BookingListItem
+  clubSlug: string
   remainingAmount?: string | null
   isSubmitting: boolean
   error: string | null
@@ -27,12 +35,17 @@ export interface CompleteBookingConfirmSheetProps {
   onRequestPayment: () => void
 }
 
+function isNonCashMethod(method: PaymentMethod): boolean {
+  return method !== 'CASH'
+}
+
 /**
  * Confirms ordinary completion or the backend-owned recurring continuation
- * decision. It never derives the next occurrence, price, deposit, or amount.
+ * decision. Next date, price, and deposit come from GET recurrence-next/.
  */
 export function CompleteBookingConfirmSheet({
   booking,
+  clubSlug,
   remainingAmount,
   isSubmitting,
   error,
@@ -43,19 +56,87 @@ export function CompleteBookingConfirmSheet({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
   const [paymentReference, setPaymentReference] = useState('')
   const [paymentNotes, setPaymentNotes] = useState('')
+  const [validationError, setValidationError] = useState<string | null>(null)
   const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
+  const [preview, setPreview] = useState<BookingRecurrenceNextPreview | null>(
+    null,
+  )
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewErrorCode, setPreviewErrorCode] = useState<string | null>(null)
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
   const hasRemaining = hasPositiveRemainingAmount(remainingAmount)
   const hasActiveWeeklyRecurrence = hasActiveRecurrence(booking)
-  const recurrenceNext = booking.recurrence_next
-  const canContinue = recurrenceNext?.can_continue === true
+  const recurrenceNotActive =
+    previewErrorCode === 'BOOKING_RECURRENCE_NOT_ACTIVE'
+  const shouldFetchPreview =
+    !hasRemaining && shouldLoadRecurrenceNextPreview(booking)
+  const showContinuationUi =
+    shouldFetchPreview && hasActiveWeeklyRecurrence && !recurrenceNotActive
+  const continuationBlocked =
+    previewErrorCode === 'RECURRENCE_CANNOT_CONTINUE' ||
+    previewErrorCode === 'NEXT_RECURRING_SLOT_UNAVAILABLE' ||
+    preview?.can_continue === false
+  const canContinue =
+    preview?.can_continue === true && !continuationBlocked && !isPreviewLoading
   const requiresNextDeposit = hasPositiveRemainingAmount(
-    recurrenceNext?.required_deposit,
+    preview?.next_required_deposit,
   )
+  const requiresPaymentReference =
+    requiresNextDeposit &&
+    preview?.requires_payment_reference === true &&
+    isNonCashMethod(paymentMethod)
   const isDirty =
     requiresNextDeposit &&
     (paymentMethod !== 'CASH' ||
       paymentReference.length > 0 ||
       paymentNotes.length > 0)
+
+  useEffect(() => {
+    if (!shouldFetchPreview) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadPreview(): Promise<void> {
+      setIsPreviewLoading(true)
+      setPreviewError(null)
+      setPreviewErrorCode(null)
+
+      try {
+        const response = await getBookingRecurrenceNext(clubSlug, booking.id)
+
+        if (cancelled) {
+          return
+        }
+
+        setPreview(response)
+        setIsPreviewLoading(false)
+      } catch (caught: unknown) {
+        if (cancelled) {
+          return
+        }
+
+        const code = getApiErrorCode(caught)
+        setPreviewErrorCode(code)
+        setPreview(null)
+        setPreviewError(
+          getApiErrorMessage(
+            caught,
+            'تعذر تحميل تفاصيل الموعد الأسبوع القادم.',
+          ),
+        )
+        setIsPreviewLoading(false)
+      }
+    }
+
+    void loadPreview()
+
+    return () => {
+      cancelled = true
+    }
+  }, [booking.id, clubSlug, previewRefreshKey, shouldFetchPreview])
 
   function requestClose(): boolean | void {
     if (isDirty) {
@@ -66,8 +147,32 @@ export function CompleteBookingConfirmSheet({
     onClose()
   }
 
-  function handleContinue(): void {
-    onConfirm({
+  function refreshPreview(): void {
+    setPreviewRefreshKey((value) => value + 1)
+  }
+
+  async function confirmCompletion(
+    payload?: BookingCompletePayload,
+  ): Promise<void> {
+    try {
+      await onConfirm(payload)
+    } catch {
+      refreshPreview()
+    }
+  }
+
+  async function handleContinue(): Promise<void> {
+    if (!canContinue) {
+      return
+    }
+
+    if (requiresPaymentReference && !paymentReference.trim()) {
+      setValidationError(`${financeCopy.paymentReference} مطلوب`)
+      return
+    }
+
+    setValidationError(null)
+    await confirmCompletion({
       continue_recurring: true,
       ...(requiresNextDeposit
         ? {
@@ -83,22 +188,26 @@ export function CompleteBookingConfirmSheet({
     })
   }
 
+  const continuationMessage =
+    previewError ??
+    (preview && !preview.can_continue
+      ? 'مش متاح استمرار نفس الموعد الأسبوعي دلوقتي.'
+      : null)
+
   return (
     <>
       <AppSheet ariaLabel="إكمال الحجز" onRequestClose={requestClose}>
       <div className="p-5 pt-14">
         <div className="space-y-2">
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            {hasActiveWeeklyRecurrence
-              ? 'إكمال الحجز الأسبوعي'
-              : 'إكمال الحجز'}
+            {showContinuationUi ? 'إكمال الحجز الأسبوعي' : 'إكمال الحجز'}
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {hasRemaining
               ? 'يوجد مبلغ متبقي على هذا الحجز. يجب تسجيل الدفعة أولًا قبل إكمال الحجز.'
-              : hasActiveWeeklyRecurrence
+              : showContinuationUi
                 ? 'الحجز الحالي مدفوع بالكامل. اختار إذا كان نفس الموعد الأسبوعي هيستمر ولا هيتوقف.'
-                : 'سيتم اعتبار الحجز مكتملاً بعد التأكيد.'}
+                : 'بعد التأكيد هيتحسب إن الحجز تم اللعب.'}
           </p>
           {hasRemaining ? (
             <dl className="rounded-2xl bg-[var(--sloty-bg)] p-3 text-sm">
@@ -115,84 +224,90 @@ export function CompleteBookingConfirmSheet({
           ) : null}
         </div>
 
-        {!hasRemaining && hasActiveWeeklyRecurrence && recurrenceNext ? (
+        {showContinuationUi && isPreviewLoading ? (
+          <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+            جاري تحميل الموعد الأسبوع القادم...
+          </p>
+        ) : null}
+
+        {showContinuationUi && preview ? (
           <section className="mt-4 space-y-3 rounded-2xl bg-[var(--sloty-bg)] p-4 text-sm">
+            <h3 className="text-base font-black text-[var(--sloty-text-primary)]">
+              استمرار الموعد الأسبوعي
+            </h3>
             <div>
-              <p className="font-bold text-[var(--sloty-text-muted)]">
-                الموعد القادم
+              <p className="font-black text-[var(--sloty-text-primary)]">
+                {formatBookingDateWithWeekday(preview.next_start_time)}
               </p>
               <p className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                {formatBookingDateTimeRangeWithWeekday(
-                  recurrenceNext.start_time,
-                  recurrenceNext.end_time,
+                {formatBookingTimeRange(
+                  preview.next_start_time,
+                  preview.next_end_time,
                 )}
               </p>
             </div>
-            {recurrenceNext.total_price !== null ? (
-              <div>
-                <p className="font-bold text-[var(--sloty-text-muted)]">
-                  سعر الحجز القادم
-                </p>
-                <p
-                  className="mt-1 font-black text-[var(--sloty-text-primary)]"
-                  dir="ltr"
-                >
-                  {formatMoneyAmount(recurrenceNext.total_price)}
-                </p>
-              </div>
-            ) : null}
-            {recurrenceNext.required_deposit !== null ? (
-              <div>
-                <p className="font-bold text-[var(--sloty-text-muted)]">
-                  عربون الأسبوع القادم
-                </p>
-                <p
-                  className="mt-1 font-black text-[var(--sloty-text-primary)]"
-                  dir="ltr"
-                >
-                  {formatMoneyAmount(recurrenceNext.required_deposit)}
-                </p>
-              </div>
-            ) : null}
-            {!canContinue ? (
+            <div>
+              <p className="font-bold text-[var(--sloty-text-muted)]">
+                سعر الحجز
+              </p>
+              <p
+                className="mt-1 font-black text-[var(--sloty-text-primary)]"
+                dir="ltr"
+              >
+                {formatMoneyAmount(preview.next_total_price)}
+              </p>
+            </div>
+            <div>
+              <p className="font-bold text-[var(--sloty-text-muted)]">
+                العربون المطلوب
+              </p>
+              <p
+                className="mt-1 font-black text-[var(--sloty-text-primary)]"
+                dir="ltr"
+              >
+                {formatMoneyAmount(preview.next_required_deposit)}
+              </p>
+            </div>
+            {continuationMessage ? (
               <p className="rounded-xl bg-amber-100 px-3 py-2 font-black text-amber-900">
-                {getRecurrenceBlockedReasonMessage(
-                  recurrenceNext.blocked_reason,
-                )}
+                {continuationMessage}
               </p>
             ) : null}
           </section>
         ) : null}
 
-        {!hasRemaining && hasActiveWeeklyRecurrence && !recurrenceNext ? (
+        {showContinuationUi &&
+        !isPreviewLoading &&
+        !preview &&
+        continuationMessage ? (
           <p className="mt-4 rounded-xl bg-amber-100 px-3 py-2 text-sm font-black text-amber-900">
-            تفاصيل الموعد الأسبوع القادم غير متاحة حاليًا. تقدر تكمل الحجز وتوقف التكرار.
+            {continuationMessage}
           </p>
         ) : null}
 
-        {!hasRemaining &&
-        hasActiveWeeklyRecurrence &&
-        canContinue &&
-        requiresNextDeposit ? (
+        {showContinuationUi && canContinue && requiresNextDeposit ? (
           <div className="mt-4 space-y-4">
             <AppSelect
               disabled={isSubmitting}
-              label="طريقة دفع عربون الأسبوع القادم"
+              label="طريقة الدفع"
               onChange={(value) => setPaymentMethod(value as PaymentMethod)}
               options={Object.entries(paymentMethodLabels).map(
                 ([value, label]) => ({ value, label }),
               )}
               value={paymentMethod}
             />
-            <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-              <span>رقم العملية</span>
-              <input
-                className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
-                disabled={isSubmitting}
-                onChange={(event) => setPaymentReference(event.target.value)}
-                value={paymentReference}
-              />
-            </label>
+            {isNonCashMethod(paymentMethod) ? (
+              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <span>{financeCopy.paymentReference}</span>
+                <input
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
+                  disabled={isSubmitting}
+                  onChange={(event) => setPaymentReference(event.target.value)}
+                  required={requiresPaymentReference}
+                  value={paymentReference}
+                />
+              </label>
+            ) : null}
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>ملاحظات</span>
               <textarea
@@ -205,9 +320,9 @@ export function CompleteBookingConfirmSheet({
           </div>
         ) : null}
 
-        {error ? (
+        {validationError || error ? (
           <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-            {error}
+            {validationError ?? error}
           </p>
         ) : null}
 
@@ -222,13 +337,20 @@ export function CompleteBookingConfirmSheet({
             >
               تسجيل الدفعة
             </AppButton>
-          ) : hasActiveWeeklyRecurrence ? (
+          ) : showContinuationUi ? (
             <>
-              {canContinue ? (
+              {canContinue || isPreviewLoading ? (
                 <AppButton
-                  disabled={isSubmitting}
+                  disabled={
+                    isSubmitting ||
+                    isPreviewLoading ||
+                    !canContinue ||
+                    (requiresPaymentReference && !paymentReference.trim())
+                  }
                   fullWidth
-                  onClick={handleContinue}
+                  onClick={() => {
+                    void handleContinue()
+                  }}
                   type="button"
                   variant="primary"
                 >
@@ -240,20 +362,24 @@ export function CompleteBookingConfirmSheet({
               <AppButton
                 disabled={isSubmitting}
                 fullWidth
-                onClick={() => onConfirm({ continue_recurring: false })}
+                onClick={() => {
+                  void confirmCompletion({ continue_recurring: false })
+                }}
                 type="button"
                 variant={canContinue ? 'secondary' : 'primary'}
               >
                 {isSubmitting
                   ? 'جاري إكمال الحجز...'
-                  : 'إكمال وإيقاف التكرار'}
+                  : 'إكمال وإيقاف الحجز الأسبوعي'}
               </AppButton>
             </>
           ) : (
             <AppButton
               disabled={isSubmitting}
               fullWidth
-              onClick={() => onConfirm()}
+              onClick={() => {
+                void confirmCompletion()
+              }}
               type="button"
               variant="primary"
             >

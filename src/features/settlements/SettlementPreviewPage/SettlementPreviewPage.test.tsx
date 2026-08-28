@@ -134,9 +134,9 @@ describe('SettlementPreviewPage', () => {
     renderPage('/settlements/preview')
 
     expect(
-      await screen.findByText('اختر الموظف المحصل لمراجعة العهدة.'),
+      await screen.findByText('اختر الموظف المحصل لمراجعة المبلغ.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('العودة إلى التسويات').closest('a')).toHaveAttribute(
+    expect(screen.getByText('العودة إلى إدارة الأموال').closest('a')).toHaveAttribute(
       'href',
       '/settlements',
     )
@@ -149,7 +149,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لمراجعة العهدة'),
+      await screen.findByText('اختر ناديًا أولًا لمراجعة المبلغ'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
@@ -160,7 +160,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('ليس لديك صلاحية استلام عهد الموظفين.'),
+      await screen.findByText('ليس لديك صلاحية استلام المبالغ.'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
@@ -180,10 +180,11 @@ describe('SettlementPreviewPage', () => {
     expect(screen.getAllByText('500.00 جنيه')).not.toHaveLength(0)
     expect(screen.getAllByText('نقدي')).not.toHaveLength(0)
     expect(screen.getAllByText('محفظة رقمية')).not.toHaveLength(0)
-    expect(screen.getByText('التحصيلات غير المسواة')).toBeInTheDocument()
+    expect(screen.getByText('المعاملات المرتبطة')).toBeInTheDocument()
     expect(screen.queryByText('حجز #123')).not.toBeInTheDocument()
-    expect(screen.getAllByText('رقم العملية')).not.toHaveLength(0)
-    expect(screen.getByText('REF-1')).toBeInTheDocument()
+    expect(screen.getAllByText('مرجع الدفع')).not.toHaveLength(0)
+    expect(screen.queryByText('REF-1')).not.toBeInTheDocument()
+    expect(screen.getByText('REF-2')).toBeInTheDocument()
   })
 
   it('shows friendly empty state for zero transactions', async () => {
@@ -208,10 +209,10 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('مفيش عهدة حالية للموظف دلوقتي.'),
+      await screen.findByText('مفيش مبلغ حالي للموظف دلوقتي.'),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'تأكيد استلام العهدة' }),
+      screen.queryByRole('button', { name: 'تأكيد استلام المبلغ' }),
     ).not.toBeInTheDocument()
   })
 
@@ -246,13 +247,50 @@ describe('SettlementPreviewPage', () => {
 
     expect(
       await screen.findByText(
-        'تقدر تراجع العهدة هنا، لكن استلام عهدتك بنفسك غير مسموح.',
+        'المبلغ ده خاص بتحصيلاتك، ولازم يستلمه شخص عنده صلاحية الاستلام.',
       ),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'تأكيد استلام العهدة' }),
+      screen.queryByRole('button', { name: 'تأكيد استلام المبلغ' }),
     ).not.toBeInTheDocument()
     expect(mockedCreateSettlement).not.toHaveBeenCalled()
+  })
+
+  it('allows self-preview confirmation when backend can_approve is true', async () => {
+    mockedGetSettlementPreview.mockResolvedValueOnce({
+      club: 1,
+      collected_by: 1,
+      collected_by_name: 'مالك النادي',
+      is_self_preview: true,
+      can_approve: true,
+      approval_required: false,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
+      transaction_count: 1,
+      total_amount: '500.00',
+      booking_payments: '500.00',
+      booking_refunds: '0.00',
+      net_amount: '500.00',
+      totals_by_payment_method: { CASH: '500.00' },
+      transactions: [
+        {
+          id: 11,
+          amount: '500.00',
+          payment_method: 'CASH',
+        },
+      ],
+    })
+
+    renderPage('/settlements/preview?collected_by=1')
+
+    expect(
+      await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'المبلغ ده خاص بتحصيلاتك، ولازم يستلمه شخص عنده صلاحية الاستلام.',
+      ),
+    ).not.toBeInTheDocument()
   })
 
   it('normalizes no-unsettled backend errors into a friendly empty state', async () => {
@@ -265,7 +303,7 @@ describe('SettlementPreviewPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText('مفيش عهدة حالية للموظف دلوقتي.'),
+      await screen.findByText('مفيش مبلغ حالي للموظف دلوقتي.'),
     ).toBeInTheDocument()
     expect(screen.queryByText('No unsettled transactions')).not.toBeInTheDocument()
   })
@@ -275,17 +313,17 @@ describe('SettlementPreviewPage', () => {
 
     renderPage('/settlements/preview?collected_by=15&court=3')
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }))
     const dialog = screen.getByRole('dialog')
 
     expect(dialog).toBeInTheDocument()
-    expect(screen.getAllByText('تأكيد استلام العهدة')).not.toHaveLength(0)
+    expect(screen.getAllByText('تأكيد استلام المبلغ')).not.toHaveLength(0)
     expect(within(dialog).getByText(/أحمد المحصل/)).toBeInTheDocument()
     expect(within(dialog).getByText(/700.00 جنيه/)).toBeInTheDocument()
-    expect(within(dialog).getByText('عدد التحصيلات: 2')).toBeInTheDocument()
+    expect(within(dialog).getByText('عدد العمليات: 2')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('ملاحظات اختيارية'), 'مراجعة الوردية')
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام المبلغ' })[1])
 
     expect(mockedCreateSettlement).toHaveBeenCalledWith('nasr-club', {
       collected_by: 15,
@@ -305,8 +343,8 @@ describe('SettlementPreviewPage', () => {
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام المبلغ' })[1])
 
     expect(await screen.findByTestId('location')).toHaveTextContent(
       '/settlements',
@@ -367,11 +405,11 @@ describe('SettlementPreviewPage', () => {
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام المبلغ' })[1])
 
     expect(
-      await screen.findByText('مفيش عهدة حالية للموظف دلوقتي.'),
+      await screen.findByText('مفيش مبلغ حالي للموظف دلوقتي.'),
     ).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -387,8 +425,8 @@ describe('SettlementPreviewPage', () => {
 
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام العهدة' }))
-    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام العهدة' })[1])
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام المبلغ' })[1])
 
     expect(
       await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),

@@ -30,10 +30,10 @@ import { RoleRoute } from '../core/auth/RoleRoute'
 import { AppShell } from '../layout/AppShell/AppShell'
 
 /**
- * Sloty route map for the React restart foundation.
+ * Sloty application route map.
  *
- * These routes only wire screen placeholders. They do not define backend
- * permissions, API contracts, or real booking workflows.
+ * These routes compose real authenticated screens. Backend permissions remain
+ * authoritative; RoleRoute is frontend UX only.
  */
 export const router = createBrowserRouter([
   {
@@ -176,17 +176,6 @@ export const router = createBrowserRouter([
         element: (
           <RoleRoute allowedRoles={['OWNER']}>
             <SettingsUsersPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/more',
-        element: (
-          <RoleRoute allowedRoles={['MANAGER', 'STAFF']}>
-            <PlaceholderPage
-              description="مسار مؤقت للمزيد من إجراءات الموظف والمدير."
-              title="المزيد"
-            />
           </RoleRoute>
         ),
       },

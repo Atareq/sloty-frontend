@@ -13,6 +13,7 @@ import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
 import { formatTime12Hour } from '../../scheduleBoard.helpers'
+import { customerCopy } from '../../../../shared/copy/appCopy'
 
 export interface AddBookingSheetValues {
   customer_name: string
@@ -120,12 +121,12 @@ export function AddBookingSheet({
     const trimmedNotes = notes.trim()
 
     if (!trimmedName || !customerPhone) {
-      setValidationError('اسم العميل ورقم الهاتف مطلوبان')
+      setValidationError('اسم العميل ورقم الموبايل مطلوبان')
       return
     }
 
     if (!isValidSlotyPhoneNumber(customerPhone)) {
-      setValidationError('رقم الهاتف غير صحيح')
+      setValidationError('رقم الموبايل غير صحيح')
       return
     }
 
@@ -167,7 +168,7 @@ export function AddBookingSheet({
 
         <div className="mt-5 space-y-4">
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>اسم العميل</span>
+            <span>{customerCopy.customerName}</span>
             <input
               className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
               disabled={isSubmitting}
@@ -182,12 +183,12 @@ export function AddBookingSheet({
           ) : null}
 
           <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>رقم الهاتف</span>
+            <span>{customerCopy.mobileNumber}</span>
 
             <SlotyPhoneNumberInput
               disabled={isSubmitting}
               error={
-                validationError === 'رقم الهاتف غير صحيح' ||
+                validationError === 'رقم الموبايل غير صحيح' ||
                 Boolean(phoneFieldError)
               }
               onChange={setCustomerPhone}

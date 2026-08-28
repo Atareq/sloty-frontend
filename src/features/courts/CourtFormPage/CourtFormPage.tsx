@@ -10,6 +10,7 @@ import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
+import { settingsCopy } from '../../../shared/copy/appCopy'
 import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
 import { createCourt, getCourt, updateCourt } from '../courtsApi'
 import type { CourtPayload } from '../courts.types'
@@ -475,9 +476,10 @@ export function CourtFormPage() {
               الملعب نشط
             </label>
 
-            <label className="flex items-center gap-3 text-sm font-semibold lg:col-span-2">
+            <label className="flex items-start gap-3 text-sm font-semibold lg:col-span-2">
               <input
                 checked={formState.requires_digital_payment_reference}
+                className="mt-1"
                 onChange={(event) =>
                   updateField(
                     'requires_digital_payment_reference',
@@ -486,7 +488,14 @@ export function CourtFormPage() {
                 }
                 type="checkbox"
               />
-              إيصال الدفع إلزامي
+              <span>
+                <span className="block">
+                  {settingsCopy.requireDigitalPaymentReference}
+                </span>
+                <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                  {settingsCopy.requireDigitalPaymentReferenceHelper}
+                </span>
+              </span>
             </label>
 
             <label className="space-y-2 text-sm font-semibold lg:col-span-2">

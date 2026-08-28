@@ -7,13 +7,13 @@ const needsActionItems = [
   {
     key: 'hold_waiting_payment_count',
     label: 'بانتظار العربون',
-    helper: 'افتح الحجوزات وضيف العربون',
+    helper: 'افتح الحجوزات وسجّل العربون',
     query: { status: 'HOLD' },
   },
   {
     key: 'overdue_confirmed_count',
     label: 'وقتها عدى ولسه مقفلتش',
-    helper: 'افتح الحجوزات المكتملة زمنيًا',
+    helper: 'افتح الحجوزات اللي وقتها عدى',
     query: { overdue: true, status: 'CONFIRMED' },
   },
   {
@@ -38,11 +38,11 @@ export function NeedsActionSection({ summary }: NeedsActionSectionProps) {
   if (summary.summary.needs_action_count === 0) {
     return (
       <section className="space-y-3">
-        <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
+        <h2 className="text-base font-extrabold text-[var(--sloty-text-primary)]">
           محتاجين إجراء
         </h2>
         <AppCard>
-          <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+          <p className="text-sm font-medium text-[var(--sloty-text-primary)]">
             مفيش حجوزات محتاجة إجراء دلوقتي.
           </p>
         </AppCard>
@@ -52,7 +52,7 @@ export function NeedsActionSection({ summary }: NeedsActionSectionProps) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
+      <h2 className="text-base font-extrabold text-[var(--sloty-text-primary)]">
         محتاجين إجراء
       </h2>
 

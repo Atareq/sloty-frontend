@@ -46,7 +46,7 @@ describe('getAuditEntryPresentation', () => {
     expect(presentation.details).toEqual(
       expect.arrayContaining([
         { label: 'العميل', value: 'أحمد' },
-        { label: 'الحالة', value: 'مؤكد' },
+        { label: 'الحالة', value: 'العربون مدفوع' },
         { label: 'نوع الحجز', value: 'أسبوعي' },
         { label: 'القيمة', value: '300.00 جنيه' },
       ]),
@@ -54,7 +54,7 @@ describe('getAuditEntryPresentation', () => {
     expect(presentation.changes).toEqual(
       expect.arrayContaining([
         { label: 'اسم العميل', before: 'أحمد', after: 'محمد' },
-        { label: 'الحالة', before: 'بانتظار العربون', after: 'مؤكد' },
+        { label: 'الحالة', before: 'بانتظار العربون', after: 'العربون مدفوع' },
       ]),
     )
     expect(presentation.changes).not.toEqual(

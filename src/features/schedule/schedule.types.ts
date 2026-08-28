@@ -1,4 +1,7 @@
-import type { BookingListItem } from './scheduleApi.types'
+import type {
+  BookingListItem,
+  RecurringSlotContext,
+} from './scheduleApi.types'
 
 export type BookingBoardSlotStatus =
   | 'available'
@@ -10,21 +13,6 @@ export type BookingBoardSlotStatus =
   | 'no_show'
   | 'cancelled'
 export type BookingBoardPeriod = 'am' | 'pm'
-export interface ScheduleStaff {
-  name: string
-  role: string
-}
-
-export interface ScheduleCourt {
-  clubName: string
-  courtName: string
-  dateLabel: string
-}
-
-export interface ScheduleDateFilter {
-  key: string
-  label: string
-}
 
 /**
  * UI-only shape for the staff schedule preview.
@@ -32,9 +20,13 @@ export interface ScheduleDateFilter {
  * Booking Board slots intentionally expose only availability state and their
  * time range. HOLD and completed slots are visible because they block
  * availability, while payment and lifecycle details stay inside focused sheets.
+ *
+ * RECURRING_RESERVED slots stay virtual: occurrence identity comes from this
+ * slot, while recurrence owner identity comes from recurringContext.
  */
 export interface ScheduleBooking {
   id: string
+  date?: string
   status: BookingBoardSlotStatus
   label?: string | null
   isAvailable?: boolean
@@ -43,6 +35,7 @@ export interface ScheduleBooking {
   slotPrice?: string | null
   canStartRecurring?: boolean | null
   recurringAnchorBookingId?: number | null
+  recurringContext?: RecurringSlotContext | null
   recurringBlockedReason?: string | null
   firstRecurringConflictStart?: string | null
   period: BookingBoardPeriod

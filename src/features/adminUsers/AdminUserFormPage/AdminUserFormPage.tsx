@@ -6,7 +6,9 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { PasswordField } from '../../../shared/components/PasswordField/PasswordField'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
+import { settingsCopy } from '../../../shared/copy/appCopy'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
 import { createClubMembership } from '../../clubUsers/clubUsersApi'
@@ -42,6 +44,7 @@ interface FormValues {
   phone_number: Value | undefined
   email: string
   password: string
+  confirm_password: string
   club_slug: string
   role: PlatformAdminCreateMembershipRole | ''
   court: string
@@ -62,6 +65,7 @@ const initialValues: FormValues = {
   phone_number: undefined,
   email: '',
   password: '',
+  confirm_password: '',
   club_slug: '',
   role: '',
   court: '',
@@ -126,6 +130,10 @@ function validate(values: FormValues): FormErrors {
 
   if (!values.password) {
     errors.password = 'كلمة المرور مطلوبة'
+  }
+
+  if (values.password !== values.confirm_password) {
+    errors.confirm_password = settingsCopy.passwordMismatch
   }
 
   if (values.phone_number && !isValidSlotyPhoneNumber(values.phone_number)) {
@@ -480,21 +488,22 @@ export function AdminUserFormPage() {
             />
           </label>
 
-          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>كلمة المرور</span>
-            <input
-              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-              disabled={isSubmitting}
-              onChange={(event) => updateValue('password', event.target.value)}
-              type="password"
-              value={values.password}
-            />
-            {fieldErrors.password ? (
-              <span className="text-xs font-bold text-[var(--sloty-danger)]">
-                {fieldErrors.password}
-              </span>
-            ) : null}
-          </label>
+          <PasswordField
+            autoComplete="new-password"
+            disabled={isSubmitting}
+            error={fieldErrors.password}
+            label="كلمة المرور"
+            onChange={(value) => updateValue('password', value)}
+            value={values.password}
+          />
+          <PasswordField
+            autoComplete="new-password"
+            disabled={isSubmitting}
+            error={fieldErrors.confirm_password}
+            label={settingsCopy.confirmPassword}
+            onChange={(value) => updateValue('confirm_password', value)}
+            value={values.confirm_password}
+          />
         </div>
       </AppCard>
       ) : null}

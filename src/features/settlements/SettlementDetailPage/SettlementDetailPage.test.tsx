@@ -141,17 +141,17 @@ describe('SettlementDetailPage', () => {
     renderPage()
 
     await user.click(await screen.findByRole('button', {
-      name: 'تأكيد استلام العهدة',
+      name: 'تأكيد استلام المبلغ',
     }))
     await user.click(screen.getAllByRole('button', {
-      name: 'تأكيد استلام العهدة',
+      name: 'تأكيد استلام المبلغ',
     })[1])
 
     await waitFor(() => {
       expect(mockedMarkSettlementSettled).toHaveBeenCalledWith('nasr-club', '9')
     })
-    expect(await screen.findByText('تم استلام العهدة بنجاح')).toBeInTheDocument()
-    expect(screen.getByText('مسواة')).toBeInTheDocument()
+    expect(await screen.findByText('تم استلام المبلغ بنجاح')).toBeInTheDocument()
+    expect(screen.getByText('تم الاستلام')).toBeInTheDocument()
   })
 
   it('shows 403 mark-settled error, refreshes current user, and does not retry', async () => {
@@ -164,10 +164,10 @@ describe('SettlementDetailPage', () => {
     renderPage()
 
     await user.click(await screen.findByRole('button', {
-      name: 'تأكيد استلام العهدة',
+      name: 'تأكيد استلام المبلغ',
     }))
     await user.click(screen.getAllByRole('button', {
-      name: 'تأكيد استلام العهدة',
+      name: 'تأكيد استلام المبلغ',
     })[1])
 
     expect(
@@ -191,7 +191,7 @@ describe('SettlementDetailPage', () => {
 
     expect((await screen.findAllByText('Owner User')).length).toBeGreaterThan(0)
     expect(
-      screen.queryByRole('button', { name: 'تأكيد استلام العهدة' }),
+      screen.queryByRole('button', { name: 'تأكيد استلام المبلغ' }),
     ).not.toBeInTheDocument()
     expect(mockedMarkSettlementSettled).not.toHaveBeenCalled()
   })

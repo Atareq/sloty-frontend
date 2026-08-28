@@ -6,9 +6,13 @@ import type {
   BookingCancellationPreview,
   BookingCompletePayload,
   BookingCreatePayload,
+  BookingCustomerUpdatePayload,
+  BookingCustomerUpdateResponse,
   BookingEndRecurrencePayload,
   BookingListItem,
   BookingListParams,
+  BookingRecurrenceNextPreview,
+  BookingReschedulePayload,
   BookingSlotsParams,
   BookingSlotsRangeParams,
   BookingSlotsResponse,
@@ -52,8 +56,10 @@ export function buildBookingSlotsPath(
 }
 
 /**
- * Lists booking records for one court/day so the Booking Board can derive
- * availability without exposing lifecycle or payment details.
+ * Lists booking records for one court and date.
+ *
+ * Schedule Board uses `listBookingSlots`. This wrapper remains the typed client
+ * for the court+date bookings list contract.
  */
 export function listBookingsForCourtDay(
   clubSlug: string,
@@ -165,6 +171,60 @@ export function endBookingRecurrence(
     {
       method: 'POST',
       ...(payload ? { body: payload } : {}),
+    },
+  )
+}
+
+/**
+ * Loads the backend-owned weekly continuation preview.
+ *
+ * Call this only for CONFIRMED bookings with active recurrence. Do not read a
+ * nested `recurrence_next` object from Booking list/detail payloads.
+ */
+export function getBookingRecurrenceNext(
+  clubSlug: string,
+  bookingId: number | string,
+): Promise<BookingRecurrenceNextPreview> {
+  return apiRequest<BookingRecurrenceNextPreview>(
+    apiEndpoints.clubs.bookings.recurrenceNext(clubSlug, bookingId),
+  )
+}
+
+/**
+ * Updates customer identity fields only.
+ *
+ * The PATCH response is not a full Booking. Callers must refetch detail
+ * instead of replacing canonical Booking state with this payload.
+ */
+export function updateBookingCustomer(
+  clubSlug: string,
+  bookingId: number | string,
+  payload: BookingCustomerUpdatePayload,
+): Promise<BookingCustomerUpdateResponse> {
+  return apiRequest<BookingCustomerUpdateResponse>(
+    apiEndpoints.clubs.bookings.detail(clubSlug, bookingId),
+    {
+      method: 'PATCH',
+      body: payload,
+    },
+  )
+}
+
+/**
+ * Moves a non-active-recurring HOLD/CONFIRMED booking to a backend-available slot.
+ *
+ * Active weekly recurrence must stay hidden; the backend rejects that case.
+ */
+export function rescheduleBooking(
+  clubSlug: string,
+  bookingId: number | string,
+  payload: BookingReschedulePayload,
+): Promise<BookingListItem> {
+  return apiRequest<BookingListItem>(
+    apiEndpoints.clubs.bookings.reschedule(clubSlug, bookingId),
+    {
+      method: 'POST',
+      body: payload,
     },
   )
 }

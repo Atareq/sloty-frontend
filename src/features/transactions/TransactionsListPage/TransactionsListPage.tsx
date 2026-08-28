@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
@@ -15,8 +15,14 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
+import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { financeCopy, navigationCopy } from '../../../shared/copy/appCopy'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
+import {
+  formatBookingDateWithWeekday,
+  formatBookingTimeRange,
+} from '../../bookings/bookingDisplay.helpers'
 import {
   formatArabicDateTime,
   formatDateInputValue,
@@ -205,7 +211,7 @@ function getChipLabel(
   }
 
   if (key === 'settlement_status') {
-    return value === 'unsettled' ? 'غير مسواة' : 'مسواة'
+    return value === 'unsettled' ? 'لم يتم استلامها' : 'تم استلامها'
   }
 
   if (key === 'is_cancelled') {
@@ -382,7 +388,7 @@ function TransactionsFilterForm({
 
       <FilterCheckboxGroup
         className="md:col-span-2 xl:col-span-1"
-        label="حالة التسوية"
+        label="حالة الاستلام"
         onChange={(key, checked) =>
           updateFilter(
             'settlement_status',
@@ -396,12 +402,12 @@ function TransactionsFilterForm({
         options={[
           {
             key: 'unsettled',
-            label: 'غير مسواة',
+            label: 'لم يتم استلامها',
             checked: filters.settlement_status.includes('unsettled'),
           },
           {
             key: 'settled',
-            label: 'مسواة',
+            label: 'تم استلامها',
             checked: filters.settlement_status.includes('settled'),
           },
         ]}
@@ -514,6 +520,8 @@ export function TransactionsListPage() {
 
     const staffParams = { ...urlParams }
     delete staffParams.court
+    // Backend self-scopes Staff collections to assigned Court + current user.
+    // Do not send created_by=currentUser as a frontend security/scoping hack.
     delete staffParams.created_by
     return staffParams
   }, [canChooseCourt, urlParams])
@@ -562,14 +570,6 @@ export function TransactionsListPage() {
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [collectorOptions, setCollectorOptions] = useState<FilterOption[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
-  useEffect(() => {
-    if (!successMessage) {
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => setSuccessMessage(null), 3000)
-    return () => window.clearTimeout(timeoutId)
-  }, [successMessage])
   const filterLabelMaps = useMemo<FilterLabelMaps>(
     () => ({
       collectorLabels: Object.fromEntries(
@@ -685,7 +685,7 @@ export function TransactionsListPage() {
       if (!selectedClubSlug) {
         setTransactions([])
         setError(null)
-        setMessage('اختر ناديًا أولًا لعرض التحصيلات')
+        setMessage('اختر ناديًا أولًا لعرض المعاملات المالية')
         setIsLoading(false)
         return
       }
@@ -709,7 +709,7 @@ export function TransactionsListPage() {
           setError(
             getApiErrorMessage(
               error,
-              'تعذر تحميل التحصيلات. حاول مرة أخرى',
+              'تعذر تحميل المعاملات المالية. حاول مرة أخرى',
             ),
           )
         }
@@ -836,6 +836,15 @@ export function TransactionsListPage() {
 
   return (
     <div className="space-y-5">
+      {role !== 'STAFF' ? (
+        <Link
+          className="inline-flex text-sm font-black text-[var(--sloty-primary-dark)]"
+          to="/settlements"
+        >
+          {navigationCopy.ledgerBackToMoney}
+        </Link>
+      ) : null}
+
       <div className="flex gap-2 overflow-x-auto pb-1">
         <AppButton onClick={handleQuickLastSevenDays} type="button" variant="secondary">
           آخر 7 أيام
@@ -844,7 +853,7 @@ export function TransactionsListPage() {
           اليوم
         </AppButton>
         <AppButton onClick={handleQuickUnsettled} type="button" variant="secondary">
-          غير مسواة
+          لم يتم استلامها
         </AppButton>
         <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
           فلترة
@@ -874,7 +883,7 @@ export function TransactionsListPage() {
       <FilterSheet
         isOpen={isFilterSheetOpen}
         onClose={() => setIsFilterSheetOpen(false)}
-        title="فلترة التحصيلات"
+        title="فلترة المعاملات المالية"
       >
         <TransactionsFilterForm
           canChooseCollector={canChooseCollector}
@@ -908,24 +917,16 @@ export function TransactionsListPage() {
       ) : null}
 
       {successMessage ? (
-        <AppCard>
-          <div className="flex items-center justify-between gap-3 text-sm font-bold text-[var(--sloty-primary-dark)]">
-            <span>{successMessage}</span>
-            <button
-              className="rounded-lg px-2 py-1 text-xs hover:bg-[var(--sloty-soft-mint)]"
-              onClick={() => setSuccessMessage(null)}
-              type="button"
-            >
-              إغلاق
-            </button>
-          </div>
-        </AppCard>
+        <AppSuccessNotice
+          message={successMessage}
+          onDismiss={() => setSuccessMessage(null)}
+        />
       ) : null}
 
       {isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            جاري تحميل التحصيلات...
+            جاري تحميل المعاملات المالية...
           </p>
         </AppCard>
       ) : null}
@@ -961,10 +962,6 @@ export function TransactionsListPage() {
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {transactions.map((transaction) => {
             const createdLabel = formatArabicDateTime(transaction.created)
-            const cancelledAtLabel = formatArabicDateTime(
-              transaction.cancelled_at ?? undefined,
-            )
-            const cancelledByName = getActorName(transaction.cancelled_by)
             const createdById = getActorId(transaction.created_by)
             const collectorName =
               transaction.created_by_username ||
@@ -972,9 +969,16 @@ export function TransactionsListPage() {
               (createdById
                 ? filterLabelMaps.collectorLabels[String(createdById)]
                 : null)
-            const bookingTimeLabel = formatArabicDateTime(
-              transaction.booking_start_time,
-            )
+            const bookingDateLabel = transaction.booking_start_time
+              ? formatBookingDateWithWeekday(transaction.booking_start_time)
+              : null
+            const bookingSlotLabel =
+              transaction.booking_start_time && transaction.booking_end_time
+                ? formatBookingTimeRange(
+                    transaction.booking_start_time,
+                    transaction.booking_end_time,
+                  )
+                : createdLabel
             const transactionType = getTransactionType(transaction)
             const isRefund = isRefundTransaction(transaction)
             const canCancel =
@@ -985,22 +989,36 @@ export function TransactionsListPage() {
 
             return (
               <AppCard className="space-y-3" key={transaction.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                      المبلغ
+                <div className="space-y-1">
+                  {bookingDateLabel ? (
+                    <p className="text-base font-bold text-[var(--sloty-text-primary)]">
+                      {bookingDateLabel}
                     </p>
-                    <p
-                      className="mt-1 text-xl font-black text-[var(--sloty-primary-dark)]"
-                      dir="ltr"
-                    >
-                      {formatMoneyAmount(transaction.amount)}
+                  ) : null}
+                  {bookingSlotLabel ? (
+                    <p className="text-sm font-semibold text-[var(--sloty-text-primary)]">
+                      {bookingSlotLabel}
                     </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
+                  ) : null}
+                  <p className="text-lg font-bold text-[var(--sloty-primary-dark)]">
+                    {formatMoneyAmount(transaction.amount, { suffix: 'ج.م' })} ·{' '}
+                    {paymentMethodLabels[transaction.payment_method]}
+                  </p>
+                  {collectorName ? (
+                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
+                      {financeCopy.collectedBy}: {collectorName}
+                    </p>
+                  ) : null}
+                  {transaction.court_name ? (
+                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
+                      {transaction.court_name}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
                     <span
                       className={[
-                        'rounded-full px-3 py-1 text-xs font-black',
+                        'rounded-full px-3 py-1 text-xs font-semibold',
                         isRefund
                           ? 'bg-rose-100 text-rose-800'
                           : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
@@ -1008,100 +1026,37 @@ export function TransactionsListPage() {
                     >
                       {transactionTypeLabels[transactionType]}
                     </span>
-                    <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
-                      {paymentMethodLabels[transaction.payment_method]}
-                    </span>
                     {transaction.is_cancelled ? (
-                      <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-black text-[var(--sloty-danger)]">
+                      <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-semibold text-[var(--sloty-danger)]">
                         ملغية
                       </span>
                     ) : null}
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
-                      {transaction.is_settled ? 'مسواة' : 'غير مسواة'}
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {transaction.is_settled ? 'تم استلامها' : 'لم يتم استلامها'}
                     </span>
-                  </div>
                 </div>
 
-                <dl className="grid grid-cols-1 gap-2 text-sm">
-                  {bookingTimeLabel ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        موعد الحجز
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {bookingTimeLabel}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {transaction.court_name ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">الملعب</dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {transaction.court_name}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {collectorName ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        الموظف المحصل
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {collectorName}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {transaction.payment_reference ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        المرجع
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {transaction.payment_reference}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {createdLabel ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        التاريخ
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {createdLabel}
-                      </dd>
-                    </div>
-                  ) : null}
+                {transaction.payment_method !== 'CASH' &&
+                transaction.payment_reference ? (
+                  <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm">
+                    <p className="font-medium text-[var(--sloty-text-muted)]">
+                      {financeCopy.paymentReference}
+                    </p>
+                    <p className="mt-1 font-semibold text-[var(--sloty-text-primary)]">
+                      {transaction.payment_reference}
+                    </p>
+                  </div>
+                ) : null}
                   {transaction.cancellation_reason ? (
                     <div className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-danger)]">
+                      <p className="font-semibold text-[var(--sloty-danger)]">
                         سبب الإلغاء
-                      </dt>
-                      <dd className="mt-1 font-black text-[var(--sloty-danger)]">
+                      </p>
+                      <p className="mt-1 font-semibold text-[var(--sloty-danger)]">
                         {transaction.cancellation_reason}
-                      </dd>
+                      </p>
                     </div>
                   ) : null}
-                  {cancelledAtLabel ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        تاريخ الإلغاء
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {cancelledAtLabel}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {cancelledByName ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        ألغي بواسطة
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {cancelledByName}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
 
                 {canCancel ? (
                   <AppButton

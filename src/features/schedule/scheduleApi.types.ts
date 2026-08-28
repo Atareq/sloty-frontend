@@ -30,13 +30,34 @@ export type BookingSlotStatus = (typeof BOOKING_SLOT_STATUSES)[number]
 
 export type BookingRecurrenceStatus = 'ACTIVE' | 'RENEWED' | 'ENDED'
 
-export interface BookingRecurrenceNext {
+/**
+ * Recurrence owner identity for a virtual future slot.
+ *
+ * RECURRING_RESERVED slots are not concrete Booking rows. Customer and
+ * recurrence status come from this context, while occurrence date/time/price
+ * come from the selected Schedule slot itself.
+ */
+export interface RecurringSlotContext {
+  anchor_booking_id: number
+  customer_name: string
+  customer_phone: string
+  recurrence_status: BookingRecurrenceStatus
+}
+
+/**
+ * Backend-owned weekly continuation preview.
+ *
+ * Loaded from GET bookings/{id}/recurrence-next/. Do not read this from the
+ * Booking list/detail payload, and do not calculate the next date, price, or
+ * deposit in the frontend.
+ */
+export interface BookingRecurrenceNextPreview {
   can_continue: boolean
-  start_time: string
-  end_time: string
-  total_price: string | null
-  required_deposit: string | null
-  blocked_reason?: string | null
+  next_start_time: string
+  next_end_time: string
+  next_total_price: string
+  next_required_deposit: string
+  requires_payment_reference: boolean
 }
 
 export interface BookingListItem {
@@ -44,6 +65,7 @@ export interface BookingListItem {
   court: number
   customer_name?: string
   customer_phone?: string
+  notes?: string | null
   start_time: string
   end_time: string
   status: BackendBookingStatus
@@ -60,7 +82,6 @@ export interface BookingListItem {
   previous_recurring_booking_id: number | null
   next_recurring_booking_id: number | null
   hold_expires_at?: string | null
-  recurrence_next?: BookingRecurrenceNext | null
 }
 
 export interface BookingCreatePayload {
@@ -114,6 +135,7 @@ export interface BookingSlot {
   slot_price: string | null
   booking: BookingSlotBookingSummary | null
   recurring_anchor_booking_id: number | null
+  recurring_context: RecurringSlotContext | null
   can_start_recurring: boolean | null
   recurring_blocked_reason: string | null
   first_recurring_conflict_start: string | null
@@ -171,5 +193,29 @@ export interface BookingCompletePayload {
 }
 
 export interface BookingEndRecurrencePayload {
+  reason?: string
+}
+
+/** PATCH body for customer-data edit. Court, time, status, and recurrence are forbidden. */
+export interface BookingCustomerUpdatePayload {
+  customer_name: string
+  customer_phone: string
+  notes: string
+}
+
+/**
+ * PATCH response contains only the edited customer fields. Refetch Booking
+ * detail instead of treating this as a full Booking record.
+ */
+export interface BookingCustomerUpdateResponse {
+  customer_name: string
+  customer_phone: string
+  notes: string
+}
+
+export interface BookingReschedulePayload {
+  court: number
+  start_time: string
+  end_time: string
   reason?: string
 }

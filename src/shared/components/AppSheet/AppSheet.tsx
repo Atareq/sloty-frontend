@@ -47,6 +47,9 @@ export function AppSheet({
 
     openerRef.current = document.activeElement as HTMLElement | null
     const frameId = window.requestAnimationFrame(() => {
+      if (panelRef.current) {
+        panelRef.current.scrollTop = 0
+      }
       panelRef.current
         ?.querySelector<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',

@@ -30,13 +30,13 @@ describe('BookingCard', () => {
 
     expect(
       screen.getByRole('button', {
-        name: '8:00 ص مؤكد',
+        name: '8:00 ص العربون مدفوع',
       }),
     ).toBeInTheDocument()
 
     expect(screen.getByText('8:00 ص')).toBeInTheDocument()
     expect(screen.queryByText('9:00 ص')).not.toBeInTheDocument()
-    expect(screen.getByText('مؤكد')).toBeInTheDocument()
+    expect(screen.getByText('العربون مدفوع')).toBeInTheDocument()
   })
 
   it('renders available slots with time and availability only', () => {
@@ -73,7 +73,7 @@ describe('BookingCard', () => {
         name: '8:00 ص متاح متاح للتثبيت أسبوعيًا',
       }),
     ).toBeInTheDocument()
-    expect(screen.getByText('↻')).toBeInTheDocument()
+    expect(screen.getByText('↻')).toHaveClass('absolute', 'right-1.5', 'top-1')
 
     rerender(
       <BookingCard
@@ -124,7 +124,7 @@ describe('BookingCard', () => {
     expect(
       screen.getByRole('button', { name: '8:00 ص محجوز' }),
     ).toHaveClass('sloty-green-surface-button')
-    expect(screen.getByText('↻')).toBeInTheDocument()
+    expect(screen.getByText('↻')).toHaveClass('absolute', 'right-1.5', 'top-1')
     expect(screen.queryByText('مثبت أسبوعيًا')).not.toBeInTheDocument()
   })
 
@@ -167,7 +167,7 @@ describe('BookingCard', () => {
     )
 
     const completedSlot = screen.getByRole('button', {
-      name: '9:00 ص مكتمل',
+      name: '9:00 ص تم اللعب',
     })
 
     expect(completedSlot).toBeEnabled()
@@ -190,7 +190,7 @@ describe('BookingCard', () => {
 
     await user.click(
       screen.getByRole('button', {
-        name: '8:00 ص مؤكد',
+        name: '8:00 ص العربون مدفوع',
       }),
     )
 
@@ -207,7 +207,7 @@ describe('BookingCard', () => {
 
     await user.click(
       screen.getByRole('button', {
-        name: '8:00 ص مؤكد',
+        name: '8:00 ص العربون مدفوع',
       }),
     )
 
@@ -215,7 +215,7 @@ describe('BookingCard', () => {
 
     expect(
       screen.getByRole('button', {
-        name: '8:00 ص مؤكد',
+        name: '8:00 ص العربون مدفوع',
       }),
     ).toBeDisabled()
   })
@@ -247,10 +247,10 @@ describe('BookingCard', () => {
 
     expect(
       screen.getByRole('button', {
-        name: '8:00 ص مؤكد حجز متكرر',
+        name: '8:00 ص العربون مدفوع حجز متكرر',
       }),
     ).toBeInTheDocument()
-    expect(screen.getByText('↻')).toBeInTheDocument()
+    expect(screen.getByText('↻')).toHaveClass('absolute', 'right-1.5', 'top-1')
     expect(screen.queryByText('أسبوعي')).not.toBeInTheDocument()
     expect(screen.queryByText('أحمد علي')).not.toBeInTheDocument()
     expect(screen.queryByText('+201000000000')).not.toBeInTheDocument()

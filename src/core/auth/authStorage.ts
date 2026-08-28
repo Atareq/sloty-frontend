@@ -1,5 +1,9 @@
 const ACCESS_TOKEN_STORAGE_KEY = 'sloty.auth.access_token'
 const REFRESH_TOKEN_STORAGE_KEY = 'sloty.auth.refresh_token'
+const SESSION_EXPIRED_NOTICE_KEY = 'sloty.auth.session_expired_notice'
+
+const SESSION_EXPIRED_NOTICE =
+  'انتهت الجلسة. سجّل دخولك تاني علشان تكمل.'
 
 /**
  * Reads the current access token from session storage.
@@ -43,6 +47,24 @@ export function setRefreshToken(token?: string): void {
 export function clearAuthTokens(): void {
   sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
   sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+}
+
+/**
+ * Stores the Arabic session-expired notice for the login screen.
+ */
+export function markSessionExpiredNotice(): void {
+  sessionStorage.setItem(SESSION_EXPIRED_NOTICE_KEY, SESSION_EXPIRED_NOTICE)
+}
+
+/**
+ * Reads and clears the session-expired notice after redirecting to login.
+ */
+export function consumeSessionExpiredNotice(): string | null {
+  const notice = sessionStorage.getItem(SESSION_EXPIRED_NOTICE_KEY)
+
+  sessionStorage.removeItem(SESSION_EXPIRED_NOTICE_KEY)
+
+  return notice
 }
 
 /**

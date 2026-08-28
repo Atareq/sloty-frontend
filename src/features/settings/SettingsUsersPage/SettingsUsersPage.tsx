@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { Value } from 'react-phone-number-input'
 import { useLocation, useNavigate } from 'react-router'
 import {
@@ -15,6 +15,12 @@ import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { AppSheet } from '../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
+import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { LiveSearchField } from '../../../shared/components/LiveSearchField/LiveSearchField'
+import { PasswordField } from '../../../shared/components/PasswordField/PasswordField'
+import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
+import { settingsCopy } from '../../../shared/copy/appCopy'
+import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import {
   buildPathWithQuery,
@@ -91,6 +97,7 @@ interface AddUserFormState {
   email: string
   username: string
   password: string
+  confirm_password: string
   existingUserId: string
   court: string
   manager_can_settle_transactions: boolean
@@ -106,6 +113,7 @@ type AddUserFieldName =
   | 'email'
   | 'username'
   | 'password'
+  | 'confirm_password'
   | 'user_id'
   | 'court'
   | 'manager_can_settle_transactions'
@@ -130,6 +138,7 @@ const emptyAddUserForm: AddUserFormState = {
   email: '',
   username: '',
   password: '',
+  confirm_password: '',
   existingUserId: '',
   court: '',
   manager_can_settle_transactions: false,
@@ -276,11 +285,6 @@ function UsersFilterForm({
         >
           إعادة ضبط
         </AppButton>
-        {onClose ? (
-          <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
-            إغلاق
-          </AppButton>
-        ) : null}
       </div>
     </form>
   )
@@ -349,6 +353,10 @@ function validateAddUserForm(values: AddUserFormState): AddUserFieldErrors {
 
     if (!values.password) {
       errors.password = 'كلمة المرور مطلوبة'
+    }
+
+    if (values.password !== values.confirm_password) {
+      errors.confirm_password = settingsCopy.passwordMismatch
     }
 
     if (values.phone_number && !isValidSlotyPhoneNumber(values.phone_number)) {
@@ -724,21 +732,22 @@ function AddUserSheet({
             ) : null}
           </label>
 
-          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>كلمة المرور</span>
-            <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
-              disabled={isSubmitting}
-              onChange={(event) => updateValue('password', event.target.value)}
-              type="password"
-              value={values.password}
-            />
-            {fieldErrors.password ? (
-              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
-                {fieldErrors.password}
-              </span>
-            ) : null}
-          </label>
+          <PasswordField
+            autoComplete="new-password"
+            disabled={isSubmitting}
+            error={fieldErrors.password}
+            label="كلمة المرور"
+            onChange={(value) => updateValue('password', value)}
+            value={values.password}
+          />
+          <PasswordField
+            autoComplete="new-password"
+            disabled={isSubmitting}
+            error={fieldErrors.confirm_password}
+            label={settingsCopy.confirmPassword}
+            onChange={(value) => updateValue('confirm_password', value)}
+            value={values.confirm_password}
+          />
         </section>
         ) : null}
 
@@ -926,6 +935,9 @@ export function SettingsUsersPage() {
   const [users, setUsers] = useState<ClubUser[]>([])
   const [courts, setCourts] = useState<Court[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const hasCompletedInitialLoadRef = useRef(false)
+  const { nextGeneration, isCurrent } = useRequestGeneration()
   const [usersReloadKey, setUsersReloadKey] = useState(0)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
   const [isAddUserSheetOpen, setIsAddUserSheetOpen] = useState(false)
@@ -964,16 +976,9 @@ export function SettingsUsersPage() {
     [queryParams],
   )
   const isOwner = selectedMembership?.role === 'OWNER'
-
-  useEffect(() => {
-    if (!message?.startsWith('✓ ')) {
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => setMessage(null), 3_000)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [message])
+  const isSuccessNotice = Boolean(
+    message && (message.startsWith('✓ ') || message.includes('بنجاح')),
+  )
 
   useEffect(() => {
     let isActive = true
@@ -1010,6 +1015,7 @@ export function SettingsUsersPage() {
 
   useEffect(() => {
     let isActive = true
+    const generation = nextGeneration()
 
     async function loadUsers(): Promise<void> {
       if (!selectedClubSlug) {
@@ -1017,6 +1023,7 @@ export function SettingsUsersPage() {
         setError(null)
         setMessage('اختر ناديًا أولًا لعرض المستخدمين والصلاحيات')
         setIsLoading(false)
+        setIsRefreshing(false)
         return
       }
 
@@ -1025,21 +1032,27 @@ export function SettingsUsersPage() {
         setError('ليس لديك صلاحية إدارة المستخدمين والصلاحيات')
         setMessage(null)
         setIsLoading(false)
+        setIsRefreshing(false)
         return
       }
 
-      setIsLoading(true)
+      if (hasCompletedInitialLoadRef.current) {
+        setIsRefreshing(true)
+      } else {
+        setIsLoading(true)
+      }
       setError(null)
       setMessage((current) => current?.startsWith('✓ ') ? current : null)
 
       try {
         const usersResponse = await listClubUsers(selectedClubSlug, queryParams)
 
-        if (isActive) {
+        if (isActive && isCurrent(generation)) {
           setUsers(normalizeClubUsersResponse(usersResponse))
+          hasCompletedInitialLoadRef.current = true
         }
       } catch (error) {
-        if (isActive) {
+        if (isActive && isCurrent(generation)) {
           setUsers([])
           setError(
             getApiErrorMessage(
@@ -1049,8 +1062,9 @@ export function SettingsUsersPage() {
           )
         }
       } finally {
-        if (isActive) {
+        if (isActive && isCurrent(generation)) {
           setIsLoading(false)
+          setIsRefreshing(false)
         }
       }
     }
@@ -1060,7 +1074,7 @@ export function SettingsUsersPage() {
     return () => {
       isActive = false
     }
-  }, [isOwner, queryParams, selectedClubSlug, usersReloadKey])
+  }, [isCurrent, isOwner, nextGeneration, queryParams, selectedClubSlug, usersReloadKey])
 
   function applyFilters(nextFilters: UsersFilterState): void {
     navigate(
@@ -1082,12 +1096,7 @@ export function SettingsUsersPage() {
     )
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    applyFilters(filters)
-  }
-
-  function updateSearch(value: string): void {
+  const updateSearch = useCallback((value: string): void => {
     navigate(
       {
         pathname: location.pathname,
@@ -1100,7 +1109,7 @@ export function SettingsUsersPage() {
       },
       { replace: true },
     )
-  }
+  }, [filters, location.pathname, navigate])
 
   async function handleUpdateManagerPermissions(
     payload: UpdateManagerPermissionsPayload,
@@ -1292,28 +1301,30 @@ export function SettingsUsersPage() {
     <div className="space-y-5">
       {selectedClubSlug && isOwner ? (
         <>
-          <form className="flex gap-2" onSubmit={handleSearchSubmit}>
-            <input
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <LiveSearchField
               aria-label="بحث المستخدمين"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
-              onChange={(event) => updateSearch(event.target.value)}
+              label="بحث المستخدمين"
+              onSearch={updateSearch}
               placeholder="بحث بالاسم أو الهاتف أو اسم المستخدم"
               value={filters.search}
             />
-            <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
-              فلترة
-            </AppButton>
-            <AppButton
-              onClick={() => {
-                setAddUserError(null)
-                setAddUserFieldErrors({})
-                setIsAddUserSheetOpen(true)
-              }}
-              type="button"
-            >
-              إضافة مستخدم
-            </AppButton>
-          </form>
+            <div className="flex gap-2">
+              <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
+                فلترة
+              </AppButton>
+              <AppButton
+                onClick={() => {
+                  setAddUserError(null)
+                  setAddUserFieldErrors({})
+                  setIsAddUserSheetOpen(true)
+                }}
+                type="button"
+              >
+                إضافة مستخدم
+              </AppButton>
+            </div>
+          </div>
 
           {filterOptionsError ? (
             <p className="text-xs font-bold text-[var(--sloty-danger)]">
@@ -1358,7 +1369,14 @@ export function SettingsUsersPage() {
         </AppCard>
       ) : null}
 
-      {!isLoading && (error || message) ? (
+      {isSuccessNotice && message ? (
+        <AppSuccessNotice
+          message={message}
+          onDismiss={() => setMessage(null)}
+        />
+      ) : null}
+
+      {!isLoading && (error || (message && !isSuccessNotice)) ? (
         <AppCard>
           <p
             className={[
@@ -1382,35 +1400,37 @@ export function SettingsUsersPage() {
       ) : null}
 
       {!isLoading && !error && users.length > 0 ? (
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {users.map((user) => (
-            <UserCard
-              canEditPermissions={isOwner}
-              courts={courts}
-              key={user.membership_id}
-              onEditPermissions={(user) => {
-                setPermissionsError(null)
-                setPermissionsFieldErrors({})
-                setEditingManager(user)
-              }}
-              onDeleteMembership={(user) => {
-                setMembershipDeletionError(null)
-                setMembershipPendingDeletion(user)
-              }}
-              onRequestMembershipActivityUpdate={(user, isActive) => {
-                if (isActive) {
-                  void handleUpdateMembershipActivity(user, true)
-                  return
-                }
+        <ResultRefreshRegion isRefreshing={isRefreshing}>
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {users.map((user) => (
+              <UserCard
+                canEditPermissions={isOwner}
+                courts={courts}
+                key={user.membership_id}
+                onEditPermissions={(user) => {
+                  setPermissionsError(null)
+                  setPermissionsFieldErrors({})
+                  setEditingManager(user)
+                }}
+                onDeleteMembership={(user) => {
+                  setMembershipDeletionError(null)
+                  setMembershipPendingDeletion(user)
+                }}
+                onRequestMembershipActivityUpdate={(user, isActive) => {
+                  if (isActive) {
+                    void handleUpdateMembershipActivity(user, true)
+                    return
+                  }
 
-                setMembershipActivityError(null)
-                setMembershipPendingDeactivation(user)
-              }}
-              updatingMembershipId={updatingMembershipId}
-              user={user}
-            />
-          ))}
-        </section>
+                  setMembershipActivityError(null)
+                  setMembershipPendingDeactivation(user)
+                }}
+                updatingMembershipId={updatingMembershipId}
+                user={user}
+              />
+            ))}
+          </section>
+        </ResultRefreshRegion>
       ) : null}
 
       {editingManager ? (
@@ -1459,7 +1479,8 @@ export function SettingsUsersPage() {
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
               هيتم حذف عضوية {getClubUserDisplayName(membershipPendingDeletion)} من
-              النادي، ومش هيقدر يستخدم العضوية دي مرة تانية.
+              النادي. الحساب الشخصي مش هيتنحذف، بس المستخدم هيخسر صلاحية الدخول للنادي
+              ده.
             </p>
             <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
               الحجوزات والمدفوعات والعمليات السابقة هتفضل محفوظة.

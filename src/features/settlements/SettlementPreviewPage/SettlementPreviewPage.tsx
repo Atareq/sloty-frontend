@@ -10,6 +10,7 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
+import { financeCopy } from '../../../shared/copy/appCopy'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { ConfirmSettlementDialog } from '../components/ConfirmSettlementDialog/ConfirmSettlementDialog'
 import { SettlementPreviewContent } from '../components/SettlementPreviewContent/SettlementPreviewContent'
@@ -65,16 +66,16 @@ function EmptyPreviewState({ message, onRefresh }: EmptyPreviewStateProps) {
     <AppCard className="space-y-3">
       <div>
         <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-          {message ?? 'مفيش عهدة حالية للموظف دلوقتي.'}
+          {message ?? 'مفيش مبلغ حالي للموظف دلوقتي.'}
         </p>
         <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-          كل التحصيلات الحالية اتسوت، أو لم تسجل تحصيلات بعد.
+          كل المبالغ الحالية اتسلّمت، أو مفيش عمليات مسجلة بعد.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Link to="/settlements">
-          <AppButton variant="secondary">العودة إلى عهد الموظفين</AppButton>
+          <AppButton variant="secondary">العودة إلى إدارة الأموال</AppButton>
         </Link>
         {onRefresh ? (
           <AppButton onClick={onRefresh} variant="secondary">
@@ -113,7 +114,6 @@ export function SettlementPreviewPage() {
   const canApprovePreview = Boolean(
     canSettle &&
       preview?.can_approve &&
-      !preview.is_self_preview &&
       hasTransactions,
   )
 
@@ -147,9 +147,9 @@ export function SettlementPreviewPage() {
 
       if (isEmptySettlementError(error)) {
         setIsEmptyPreview(true)
-        setEmptyMessage('مفيش عهدة حالية للموظف دلوقتي.')
+        setEmptyMessage('مفيش مبلغ حالي للموظف دلوقتي.')
       } else {
-        setError(getApiErrorMessage(error, 'تعذر تحميل مراجعة العهدة'))
+        setError(getApiErrorMessage(error, 'تعذر تحميل تفاصيل المبلغ'))
       }
     } finally {
       setIsLoading(false)
@@ -195,7 +195,7 @@ export function SettlementPreviewPage() {
         ...(court !== null ? { court } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       })
-      const flashMessage = 'تم استلام العهدة بنجاح'
+      const flashMessage = 'تم استلام المبلغ بنجاح'
 
       setIsConfirmOpen(false)
       setSuccessMessage(flashMessage)
@@ -214,11 +214,11 @@ export function SettlementPreviewPage() {
         setIsConfirmOpen(false)
         setPreview(null)
         setIsEmptyPreview(true)
-        setEmptyMessage('مفيش عهدة حالية للموظف دلوقتي.')
+        setEmptyMessage('مفيش مبلغ حالي للموظف دلوقتي.')
         await loadPreview()
       } else {
         setConfirmError(
-          getApiErrorMessage(error, 'تعذر تأكيد استلام العهدة. حاول مرة أخرى'),
+          getApiErrorMessage(error, 'تعذر تأكيد استلام المبلغ. حاول مرة أخرى'),
         )
 
         if (isApiClientError(error) && error.status === 403) {
@@ -234,14 +234,14 @@ export function SettlementPreviewPage() {
     <div className="space-y-5">
       <PageActions>
         <Link to="/settlements">
-          <AppButton variant="secondary">رجوع إلى عهد الموظفين</AppButton>
+          <AppButton variant="secondary">رجوع إلى إدارة الأموال</AppButton>
         </Link>
       </PageActions>
 
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر ناديًا أولًا لمراجعة العهدة
+            اختر ناديًا أولًا لمراجعة المبلغ
           </p>
         </AppCard>
       ) : null}
@@ -249,7 +249,7 @@ export function SettlementPreviewPage() {
       {selectedClubSlug && !canSettle ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-danger)]">
-            ليس لديك صلاحية استلام عهد الموظفين.
+            ليس لديك صلاحية استلام المبالغ.
           </p>
         </AppCard>
       ) : null}
@@ -257,10 +257,10 @@ export function SettlementPreviewPage() {
       {selectedClubSlug && canSettle && !queryParams ? (
         <AppCard className="space-y-3">
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر الموظف المحصل لمراجعة العهدة.
+            اختر الموظف المحصل لمراجعة المبلغ.
           </p>
           <Link to="/settlements">
-            <AppButton variant="secondary">العودة إلى التسويات</AppButton>
+            <AppButton variant="secondary">العودة إلى إدارة الأموال</AppButton>
           </Link>
         </AppCard>
       ) : null}
@@ -269,7 +269,7 @@ export function SettlementPreviewPage() {
         <AppCard>
           <div className="space-y-3">
             <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-              جاري تحميل مراجعة العهدة...
+              جاري تحميل تفاصيل المبلغ...
             </p>
             <div className="h-5 w-36 rounded-full bg-[var(--sloty-bg)]" />
             <div className="h-8 w-48 rounded-full bg-[var(--sloty-bg)]" />
@@ -310,13 +310,15 @@ export function SettlementPreviewPage() {
                   setIsConfirmOpen(true)
                 }}
               >
-                تأكيد استلام العهدة
+                تأكيد استلام المبلغ
               </AppButton>
             </AppCard>
           ) : (
             <AppCard>
               <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                تقدر تراجع العهدة هنا، لكن استلام عهدتك بنفسك غير مسموح.
+                {preview.is_self_preview
+                  ? financeCopy.selfPreviewDenied
+                  : 'تقدر تراجع المبلغ هنا، لكن تأكيد الاستلام غير متاح.'}
               </p>
             </AppCard>
           )}

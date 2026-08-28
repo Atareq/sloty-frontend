@@ -70,7 +70,7 @@ export function BookingCard({ booking, onSelect }: BookingCardProps) {
       {presentation.showRecurringIcon ? (
         <span
           aria-hidden="true"
-          className="absolute left-1.5 top-1 text-xs leading-none"
+          className="absolute right-1.5 top-1 text-xs leading-none"
         >
           ↻
         </span>

@@ -30,7 +30,7 @@ describe('AddBookingSheet', () => {
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
     expect(
-      screen.getByText('اسم العميل ورقم الهاتف مطلوبان'),
+      screen.getByText('اسم العميل ورقم الموبايل مطلوبان'),
     ).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
@@ -73,7 +73,7 @@ describe('AddBookingSheet', () => {
     )
 
     await user.type(screen.getByLabelText('اسم العميل'), '  أحمد علي  ')
-    await user.type(screen.getByLabelText('رقم الهاتف'), '01012345678')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -145,7 +145,7 @@ describe('AddBookingSheet', () => {
       }),
     )
     await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
-    await user.type(screen.getByLabelText('رقم الهاتف'), '01012345678')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -232,10 +232,10 @@ describe('AddBookingSheet', () => {
       expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
     })
     await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
-    await user.type(screen.getByLabelText('رقم الهاتف'), '01012')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
-    expect(screen.getByText('رقم الهاتف غير صحيح')).toBeInTheDocument()
+    expect(screen.getByText('رقم الموبايل غير صحيح')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
 

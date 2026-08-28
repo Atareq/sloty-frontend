@@ -1,5 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
-import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { formatMoneyAmount, isNonZeroMoneyAmount } from '../../../../shared/utils/money'
 import type { SettlementPaymentMethod } from '../../settlements.types'
 import { settlementPaymentMethodLabels } from '../../settlements.types'
 
@@ -17,8 +17,8 @@ interface SettlementPaymentTotalsProps {
 export function SettlementPaymentTotals({
   totalsByPaymentMethod,
 }: SettlementPaymentTotalsProps) {
-  const visibleMethods = paymentMethods.filter(
-    (method) => totalsByPaymentMethod[method],
+  const visibleMethods = paymentMethods.filter((method) =>
+    isNonZeroMoneyAmount(totalsByPaymentMethod[method]),
   )
 
   return (

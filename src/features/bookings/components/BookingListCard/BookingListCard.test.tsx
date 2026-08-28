@@ -34,7 +34,7 @@ describe('BookingListCard', () => {
 
     expect(screen.getByText('ليلى حسن')).toBeInTheDocument()
     expect(screen.getByText('+201000000000')).toHaveAttribute('dir', 'ltr')
-    expect(screen.getByText('مؤكد')).toBeInTheDocument()
+    expect(screen.getByText('العربون مدفوع')).toBeInTheDocument()
     expect(screen.getByText(/الثلاثاء/)).toBeInTheDocument()
     expect(screen.queryByText('#41')).not.toBeInTheDocument()
     expect(screen.queryByText('ملعب #3')).not.toBeInTheDocument()
@@ -65,7 +65,7 @@ describe('BookingListCard', () => {
       <BookingListCard booking={completedBooking} onSelect={handleSelect} />,
     )
 
-    expect(screen.getByText('مكتمل')).toBeInTheDocument()
+    expect(screen.getByText('تم اللعب')).toBeInTheDocument()
     await user.click(
       screen.getByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
     )
@@ -85,5 +85,31 @@ describe('BookingListCard', () => {
 
     expect(screen.getByRole('img', { name: 'حجز أسبوعي' })).toHaveTextContent('↻')
     expect(screen.queryByText('12')).not.toBeInTheDocument()
+  })
+
+  it('uses canonical NO_SHOW and EXPIRED status labels', () => {
+    const { rerender } = render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          status: 'NO_SHOW',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('عدم حضور')).toBeInTheDocument()
+    expect(screen.queryByText('لم يحضر')).not.toBeInTheDocument()
+
+    rerender(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          status: 'EXPIRED',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('انتهت المهلة')).toBeInTheDocument()
+    expect(screen.queryByText('منتهي')).not.toBeInTheDocument()
   })
 })

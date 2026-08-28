@@ -9,9 +9,11 @@ const allCapabilities: BookingActionCapabilities = {
   canAddPayment: true,
   canCancel: true,
   canComplete: true,
+  canEditCustomer: true,
   canEndRecurrence: true,
   canFreeHold: true,
   canNoShow: true,
+  canReschedule: true,
 }
 
 const now = new Date('2026-08-25T20:00:00Z')
@@ -41,8 +43,9 @@ describe('getBookingActionPresentation', () => {
     expect(result.stateMessage).toBe('بانتظار العربون')
     expect(result.primaryAction).toEqual({
       type: 'PAYMENT',
-      label: 'ضيف العربون وأكد الحجز',
+      label: 'سجّل العربون وأكّد الحجز',
     })
+    expect(result.primaryAction?.label).not.toBe('ضيف العربون وأكد الحجز')
     expect(result.primaryAction?.label).not.toBe('إضافة دفعة')
   })
 
@@ -71,7 +74,7 @@ describe('getBookingActionPresentation', () => {
       now,
     )
 
-    expect(result.stateMessage).toBe('مؤكد')
+    expect(result.stateMessage).toBe('العربون مدفوع')
     expect(result.primaryAction).toBeNull()
   })
 
@@ -82,9 +85,10 @@ describe('getBookingActionPresentation', () => {
       now,
     )
 
-    expect(result.stateMessage).toBe('الحجز خلص ولسه مقفلتوش')
-    expect(result.primaryAction).toEqual({ type: 'COMPLETE', label: 'إكمال' })
-    expect(result.secondaryActions).toContain('NO_SHOW')
+    expect(result.stateMessage).toBe('انتهى الموعد ولسه محتاج يتقفل')
+    expect(result.primaryAction).toEqual({ type: 'COMPLETE', label: 'تم اللعب' })
+    expect(result.parallelActions).toContain('NO_SHOW')
+    expect(result.secondaryActions).not.toContain('NO_SHOW')
   })
 
   it.each(['COMPLETED', 'CANCELLED', 'EXPIRED', 'NO_SHOW'] as const)(
@@ -98,6 +102,12 @@ describe('getBookingActionPresentation', () => {
 
       expect(result.primaryAction).toBeNull()
       expect(result.secondaryActions).toEqual([])
+      if (status === 'NO_SHOW') {
+        expect(result.stateMessage).toBe('عدم حضور')
+      }
+      if (status === 'EXPIRED') {
+        expect(result.stateMessage).toBe('انتهت المهلة')
+      }
     },
   )
 
@@ -123,7 +133,7 @@ describe('getBookingActionPresentation', () => {
     )
 
     expect(result.secondaryActions).toContain('CANCEL')
-    expect(result.secondaryActions).toContain('NO_SHOW')
+    expect(result.parallelActions).toContain('NO_SHOW')
     expect(result.secondaryActions).toContain('END_RECURRENCE')
   })
 
@@ -137,5 +147,47 @@ describe('getBookingActionPresentation', () => {
         ).secondaryActions,
       ).not.toContain('END_RECURRENCE')
     }
+  })
+
+  it('exposes customer edit for HOLD and CONFIRMED only', () => {
+    expect(
+      getBookingActionPresentation(
+        { ...baseBooking, status: 'HOLD' },
+        allCapabilities,
+        now,
+      ).secondaryActions,
+    ).toContain('EDIT_CUSTOMER')
+    expect(
+      getBookingActionPresentation(baseBooking, allCapabilities, now)
+        .secondaryActions,
+    ).toContain('EDIT_CUSTOMER')
+    expect(
+      getBookingActionPresentation(
+        { ...baseBooking, status: 'COMPLETED' },
+        allCapabilities,
+        now,
+      ).secondaryActions,
+    ).not.toContain('EDIT_CUSTOMER')
+  })
+
+  it('hides reschedule for active recurrence and terminal statuses', () => {
+    expect(
+      getBookingActionPresentation(baseBooking, allCapabilities, now)
+        .secondaryActions,
+    ).toContain('RESCHEDULE')
+    expect(
+      getBookingActionPresentation(
+        { ...baseBooking, is_recurring: true, recurrence_status: 'ACTIVE' },
+        allCapabilities,
+        now,
+      ).secondaryActions,
+    ).not.toContain('RESCHEDULE')
+    expect(
+      getBookingActionPresentation(
+        { ...baseBooking, status: 'CANCELLED' },
+        allCapabilities,
+        now,
+      ).secondaryActions,
+    ).not.toContain('RESCHEDULE')
   })
 })

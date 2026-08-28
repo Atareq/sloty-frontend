@@ -1,10 +1,8 @@
+HISTORICAL DOCUMENT — not current frontend architecture.
+
+Use this file only as original product-vision planning. For frontend implementation, follow the current working tree, `AGENTS.md`, and the durable docs under `docs/*.md`.
+
 Phase 1 Final Report
-FROM a project management point of view.
-Sports Courts Rental Management System — Business Direction
-
-Current implementation note:
-
-This file remains product/reference documentation. MVP 1 court-management rules are still valid, but the current frontend is React + Vite and already in implementation. The accepted frontend auth flow now uses `/me` memberships for post-login club selection.
 
 1. Final Product Vision
 

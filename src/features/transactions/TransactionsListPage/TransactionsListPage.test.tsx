@@ -177,6 +177,7 @@ describe('TransactionsListPage', () => {
           payment_reference: 'REF-123',
           created: '2026-07-02T10:00:00Z',
           booking_start_time: '2026-07-02T11:00:00Z',
+          booking_end_time: '2026-07-02T12:00:00Z',
           court_name: 'ملعب النجوم',
           created_by: 15,
           created_by_username: 'collector',
@@ -186,11 +187,11 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    expect(await screen.findByText('150.00 جنيه')).toBeInTheDocument()
+    expect(await screen.findByText(/150\.00 ج\.م/)).toBeInTheDocument()
     expect(screen.getByText('تحصيل')).toBeInTheDocument()
-    expect(screen.getByText('محفظة رقمية')).toBeInTheDocument()
+    expect(screen.getByText(/محفظة رقمية/)).toBeInTheDocument()
     expect(screen.getByText('ملعب النجوم')).toBeInTheDocument()
-    expect(screen.getByText('collector')).toBeInTheDocument()
+    expect(screen.getByText(/حصّلها: collector/)).toBeInTheDocument()
     expect(screen.queryByText('#10')).not.toBeInTheDocument()
     expect(screen.getByText('REF-123')).toBeInTheDocument()
     expect(mockedListTransactions).toHaveBeenCalledWith(
@@ -232,6 +233,9 @@ describe('TransactionsListPage', () => {
         ...defaultFilters,
       })
     })
+    expect(mockedListTransactions.mock.calls[0]?.[1]).not.toHaveProperty(
+      'created_by',
+    )
   })
 
   it('shows an empty state when the selected club has no transactions', async () => {
@@ -254,7 +258,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لعرض التحصيلات'),
+      await screen.findByText('اختر ناديًا أولًا لعرض المعاملات المالية'),
     ).toBeInTheDocument()
     expect(mockedListTransactions).not.toHaveBeenCalled()
   })
@@ -278,7 +282,6 @@ describe('TransactionsListPage', () => {
 
     expect(await screen.findByText('ملغية')).toBeInTheDocument()
     expect(screen.getByText('مبلغ خاطئ')).toBeInTheDocument()
-    expect(screen.getByText('أحمد')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
     ).not.toBeInTheDocument()
@@ -303,7 +306,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(await screen.findByText('استرداد')).toBeInTheDocument()
-    expect(screen.getByText('-250.00 جنيه')).toBeInTheDocument()
+    expect(screen.getByText(/-250\.00 ج\.م/)).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
     ).not.toBeInTheDocument()
@@ -369,7 +372,7 @@ describe('TransactionsListPage', () => {
     )
 
     expect(
-      await screen.findByRole('button', { name: 'إزالة فلتر غير مسواة' }),
+      await screen.findByRole('button', { name: 'إزالة فلتر لم يتم استلامها' }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'إزالة فلتر غير ملغية' }),
@@ -396,14 +399,14 @@ describe('TransactionsListPage', () => {
     )
 
     await user.click(
-      await screen.findByRole('button', { name: 'إزالة فلتر غير مسواة' }),
+      await screen.findByRole('button', { name: 'إزالة فلتر لم يتم استلامها' }),
     )
 
     expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
       is_cancelled: 'false',
     })
     expect(
-      screen.queryByRole('button', { name: 'إزالة فلتر غير مسواة' }),
+      screen.queryByRole('button', { name: 'إزالة فلتر لم يتم استلامها' }),
     ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'إزالة فلتر غير ملغية' }),
@@ -421,7 +424,7 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await user.click(await screen.findByRole('button', { name: 'غير مسواة' }))
+    await user.click(await screen.findByRole('button', { name: 'لم يتم استلامها' }))
 
     expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
       settlement_status: 'unsettled',
@@ -460,7 +463,7 @@ describe('TransactionsListPage', () => {
     await user.click(await screen.findByRole('button', { name: 'فلترة' }))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('فلترة التحصيلات')).toBeInTheDocument()
+    expect(screen.getByText('فلترة المعاملات المالية')).toBeInTheDocument()
     expect(screen.getAllByLabelText('الموظف المحصل')).not.toHaveLength(0)
   })
 
@@ -480,7 +483,7 @@ describe('TransactionsListPage', () => {
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.type(screen.getByLabelText('إلى تاريخ'), '2026-07-15')
-    await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'تم استلامها' }))
     await user.click(screen.getByRole('checkbox', { name: 'غير ملغية' }))
     await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'نقدي')
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
@@ -521,8 +524,8 @@ describe('TransactionsListPage', () => {
 
     expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {})
 
-    await user.click(screen.getByRole('checkbox', { name: 'غير مسواة' }))
-    await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'لم يتم استلامها' }))
+    await user.click(screen.getByRole('checkbox', { name: 'تم استلامها' }))
     await user.click(screen.getByRole('checkbox', { name: 'غير ملغية' }))
     await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
     await chooseAppSelectOption(
@@ -551,7 +554,7 @@ describe('TransactionsListPage', () => {
     await screen.findByText('مفيش عمليات مالية لسه.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.clear(screen.getByLabelText('إلى تاريخ'))
-    await user.click(screen.getByRole('checkbox', { name: 'غير مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'لم يتم استلامها' }))
     await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
@@ -592,14 +595,14 @@ describe('TransactionsListPage', () => {
     await screen.findByText('مفيش عمليات مالية مطابقة للفلاتر الحالية.')
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
-    await user.click(screen.getByRole('checkbox', { name: 'مسواة' }))
+    await user.click(screen.getByRole('checkbox', { name: 'تم استلامها' }))
     await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
 
     expect(screen.getByLabelText('من تاريخ')).toHaveValue('2026-07-13')
     expect(screen.getByLabelText('إلى تاريخ')).toHaveValue('2026-07-20')
-    expect(screen.getByRole('checkbox', { name: 'غير مسواة' }))
+    expect(screen.getByRole('checkbox', { name: 'لم يتم استلامها' }))
       .not.toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'مسواة' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'تم استلامها' })).not.toBeChecked()
     expect(mockedListTransactions).toHaveBeenLastCalledWith(
       'nasr-club',
       defaultFilters,

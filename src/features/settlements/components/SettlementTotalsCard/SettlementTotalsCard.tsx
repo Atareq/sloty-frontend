@@ -1,5 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
-import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { formatMoneyAmount, isNonZeroMoneyAmount } from '../../../../shared/utils/money'
 import type { SettlementPaymentMethod } from '../../settlements.types'
 import { settlementPaymentMethodLabels } from '../../settlements.types'
 
@@ -29,11 +29,11 @@ export function SettlementTotalsCard({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-            إجمالي العهدة
+            إجمالي المبلغ
           </h2>
           {transactionCount !== undefined ? (
             <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-              عدد التحصيلات: {transactionCount}
+              عدد العمليات: {transactionCount}
             </p>
           ) : null}
         </div>
@@ -48,7 +48,11 @@ export function SettlementTotalsCard({
       </div>
 
       <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {paymentMethods.map((method) => (
+        {paymentMethods
+          .filter((method) =>
+            isNonZeroMoneyAmount(totalsByPaymentMethod[method]),
+          )
+          .map((method) => (
           <div
             className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3"
             key={method}

@@ -3,6 +3,7 @@ import { appRoutes } from './appRoutes'
 
 describe('appRoutes', () => {
   it('exposes route constants for summary action links', () => {
+    expect(appRoutes.home).toBe('/schedule')
     expect(appRoutes.dashboard).toBe('/dashboard')
     expect(appRoutes.bookings).toBe('/bookings')
     expect(appRoutes.transactions).toBe('/transactions')

@@ -374,7 +374,10 @@ describe('SettingsUsersPage', () => {
       name: 'حذف المستخدم من النادي',
     })
     expect(
-      within(deleteDialog).getByText(/\u0647\u064a\u062a\u0645 \u062d\u0630\u0641 \u0639\u0636\u0648\u064a\u0629 \u0645\u0646\u0649 \u0645\u062f\u064a\u0631/),
+      within(deleteDialog).getByText(/الحساب الشخصي مش هيتنحذف/),
+    ).toBeInTheDocument()
+    expect(
+      within(deleteDialog).getByText(/هيخسر صلاحية الدخول للنادي/),
     ).toBeInTheDocument()
     expect(
       within(deleteDialog).getByText(
@@ -496,7 +499,7 @@ describe('SettingsUsersPage', () => {
 
     expect(dialog.getByLabelText('الاسم الأول')).toBeInTheDocument()
     expect(dialog.getByLabelText('اسم العائلة')).toBeInTheDocument()
-    expect(dialog.getByLabelText('رقم الهاتف')).toBeInTheDocument()
+    expect(dialog.getByLabelText('رقم الموبايل')).toBeInTheDocument()
     expect(dialog.getByLabelText('الدولة أو المنطقة')).toHaveValue('EG')
     expect(dialog.getByLabelText('البريد الإلكتروني')).toBeInTheDocument()
     expect(dialog.getByLabelText('اسم المستخدم')).toBeInTheDocument()
@@ -511,6 +514,7 @@ describe('SettingsUsersPage', () => {
     const dialog = await openAddUserSheet(user)
     await user.click(dialog.getByLabelText('مستخدم موجود'))
     expect(dialog.queryByLabelText('كلمة المرور')).not.toBeInTheDocument()
+    expect(dialog.queryByLabelText('تأكيد كلمة المرور')).not.toBeInTheDocument()
 
     await user.type(dialog.getByLabelText('البحث عن المستخدم'), 'ليلى')
     await user.click(dialog.getByRole('button', { name: 'بحث' }))
@@ -580,9 +584,27 @@ describe('SettingsUsersPage', () => {
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'staff-new')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
-    expect(dialog.getAllByText('اختر ملعبًا للموظف').length).toBeGreaterThan(1)
+    expect(dialog.getAllByText('اختر ملعبًا للموظف').length).toBeGreaterThan(0)
+    expect(mockedCreateClubMembership).not.toHaveBeenCalled()
+  })
+
+  it('blocks create-user submit when the password confirmation does not match', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    const dialog = await openAddUserSheet(user)
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'mismatch-user')
+    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'other-pass')
+    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    expect(dialog.getByText('تأكيد كلمة المرور غير مطابق')).toBeInTheDocument()
     expect(mockedCreateClubMembership).not.toHaveBeenCalled()
   })
 
@@ -598,10 +620,11 @@ describe('SettingsUsersPage', () => {
     await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم العائلة'), 'مدير')
-    await user.type(dialog.getByLabelText('رقم الهاتف'), '01111111111')
+    await user.type(dialog.getByLabelText('رقم الموبايل'), '01111111111')
     await user.type(dialog.getByLabelText('البريد الإلكتروني'), 'manager@example.com')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await user.click(
       dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
     )
@@ -653,9 +676,10 @@ describe('SettingsUsersPage', () => {
     const dialog = await openAddUserSheet(user)
     await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
-    await user.type(dialog.getByLabelText('رقم الهاتف'), '01012345678')
+    await user.type(dialog.getByLabelText('رقم الموبايل'), '01012345678')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await chooseAppSelectOption(user, dialog.getByLabelText('الملعب المسؤول عنه'), 'ملعب 1')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
@@ -698,9 +722,10 @@ describe('SettingsUsersPage', () => {
     const dialog = await openAddUserSheet(user)
     await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
-    await user.type(dialog.getByLabelText('رقم الهاتف'), '01012')
+    await user.type(dialog.getByLabelText('رقم الموبايل'), '01012')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await chooseAppSelectOption(user, dialog.getByLabelText('الملعب المسؤول عنه'), 'ملعب 1')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
@@ -718,6 +743,7 @@ describe('SettingsUsersPage', () => {
     await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await chooseAppSelectOption(user, dialog.getByLabelText('الملعب المسؤول عنه'), 'ملعب 1')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
@@ -761,6 +787,7 @@ describe('SettingsUsersPage', () => {
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
     expect(
@@ -784,6 +811,7 @@ describe('SettingsUsersPage', () => {
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
+    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
     expect(

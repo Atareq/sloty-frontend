@@ -117,9 +117,9 @@ export interface AuthProviderProps {
 
 export const DEFAULT_ROLE_REDIRECTS: Record<AuthRole, string> = {
   PLATFORM_ADMIN: '/admin/clubs',
-  OWNER: '/dashboard',
-  MANAGER: '/dashboard',
-  STAFF: '/dashboard',
+  OWNER: '/schedule',
+  MANAGER: '/schedule',
+  STAFF: '/schedule',
 }
 
 /**

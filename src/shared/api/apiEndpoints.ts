@@ -30,12 +30,17 @@ export const apiEndpoints = {
         `clubs/${clubSlug}/bookings/${id}/cancel/`,
       complete: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/complete/`,
+      /** Expire is deferred; the path is retained for the agreed backend contract. */
       expire: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/expire/`,
       noShow: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/no-show/`,
       endRecurrence: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/end-recurrence/`,
+      recurrenceNext: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/bookings/${id}/recurrence-next/`,
+      reschedule: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/bookings/${id}/reschedule/`,
     },
     courts: {
       list: (clubSlug: string) => `clubs/${clubSlug}/courts/`,

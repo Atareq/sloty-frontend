@@ -1,4 +1,5 @@
 import type { ScheduleBooking } from '../../schedule.types'
+import { bookingStatusCopy } from '../../../../shared/copy/appCopy'
 
 export type ScheduleSlotTone =
   | 'available'
@@ -23,8 +24,8 @@ const fallbackLabels: Record<ScheduleBooking['status'], string> = {
   recurring_reserved: 'محجوز',
   cancelled: 'ملغي',
   hold: 'بانتظار العربون',
-  confirmed: 'مؤكد',
-  completed: 'مكتمل',
+  confirmed: bookingStatusCopy.CONFIRMED,
+  completed: bookingStatusCopy.COMPLETED,
   no_show: 'عدم حضور',
 }
 
@@ -48,9 +49,7 @@ export function getScheduleSlotPresentation(
   const hasBooking = Boolean(slot.booking)
 
   return {
-    label: isRecurringReservation
-      ? fallbackLabels.recurring_reserved
-      : slot.label || fallbackLabels[slot.status],
+    label: fallbackLabels[slot.status] || slot.label || 'متاح',
     isClickable:
       (isFree && slot.isAvailable === true) ||
       isRecurringReservation ||

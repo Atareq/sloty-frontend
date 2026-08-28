@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
@@ -9,6 +8,8 @@ import {
 import { useAuth } from '../../../../core/auth/useAuth'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
+import { settingsCopy } from '../../../../shared/copy/appCopy'
 import {
   PricingPeriodsEditor,
   type PricingPeriodDraft,
@@ -222,10 +223,11 @@ export function CourtWorkingHoursSection({
   slotDurationMinutes,
 }: CourtWorkingHoursSectionProps) {
   const { refreshCurrentUser } = useAuth()
-  const navigate = useNavigate()
   const numericCourtId = Number(courtId)
   const canLoadWorkingHours =
     Boolean(clubSlug && courtId) && Number.isFinite(numericCourtId)
+  const dayEditorRef = useRef<HTMLDivElement>(null)
+  const [selectedWeekday, setSelectedWeekday] = useState<CourtWeekday>(5)
   const [drafts, setDrafts] =
     useState<Record<CourtWeekday, WorkingDayDraft>>(createInitialDrafts)
   const [lastSavedDrafts, setLastSavedDrafts] =
@@ -377,8 +379,8 @@ export function CourtWorkingHoursSection({
     })
   }
 
-  function applySaturdayToAllDays(): void {
-    const saturdayDraft = drafts[5]
+  function copySelectedDayToRest(): void {
+    const sourceDraft = drafts[selectedWeekday]
 
     setDrafts(
       weekdays.reduce((nextDrafts, weekday) => {
@@ -386,7 +388,7 @@ export function CourtWorkingHoursSection({
           ...nextDrafts,
           [weekday]: {
             weekday,
-            pricing_periods: clonePeriods(saturdayDraft.pricing_periods),
+            pricing_periods: clonePeriods(sourceDraft.pricing_periods),
           },
         }
       }, {} as Record<CourtWeekday, WorkingDayDraft>),
@@ -456,13 +458,44 @@ export function CourtWorkingHoursSection({
     const firstErrorWeekday = weekdays.find((weekday) => nextErrors[weekday])
 
     if (firstErrorWeekday !== undefined) {
-      const message =
-        nextErrors[firstErrorWeekday] ?? 'فترات العمل والأسعار غير صحيحة'
-
+      setSelectedWeekday(firstErrorWeekday)
       setRowErrors(nextErrors)
       setPeriodErrors(nextPeriodErrors)
-      setError(message)
+      setError(settingsCopy.workingHoursSaveSummary)
       setSuccessMessage(null)
+      window.requestAnimationFrame(() => {
+        dayEditorRef.current?.scrollIntoView?.({
+          block: 'nearest',
+          behavior: 'smooth',
+        })
+
+        const firstInvalidPeriodId = Object.keys(
+          nextPeriodErrors[firstErrorWeekday] ?? {},
+        )[0]
+        const firstInvalidMessage =
+          nextPeriodErrors[firstErrorWeekday]?.[firstInvalidPeriodId] ?? ''
+
+        if (!firstInvalidPeriodId) {
+          return
+        }
+
+        const startsField = document.getElementById(
+          `working-hours-period-${firstInvalidPeriodId}-starts`,
+        )
+        const endsField = document.getElementById(
+          `working-hours-period-${firstInvalidPeriodId}-ends`,
+        )
+        const priceField = document.getElementById(
+          `working-hours-period-${firstInvalidPeriodId}-price`,
+        )
+        const field = firstInvalidMessage.includes('سعر')
+          ? priceField
+          : firstInvalidMessage.includes('نهاية')
+            ? endsField
+            : startsField ?? priceField
+
+        field?.focus()
+      })
       return
     }
 
@@ -480,9 +513,7 @@ export function CourtWorkingHoursSection({
 
       setDrafts(nextDrafts)
       setLastSavedDrafts(nextDrafts)
-      navigate('/dashboard', {
-        state: { flashMessage: 'تم تحديث مواعيد العمل بنجاح' },
-      })
+      setSuccessMessage('تم تحديث مواعيد العمل بنجاح')
     } catch (error) {
       const fieldErrors = getApiFieldErrors(error)
       const backendFieldMessage =
@@ -550,8 +581,8 @@ export function CourtWorkingHoursSection({
 
       {canEdit ? (
         <div className="flex flex-wrap gap-2">
-          <AppButton onClick={applySaturdayToAllDays} variant="secondary">
-            تطبيق السبت على باقي الأيام
+          <AppButton onClick={copySelectedDayToRest} variant="secondary">
+            {settingsCopy.copyDayToRest(getWeekdayLabel(selectedWeekday))}
           </AppButton>
           <AppButton onClick={closeAllDays} variant="secondary">
             إغلاق كل الأيام
@@ -562,83 +593,93 @@ export function CourtWorkingHoursSection({
         </div>
       ) : null}
 
-      <div className="space-y-3">
-        {weekdays.map((weekday) => {
-          const draft = drafts[weekday]
-          const isClosed = draft.pricing_periods.length === 0
+      <AppSelect
+        label="اليوم"
+        onChange={(value) => setSelectedWeekday(Number(value) as CourtWeekday)}
+        options={weekdays.map((weekday) => ({
+          value: String(weekday),
+          label: getWeekdayLabel(weekday),
+        }))}
+        value={String(selectedWeekday)}
+      />
 
-          return (
-            <div
-              className="grid gap-4 rounded-2xl border border-[var(--sloty-border)] bg-white p-3 lg:grid-cols-[12rem_1fr] lg:items-start"
-              key={weekday}
-            >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="text-sm font-bold">
-                    <span className="block text-[var(--sloty-text-primary)]">
-                      {getWeekdayLabel(weekday)}
-                    </span>
-                    <span
-                      className={[
-                        'mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black',
-                        isClosed
-                          ? 'bg-slate-100 text-slate-700'
-                          : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
-                      ].join(' ')}
-                    >
-                      {isClosed ? 'مغلق' : 'مفتوح'}
-                    </span>
-                    {rowErrors[weekday] ? (
-                      <span className="mt-2 block text-xs text-[var(--sloty-danger)]">
-                        {rowErrors[weekday]}
-                      </span>
-                    ) : null}
-                  </div>
+      {(() => {
+        const draft = drafts[selectedWeekday]
+        const isClosed = draft.pricing_periods.length === 0
 
-                  {isClosed ? (
-                    <AppButton
-                      disabled={!canEdit}
-                      onClick={() => openDay(weekday)}
-                      type="button"
-                      variant="secondary"
-                    >
-                      فتح اليوم
-                    </AppButton>
-                  ) : (
-                    <AppButton
-                      disabled={!canEdit}
-                      onClick={() => closeDay(weekday)}
-                      type="button"
-                      variant="secondary"
-                    >
-                      إغلاق اليوم
-                    </AppButton>
-                  )}
+        return (
+          <div
+            className="grid gap-4 rounded-2xl border border-[var(--sloty-border)] bg-white p-3 lg:grid-cols-[12rem_1fr] lg:items-start"
+            ref={dayEditorRef}
+          >
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-sm font-bold">
+                  <span className="block text-[var(--sloty-text-primary)]">
+                    {getWeekdayLabel(selectedWeekday)}
+                  </span>
+                  <span
+                    className={[
+                      'mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black',
+                      isClosed
+                        ? 'bg-slate-100 text-slate-700'
+                        : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
+                    ].join(' ')}
+                  >
+                    {isClosed ? 'مغلق' : 'مفتوح'}
+                  </span>
+                  {rowErrors[selectedWeekday] ? (
+                    <span className="mt-2 block text-xs text-[var(--sloty-danger)]">
+                      {rowErrors[selectedWeekday]}
+                    </span>
+                  ) : null}
                 </div>
+
+                {isClosed ? (
+                  <AppButton
+                    disabled={!canEdit}
+                    onClick={() => openDay(selectedWeekday)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    فتح اليوم
+                  </AppButton>
+                ) : (
+                  <AppButton
+                    disabled={!canEdit}
+                    onClick={() => closeDay(selectedWeekday)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    إغلاق اليوم
+                  </AppButton>
+                )}
               </div>
-
-              {isClosed ? (
-                <div className="space-y-3">
-                  <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                    لا توجد فترات عمل لهذا اليوم.
-                  </p>
-                </div>
-              ) : (
-                <PricingPeriodsEditor
-                  disabled={!canEdit}
-                  errors={periodErrors[weekday]}
-                  onAdd={() => addPricingPeriod(weekday)}
-                  onRemove={(localId) => removePricingPeriod(weekday, localId)}
-                  onUpdate={(localId, nextPeriod) =>
-                    updatePricingPeriod(weekday, localId, nextPeriod)
-                  }
-                  periods={draft.pricing_periods}
-                />
-              )}
             </div>
-          )
-        })}
-      </div>
+
+            {isClosed ? (
+              <div className="space-y-3">
+                <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+                  لا توجد فترات عمل لهذا اليوم.
+                </p>
+              </div>
+            ) : (
+              <PricingPeriodsEditor
+                disabled={!canEdit}
+                errors={periodErrors[selectedWeekday]}
+                onAdd={() => addPricingPeriod(selectedWeekday)}
+                onRemove={(localId) =>
+                  removePricingPeriod(selectedWeekday, localId)
+                }
+                onUpdate={(localId, nextPeriod) =>
+                  updatePricingPeriod(selectedWeekday, localId, nextPeriod)
+                }
+                periods={draft.pricing_periods}
+              />
+            )}
+          </div>
+        )
+      })()}
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <AppButton

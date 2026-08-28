@@ -11,8 +11,9 @@ import {
   getClubUserDisplayName,
   getCourtDisplayName,
 } from '../../../shared/utils/displayNames'
-import { formatMoneyAmount } from '../../../shared/utils/money'
+import { bookingStatusCopy } from '../../../shared/copy/appCopy'
 import { toQueryObject } from '../../../shared/utils/queryParams'
+import { formatMoneyAmount } from '../../../shared/utils/money'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
@@ -67,16 +68,16 @@ const reportStatusOptions: Array<{
 }> = [
   { value: '', label: 'الحالة الافتراضية' },
   { value: 'HOLD', label: 'بانتظار العربون' },
-  { value: 'CONFIRMED', label: 'مؤكد' },
-  { value: 'COMPLETED', label: 'مكتمل' },
+  { value: 'CONFIRMED', label: bookingStatusCopy.CONFIRMED },
+  { value: 'COMPLETED', label: bookingStatusCopy.COMPLETED },
   { value: 'NO_SHOW', label: 'عدم حضور' },
 ]
 
 const reportStatusLabels: Record<CourtUsageReportStatus, string> = {
-  HOLD: 'بانتظار العربون',
-  CONFIRMED: 'مؤكد',
-  COMPLETED: 'مكتمل',
-  NO_SHOW: 'عدم حضور',
+  HOLD: bookingStatusCopy.HOLD,
+  CONFIRMED: bookingStatusCopy.CONFIRMED,
+  COMPLETED: bookingStatusCopy.COMPLETED,
+  NO_SHOW: bookingStatusCopy.NO_SHOW,
 }
 
 function getPeriodLabel(period: CourtUsageReportPeriod): string {
