@@ -216,4 +216,4 @@ See also:
 - Court, status, exact/range dates, overdue, ended, and HOLD-expiry filters use one shared responsive filter sheet. Staff does not load or display the Court selector; the request uses the assigned membership Court while ignoring and removing URL Court overrides.
 - Upcoming filtering is backend-owned and is never derived from the loaded page.
 - History cards show only customer, phone, human appointment/status, and optional recurrence. Full money and lifecycle review remains in the canonical `BookingActionSheet` after hydrating Booking Detail. URL filters and page are preserved through review and mutations.
-- Booking History has no confirmed server ordering contract, so the frontend does not expose a newest/oldest control or reverse the loaded page.
+- Booking History uses appointment-time server ordering (`ordering=-start_time` / `ordering=start_time`) through the same two-arrow control immediately before History cards. Newest is the default. Sort preserves Search and filters, resets page, and does not reverse only the loaded page.

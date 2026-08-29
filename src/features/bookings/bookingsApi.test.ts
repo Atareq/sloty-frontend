@@ -128,4 +128,21 @@ describe('bookingsApi', () => {
       )}?court=3&ended=true&hold_expiring=true&overdue=true&page=2`,
     )
   })
+
+  it('sends appointment-time ordering query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listBookings('nasr-club', {
+      ordering: '-start_time',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.bookings.list('nasr-club')}?ordering=-start_time`,
+    )
+  })
 })

@@ -54,7 +54,7 @@ Practical presentation baseline for the Sloty frontend.
 ## Server-backed lists
 
 - Lists start without hidden filters unless Product explicitly defines one.
-- Chronological paginated lists default to newest first. Where Backend confirms server ordering, expose the shared two-arrow `ListSortControl` immediately before result cards (`↓` newest / `↑` oldest). Do not use a dropdown for this compact control. Transaction ledgers for Staff and Owner/Manager share the same pattern.
+- Chronological paginated lists default to newest first. Where Backend confirms server ordering, expose the shared two-arrow `ListSortControl` immediately before result cards (`↓` newest / `↑` oldest). Do not use a dropdown for this compact control. Transaction ledgers for Staff and Owner/Manager share the same pattern. Booking History uses the same arrows mapped to appointment `start_time`.
 - Search is debounced; simple checkbox/select and sort changes request immediately.
 - Search/sort/filter refresh keeps previous results visible in `ResultRefreshRegion` and protects against stale responses.
 - Reset returns Product defaults, never a legacy date window.

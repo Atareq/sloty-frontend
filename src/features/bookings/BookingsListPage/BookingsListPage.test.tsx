@@ -89,6 +89,15 @@ function paginatedResponse(
   }
 }
 
+function expectedListQuery(
+  params: Record<string, string | number | boolean> = {},
+) {
+  return {
+    ordering: '-start_time',
+    ...params,
+  }
+}
+
 function renderBookingsPage(initialEntry = '/bookings') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -258,7 +267,12 @@ describe('BookingsListPage', () => {
       await screen.findByText('مفيش حجوزات لسه.'),
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('تاريخ محدد')).not.toBeInTheDocument()
-    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {})
+    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', expectedListQuery())
+    expect(screen.getByRole('button', { name: listCopy.newestFirst }))
+      .toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: listCopy.oldestFirst }))
+      .toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(mockedGetBooking).not.toHaveBeenCalled()
     expect(
       screen.getByRole('searchbox', {
@@ -287,9 +301,9 @@ describe('BookingsListPage', () => {
     ).toBeInTheDocument()
     await expandQuickShortcuts()
     expect(screen.getByRole('checkbox', { name: 'تحتاج إجراء' })).toBeChecked()
-    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', expectedListQuery({
       needs_action: 'true',
-    })
+    }))
   })
 
   it('debounces unified server search, resets page, and preserves review filters', async () => {
@@ -312,10 +326,10 @@ describe('BookingsListPage', () => {
       vi.advanceTimersByTime(1)
     })
     await waitFor(() => {
-      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
         search: '01012345678',
         upcoming: 'true',
-      })
+      }))
     })
     expect(
       screen.getByRole('button', {
@@ -358,7 +372,7 @@ describe('BookingsListPage', () => {
     await act(async () => {
       vi.advanceTimersByTime(700)
     })
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {})
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery())
     expect(
       screen.queryByRole('button', { name: 'إزالة فلتر بحث: أحمد' }),
     ).not.toBeInTheDocument()
@@ -435,10 +449,10 @@ describe('BookingsListPage', () => {
     expect(
       screen.getByRole('button', { name: 'إزالة فلتر بانتظار العربون' }),
     ).toBeInTheDocument()
-    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', expectedListQuery({
       date: '2026-07-21',
       status: 'HOLD',
-    })
+    }))
   })
 
   it('removes chips and reloads with remaining filters', async () => {
@@ -456,9 +470,9 @@ describe('BookingsListPage', () => {
       await screen.findByRole('button', { name: 'إزالة فلتر بانتظار العربون' }),
     )
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       date: '2026-07-21',
-    })
+    }))
     expect(
       screen.queryByRole('button', { name: 'إزالة فلتر بانتظار العربون' }),
     ).not.toBeInTheDocument()
@@ -479,15 +493,15 @@ describe('BookingsListPage', () => {
     await expandQuickShortcuts(user)
     await user.click(screen.getByRole('checkbox', { name: 'تحتاج إجراء' }))
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       needs_action: 'true',
-    })
+    }))
     await user.click(screen.getByRole('checkbox', { name: 'بها مبلغ متبقي' }))
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       needs_action: 'true',
       has_remaining_amount: 'true',
-    })
+    }))
   })
 
   it('opens advanced filters in a filter sheet', async () => {
@@ -528,9 +542,9 @@ describe('BookingsListPage', () => {
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       court: '3',
-    })
+    }))
   })
 
   it('combines operational checkbox filters using the confirmed query contract', async () => {
@@ -554,13 +568,13 @@ describe('BookingsListPage', () => {
     expect(screen.getByLabelText('الحالة')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       ended: 'true',
       hold_expiring: 'true',
       needs_action: 'true',
       overdue: 'true',
       has_remaining_amount: 'true',
-    })
+    }))
   })
 
   it('removes only the selected operational filter chip', async () => {
@@ -578,9 +592,9 @@ describe('BookingsListPage', () => {
       await screen.findByRole('button', { name: 'إزالة فلتر تحتاج إجراء' }),
     )
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       overdue: 'true',
-    })
+    }))
     expect(screen.getByRole('button', { name: 'إزالة فلتر وقتها عدى' }))
       .toBeInTheDocument()
   })
@@ -593,9 +607,9 @@ describe('BookingsListPage', () => {
     expect(
       await screen.findByRole('button', { name: 'إزالة فلتر ملعب 1' }),
     ).toBeInTheDocument()
-    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', expectedListQuery({
       court: '3',
-    })
+    }))
   })
 
   it('resets advanced filters while preserving primary review toggles', async () => {
@@ -614,9 +628,9 @@ describe('BookingsListPage', () => {
     await user.click(screen.getByRole('button', { name: 'فلاتر إضافية' }))
     await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       needs_action: 'true',
-    })
+    }))
   })
 
   it('keeps Staff Court scope backend-owned and ignores URL overrides', async () => {
@@ -627,10 +641,10 @@ describe('BookingsListPage', () => {
 
     await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.')
     expect(mockedListCourts).not.toHaveBeenCalled()
-    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', expectedListQuery({
       court: 3,
       status: 'HOLD',
-    })
+    }))
     expect(screen.queryByRole('button', { name: /ملعب/ })).not.toBeInTheDocument()
   })
 
@@ -664,10 +678,10 @@ describe('BookingsListPage', () => {
 
     await user.click(await screen.findByRole('button', { name: 'التالي' }))
 
-    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
       page: '2',
       status: 'CONFIRMED',
-    })
+    }))
     expect(screen.getByText('صفحة 2 · 24 حجز')).toBeInTheDocument()
   })
 
@@ -685,10 +699,10 @@ describe('BookingsListPage', () => {
 
     await waitFor(() => {
       expect(mockedListBookings).toHaveBeenCalledTimes(2)
-      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
         page: '2',
         status: 'HOLD',
-      })
+      }))
     })
     expect(await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.'))
       .toBeInTheDocument()
@@ -892,10 +906,10 @@ describe('BookingsListPage', () => {
       expect(mockedCompleteBooking).toHaveBeenCalledWith('nasr-club', 37)
     })
     await waitFor(() => {
-      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
         date: '2026-07-21',
         status: 'CONFIRMED',
-      })
+      }))
     })
   })
 
@@ -1044,11 +1058,11 @@ describe('BookingsListPage', () => {
       })
     })
     await waitFor(() => {
-      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
         date: '2026-07-21',
         page: '3',
         status: 'CONFIRMED',
-      })
+      }))
     })
     expect(await screen.findByText('تم تسجيل التحصيل بنجاح')).toBeInTheDocument()
   })
@@ -1129,10 +1143,10 @@ describe('BookingsListPage', () => {
       })
     })
     await waitFor(() => {
-      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {
+      expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', expectedListQuery({
         date: '2026-07-21',
         status: 'HOLD',
-      })
+      }))
     })
     expect(await screen.findByText('تم إلغاء الحجز بنجاح')).toBeInTheDocument()
   })
@@ -1449,16 +1463,159 @@ describe('BookingsListPage', () => {
     expect(screen.queryByText('غير متاح')).not.toBeInTheDocument()
   })
 
-  it('does not expose a Booking History sort control while Backend ordering is unsupported', async () => {
-    mockedListBookings.mockResolvedValueOnce(paginatedResponse([]))
+  it('sorts Booking History by appointment time through the shared two-arrow control', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    mockedListBookings.mockResolvedValue(paginatedResponse([
+      {
+        id: 21,
+        customer_name: 'سارة',
+        customer_phone: '+201011111111',
+        start_time: '2026-07-22T18:00:00Z',
+        end_time: '2026-07-22T19:00:00Z',
+        status: 'CONFIRMED',
+        court: 3,
+        total_price: '300.00',
+        paid_amount: '300.00',
+        remaining_amount: '0.00',
+      },
+      {
+        id: 20,
+        customer_name: 'منى',
+        customer_phone: '+201022222222',
+        start_time: '2026-07-20T18:00:00Z',
+        end_time: '2026-07-20T19:00:00Z',
+        status: 'CONFIRMED',
+        court: 3,
+        total_price: '300.00',
+        paid_amount: '300.00',
+        remaining_amount: '0.00',
+      },
+    ]))
+
+    renderBookingsPage('/bookings?page=2&upcoming=true')
+
+    await screen.findByRole('button', { name: 'مراجعة حجز سارة' })
+    expect(mockedListBookings).toHaveBeenLastCalledWith(
+      'nasr-club',
+      expectedListQuery({
+        page: '2',
+        upcoming: 'true',
+      }),
+    )
+
+    await user.click(screen.getByRole('button', { name: listCopy.oldestFirst }))
+
+    expect(mockedListBookings).toHaveBeenLastCalledWith(
+      'nasr-club',
+      {
+        ordering: 'start_time',
+        upcoming: 'true',
+      },
+    )
+    expect(screen.getByRole('button', { name: listCopy.oldestFirst }))
+      .toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'إزالة فلتر قادمة' }))
+      .toBeInTheDocument()
+    expect(scrollTo).not.toHaveBeenCalled()
+    const cards = screen.getAllByRole('button', { name: /مراجعة حجز/ })
+    expect(cards[0]).toHaveAccessibleName('مراجعة حجز سارة')
+    expect(cards[1]).toHaveAccessibleName('مراجعة حجز منى')
+
+    await user.click(screen.getByRole('button', { name: listCopy.newestFirst }))
+
+    expect(mockedListBookings).toHaveBeenLastCalledWith(
+      'nasr-club',
+      expectedListQuery({
+        upcoming: 'true',
+      }),
+    )
+  })
+
+  it('lets Staff sort Booking History with the same appointment-time arrows', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockAuth('nasr-club', 'STAFF')
+    mockedListBookings.mockResolvedValue(paginatedResponse([
+      {
+        id: 21,
+        customer_name: 'محمود',
+        customer_phone: '+201011111111',
+        start_time: '2026-07-22T18:00:00Z',
+        end_time: '2026-07-22T19:00:00Z',
+        status: 'HOLD',
+        court: 3,
+        total_price: '300.00',
+        paid_amount: '0.00',
+        remaining_amount: '300.00',
+      },
+    ]))
+
+    renderBookingsPage('/bookings?page=2&status=HOLD')
+
+    await screen.findByRole('button', { name: 'مراجعة حجز محمود' })
+    expect(screen.getByRole('button', { name: listCopy.newestFirst }))
+      .toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(screen.getByRole('button', { name: listCopy.oldestFirst }))
+
+    expect(mockedListBookings).toHaveBeenLastCalledWith(
+      'nasr-club',
+      {
+        court: 3,
+        ordering: 'start_time',
+        status: 'HOLD',
+      },
+    )
+  })
+
+  it('keeps existing booking cards visible while sort refresh is in flight', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    let resolveRefresh!: (value: ReturnType<typeof paginatedResponse>) => void
+    const refreshPromise = new Promise<ReturnType<typeof paginatedResponse>>(
+      (resolve) => {
+        resolveRefresh = resolve
+      },
+    )
+    mockedListBookings
+      .mockResolvedValueOnce(
+        paginatedResponse([
+          {
+            id: 21,
+            customer_name: 'ليلى',
+            customer_phone: '+201011111111',
+            start_time: '2026-07-22T18:00:00Z',
+            end_time: '2026-07-22T19:00:00Z',
+            status: 'CONFIRMED',
+            court: 3,
+            total_price: '300.00',
+            paid_amount: '300.00',
+            remaining_amount: '0.00',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(refreshPromise)
 
     renderBookingsPage()
 
-    await screen.findByText('مفيش حجوزات لسه.')
-    expect(screen.queryByText(listCopy.ordering)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: listCopy.newestFirst }))
-      .not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: listCopy.oldestFirst }))
-      .not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'مراجعة حجز ليلى' }))
+      .toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: listCopy.oldestFirst }))
+
+    expect(screen.getByRole('button', { name: 'مراجعة حجز ليلى' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('جاري تحديث الحجوزات')).toBeInTheDocument()
+
+    resolveRefresh(paginatedResponse([]))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'مراجعة حجز ليلى' }))
+        .not.toBeInTheDocument()
+    })
   })
 })

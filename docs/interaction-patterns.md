@@ -129,7 +129,7 @@ Quick-search shortcuts start collapsed (`اختصارات البحث السري�
 - Ordering is server-authoritative for paginated lists. Never sort only the currently loaded page.
 - Sort preserves active Search and filters, resets pagination to page 1, and uses non-blocking results refresh without scrolling the page.
 - Transaction ordering uses the same control and the same `ordering=-created` / `ordering=created` contract for Staff (`معاملاتي المالية`) and Owner/Manager (`سجل المعاملات المالية`). Scope stays role-dependent; ordering does not.
-- Visible arrows appear only where Backend supports server ordering. Booking History currently has no such contract.
+- Visible arrows appear only where Backend supports server ordering. Booking History orders by appointment `start_time` (`ordering=-start_time` newest, `ordering=start_time` oldest) with the same two-arrow control immediately before the cards.
 
 ## Authoritative detail hydration
 
