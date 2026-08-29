@@ -26,6 +26,7 @@ export interface BookingActionSheetProps {
   booking: BookingListItem | null
   isOpen: boolean
   isSubmitting?: boolean
+  isLoadingDetail?: boolean
   error?: string | null
   courtName?: string | null
   dateValue?: string | null
@@ -58,6 +59,7 @@ export function BookingActionSheet({
   dateValue,
   error = null,
   isOpen,
+  isLoadingDetail = false,
   isSubmitting = false,
   onAddPayment,
   onCancel,
@@ -173,7 +175,17 @@ export function BookingActionSheet({
         onRequestClose={closeDetails}
       >
       <div className="p-5 pt-14">
-        {booking ? (
+        {isLoadingDetail ? (
+          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+            {bookingActionCopy.loadingDetail}
+          </p>
+        ) : null}
+        {!isLoadingDetail && !booking && error ? (
+          <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+            {error}
+          </p>
+        ) : null}
+        {booking && !isLoadingDetail ? (
           <>
             <header>
               <h2 className="text-2xl font-extrabold text-[var(--sloty-text-primary)]">
@@ -214,7 +226,7 @@ export function BookingActionSheet({
                         disabled={isSubmitting}
                         onClick={() => setIsEndRecurrenceConfirming(true)}
                         type="button"
-                        variant="secondary"
+                        variant="danger"
                       >
                         <span className="inline-flex items-center gap-2">
                           <RepeatOff aria-hidden="true" className="h-4 w-4" />
@@ -439,7 +451,7 @@ export function BookingActionSheet({
               fullWidth
               onClick={() => onEndRecurrence?.(booking)}
               type="button"
-              variant="secondary"
+              variant="danger"
             >
               {isSubmitting ? 'جاري الإيقاف...' : bookingActionCopy.endRecurrence}
             </AppButton>

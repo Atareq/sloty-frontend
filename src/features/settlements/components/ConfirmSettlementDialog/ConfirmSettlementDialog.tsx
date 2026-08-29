@@ -57,7 +57,7 @@ export function ConfirmSettlementDialog({
           </div>
 
           <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3 text-sm font-bold text-[var(--sloty-text-primary)]">
-            عدد العمليات: {transactionCount}
+            عدد المعاملات: {transactionCount}
           </div>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">

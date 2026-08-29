@@ -32,7 +32,7 @@ Source-of-truth order:
 ## Current Implemented Modules
 
 - Auth/login foundation
-- Centralized API error handling with Arabic backend messages and field-error helpers
+- Centralized API error handling with Arabic backend messages, field-error helpers, and user-facing localization for known technical field names
 - `/me` current-user hydration
 - Post-login club selection
 - No-club-access page
@@ -42,6 +42,7 @@ Source-of-truth order:
 - Court working hours setup through nested per-court weekly API
 - Premium in-app Schedule date navigation through `AppDateNavigator`
 - Shared product dropdown foundation through `AppSelect`
+- Shared chronological two-arrow `ListSortControl` for server-ordered history lists
 - Club-user court settings for pricing and working-hours permissions
 - Shared product vocabulary through `src/shared/copy/appCopy.ts`
 - Virtual `RECURRING_RESERVED` Schedule details through `VirtualRecurringSlotDetailsSheet`
@@ -117,6 +118,7 @@ See also:
 - Feature-specific page buttons use the shared layout-only `PageActions` component when they need to sit below the shell header.
 - Product-facing dropdowns use shared `AppSelect` instead of native browser select menus.
 - Categorical filters remain `AppSelect`; Boolean operational inclusion conditions use checkboxes, with shared `FilterCheckboxGroup` available for related Boolean state choices.
+- Chronological paginated lists that have confirmed server ordering use the compact two-arrow `ListSortControl` immediately before result cards, on the visual left in RTL. `↓` is newest first; `↑` is oldest first. Do not use a dropdown for this control.
 - Active filter chips are fully clickable removable buttons, not nested icon-only controls.
 - Schedule uses the shell `PageHeader` as its only page identity header. Its primary local flow is the authorized Court selector when applicable, `اختار اليوم` with `AppDateNavigator`, then `اختار المعاد` and the Court board; summary and closing sections follow the slot-selection workspace.
 - Schedule `حجوزات تحتاج إغلاق` is a local today-only group of HOLD/CONFIRMED bookings that still need payment or a complete/no-show decision. `NO_SHOW` and `COMPLETED` are omitted even with remaining money. `EXPIRED` stays out of this group and may still appear in History `تحتاج إجراء`.
@@ -127,7 +129,7 @@ See also:
 - Schedule booked slots, Schedule closing rows, and Booking History cards reuse one canonical `BookingActionSheet`, including HOLD; the source page does not alter the state-driven action hierarchy.
 - Booking details lead with customer/phone and appointment identity, then a simple Egyptian-Arabic state and the backend money fields. The visible primary CTA is `سجّل العربون وأكّد الحجز` for HOLD, `حصّل X ج.م` for a positive balance, or both `إكمال` and `عدم حضور` for an ended fully-paid confirmed booking; remaining valid alternatives sit under `••• خيارات أخرى` with `إلغاء الحجز` last and danger-styled.
 - Secondary booking actions include `تعديل بيانات الحجز` (HOLD/CONFIRMED customer PATCH) and `تغيير الموعد` (non-active-recurring HOLD/CONFIRMED reschedule). Do not combine those into one edit screen. Active recurring reschedule stays hidden.
-- Booking details use `إلغاء الحجز`, contain no backend-roadmap text, and show recurring context as `↻ حجز أسبوعي`. Strictly active recurrence shows an inline `إيقاف الحجز الأسبوعي` outline action, not a duplicate under `•••`. Stopping preserves the current Booking, while cancellation and no-show warn that they also end recurrence.
+- Booking details use `إلغاء الحجز`, contain no backend-roadmap text, and show recurring context as `↻ حجز أسبوعي`. Strictly active recurrence shows an inline danger `إيقاف الحجز الأسبوعي` action, not a duplicate under `•••`; its container stays neutral. Stopping preserves the current Booking, while cancellation and no-show warn that they also end recurrence.
 - Optional `hold_expires_at` is the sole HOLD countdown source. Missing/invalid deadlines omit countdown copy. Display remaining time only; do not promise automatic cancellation, and never derive a deadline from Court `internal_hold_expiry_hours` or booking creation time.
 - Active recurring completion loads `GET .../recurrence-next/`. Backend date/time, total price, required deposit, `can_continue`, and `requires_payment_reference` drive the display. Continuing sends only next-deposit method/reference/notes when required; stopping sends `continue_recurring: false`. The frontend never calculates or sends the next deposit amount.
 - Product date-time text uses shared `formatArabicDateTime()` rather than raw backend ISO timestamps while API and query values remain unchanged.
@@ -137,7 +139,7 @@ See also:
 - Keep the green brand system, rounded cards, consistent spacing, and responsive layouts
 - New pages should look like part of one product, not separate prototypes
 - `AppSheet` is the canonical presentation and interaction shell for non-full-page tasks: mobile bottom sheet, desktop modal, neutral X, backdrop, Escape, browser/Android Back, focus restoration, internal scrolling, and generic overlay stacking. Feature components own dirty-form and domain decisions.
-- Mobile no longer has a bottom navigation. It uses the global `PageHeader` (hamburger + Home), burger drawer, and the existing `NewBookingFAB`; desktop keeps the current sidebar.
+- Mobile no longer has a bottom navigation. It uses the global `PageHeader` (hamburger + Home), right-edge burger drawer, and the existing `NewBookingFAB`; desktop keeps the current sidebar. The viewport selects the presentation automatically, with no production view-mode toggle.
 - The global `+ حجز جديد` action is mobile-only on authorized `/dashboard` and `/bookings` routes, hides while a drawer or sheet is open, and targets the existing `/schedule` flow without auto-opening Add Booking. It is hidden on `/schedule`.
 - Recurrence is Booking metadata; the old recurring-agreement routes, API wrappers, types, and product screens are removed.
 - Touched mobile text-entry controls use a 16px-equivalent font size. Temporary success feedback uses shared `AppSuccessNotice` (~3 seconds). Errors that need attention stay local and persistent.
@@ -181,6 +183,7 @@ See also:
 - Court settings saves the full weekly schedule with PUT using numeric weekdays (`0` Monday through `6` Sunday).
 - Working Hours uses period-based `pricing_periods` rows instead of `opens_at`/`closes_at`.
 - Court settings edits one weekday at a time while keeping all seven days in memory, copies the selected day to the rest of the week, and on invalid save shows a generic review message then focuses the first invalid field.
+- Owner Court details expose the existing `requires_digital_payment_reference` checkbox through the existing Court PATCH flow. It applies to electronic methods only; CASH is unchanged.
 
 ## Schedule Date UX
 
@@ -194,16 +197,23 @@ See also:
 ## Transactions
 
 - Payment corrections use the cancel payment flow with a required reason.
+- Direct Transaction history loads all available server history; `اليوم` and `آخر 7 أيام` are explicit shortcuts, and reset returns to all plus newest-first.
+- Transaction list ordering uses Backend `ordering=-created` / `ordering=created` through the shared two-arrow control for Staff (`معاملاتي المالية`) and Owner/Manager (`سجل المعاملات المالية`). `↓` newest is the default. Sort preserves filters, resets page, and refreshes the result region immediately before the cards.
 - Transaction API requests and responses use `payment_reference`; Record Payment keeps `reference` only as form-local state and maps it at the API boundary.
 - Cancelled transactions remain visible in the transaction list and are marked as cancelled.
-- The list prioritizes signed amount, collection/refund type, payment method, human booking time, Court, collector, and created time from the existing response. IDs remain fallback context only.
+- The list prioritizes signed amount, transaction/refund type, payment method, human booking time, Court, collector, and created time from the existing response. CASH never shows a payment reference on the row.
+- `عرض التفاصيل` hydrates `GET transactions/{id}/` for that row only. Non-empty detail notes show `ملاحظات`; empty/whitespace notes hide the section.
+- `إلغاء المعاملة` appears only when the response explicitly confirms an uncancelled, unsettled PAYMENT/legacy row owned by the current user. Missing authoritative booleans hide the action.
+- Transaction filter/result refresh uses the non-blocking result-region pattern and request-generation protection.
 - Settlement and cancellation Boolean filters stay as checkbox pairs; neither/both means all and omits the corresponding URL/API parameter.
 
 ## Booking History
 
 - `/bookings` loads unrestricted server-paginated history when no URL filters are present; it no longer silently narrows the first visit to today. Previous/next controls preserve filters in the URL, and an emptied later page steps back safely.
-- A visible `اسم العميل أو رقم الموبايل` field sends a debounced, URL-backed server `search` query and resets pagination without disturbing other filters.
+- A visible `اسم العميل أو رقم الموبايل أو ملاحظة` field sends a debounced, URL-backed server `search` query and resets pagination without disturbing other filters. The current Backend contract still searches name/phone only, so notes remain a documented contract gap.
+- External Search-chip removal synchronizes the URL value, visible draft, and pending debounce so removed text cannot return.
 - `الحجوزات القادمة فقط`, `تحتاج إجراء`, and `بها مبلغ متبقي` are immediate URL-driven review checkboxes using `upcoming=true`, `needs_action=true`, and `has_remaining_amount=true`.
 - Court, status, exact/range dates, overdue, ended, and HOLD-expiry filters use one shared responsive filter sheet. Staff does not load or display the Court selector; the request uses the assigned membership Court while ignoring and removing URL Court overrides.
 - Upcoming filtering is backend-owned and is never derived from the loaded page.
-- History cards show only customer, phone, human appointment/status, and optional recurrence. Full money and lifecycle review remains in the canonical `BookingActionSheet`, while URL filters and page are preserved through review and mutations.
+- History cards show only customer, phone, human appointment/status, and optional recurrence. Full money and lifecycle review remains in the canonical `BookingActionSheet` after hydrating Booking Detail. URL filters and page are preserved through review and mutations.
+- Booking History has no confirmed server ordering contract, so the frontend does not expose a newest/oldest control or reverse the loaded page.

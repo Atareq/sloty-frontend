@@ -272,7 +272,8 @@ describe('SettlementsHubPage', () => {
 
     await user.click(expander)
     expect(expander).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('IPN-1')).toBeInTheDocument()
+    expect(screen.getByText(/150\.00 جنيه/)).toBeInTheDocument()
+    expect(screen.queryByText('IPN-1')).not.toBeInTheDocument()
   })
 
   it('loads historical settled records only after the previous-receipts checkbox is applied', async () => {

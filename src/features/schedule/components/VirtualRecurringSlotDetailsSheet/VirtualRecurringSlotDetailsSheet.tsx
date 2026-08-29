@@ -126,7 +126,7 @@ export function VirtualRecurringSlotDetailsSheet({
               fullWidth
               onClick={() => setIsEndRecurrenceConfirming(true)}
               type="button"
-              variant="secondary"
+              variant="danger"
             >
               <span className="inline-flex items-center gap-2">
                 <RepeatOff aria-hidden="true" className="h-4 w-4" />
@@ -169,7 +169,7 @@ export function VirtualRecurringSlotDetailsSheet({
                 fullWidth
                 onClick={() => onEndRecurrence(anchorBookingId)}
                 type="button"
-                variant="secondary"
+                variant="danger"
               >
                 {isSubmitting
                   ? 'جاري الإيقاف...'

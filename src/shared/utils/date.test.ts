@@ -21,7 +21,7 @@ describe('date utils', () => {
 
   it('returns the last seven days range', () => {
     expect(getLastSevenDaysRange(new Date(2026, 6, 21))).toEqual({
-      date_from: '2026-07-14',
+      date_from: '2026-07-15',
       date_to: '2026-07-21',
     })
   })

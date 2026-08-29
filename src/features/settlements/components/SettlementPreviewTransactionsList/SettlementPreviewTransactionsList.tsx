@@ -23,7 +23,7 @@ interface SettlementPreviewTransactionsListProps {
 }
 
 export function SettlementPreviewTransactionsList({
-  emptyMessage = 'لا توجد عمليات مرتبطة لهذا الموظف',
+  emptyMessage = 'لا توجد معاملات مرتبطة لهذا الموظف',
   transactions,
 }: SettlementPreviewTransactionsListProps) {
   return (

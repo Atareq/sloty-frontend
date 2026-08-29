@@ -48,7 +48,7 @@ export function StaffUnsettledMoneySection({
                 {formatMoneyAmount(amount, { suffix: 'ج.م' })}
               </p>
               <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                من {transactionCount} عملية تحصيل
+                من {transactionCount} معاملة
               </p>
             </>
           ) : (
@@ -120,7 +120,7 @@ export function StaffUnsettledMoneySection({
                     {formatMoneyAmount(staff.total_unsettled_amount)}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
-                    من {staff.unsettled_transaction_count} عملية تحصيل
+                    من {staff.unsettled_transaction_count} معاملة
                   </p>
                 </div>
 

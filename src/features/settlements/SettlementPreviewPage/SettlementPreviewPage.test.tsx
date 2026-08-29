@@ -320,7 +320,7 @@ describe('SettlementPreviewPage', () => {
     expect(screen.getAllByText('تأكيد استلام المبلغ')).not.toHaveLength(0)
     expect(within(dialog).getByText(/أحمد المحصل/)).toBeInTheDocument()
     expect(within(dialog).getByText(/700.00 جنيه/)).toBeInTheDocument()
-    expect(within(dialog).getByText('عدد العمليات: 2')).toBeInTheDocument()
+    expect(within(dialog).getByText('عدد المعاملات: 2')).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('ملاحظات اختيارية'), 'مراجعة الوردية')
     await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام المبلغ' })[1])

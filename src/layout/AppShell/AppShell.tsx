@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
+import { LogOut, X } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
   canViewOwnSettlements,
@@ -25,7 +25,7 @@ import {
 import { RouteScrollReset } from '../RouteScrollReset'
 import { AppViewModeContext, type ViewMode } from './AppShell.viewMode'
 
-const viewModeStorageKey = 'sloty:view-mode'
+const desktopViewMediaQuery = '(min-width: 1024px)'
 
 function isNavigationItemActive(pathname: string, itemPath: string): boolean {
   if (pathname === itemPath) {
@@ -65,26 +65,17 @@ function getFlashMessage(locationState: unknown): string | null {
   return null
 }
 
-function getStoredViewMode(): ViewMode {
-  if (typeof window === 'undefined') {
+function getResponsiveViewMode(): ViewMode {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function'
+  ) {
     return 'mobile'
   }
 
-  const storedViewMode = window.localStorage.getItem(viewModeStorageKey)
-
-  if (storedViewMode === 'desktop') {
-    return 'desktop'
-  }
-
-  if (storedViewMode !== null && storedViewMode !== 'mobile') {
-    window.localStorage.setItem(viewModeStorageKey, 'mobile')
-  }
-
-  return 'mobile'
-}
-
-function getViewModeToggleLabel(currentViewMode: ViewMode): string {
-  return currentViewMode === 'desktop' ? 'عرض الهاتف' : 'عرض سطح المكتب'
+  return window.matchMedia(desktopViewMediaQuery).matches
+    ? 'desktop'
+    : 'mobile'
 }
 
 /**
@@ -105,7 +96,7 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
+  const [viewMode, setViewMode] = useState<ViewMode>(getResponsiveViewMode)
   const hasActiveAppSheet = useHasActiveAppSheet()
   const pageHeaderMeta = getPageHeaderMeta(
     location.pathname,
@@ -194,23 +185,6 @@ export function AppShell() {
     navigate('/select-club')
   }
 
-  function handleSetViewMode(nextViewMode: ViewMode): void {
-    window.localStorage.setItem(viewModeStorageKey, nextViewMode)
-    setIsMenuOpen(false)
-    setViewMode(nextViewMode)
-  }
-
-  function handleToggleViewMode(): void {
-    setViewMode((currentViewMode) => {
-      const nextViewMode = currentViewMode === 'desktop' ? 'mobile' : 'desktop'
-
-      window.localStorage.setItem(viewModeStorageKey, nextViewMode)
-      setIsMenuOpen(false)
-
-      return nextViewMode
-    })
-  }
-
   useEffect(() => {
     if (!isMenuOpen) {
       return
@@ -226,6 +200,22 @@ export function AppShell() {
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
   }, [isMenuOpen, requestCloseMenu])
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia(desktopViewMediaQuery)
+    const handleChange = (): void => {
+      setViewMode(mediaQuery.matches ? 'desktop' : 'mobile')
+      setIsMenuOpen(false)
+    }
+
+    handleChange()
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
 
   return (
     <div
@@ -283,21 +273,12 @@ export function AppShell() {
 
         {shouldUseDesktopNav ? (
           <section className="border-t border-[var(--sloty-border)] pt-4">
-            <p className="px-1 text-xs font-black text-[var(--sloty-text-muted)]">
-              العرض
-            </p>
             <button
-              className="mt-2 min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-primary-dark)] transition hover:bg-[var(--sloty-bg)]"
-              onClick={() => handleSetViewMode('mobile')}
-              type="button"
-            >
-              عرض الهاتف
-            </button>
-            <button
-              className="mt-2 min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
               onClick={handleLogout}
               type="button"
             >
+              <LogOut aria-hidden="true" className="h-5 w-5" />
               تسجيل الخروج
             </button>
           </section>
@@ -358,7 +339,7 @@ export function AppShell() {
             onClick={requestCloseMenu}
             type="button"
           />
-          <aside className="absolute bottom-0 right-0 top-0 flex w-[min(82vw,320px)] flex-col overflow-y-auto bg-[var(--sloty-surface)] p-4 shadow-2xl">
+          <aside className="absolute bottom-0 right-0 top-0 flex w-[min(82vw,320px)] flex-col overflow-y-auto rounded-l-[26px] bg-[var(--sloty-surface)] p-4 shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-[var(--sloty-border)] pb-4">
               <div className="min-w-0">
                 <p className="text-base font-bold leading-6 text-[var(--sloty-text-primary)]">
@@ -427,17 +408,11 @@ export function AppShell() {
                   </button>
                 ) : null}
                 <button
-                  className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
-                  onClick={handleToggleViewMode}
-                  type="button"
-                >
-                  {getViewModeToggleLabel(viewMode)}
-                </button>
-                <button
-                  className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
                   onClick={handleLogout}
                   type="button"
                 >
+                  <LogOut aria-hidden="true" className="h-5 w-5" />
                   تسجيل الخروج
                 </button>
             </section>

@@ -28,7 +28,9 @@ import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/Ap
 import { LiveSearchField } from '../../../shared/components/LiveSearchField/LiveSearchField'
 import { QuickSearchShortcuts } from '../../../shared/components/QuickSearchShortcuts/QuickSearchShortcuts'
 import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
-import { customerCopy } from '../../../shared/copy/appCopy'
+import { ListSortControl } from '../../../shared/components/ListSortControl/ListSortControl'
+import type { ListSortValue } from '../../../shared/components/ListSortControl/ListSortControl'
+import { bookingActionCopy, customerCopy, recurringCopy } from '../../../shared/copy/appCopy'
 import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
@@ -38,6 +40,7 @@ import type { Court } from '../../courts/courts.types'
 import { listBookings } from '../bookingsApi'
 import type {
   Booking,
+  BookingOrdering,
   BookingsQueryParams,
   BookingStatus,
 } from '../bookings.types'
@@ -139,6 +142,56 @@ function isBookingStatus(value: string): value is BookingStatus {
   return Object.keys(bookingStatusLabels).includes(value)
 }
 
+function isBookingOrdering(value: string): value is BookingOrdering {
+  return value === 'start_time' || value === '-start_time'
+}
+
+function parseBookingOrdering(
+  value: string | undefined,
+): BookingOrdering | undefined {
+  return value && isBookingOrdering(value) ? value : undefined
+}
+
+function listSortToBookingOrdering(value: ListSortValue): BookingOrdering {
+  return value === 'oldest' ? 'start_time' : '-start_time'
+}
+
+function bookingOrderingToListSort(
+  ordering?: BookingOrdering | '',
+): ListSortValue {
+  return ordering === 'start_time' ? 'oldest' : 'newest'
+}
+
+/**
+ * Newest appointment-first is the Product default. The URL may omit
+ * `ordering`, but the list request always sends the matching Backend value.
+ */
+function withBookingListOrdering(
+  params: BookingsQueryParams,
+): BookingsQueryParams {
+  return {
+    ...params,
+    ordering: params.ordering === 'start_time' ? 'start_time' : '-start_time',
+  }
+}
+
+function withPreservedOrdering(
+  nextParams: BookingsQueryParams,
+  currentParams: BookingsQueryParams,
+): BookingsQueryParams {
+  if (
+    currentParams.ordering === 'start_time'
+    || currentParams.ordering === '-start_time'
+  ) {
+    return {
+      ...nextParams,
+      ordering: currentParams.ordering,
+    }
+  }
+
+  return nextParams
+}
+
 function parseBookingsQueryParams(search: string): BookingsQueryParams {
   const queryObject = toQueryObject(search)
   const params: BookingsQueryParams = {}
@@ -181,6 +234,12 @@ function parseBookingsQueryParams(search: string): BookingsQueryParams {
       params[key] = value
     }
   })
+
+  const ordering = parseBookingOrdering(queryObject.ordering)
+
+  if (ordering) {
+    params.ordering = ordering
+  }
 
   return params
 }
@@ -405,10 +464,13 @@ export function BookingsListPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const hasCompletedInitialLoadRef = useRef(false)
   const { nextGeneration, isCurrent } = useRequestGeneration()
+  const bookingDetailGenerationRef = useRef(0)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
+  const [openedBookingId, setOpenedBookingId] = useState<number | null>(null)
+  const [isBookingDetailLoading, setIsBookingDetailLoading] = useState(false)
   const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null)
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null)
   const [cancellationPreview, setCancellationPreview] =
@@ -480,6 +542,7 @@ export function BookingsListPage() {
     courtLabels,
   )
   const hasActiveFilters = activeFilterChips.length > 0
+  const listSortValue = bookingOrderingToListSort(urlParams.ordering)
 
   useEffect(() => {
     let isActive = true
@@ -549,7 +612,10 @@ export function BookingsListPage() {
     setMessage(null)
 
     try {
-      const bookingsResponse = await listBookings(selectedClubSlug, effectiveParams)
+      const bookingsResponse = await listBookings(
+        selectedClubSlug,
+        withBookingListOrdering(effectiveParams),
+      )
 
       if (!isCurrent(requestGeneration)) {
         return
@@ -605,10 +671,13 @@ export function BookingsListPage() {
   }, [reloadBookings])
 
   function handleApplyFilters(nextFilters: FilterState): void {
-    const nextParams = {
-      ...paramsFromFilterState(nextFilters),
-      ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
-    }
+    const nextParams = withPreservedOrdering(
+      {
+        ...paramsFromFilterState(nextFilters),
+        ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
+      },
+      urlParams,
+    )
     delete nextParams.page
     if (!canChooseCourt) {
       delete nextParams.court
@@ -701,6 +770,34 @@ export function BookingsListPage() {
     )
   }
 
+  function handleSortChange(value: ListSortValue): void {
+    if (value === listSortValue) {
+      return
+    }
+
+    const nextParams = { ...urlParams }
+    const nextOrdering = listSortToBookingOrdering(value)
+
+    delete nextParams.page
+    if (!canChooseCourt) {
+      delete nextParams.court
+    }
+
+    if (nextOrdering === '-start_time') {
+      delete nextParams.ordering
+    } else {
+      nextParams.ordering = nextOrdering
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: false },
+    )
+  }
+
   const handleSearch = useCallback((value: string): void => {
     const nextParams = { ...urlParams }
     delete nextParams.page
@@ -741,7 +838,10 @@ export function BookingsListPage() {
   }
 
   function closeBookingSheets(): void {
+    bookingDetailGenerationRef.current += 1
     setSelectedBooking(null)
+    setOpenedBookingId(null)
+    setIsBookingDetailLoading(false)
     setPaymentBooking(null)
     setCancellingBooking(null)
     setCancellationPreview(null)
@@ -754,6 +854,48 @@ export function BookingsListPage() {
     setPaymentFieldErrors(null)
     setActionError(null)
     setActionFieldErrors(null)
+  }
+
+  /**
+   * History cards are reduced list rows. Opening details always loads the
+   * Booking Detail resource before BookingActionSheet can treat it as
+   * authoritative.
+   */
+  async function handleSelectBooking(booking: Booking): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    const generation = bookingDetailGenerationRef.current + 1
+    bookingDetailGenerationRef.current = generation
+    setOpenedBookingId(booking.id)
+    setSelectedBooking(null)
+    setIsBookingDetailLoading(true)
+    setActionError(null)
+    setActionFieldErrors(null)
+
+    try {
+      const freshBooking = await getBooking(selectedClubSlug, booking.id)
+
+      if (bookingDetailGenerationRef.current !== generation) {
+        return
+      }
+
+      setSelectedBooking(freshBooking)
+    } catch (error) {
+      if (bookingDetailGenerationRef.current !== generation) {
+        return
+      }
+
+      setSelectedBooking(null)
+      setActionError(
+        getApiErrorMessage(error, bookingActionCopy.loadDetailFailure),
+      )
+    } finally {
+      if (bookingDetailGenerationRef.current === generation) {
+        setIsBookingDetailLoading(false)
+      }
+    }
   }
 
   async function handleRecordPayment(
@@ -982,11 +1124,11 @@ export function BookingsListPage() {
         booking.id,
       )
       setSelectedBooking(updatedBooking)
-      setSuccessMessage('تم إيقاف الحجز الأسبوعي')
+      setSuccessMessage(recurringCopy.stopWeeklySuccess)
       await reloadBookings()
     } catch (error) {
       setActionError(
-        getApiErrorMessage(error, 'تعذر إيقاف الحجز الأسبوعي. حاول مرة أخرى'),
+        getApiErrorMessage(error, recurringCopy.stopWeeklyFailure),
       )
     } finally {
       setIsActionSubmitting(false)
@@ -1161,7 +1303,19 @@ export function BookingsListPage() {
         onRemove={handleRemoveFilter}
       />
 
-      <ResultRefreshRegion isRefreshing={isRefreshing}>
+      {/* RTL `justify-end` sits the arrows on the visual left, immediately before cards. */}
+      <div className="flex justify-end">
+        <ListSortControl
+          disabled={isLoading && bookings.length === 0}
+          onChange={handleSortChange}
+          value={listSortValue}
+        />
+      </div>
+
+      <ResultRefreshRegion
+        isRefreshing={isRefreshing}
+        label="جاري تحديث الحجوزات"
+      >
       {isLoading && bookings.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
@@ -1204,9 +1358,7 @@ export function BookingsListPage() {
                 booking={booking}
                 key={booking.id}
                 onSelect={(booking) => {
-                  setSelectedBooking(booking)
-                  setActionError(null)
-                  setActionFieldErrors(null)
+                  void handleSelectBooking(booking)
                 }}
               />
             ))}
@@ -1261,8 +1413,11 @@ export function BookingsListPage() {
             ? null
             : actionError
         }
+        isLoadingDetail={isBookingDetailLoading}
         isOpen={Boolean(
-          selectedBooking &&
+          (selectedBooking ||
+            isBookingDetailLoading ||
+            (openedBookingId !== null && actionError)) &&
             !paymentBooking &&
             !cancellingBooking &&
             !completingBooking &&

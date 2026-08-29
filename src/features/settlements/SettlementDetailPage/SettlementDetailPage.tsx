@@ -309,7 +309,7 @@ export function SettlementDetailPage() {
           </AppCard>
 
           <SettlementTransactionsList
-            emptyMessage="لا توجد عمليات داخل هذا الاستلام."
+            emptyMessage="لا توجد معاملات داخل هذا الاستلام."
             transactions={transactions}
           />
 

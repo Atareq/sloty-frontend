@@ -165,7 +165,7 @@ describe('BookingActionSheet', () => {
     await user.keyboard('{Escape}')
   })
 
-  it('keeps stop weekly inline, secondary, and out of other options', async () => {
+  it('keeps only the stop-weekly action danger-styled and out of other options', async () => {
     const user = userEvent.setup()
     const onEndRecurrence = vi.fn()
 
@@ -179,7 +179,9 @@ describe('BookingActionSheet', () => {
       .toBeInTheDocument()
     const inlineStop = screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' })
     expect(inlineStop.closest('details')).toBeNull()
-    expect(inlineStop).not.toHaveClass('bg-[var(--sloty-danger)]')
+    expect(inlineStop).toHaveClass('bg-[var(--sloty-danger)]')
+    expect(screen.getByText('↻ حجز أسبوعي').closest('section'))
+      .not.toHaveClass('bg-[var(--sloty-danger-soft)]')
 
     await user.click(screen.getByText('••• خيارات أخرى'))
     expect(screen.getByRole('button', { name: 'تعديل بيانات الحجز' }))
@@ -205,7 +207,11 @@ describe('BookingActionSheet', () => {
     expect(screen.getByRole('heading', { name: 'أحمد علي' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' }))
-    await user.click(screen.getAllByRole('button', { name: 'إيقاف الحجز الأسبوعي' }).at(-1)!)
+    const confirmStop = screen
+      .getAllByRole('button', { name: 'إيقاف الحجز الأسبوعي' })
+      .at(-1)!
+    expect(confirmStop).toHaveClass('bg-[var(--sloty-danger)]')
+    await user.click(confirmStop)
     expect(onEndRecurrence).toHaveBeenCalledWith(
       expect.objectContaining({ id: baseBooking.id }),
     )
@@ -338,6 +344,32 @@ describe('BookingActionSheet', () => {
 
     expect(screen.queryByText('ملاحظات')).not.toBeInTheDocument()
     expect(screen.queryByText('لا توجد ملاحظات')).not.toBeInTheDocument()
+    expect(screen.queryByText('غير متاح')).not.toBeInTheDocument()
+  })
+
+  it('hides notes when the booking notes are whitespace only', () => {
+    renderSheet({
+      ...baseBooking,
+      notes: '   ',
+    } as BookingListItem)
+
+    expect(screen.queryByText('ملاحظات')).not.toBeInTheDocument()
+    expect(screen.queryByText('غير متاح')).not.toBeInTheDocument()
+  })
+
+  it('shows a local loading state while authoritative detail hydrates', () => {
+    render(
+      <BookingActionSheet
+        booking={null}
+        error={null}
+        isLoadingDetail
+        isOpen
+        onClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('جاري تحميل تفاصيل الحجز')).toBeInTheDocument()
+    expect(screen.queryByText('ملاحظات')).not.toBeInTheDocument()
   })
 
   it('does not show engineering roadmap copy', () => {

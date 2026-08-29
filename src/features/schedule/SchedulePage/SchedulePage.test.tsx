@@ -167,6 +167,47 @@ function makeSlotsResponse(slots: BookingSlot[]): BookingSlotsResponse {
   }
 }
 
+function bookingDetailFromSlot(slot: BookingSlot): BookingListItem {
+  const booking = slot.booking
+
+  if (!booking) {
+    return bookingFixture({
+      id: 0,
+      court: 7,
+      customer_name: 'عميل',
+      start_time: `${slot.date}T${slot.start_time}:00`,
+      end_time: `${slot.date}T${slot.end_time}:00`,
+      status: 'CONFIRMED',
+    })
+  }
+
+  return {
+    ...bookingFixture({
+      id: booking.id,
+      court: 7,
+      customer_name: booking.customer_name,
+      customer_phone: booking.customer_phone,
+      start_time: `${slot.date}T${slot.start_time}:00`,
+      end_time: `${slot.date}T${slot.end_time}:00`,
+      status: booking.status,
+      total_price: booking.total_booking_value,
+      paid_amount: booking.total_paid_amount,
+      remaining_amount: booking.remaining_amount,
+    }),
+    is_recurring: booking.is_recurring,
+    recurrence_status: booking.recurrence_status,
+  }
+}
+
+async function openOccupiedSlot(
+  user: { click: (element: HTMLElement) => Promise<unknown> },
+  name: string,
+) {
+  await user.click(await screen.findByRole('button', { name }))
+  expect(await screen.findByRole('dialog', { name: 'تفاصيل الحجز' }))
+    .toBeInTheDocument()
+}
+
 function defaultSlots(): BookingSlot[] {
   return [
     makeSlot({
@@ -332,6 +373,39 @@ function mockScheduleApiData(): void {
     retained_amount: '100.00',
     can_cancel: true,
   })
+  mockedGetBooking.mockImplementation(async (_clubSlug, bookingId) => {
+    const id = Number(bookingId)
+
+    for (
+      let index = mockedListBookingSlots.mock.results.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const result = mockedListBookingSlots.mock.results[index]
+
+      if (result.type !== 'return') {
+        continue
+      }
+
+      const response = await result.value
+      const slot = response?.slots?.find(
+        (item: BookingSlot) => item.booking?.id === id,
+      )
+
+      if (slot) {
+        return bookingDetailFromSlot(slot)
+      }
+    }
+
+    return bookingFixture({
+      id,
+      court: 7,
+      customer_name: 'أحمد علي',
+      start_time: `${getEgyptDateValue()}T07:00:00`,
+      end_time: `${getEgyptDateValue()}T08:00:00`,
+      status: 'CONFIRMED',
+    })
+  })
 }
 
 describe('SchedulePage', () => {
@@ -356,6 +430,7 @@ describe('SchedulePage', () => {
 
     expect(await screen.findByRole('heading', { name: 'اختار اليوم' }))
       .toBeInTheDocument()
+    expect(mockedGetBooking).not.toHaveBeenCalled()
     expect(screen.getByRole('heading', { name: 'اختار المعاد' }))
       .toBeInTheDocument()
     expect(screen.queryByText('لوحة الحجز')).not.toBeInTheDocument()
@@ -651,14 +726,15 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
+    await openOccupiedSlot(user, '6:00 ص بانتظار العربون')
+    expect(mockedGetBooking).toHaveBeenCalledWith('nasr-club', 12)
     expect(within(screen.getByRole('dialog')).getByText('بانتظار العربون'))
       .toBeInTheDocument()
     expect(screen.getByText('+201012345678')).toBeInTheDocument()
     expect(screen.queryByText('غير متوفر')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'إغلاق' }))
 
-    await user.click(screen.getByRole('button', { name: '7:00 ص العربون مدفوع' }))
+    await openOccupiedSlot(user, '7:00 ص العربون مدفوع')
     expect(within(screen.getByRole('dialog')).getByText('العربون مدفوع'))
       .toBeInTheDocument()
   })
@@ -672,14 +748,14 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: '1:00 م تم اللعب' }))
+    await openOccupiedSlot(user, '1:00 م تم اللعب')
     expect(within(screen.getByRole('dialog')).getByText('تم اللعب'))
       .toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'حجز جديد' }))
       .not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'إغلاق' }))
 
-    await user.click(screen.getByRole('button', { name: '12:00 م عدم حضور' }))
+    await openOccupiedSlot(user, '12:00 م عدم حضور')
     expect(within(screen.getByRole('dialog')).getByText('عدم حضور'))
       .toBeInTheDocument()
   })
@@ -705,6 +781,7 @@ describe('SchedulePage', () => {
   })
 
   it('keeps the closing section from backend slot booking summaries and excludes FREE', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedListBookingSlots.mockResolvedValueOnce(
       makeSlotsResponse([
         makeSlot({ start_time: '03:00', end_time: '04:00' }),
@@ -739,6 +816,11 @@ describe('SchedulePage', () => {
     expect(await screen.findByText('حجوزات تحتاج إغلاق')).toBeInTheDocument()
     expect(screen.getByText('عميل يحتاج إغلاق')).toBeInTheDocument()
     expect(screen.queryByText('عميل بدون اسم')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /عميل يحتاج إغلاق/ }))
+    expect(mockedGetBooking).toHaveBeenCalledWith('nasr-club', 40)
+    expect(await screen.findByRole('dialog', { name: 'تفاصيل الحجز' }))
+      .toBeInTheDocument()
   })
 
   it('reloads backend slots after creating a booking', async () => {
@@ -969,6 +1051,59 @@ describe('SchedulePage', () => {
     expect(screen.queryByText('120')).not.toBeInTheDocument()
   })
 
+  it('hydrates actual Schedule bookings from Booking detail notes', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'CONFIRMED',
+          is_available: false,
+          booking: {
+            id: 88,
+            status: 'CONFIRMED',
+            status_label: 'مؤكد',
+            customer_name: 'عميل الجدول',
+            customer_phone: '+201000000088',
+            total_booking_value: '250.00',
+            total_paid_amount: '250.00',
+            remaining_amount: '0.00',
+            is_recurring: false,
+            recurrence_status: null,
+          },
+          label: 'مؤكد',
+        }),
+      ]),
+    )
+    mockedGetBooking.mockResolvedValueOnce(
+      bookingFixture({
+        id: 88,
+        court: 7,
+        customer_name: 'عميل الجدول',
+        customer_phone: '+201000000088',
+        start_time: `${getEgyptDateValue()}T09:00:00`,
+        end_time: `${getEgyptDateValue()}T10:00:00`,
+        status: 'CONFIRMED',
+        total_price: '250.00',
+        paid_amount: '250.00',
+        remaining_amount: '0.00',
+        notes: 'يحب الإنارة',
+      }),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await openOccupiedSlot(user, '9:00 ص العربون مدفوع')
+    expect(mockedGetBooking).toHaveBeenCalledWith('nasr-club', 88)
+    expect(screen.getByText('ملاحظات')).toBeInTheDocument()
+    expect(screen.getByText('يحب الإنارة')).toBeInTheDocument()
+  })
+
   it('ends virtual recurrence with the anchor id and refreshes schedule', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedListBookingSlots
@@ -1185,11 +1320,9 @@ describe('SchedulePage', () => {
         <SchedulePage />
       </MemoryRouter>,
     )
-    await user.click(
-      await screen.findByRole('button', { name: '9:00 ص العربون مدفوع حجز متكرر' }),
-    )
+    await openOccupiedSlot(user, '9:00 ص العربون مدفوع حجز متكرر')
 
-    expect(mockedGetBooking).not.toHaveBeenCalled()
+    expect(mockedGetBooking).toHaveBeenCalledWith('nasr-club', 77)
     expect(
       await screen.findByRole('heading', { name: 'عميل الموعد الأسبوعي' }),
     ).toBeInTheDocument()
@@ -1239,11 +1372,7 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(
-      await screen.findByRole('button', {
-        name: '9:00 ص العربون مدفوع حجز متكرر',
-      }),
-    )
+    await openOccupiedSlot(user, '9:00 ص العربون مدفوع حجز متكرر')
     await user.click(screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' }))
     const stopButtons = screen.getAllByRole('button', {
       name: 'إيقاف الحجز الأسبوعي',
@@ -1264,7 +1393,7 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
+    await openOccupiedSlot(user, '6:00 ص بانتظار العربون')
     await user.click(
       screen.getByRole('button', { name: 'سجّل العربون وأكّد الحجز' }),
     )
@@ -1276,7 +1405,7 @@ describe('SchedulePage', () => {
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
     })
 
-    await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
+    await openOccupiedSlot(user, '6:00 ص بانتظار العربون')
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
@@ -1309,7 +1438,7 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: '1:00 ص العربون مدفوع' }))
+    await openOccupiedSlot(user, '1:00 ص العربون مدفوع')
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
     await chooseAppSelectOption(
@@ -1320,12 +1449,12 @@ describe('SchedulePage', () => {
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
     await waitFor(() => expect(mockedListBookingSlots).toHaveBeenCalledTimes(2))
 
-    await user.click(await screen.findByRole('button', { name: '1:00 ص العربون مدفوع' }))
+    await openOccupiedSlot(user, '1:00 ص العربون مدفوع')
     await user.click(screen.getByRole('button', { name: 'تم اللعب' }))
     await user.click(screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }))
     await waitFor(() => expect(mockedListBookingSlots).toHaveBeenCalledTimes(3))
 
-    await user.click(await screen.findByRole('button', { name: '1:00 ص العربون مدفوع' }))
+    await openOccupiedSlot(user, '1:00 ص العربون مدفوع')
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'عدم حضور' }))
     await chooseAppSelectOption(

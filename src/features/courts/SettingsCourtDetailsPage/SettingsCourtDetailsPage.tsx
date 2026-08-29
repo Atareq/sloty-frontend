@@ -12,6 +12,7 @@ import {
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
+import { settingsCopy } from '../../../shared/copy/appCopy'
 import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
 import { getCourt, updateCourt } from '../courtsApi'
 import type { Court } from '../courts.types'
@@ -27,6 +28,10 @@ export function SettingsCourtDetailsPage() {
   const [court, setCourt] = useState<Court | null>(null)
   const [minimumDeposit, setMinimumDeposit] = useState('')
   const [refundNoticeDays, setRefundNoticeDays] = useState('')
+  const [
+    requiresDigitalPaymentReference,
+    setRequiresDigitalPaymentReference,
+  ] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingPolicy, setIsSavingPolicy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +61,9 @@ export function SettingsCourtDetailsPage() {
         if (isActive) {
           setCourt(response)
           setMinimumDeposit(response.minimum_deposit)
+          setRequiresDigitalPaymentReference(
+            response.requires_digital_payment_reference,
+          )
           setRefundNoticeDays(
             response.cancellation_refund_notice_days === null
               ? ''
@@ -123,13 +131,16 @@ export function SettingsCourtDetailsPage() {
         slot_duration_minutes: court.slot_duration_minutes,
         is_active: court.is_active,
         requires_digital_payment_reference:
-          court.requires_digital_payment_reference,
+          requiresDigitalPaymentReference,
         internal_hold_expiry_hours: court.internal_hold_expiry_hours,
         notes: court.notes,
       })
 
       setCourt(savedCourt)
       setMinimumDeposit(savedCourt.minimum_deposit)
+      setRequiresDigitalPaymentReference(
+        savedCourt.requires_digital_payment_reference,
+      )
       setRefundNoticeDays(
         savedCourt.cancellation_refund_notice_days === null
           ? ''
@@ -219,6 +230,25 @@ export function SettingsCourtDetailsPage() {
               <p className="text-xs font-bold text-[var(--sloty-text-muted)] md:col-span-2">
                 الأيام بتتحسب قبل موعد الحجز، وسياسة الاسترداد المحفوظة هي اللي بتظهر وقت الإلغاء.
               </p>
+              <label className="flex min-h-12 items-start gap-3 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3 md:col-span-2">
+                <input
+                  checked={requiresDigitalPaymentReference}
+                  className="mt-1 h-5 w-5 shrink-0 accent-[var(--sloty-primary)]"
+                  disabled={!canEditRefundPolicy}
+                  onChange={(event) =>
+                    setRequiresDigitalPaymentReference(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span className="space-y-1">
+                  <span className="block text-sm font-bold text-[var(--sloty-text-primary)]">
+                    {settingsCopy.requireDigitalPaymentReference}
+                  </span>
+                  <span className="block text-xs font-normal leading-5 text-[var(--sloty-text-muted)]">
+                    {settingsCopy.requireDigitalPaymentReferenceHelper}
+                  </span>
+                </span>
+              </label>
               <div className="flex items-end md:col-span-2">
                 <AppButton
                   disabled={!canEditRefundPolicy || isSavingPolicy}

@@ -33,7 +33,7 @@ export function SettlementTotalsCard({
           </h2>
           {transactionCount !== undefined ? (
             <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-              عدد العمليات: {transactionCount}
+              عدد المعاملات: {transactionCount}
             </p>
           ) : null}
         </div>

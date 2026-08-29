@@ -33,6 +33,7 @@ Home and Back remain distinct:
 
 Mobile: hamburger is visible on the RTL start/top-right edge. The drawer opens from the RTL/right side, with backdrop.
 Desktop: hamburger is hidden, the mobile drawer is unavailable, and the sidebar is visible.
+The viewport selects mobile/desktop presentation automatically. Production navigation does not expose a manual view-mode toggle.
 Do not place Burger and Home on the same header side.
 Both consume `navigation.config.ts`.
 If the layout crosses into desktop view, the drawer closes.
@@ -98,6 +99,13 @@ Only the results region refreshes after ~350ms debounce.
 Older responses must not overwrite newer queries (`useRequestGeneration`).
 Query-only URL updates must not reset page scroll.
 
+### Live Search Reset
+
+- External removal/reset of a Search query clears the visible Search input.
+- Pending debounce must not restore a removed query.
+- Search input remains focused during result refresh.
+- Stale responses must not overwrite newer results.
+
 TEXT SEARCH:
 - debounce
 - keep input focused
@@ -112,6 +120,32 @@ CHECKBOX/SELECT:
 - same results refresh feedback
 
 Quick-search shortcuts start collapsed (`اختصارات البحث السريع`) and auto-collapse when the live search draft changes to meaningful text. The accordion trigger stays enabled so the user can expand it again while a query is present; further typing auto-collapses it again.
+
+## List Ordering
+
+- Chronological lists default to newest first (`↓`), then older, then oldest (`↑`), unless a specific business workflow defines otherwise.
+- `↓` means newest first. `↑` means oldest first. Do not rely on arrow direction alone; accessible labels are `الأحدث أولًا` and `الأقدم أولًا`.
+- Use the shared compact two-arrow `ListSortControl` immediately before the results/cards section, on the visual left in RTL. Do not use a dropdown for this control.
+- Ordering is server-authoritative for paginated lists. Never sort only the currently loaded page.
+- Sort preserves active Search and filters, resets pagination to page 1, and uses non-blocking results refresh without scrolling the page.
+- Transaction ordering uses the same control and the same `ordering=-created` / `ordering=created` contract for Staff (`معاملاتي المالية`) and Owner/Manager (`سجل المعاملات المالية`). Scope stays role-dependent; ordering does not.
+- Visible arrows appear only where Backend supports server ordering. Booking History currently has no such contract.
+
+## Authoritative detail hydration
+
+Reduced list or Schedule representations are not the authoritative detail object.
+
+- Opening an actual Booking details surface hydrates `GET bookings/{id}/` into the existing `BookingActionSheet`. Virtual `RECURRING_RESERVED` is excluded because it is not an actual future Booking.
+- Fields guaranteed only by Transaction Detail are loaded when the user opens `عرض التفاصيل`. Do not trigger one detail request per list row.
+
+Non-empty notes show `ملاحظات`. Empty, null, or whitespace-only notes hide the Notes section. Never show `ملاحظات` / `غير متاح`.
+
+## List Default State
+
+- Do not silently apply date filters unless Product explicitly requires one.
+- Financial Transaction history defaults to all available history.
+- Simple checkbox/select changes request automatically; Search remains debounced and sort is immediate.
+- Reset returns true Product defaults rather than historical implementation defaults.
 
 ## Date navigation
 
@@ -128,4 +162,3 @@ Initial load and Court changes must not auto-scroll.
 
 Mobile-first, RTL-first. Desktop uses available width; it must not look like a centered phone mockup.
 Bottom navigation is removed.
-Desktop view always exposes `عرض الهاتف` outside hidden mobile-only UI.

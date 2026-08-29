@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useState } from 'react'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 
 export interface LiveSearchFieldProps {
@@ -30,20 +30,39 @@ export function LiveSearchField({
 }: LiveSearchFieldProps) {
   const inputId = useId()
   const [draft, setDraft] = useState(value)
+  const [lastExternalValue, setLastExternalValue] = useState(value)
   const [isFocused, setIsFocused] = useState(false)
-  const query = isFocused ? draft : value
+  const hasExternalValueChanged = value !== lastExternalValue
+  const synchronizedDraft = hasExternalValueChanged ? value : draft
+  const query = isFocused ? synchronizedDraft : value
   const debouncedQuery = useDebouncedValue(query, debounceMs)
 
-  useEffect(() => {
-    const nextValue = debouncedQuery.trim()
-    const currentValue = value.trim()
+  if (hasExternalValueChanged) {
+    // Adjust state during render so an external chip/reset update is reflected
+    // before effects can re-submit an older debounced draft.
+    setLastExternalValue(value)
+    setDraft(value)
+  }
 
-    if (nextValue === currentValue) {
+  const submitDebouncedQuery = useEffectEvent((debouncedValue: string) => {
+    const nextValue = debouncedValue.trim()
+    const currentValue = value.trim()
+    const currentDraft = query.trim()
+
+    if (nextValue === currentValue || currentDraft === currentValue) {
       return
     }
 
     onSearch(nextValue)
-  }, [debouncedQuery, onSearch, value])
+  })
+
+  useEffect(() => {
+    submitDebouncedQuery(debouncedQuery)
+  }, [debouncedQuery])
+
+  useEffect(() => {
+    onDraftChange?.(value)
+  }, [onDraftChange, value])
 
   return (
     <label className="min-w-0 flex-1 space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">

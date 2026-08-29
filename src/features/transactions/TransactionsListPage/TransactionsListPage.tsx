@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
@@ -13,6 +13,9 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { ListSortControl } from '../../../shared/components/ListSortControl/ListSortControl'
+import type { ListSortValue } from '../../../shared/components/ListSortControl/ListSortControl'
+import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
 import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
@@ -28,6 +31,7 @@ import {
   formatDateInputValue,
   getLastSevenDaysRange,
 } from '../../../shared/utils/date'
+import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration'
 import { formatMoneyAmount } from '../../../shared/utils/money'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
@@ -36,11 +40,17 @@ import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
-import { cancelTransaction, listTransactions } from '../transactionsApi'
+import { TransactionDetailsSheet } from '../components/TransactionDetailsSheet/TransactionDetailsSheet'
+import {
+  cancelTransaction,
+  getTransaction,
+  listTransactions,
+} from '../transactionsApi'
 import { getSinglePairValue } from '../transactionFilters.helpers'
 import type {
   PaymentMethod,
   Transaction,
+  TransactionOrdering,
   TransactionQueryParams,
   TransactionSettlementStatus,
 } from '../transactions.types'
@@ -69,6 +79,7 @@ interface FilterOption {
 interface FilterLabelMaps {
   courtLabels: Record<string, string>
   collectorLabels: Record<string, string>
+  unsettledLabel: string
 }
 
 const transactionFilterKeys = [
@@ -85,8 +96,51 @@ const transactionFilterKeys = [
 
 const chipFilterKeys = transactionFilterKeys.filter((key) => key !== 'page')
 
-function createDefaultQueryParams(): TransactionQueryParams {
-  return getLastSevenDaysRange()
+function isTransactionOrdering(value: string): value is TransactionOrdering {
+  return value === 'created' || value === '-created'
+}
+
+function parseTransactionOrdering(
+  value: string | undefined,
+): TransactionOrdering | undefined {
+  return value && isTransactionOrdering(value) ? value : undefined
+}
+
+function listSortToTransactionOrdering(value: ListSortValue): TransactionOrdering {
+  return value === 'oldest' ? 'created' : '-created'
+}
+
+function transactionOrderingToListSort(
+  ordering?: TransactionOrdering | '',
+): ListSortValue {
+  return ordering === 'created' ? 'oldest' : 'newest'
+}
+
+/**
+ * Newest-first is the Product default. The URL may omit `ordering`, but the
+ * list request always sends the matching Backend value.
+ */
+function withTransactionListOrdering(
+  params: TransactionQueryParams,
+): TransactionQueryParams {
+  return {
+    ...params,
+    ordering: params.ordering === 'created' ? 'created' : '-created',
+  }
+}
+
+function withPreservedOrdering(
+  nextParams: TransactionQueryParams,
+  currentParams: TransactionQueryParams,
+): TransactionQueryParams {
+  if (currentParams.ordering === 'created' || currentParams.ordering === '-created') {
+    return {
+      ...nextParams,
+      ordering: currentParams.ordering,
+    }
+  }
+
+  return nextParams
 }
 
 function isPaymentMethod(value: string): value is PaymentMethod {
@@ -128,6 +182,12 @@ function parseTransactionQueryParams(search: string): TransactionQueryParams {
       params[key] = value
     }
   })
+
+  const ordering = parseTransactionOrdering(queryObject.ordering)
+
+  if (ordering) {
+    params.ordering = ordering
+  }
 
   return params
 }
@@ -211,7 +271,7 @@ function getChipLabel(
   }
 
   if (key === 'settlement_status') {
-    return value === 'unsettled' ? 'لم يتم استلامها' : 'تم استلامها'
+    return value === 'unsettled' ? labels.unsettledLabel : financeCopy.received
   }
 
   if (key === 'is_cancelled') {
@@ -286,6 +346,7 @@ interface TransactionsFilterFormProps {
   courtOptions: FilterOption[]
   initialFilters: FilterState
   isLoading: boolean
+  unsettledLabel: string
   onClose?: () => void
   onApply: (filters: FilterState) => void
   onReset: () => void
@@ -298,6 +359,7 @@ function TransactionsFilterForm({
   courtOptions,
   initialFilters,
   isLoading,
+  unsettledLabel,
   onClose,
   onApply,
   onReset,
@@ -307,11 +369,17 @@ function TransactionsFilterForm({
   function updateFilter<Key extends keyof FilterState>(
     field: Key,
     value: FilterState[Key],
+    autoApply = false,
   ): void {
-    setFilters((currentFilters) => ({
-      ...currentFilters,
+    const nextFilters = {
+      ...filters,
       [field]: value,
-    }))
+    }
+
+    setFilters(nextFilters)
+    if (autoApply) {
+      onApply(nextFilters)
+    }
   }
 
   function toggleFilterValue<Value extends string>(
@@ -397,17 +465,18 @@ function TransactionsFilterForm({
               key as TransactionSettlementStatus,
               checked,
             ),
+            true,
           )
         }
         options={[
           {
             key: 'unsettled',
-            label: 'لم يتم استلامها',
+            label: unsettledLabel,
             checked: filters.settlement_status.includes('unsettled'),
           },
           {
             key: 'settled',
-            label: 'تم استلامها',
+            label: financeCopy.received,
             checked: filters.settlement_status.includes('settled'),
           },
         ]}
@@ -424,6 +493,7 @@ function TransactionsFilterForm({
               key as 'false' | 'true',
               checked,
             ),
+            true,
           )
         }
         options={[
@@ -443,7 +513,7 @@ function TransactionsFilterForm({
       <AppSelect
         label="طريقة الدفع"
         onChange={(value) =>
-          updateFilter('payment_method', value as PaymentMethod | '')
+          updateFilter('payment_method', value as PaymentMethod | '', true)
         }
         options={paymentMethodOptions}
         value={filters.payment_method}
@@ -452,7 +522,7 @@ function TransactionsFilterForm({
       {canChooseCourt ? (
         <AppSelect
           label="الملعب"
-          onChange={(value) => updateFilter('court', value)}
+          onChange={(value) => updateFilter('court', value, true)}
           options={courtFilterOptions}
           value={filters.court}
         />
@@ -468,7 +538,7 @@ function TransactionsFilterForm({
       {canChooseCollector ? (
         <AppSelect
           label="الموظف المحصل"
-          onChange={(value) => updateFilter('created_by', value)}
+          onChange={(value) => updateFilter('created_by', value, true)}
           options={collectorFilterOptions}
           value={filters.created_by}
         />
@@ -508,7 +578,14 @@ export function TransactionsListPage() {
   )
   const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
   const canChooseCollector = canChooseCourt
-  const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
+  const unsettledLabel =
+    role === 'STAFF'
+      ? financeCopy.unsettledStaffFilter
+      : financeCopy.unsettledManagement
+  const unsettledStateLabel =
+    role === 'STAFF'
+      ? financeCopy.unsettledStaffState
+      : financeCopy.unsettledManagement
   const urlParams = useMemo(
     () => parseTransactionQueryParams(location.search),
     [location.search],
@@ -532,23 +609,14 @@ export function TransactionsListPage() {
         ? { court: String(assignedCourtId) }
         : {}
 
-    if (urlHasTransactionFilters) {
-      return {
-        ...scopedUrlParams,
-        ...fixedCourtParams,
-      }
-    }
-
     return {
-      ...(usesUnfilteredEmptyUrl ? {} : createDefaultQueryParams()),
+      ...scopedUrlParams,
       ...fixedCourtParams,
     }
   }, [
     assignedCourtId,
     canChooseCourt,
-    urlHasTransactionFilters,
     scopedUrlParams,
-    usesUnfilteredEmptyUrl,
   ])
   const initialFilters = useMemo(
     () => filterStateFromParams(effectiveParams),
@@ -556,6 +624,9 @@ export function TransactionsListPage() {
   )
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const hasLoadedTransactionsRef = useRef(false)
+  const { isCurrent, nextGeneration } = useRequestGeneration()
   const [cancelTarget, setCancelTarget] = useState<Transaction | null>(null)
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -563,6 +634,15 @@ export function TransactionsListPage() {
     string,
     ApiFieldError[]
   > | null>(null)
+  const [detailTransactionId, setDetailTransactionId] = useState<number | null>(
+    null,
+  )
+  const [detailTransaction, setDetailTransaction] = useState<Transaction | null>(
+    null,
+  )
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const detailGenerationRef = useRef(0)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -578,8 +658,9 @@ export function TransactionsListPage() {
       courtLabels: Object.fromEntries(
         courtOptions.map((option) => [option.value, option.label]),
       ),
+      unsettledLabel,
     }),
-    [collectorOptions, courtOptions],
+    [collectorOptions, courtOptions, unsettledLabel],
   )
   const visibleEffectiveParams = useMemo(() => {
     if (canChooseCourt) {
@@ -596,6 +677,7 @@ export function TransactionsListPage() {
     filterLabelMaps,
   )
   const hasActiveFilters = activeFilterChips.length > 0
+  const listSortValue = transactionOrderingToListSort(scopedUrlParams.ordering)
 
   useEffect(() => {
     let isActive = true
@@ -671,15 +753,26 @@ export function TransactionsListPage() {
       return
     }
 
-    const transactionsResponse = await listTransactions(
-      selectedClubSlug,
-      nextParams,
-    )
-    setTransactions(transactionsResponse.results)
+    const requestGeneration = nextGeneration()
+    setIsRefreshing(true)
+
+    try {
+      const transactionsResponse = await listTransactions(
+        selectedClubSlug,
+        withTransactionListOrdering(nextParams),
+      )
+      if (isCurrent(requestGeneration)) {
+        setTransactions(transactionsResponse.results)
+      }
+    } finally {
+      if (isCurrent(requestGeneration)) {
+        setIsRefreshing(false)
+      }
+    }
   }
 
   useEffect(() => {
-    let isActive = true
+    const requestGeneration = nextGeneration()
 
     async function loadTransactions(): Promise<void> {
       if (!selectedClubSlug) {
@@ -687,25 +780,31 @@ export function TransactionsListPage() {
         setError(null)
         setMessage('اختر ناديًا أولًا لعرض المعاملات المالية')
         setIsLoading(false)
+        setIsRefreshing(false)
         return
       }
 
-      setIsLoading(true)
+      const isInitialLoad = !hasLoadedTransactionsRef.current
+      setIsLoading(isInitialLoad)
+      setIsRefreshing(!isInitialLoad)
       setError(null)
       setMessage(null)
 
       try {
         const transactionsResponse = await listTransactions(
           selectedClubSlug,
-          effectiveParams,
+          withTransactionListOrdering(effectiveParams),
         )
 
-        if (isActive) {
+        if (isCurrent(requestGeneration)) {
           setTransactions(transactionsResponse.results)
+          hasLoadedTransactionsRef.current = true
         }
       } catch (error) {
-        if (isActive) {
-          setTransactions([])
+        if (isCurrent(requestGeneration)) {
+          if (isInitialLoad) {
+            setTransactions([])
+          }
           setError(
             getApiErrorMessage(
               error,
@@ -714,21 +813,21 @@ export function TransactionsListPage() {
           )
         }
       } finally {
-        if (isActive) {
+        if (isCurrent(requestGeneration)) {
           setIsLoading(false)
+          setIsRefreshing(false)
         }
       }
     }
 
     void loadTransactions()
-
-    return () => {
-      isActive = false
-    }
-  }, [effectiveParams, selectedClubSlug])
+  }, [effectiveParams, isCurrent, nextGeneration, selectedClubSlug])
 
   function handleApplyFilters(nextFilters: FilterState): void {
-    const nextParams = paramsFromFilterState(nextFilters)
+    const nextParams = withPreservedOrdering(
+      paramsFromFilterState(nextFilters),
+      scopedUrlParams,
+    )
     delete nextParams.page
     if (!canChooseCourt) {
       delete nextParams.court
@@ -736,7 +835,6 @@ export function TransactionsListPage() {
     }
     const nextSearch = getTransactionSearch(nextParams)
 
-    setUsesUnfilteredEmptyUrl(!nextSearch)
     navigate(
       {
         pathname: location.pathname,
@@ -747,18 +845,19 @@ export function TransactionsListPage() {
   }
 
   function applyQuickParams(nextParams: TransactionQueryParams): void {
-    setUsesUnfilteredEmptyUrl(false)
     navigate(
       {
         pathname: location.pathname,
-        search: getTransactionSearch(nextParams),
+        search: getTransactionSearch(
+          withPreservedOrdering(nextParams, scopedUrlParams),
+        ),
       },
       { replace: false },
     )
   }
 
   function handleQuickLastSevenDays(): void {
-    applyQuickParams(createDefaultQueryParams())
+    applyQuickParams(getLastSevenDaysRange())
   }
 
   function handleQuickToday(): void {
@@ -778,16 +877,84 @@ export function TransactionsListPage() {
   }
 
   function handleResetFilters(): void {
-    const defaultParams = createDefaultQueryParams()
-
-    setUsesUnfilteredEmptyUrl(false)
     navigate(
       {
         pathname: location.pathname,
-        search: getTransactionSearch(defaultParams),
+        search: '',
       },
       { replace: false },
     )
+  }
+
+  function handleSortChange(value: ListSortValue): void {
+    if (value === listSortValue) {
+      return
+    }
+
+    const nextParams = { ...scopedUrlParams }
+    const nextOrdering = listSortToTransactionOrdering(value)
+
+    delete nextParams.page
+
+    if (nextOrdering === '-created') {
+      delete nextParams.ordering
+    } else {
+      nextParams.ordering = nextOrdering
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getTransactionSearch(nextParams),
+      },
+      { replace: false },
+    )
+  }
+
+  async function handleOpenTransactionDetails(
+    transaction: Transaction,
+  ): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    const generation = detailGenerationRef.current + 1
+    detailGenerationRef.current = generation
+    setDetailTransactionId(transaction.id)
+    setDetailTransaction(null)
+    setIsDetailLoading(true)
+    setDetailError(null)
+
+    try {
+      const detail = await getTransaction(selectedClubSlug, transaction.id)
+
+      if (detailGenerationRef.current !== generation) {
+        return
+      }
+
+      setDetailTransaction(detail)
+    } catch (error) {
+      if (detailGenerationRef.current !== generation) {
+        return
+      }
+
+      setDetailTransaction(null)
+      setDetailError(
+        getApiErrorMessage(error, financeCopy.loadTransactionDetailFailure),
+      )
+    } finally {
+      if (detailGenerationRef.current === generation) {
+        setIsDetailLoading(false)
+      }
+    }
+  }
+
+  function handleCloseTransactionDetails(): void {
+    detailGenerationRef.current += 1
+    setDetailTransactionId(null)
+    setDetailTransaction(null)
+    setIsDetailLoading(false)
+    setDetailError(null)
   }
 
   function handleRemoveFilter(key: (typeof chipFilterKeys)[number]): void {
@@ -798,7 +965,6 @@ export function TransactionsListPage() {
 
     const nextSearch = getTransactionSearch(nextParams)
 
-    setUsesUnfilteredEmptyUrl(!nextSearch)
     navigate(
       {
         pathname: location.pathname,
@@ -822,11 +988,11 @@ export function TransactionsListPage() {
     try {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
-      setSuccessMessage('تم إلغاء العملية')
+      setSuccessMessage(financeCopy.cancelTransactionSuccess)
       await reloadTransactions()
     } catch (error) {
       setCancelError(
-        getApiErrorMessage(error, 'تعذر إلغاء التحصيل. حاول مرة أخرى'),
+        getApiErrorMessage(error, financeCopy.cancelTransactionFailure),
       )
       setCancelFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -853,7 +1019,7 @@ export function TransactionsListPage() {
           اليوم
         </AppButton>
         <AppButton onClick={handleQuickUnsettled} type="button" variant="secondary">
-          لم يتم استلامها
+          {unsettledLabel}
         </AppButton>
         <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
           فلترة
@@ -877,6 +1043,7 @@ export function TransactionsListPage() {
           key={`desktop-${getTransactionSearch(effectiveParams) || 'empty-filters'}`}
           onApply={handleApplyFilters}
           onReset={handleResetFilters}
+          unsettledLabel={unsettledLabel}
         />
       </AppCard>
 
@@ -896,6 +1063,7 @@ export function TransactionsListPage() {
           onApply={handleApplyFilters}
           onClose={() => setIsFilterSheetOpen(false)}
           onReset={handleResetFilters}
+          unsettledLabel={unsettledLabel}
         />
       </FilterSheet>
 
@@ -923,6 +1091,19 @@ export function TransactionsListPage() {
         />
       ) : null}
 
+      {/* RTL `justify-end` sits the arrows on the visual left, immediately before cards. */}
+      <div className="flex justify-end">
+        <ListSortControl
+          disabled={isLoading && transactions.length === 0}
+          onChange={handleSortChange}
+          value={listSortValue}
+        />
+      </div>
+
+      <ResultRefreshRegion
+        isRefreshing={isRefreshing}
+        label="جاري تحديث المعاملات المالية"
+      >
       {isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
@@ -950,15 +1131,15 @@ export function TransactionsListPage() {
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             {urlHasTransactionFilters
-              ? 'مفيش عمليات مالية مطابقة للفلاتر الحالية.'
+              ? 'مفيش معاملات مالية مطابقة للفلاتر الحالية.'
               : role === 'STAFF'
-                ? 'مفيش عمليات تحصيل لسه.'
-                : 'مفيش عمليات مالية لسه.'}
+                ? 'مفيش معاملات مالية لسه.'
+                : 'مفيش معاملات مالية لسه.'}
           </p>
         </AppCard>
       ) : null}
 
-      {!isLoading && !error && transactions.length > 0 ? (
+      {!isLoading && transactions.length > 0 ? (
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {transactions.map((transaction) => {
             const createdLabel = formatArabicDateTime(transaction.created)
@@ -983,9 +1164,11 @@ export function TransactionsListPage() {
             const isRefund = isRefundTransaction(transaction)
             const canCancel =
               !isRefund &&
-              transaction.is_cancelled !== true &&
-              transaction.is_settled !== true &&
-              (!currentUser?.id || !createdById || currentUser.id === createdById)
+              transaction.is_cancelled === false &&
+              transaction.is_settled === false &&
+              currentUser?.id !== undefined &&
+              createdById !== null &&
+              currentUser.id === createdById
 
             return (
               <AppCard className="space-y-3" key={transaction.id}>
@@ -1031,9 +1214,13 @@ export function TransactionsListPage() {
                         ملغية
                       </span>
                     ) : null}
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                      {transaction.is_settled ? 'تم استلامها' : 'لم يتم استلامها'}
-                    </span>
+                    {typeof transaction.is_settled === 'boolean' ? (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {transaction.is_settled
+                          ? financeCopy.received
+                          : unsettledStateLabel}
+                      </span>
+                    ) : null}
                 </div>
 
                 {transaction.payment_method !== 'CASH' &&
@@ -1058,6 +1245,17 @@ export function TransactionsListPage() {
                     </div>
                   ) : null}
 
+                <AppButton
+                  fullWidth
+                  onClick={() => {
+                    void handleOpenTransactionDetails(transaction)
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  {financeCopy.viewDetails}
+                </AppButton>
+
                 {canCancel ? (
                   <AppButton
                     fullWidth
@@ -1068,7 +1266,7 @@ export function TransactionsListPage() {
                     }}
                     variant="danger"
                   >
-                    إلغاء التحصيل
+                    {financeCopy.cancelTransaction}
                   </AppButton>
                 ) : null}
               </AppCard>
@@ -1076,6 +1274,7 @@ export function TransactionsListPage() {
           })}
         </section>
       ) : null}
+      </ResultRefreshRegion>
 
       {cancelTarget ? (
         <CancelTransactionSheet
@@ -1090,6 +1289,26 @@ export function TransactionsListPage() {
           onSubmit={handleCancelTransaction}
         />
       ) : null}
+
+      <TransactionDetailsSheet
+        collectorName={
+          detailTransaction
+            ? detailTransaction.created_by_username ||
+              getActorName(detailTransaction.created_by) ||
+              (getActorId(detailTransaction.created_by)
+                ? filterLabelMaps.collectorLabels[
+                    String(getActorId(detailTransaction.created_by))
+                  ]
+                : null)
+            : null
+        }
+        error={detailError}
+        isLoading={isDetailLoading}
+        isOpen={detailTransactionId !== null}
+        onClose={handleCloseTransactionDetails}
+        transaction={detailTransaction}
+        unsettledStateLabel={unsettledStateLabel}
+      />
     </div>
   )
 }

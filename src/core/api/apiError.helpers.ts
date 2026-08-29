@@ -6,6 +6,18 @@ import {
 
 const blockedMessages = new Set(['', 'undefined', 'null', '[object Object]'])
 
+const apiFieldLabels: Readonly<Record<string, string>> = {
+  date_to: 'تاريخ النهاية',
+  date_from: 'تاريخ البداية',
+  customer_phone: 'رقم الموبايل',
+  payment_reference: 'مرجع الدفع',
+}
+
+const productValidationMessages: Readonly<Record<string, string>> = {
+  'يجب أن يكون date_to في نفس يوم date_from أو بعده.':
+    'تاريخ النهاية لازم يكون نفس تاريخ البداية أو بعده.',
+}
+
 const productErrorMessages: Readonly<Record<string, string>> = {
   BOOKING_SLOT_UNAVAILABLE: 'المعاد مبقاش متاح. اختار ميعاد تاني.',
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT:
@@ -34,6 +46,21 @@ function isSafeMessage(message: string | undefined): message is string {
   return !blockedMessages.has(trimmedMessage)
 }
 
+function normalizeUserFacingErrorMessage(message: string): string {
+  const trimmedMessage = message.trim()
+  const mappedMessage = productValidationMessages[trimmedMessage]
+
+  if (mappedMessage) {
+    return mappedMessage
+  }
+
+  return Object.entries(apiFieldLabels).reduce(
+    (normalizedMessage, [fieldName, label]) =>
+      normalizedMessage.replaceAll(fieldName, label),
+    trimmedMessage,
+  )
+}
+
 export function isApiClientError(error: unknown): error is ApiClientError {
   return error instanceof ApiClientError
 }
@@ -51,7 +78,7 @@ export function getApiErrorMessage(
   }
 
   if (isApiClientError(error) && isSafeMessage(error.message)) {
-    return error.message.trim()
+    return normalizeUserFacingErrorMessage(error.message)
   }
 
   if (isSafeMessage(fallback)) {
@@ -89,5 +116,7 @@ export function getFirstFieldErrorMessage(
 ): string | null {
   const message = fieldErrors?.[fieldName]?.[0]?.message
 
-  return isSafeMessage(message) ? message.trim() : null
+  return isSafeMessage(message)
+    ? normalizeUserFacingErrorMessage(message)
+    : null
 }

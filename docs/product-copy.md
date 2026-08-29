@@ -64,7 +64,7 @@ Do not use `لم يحضر` or `منتهي` for those exact Booking statuses.
 - Remaining balance: `حصّل X ج.م`
 - Ended fully-paid confirmed: visible `تم اللعب` and `عدم حضور`
 - Cancel: `إلغاء الحجز` (final option in `•••`, danger styling)
-- Stop weekly recurrence: `إيقاف الحجز الأسبوعي` (inline, outline/secondary, not danger)
+- Stop weekly recurrence: `إيقاف الحجز الأسبوعي` (inline danger action; recurrence container remains neutral)
 - Stop-weekly confirm title: `إيقاف الحجز الأسبوعي؟`
 - Stop-weekly success: `تم إيقاف الحجز الأسبوعي`
 - Customer edit: `تعديل بيانات الحجز`
@@ -76,7 +76,7 @@ Do not use `لم يحضر` or `منتهي` for those exact Booking statuses.
 
 - `اسم العميل`
 - `رقم الموبايل`
-- History search: `اسم العميل أو رقم الموبايل` (server name/phone only; notes search is a Backend gap)
+- History search: `اسم العميل أو رقم الموبايل أو ملاحظة` (current server search remains name/phone only; notes search is a Backend gap)
 
 Keep API fields `customer_phone` and `phone_number`. Employee/admin account phone labels may stay more formal.
 
@@ -109,7 +109,23 @@ Confirmation:
 
 Transaction settlement chips/filters:
 
-- `لم يتم استلامها`
-- `تم استلامها`
+- Staff filter: `لسه في عهدتي`
+- Staff row state: `لسه في عهدتك`
+- Owner/Manager filter and row state: `لسه مع الموظف`
+- Settled: `تم الاستلام`
+
+Transaction records:
+
+- `إلغاء المعاملة`
+- `تم إلغاء المعاملة`
+- `تعذر إلغاء المعاملة. حاول مرة أخرى.`
+- Search placeholder when the Backend supports it: `اسم العميل أو رقم الموبايل أو مرجع الدفع`
+- Court setting: `طلب مرجع الدفع للمدفوعات الإلكترونية`
+
+List ordering (visible UI is two arrows; these strings are labels/tooltips):
+
+- `الترتيب`
+- `الأحدث أولًا` (`↓` newest first)
+- `الأقدم أولًا` (`↑` oldest first)
 
 Do not use ordinary user-facing `مراجعة العهدة`, `استلام العهدة`, `غير مسوى`, or `عهد الموظفين`.

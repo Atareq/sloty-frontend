@@ -91,6 +91,25 @@ describe('transactionsApi', () => {
     )
   })
 
+  it('sends server ordering query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions('nasr-club', {
+      ordering: '-created',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.transactions.list(
+        'nasr-club',
+      )}?ordering=-created`,
+    )
+  })
+
   it('skips empty query params', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,

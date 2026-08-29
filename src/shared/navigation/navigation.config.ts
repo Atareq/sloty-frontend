@@ -173,7 +173,7 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   '/settlements': {
     title: appNavCopy.moneyManagement,
     subtitle:
-      'تابع المبالغ اللي لسه مع الموظفين، واستلمها وراجع العمليات المالية عند الحاجة.',
+      'تابع المبالغ اللي لسه مع الموظفين، واستلمها وراجع المعاملات المالية عند الحاجة.',
   },
   '/settlements/history': {
     title: 'تم استلامها سابقًا',
@@ -290,7 +290,7 @@ export function getPageHeaderMeta(
   ) {
     return {
       title: 'تفاصيل الاستلام',
-      subtitle: 'مراجعة المبلغ المستلم والعمليات المرتبطة',
+      subtitle: 'مراجعة المبلغ المستلم والمعاملات المرتبطة',
     }
   }
 

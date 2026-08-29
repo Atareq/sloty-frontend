@@ -120,7 +120,13 @@ export function getBookingCourtLabel(
 export function getBookingNotes(booking: BookingListItem): string | null {
   const notes = getOptionalBookingField(booking, 'notes')
 
-  return notes ? String(notes) : null
+  if (notes === null) {
+    return null
+  }
+
+  const trimmed = String(notes).trim()
+
+  return trimmed ? trimmed : null
 }
 
 export function getBookingDateFallback(booking: BookingListItem): string | null {

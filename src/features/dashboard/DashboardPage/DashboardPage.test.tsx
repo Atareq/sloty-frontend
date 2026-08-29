@@ -247,7 +247,7 @@ describe('DashboardPage', () => {
       .not.toBeInTheDocument()
     expect(screen.getByText('عهدتي')).toBeInTheDocument()
     expect(screen.getByText('700.00 ج.م')).toBeInTheDocument()
-    expect(screen.getByText('من 7 عملية تحصيل')).toBeInTheDocument()
+    expect(screen.getByText('من 7 معاملة')).toBeInTheDocument()
     expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
     expect(screen.queryByText('سوّي عهدتك')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'آخر 7 أيام' }))

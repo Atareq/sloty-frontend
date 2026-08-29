@@ -68,6 +68,33 @@ describe('api error helpers', () => {
     expect(getFirstFieldErrorMessage(null, 'amount')).toBeNull()
   })
 
+  it('localizes technical backend field names in user-facing messages', () => {
+    const validationError = new ApiClientError(
+      'يجب أن يكون date_to في نفس يوم date_from أو بعده.',
+      400,
+      {
+        fieldErrors: {
+          payment_reference: [
+            {
+              code: 'REQUIRED',
+              message: 'payment_reference مطلوب مع customer_phone',
+            },
+          ],
+        },
+      },
+    )
+
+    expect(getApiErrorMessage(validationError)).toBe(
+      'تاريخ النهاية لازم يكون نفس تاريخ البداية أو بعده.',
+    )
+    expect(
+      getFirstFieldErrorMessage(
+        getApiFieldErrors(validationError),
+        'payment_reference',
+      ),
+    ).toBe('مرجع الدفع مطلوب مع رقم الموبايل')
+  })
+
   it.each([
     ['BOOKING_SLOT_UNAVAILABLE', 'المعاد مبقاش متاح. اختار ميعاد تاني.'],
     ['BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT', 'لازم تحصّل المبلغ المتبقي قبل إكمال الحجز.'],

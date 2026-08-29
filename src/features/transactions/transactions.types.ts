@@ -14,11 +14,14 @@ export const paymentMethodLabels: Record<PaymentMethod, string> = {
 export type TransactionType = 'PAYMENT' | 'REFUND'
 
 export const transactionTypeLabels: Record<TransactionType, string> = {
-  PAYMENT: 'تحصيل',
+  PAYMENT: 'معاملة',
   REFUND: 'استرداد',
 }
 
 export type TransactionSettlementStatus = 'settled' | 'unsettled'
+
+/** Backend list ordering for `created`. Newest first is the Product default. */
+export type TransactionOrdering = 'created' | '-created'
 
 export interface TransactionQueryParams {
   date?: string
@@ -30,6 +33,7 @@ export interface TransactionQueryParams {
   settlement_status?: TransactionSettlementStatus | ''
   is_cancelled?: boolean | string | ''
   page?: number | string
+  ordering?: TransactionOrdering | ''
 }
 
 export interface Transaction {
@@ -80,4 +84,16 @@ export function isRefundTransaction(transaction: {
   transaction_type?: TransactionType
 }): boolean {
   return getTransactionType(transaction) === 'REFUND'
+}
+
+/**
+ * Transaction notes are a detail-oriented field. Empty or whitespace-only
+ * values hide the Notes section instead of showing unavailable copy.
+ */
+export function getTransactionNotes(transaction: {
+  notes?: string | null
+}): string | null {
+  const notes = transaction.notes?.trim()
+
+  return notes ? notes : null
 }

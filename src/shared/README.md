@@ -2,7 +2,7 @@
 
 `src/shared` owns reusable product-agnostic or cross-feature code:
 
-- `components/` — canonical UI primitives (`AppButton`, `AppCard`, `AppSheet`, `AppSelect`, `AppDateNavigator`, `PageHeader`, `NewBookingFAB`, `FilterSheet`, `FilterCheckboxGroup`, `PhoneNumberInput`, `AppSuccessNotice`, `PageActions`, `StatusChip`)
+- `components/` — canonical UI primitives (`AppButton`, `AppCard`, `AppSheet`, `AppSelect`, two-arrow `ListSortControl`, `AppDateNavigator`, `PageHeader`, `NewBookingFAB`, `FilterSheet`, `FilterCheckboxGroup`, `PhoneNumberInput`, `AppSuccessNotice`, `PageActions`, `StatusChip`, `LiveSearchField`, `ResultRefreshRegion`)
 - `copy/` — canonical repeated product vocabulary
 - `navigation/` — route constants, nav items, page-header titles
 - `api/` — endpoint registry and shared API types

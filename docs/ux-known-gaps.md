@@ -8,9 +8,11 @@ Presentation-only limitations. Do not invent backend behavior to close these.
 - Linked transactions expand only when settlement preview already returned `transactions[]` (selected employee or own custody). Dashboard all-employee cards have no expander.
 - Booking history `search` covers customer name and phone. Notes search is not in the current contract; the frontend does not claim it or filter notes on the loaded page.
 - Transaction list has no server `search` for customer name, phone, or payment reference. No current-page-only search box is shown.
-- Transaction list has no server ordering or transaction-type query param. Those controls are omitted.
+- Booking History has no confirmed server-side chronological ordering contract (`newest` / `oldest` across the full paginated set). The shared two-arrow `ListSortControl` exists, but History does not render it and does not fake ordering on the loaded page.
+- Settlement History/preview transactions and Audit Logs also expose no confirmed newest/oldest ordering request contract. Their response order is preserved; the frontend does not sort paginated pages locally.
 - Transaction list has no `settlement_id` / context filter into `/transactions`. The hub does not simulate “هذه المعاملات في السجل” from the loaded page.
-- Transaction rows do not include `customer_name` / `customer_phone`. The frontend does not fetch one Booking per row. Display uses booking start/end, amount, method, collector, and payment reference when present.
+- Transaction rows do not include `customer_name` / `customer_phone`. The frontend does not fetch one Booking per row. Display uses booking start/end, amount, method, collector, and payment reference when present. Notes come from the Transaction Detail resource after `عرض التفاصيل`.
+- Transaction rows do not expose an authoritative `can_cancel` capability. The frontend shows cancellation only when explicit `is_cancelled: false`, explicit `is_settled: false`, PAYMENT/legacy type, and current-user ownership are all present; incomplete state hides the action.
 - Settlement `settled_by` may be a numeric id only. The frontend shows calm unavailable copy and does not N+1 user detail.
 - `needs_action=true` is not locally extended with paginated EXPIRED rows. If EXPIRED must appear in Needs Action, that is a backend filter contract.
 - Refund entitlement after reschedule cannot be enforced in the frontend; the backend must not improve refund eligibility after moving a Booking later.

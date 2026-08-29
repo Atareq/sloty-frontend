@@ -68,4 +68,75 @@ describe('LiveSearchField', () => {
     expect(onSearch).not.toHaveBeenCalled()
     expect(input).toHaveValue('Ahmed')
   })
+
+  it('clears a focused draft on external reset and cancels the old debounce', () => {
+    const onSearch = vi.fn()
+    const onDraftChange = vi.fn()
+    const { rerender } = render(
+      <LiveSearchField
+        label="بحث قابل لإعادة الاستخدام"
+        onDraftChange={onDraftChange}
+        onSearch={onSearch}
+        value="أحمد"
+      />,
+    )
+
+    const input = screen.getByRole('searchbox', {
+      name: 'بحث قابل لإعادة الاستخدام',
+    })
+    input.focus()
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'أحمد م' } })
+
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue('أحمد م')
+
+    rerender(
+      <LiveSearchField
+        label="بحث قابل لإعادة الاستخدام"
+        onDraftChange={onDraftChange}
+        onSearch={onSearch}
+        value=""
+      />,
+    )
+
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue('')
+    expect(onDraftChange).toHaveBeenLastCalledWith('')
+
+    act(() => {
+      vi.advanceTimersByTime(700)
+    })
+
+    expect(onSearch).not.toHaveBeenCalled()
+    expect(input).toHaveValue('')
+  })
+
+  it('continues debounced typing normally after an external reset', () => {
+    const onSearch = vi.fn()
+    const { rerender } = render(
+      <LiveSearchField
+        label="بحث مشترك"
+        onSearch={onSearch}
+        value="قديم"
+      />,
+    )
+
+    const input = screen.getByRole('searchbox', { name: 'بحث مشترك' })
+    input.focus()
+    fireEvent.focus(input)
+    rerender(
+      <LiveSearchField label="بحث مشترك" onSearch={onSearch} value="" />,
+    )
+    fireEvent.change(input, { target: { value: 'جديد' } })
+
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(onSearch).toHaveBeenCalledTimes(1)
+    expect(onSearch).toHaveBeenCalledWith('جديد')
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue('جديد')
+  })
 })

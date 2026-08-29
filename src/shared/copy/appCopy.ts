@@ -59,6 +59,8 @@ export const bookingActionCopy = {
   completedWithRemaining:
     'حجز تم اللعب به مبلغ متبقي — يحتاج مراجعة مالية',
   notes: 'ملاحظات',
+  loadingDetail: 'جاري تحميل تفاصيل الحجز',
+  loadDetailFailure: 'تعذر تحميل تفاصيل الحجز. حاول مرة أخرى',
   requiredDeposit: 'العربون المطلوب',
   bookingTotal: 'إجمالي الحجز',
   paidAmount: 'المدفوع',
@@ -75,21 +77,29 @@ export const recurringCopy = {
   stopWeeklyConfirmBody:
     'الحجز الحالي هيفضل زي ما هو، لكن المعاد مش هيتحجز تلقائيًا في الأسابيع الجاية.',
   stopWeeklySuccess: 'تم إيقاف الحجز الأسبوعي',
+  stopWeeklyFailure: 'تعذر إيقاف الحجز الأسبوعي. حاول مرة أخرى',
 } as const
 
 export const customerCopy = {
   customerName: 'اسم العميل',
   mobileNumber: 'رقم الموبايل',
-  /** Server `search` currently covers customer name and phone. Notes are a Backend gap. */
-  customerOrMobileSearch: 'اسم العميل أو رقم الموبايل',
+  /** Notes remain a documented Backend search-contract gap. */
+  customerOrMobileSearch: 'اسم العميل أو رقم الموبايل أو ملاحظة',
 } as const
 
 export const financeCopy = {
   withEmployeeNow: 'معاه دلوقتي',
+  unsettledStaffFilter: 'لسه في عهدتي',
+  unsettledStaffState: 'لسه في عهدتك',
+  unsettledManagement: 'لسه مع الموظف',
+  received: 'تم الاستلام',
   receiveAmount: 'استلام المبلغ',
   confirmReceiveAmount: 'تأكيد استلام المبلغ',
   receiveAmountSuccess: 'تم استلام المبلغ بنجاح',
   viewDetails: 'عرض التفاصيل',
+  transactionDetail: 'تفاصيل المعاملة',
+  loadingTransactionDetail: 'جاري تحميل تفاصيل المعاملة',
+  loadTransactionDetailFailure: 'تعذر تحميل تفاصيل المعاملة. حاول مرة أخرى',
   viewLinkedTransactions: 'عرض المعاملات المرتبطة',
   hideLinkedTransactions: 'إخفاء المعاملات',
   reviewPreviouslyReceived: 'مراجعة المبالغ المستلمة سابقًا',
@@ -101,6 +111,10 @@ export const financeCopy = {
   collectedBy: 'حصّلها',
   receivedBy: 'تم الاستلام بواسطة',
   paymentReference: 'مرجع الدفع',
+  transactionNotes: 'ملاحظات',
+  cancelTransaction: 'إلغاء المعاملة',
+  cancelTransactionSuccess: 'تم إلغاء المعاملة',
+  cancelTransactionFailure: 'تعذر إلغاء المعاملة. حاول مرة أخرى.',
   noAmountWithYou: 'مفيش مبالغ معاك دلوقتي.',
   noAmountNeedingHandover: 'مفيش مبلغ معاك محتاج يتسلّم دلوقتي.',
   selfPreviewDenied:
@@ -110,6 +124,17 @@ export const financeCopy = {
 export const searchCopy = {
   quickShortcuts: 'اختصارات البحث السريع',
   resultsRefreshing: 'نتائج البحث',
+} as const
+
+/**
+ * Semantic chronological-list labels for the two-arrow `ListSortControl`.
+ * Visible UI is arrows; these strings are aria-label/tooltip/test copy.
+ * Feature code maps newest/oldest to its own Backend ordering field.
+ */
+export const listCopy = {
+  ordering: 'الترتيب',
+  newestFirst: 'الأحدث أولًا',
+  oldestFirst: 'الأقدم أولًا',
 } as const
 
 export const settingsCopy = {

@@ -69,7 +69,7 @@ function EmptyPreviewState({ message, onRefresh }: EmptyPreviewStateProps) {
           {message ?? 'مفيش مبلغ حالي للموظف دلوقتي.'}
         </p>
         <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-          كل المبالغ الحالية اتسلّمت، أو مفيش عمليات مسجلة بعد.
+          كل المبالغ الحالية اتسلّمت، أو مفيش معاملات مسجلة بعد.
         </p>
       </div>
 

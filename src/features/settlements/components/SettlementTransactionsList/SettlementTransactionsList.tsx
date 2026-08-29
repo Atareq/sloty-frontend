@@ -38,7 +38,7 @@ function getReference(transaction: SettlementTransactionRow): string | null {
  * Read-only list of transactions included in a settlement preview/detail.
  */
 export function SettlementTransactionsList({
-  emptyMessage = 'لا توجد عمليات مرتبطة لهذا الموظف.',
+  emptyMessage = 'لا توجد معاملات مرتبطة لهذا الموظف.',
   transactions,
 }: SettlementTransactionsListProps) {
   if (transactions.length === 0) {

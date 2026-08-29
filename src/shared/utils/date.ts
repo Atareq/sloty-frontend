@@ -160,7 +160,7 @@ export function getLastSevenDaysRange(today = new Date()): {
   date_to: string
 } {
   return {
-    date_from: formatDateInputValue(addDays(today, -7)),
+    date_from: formatDateInputValue(addDays(today, -6)),
     date_to: formatDateInputValue(today),
   }
 }

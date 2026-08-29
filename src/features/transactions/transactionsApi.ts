@@ -23,6 +23,7 @@ function buildTransactionListPath(
     date_from: params.date_from,
     date_to: params.date_to,
     is_cancelled: params.is_cancelled,
+    ordering: params.ordering,
     page: params.page,
     payment_method: params.payment_method,
     settlement_status: params.settlement_status,

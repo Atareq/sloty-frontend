@@ -75,10 +75,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Canonical product navigation labels live in `src/shared/copy/appCopy.ts` / `navigation.config.ts`: الرئيسية (Schedule), سجل الحجوزات، إدارة الأموال (Owner/authorized Manager) or معاملاتي المالية + عهدتي (Staff), التقارير، سجل النشاط، الإعدادات. `/dashboard` is `المتابعة` and stays out of primary Burger/sidebar.
 - Recurrence is Booking metadata and has no separate recurring-agreement route or top-level navigation concept.
 - Logout and change-club actions belong in the account menu, not the visible header area.
-- Default authenticated experience is mobile-style, and users can switch to Desktop View from the hamburger menu.
-- Sloty defaults to mobile view unless `sloty:view-mode` explicitly stores `desktop`; invalid saved view-mode values fall back to mobile.
-- Desktop view must always expose a visible `عرض الهاتف` recovery action outside hidden mobile-only UI surfaces.
-- Do not place the only mobile/desktop view toggle inside a drawer or surface hidden by the current view mode.
+- Authenticated presentation follows the viewport automatically: mobile chrome below the desktop breakpoint and the sidebar at desktop widths.
+- Normal production navigation must not expose `عرض سطح المكتب` or `عرض الهاتف`; responsive mode is not a user preference and is not persisted.
 
 ## Auth And API Rules
 
@@ -94,6 +92,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Phone country/region selection is frontend UI only. Backend payloads must send one E.164 phone field such as `customer_phone` or `phone_number`; do not send `phone_region`, `country`, or calling-code fields.
 - Reuse `SlotyPhoneNumberInput` for user/customer phone entry, and do not create duplicate phone parsers, regex validators, or E.164 formatters.
 - Courts include `minimum_deposit` and `cancellation_refund_notice_days`; do not use or reintroduce `recurring_deposit_refund_notice_days`.
+- Owner Court settings expose the existing `requires_digital_payment_reference` field through the existing Court update flow. It affects electronic wallet/bank-transfer reference requirements only; CASH never requires or displays a reference.
 - Cancellation refund policy editing is Owner/Platform Admin only through `canManageCancellationRefundPolicy`; Manager pricing/working-hours permissions must not grant refund-policy editing.
 - JWT role claims are used by the frontend for UX, navigation, and route protection.
 - Components must use `useAuth()` instead of decoding tokens directly.
@@ -210,16 +209,17 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Bookings List supports URL query filters used by Summary cards, and Summary redirects must not be overwritten by default page filters.
 - Bookings List loads unrestricted server-paginated history when the URL has no filters; do not silently default it to today.
 - Bookings List previous/next controls keep `page` in the URL, preserve all active filters, and step back when a later page becomes empty after a mutation.
-- Bookings List keeps a visible URL-backed customer name/phone search above the URL-driven primary checkboxes for `upcoming=true`, `needs_action=true`, and `has_remaining_amount=true`; never emit `remaining_amount_gt` for the remaining-money checkbox. Court, status, date, overdue, ended, and HOLD-expiry filters live in the shared responsive `FilterSheet` on every viewport.
-- Customer name/phone search uses shared `LiveSearchField` plus a results-only refresh region. It sends one debounced backend `search` query, and upcoming sends `upcoming=true`; do not request on every keystroke, filter only the loaded page, remount the search input, or claim notes search unless the backend contract includes notes.
+- Bookings List keeps a visible URL-backed `اسم العميل أو رقم الموبايل أو ملاحظة` search above the URL-driven primary checkboxes for `upcoming=true`, `needs_action=true`, and `has_remaining_amount=true`; never emit `remaining_amount_gt` for the remaining-money checkbox. Court, status, date, overdue, ended, and HOLD-expiry filters live in the shared responsive `FilterSheet` on every viewport.
+- Booking search uses shared `LiveSearchField` plus a results-only refresh region. It sends one debounced backend `search` query, and upcoming sends `upcoming=true`; do not request on every keystroke, filter only the loaded page, or remount the search input. The current Backend supports customer name/phone only, so notes semantics remain an explicit Backend contract gap and must not be faked locally.
 - Staff Bookings List sends the assigned Court from the active membership as request scope, while ignoring/removing Court URL overrides and hiding the Court selector/chip. Owner and Manager may use the named URL-driven Court filter. Backend authorization remains authoritative.
 - Active filter chips must remain URL-driven and removable.
 - Active filter chips are one accessible button per chip; clicking anywhere on the chip removes only that filter while preserving other active filters, and buttons must not be nested.
 - Court filters must display court names instead of raw IDs while still sending numeric court IDs to the backend.
 - Bookings List cards are compact clickable review entries showing only customer name, phone, human appointment, human status, and an optional recurring marker. They open the shared `BookingActionSheet`; do not put IDs, Court, money, creation timestamps, notes, transaction detail, or a separate edit flow on history cards.
 - `BookingActionSheet` is the one canonical details presentation for Schedule occupied slots, Schedule closing rows, and Bookings List cards, including HOLD. The entry page must not choose the primary action; booking state and current implemented capabilities do.
+- Opening an actual Booking details surface must `getBooking(id)` and pass the Booking Detail response into `BookingActionSheet`. Reduced list or Schedule slot summaries are not the authoritative details object. Do not fetch one detail per list row; hydrate only on explicit open. `RECURRING_RESERVED` stays virtual and must not fetch the anchor Booking as the selected occurrence.
 - Booking details put customer/phone and appointment identity first, followed by a human Egyptian-Arabic state, financial summary, and at most one visible primary action. HOLD uses `سجّل العربون وأكّد الحجز`; a known positive remaining balance uses `حصّل X ج.م`; an ended fully-paid confirmed booking visibly exposes both `إكمال` and `عدم حضور`.
-- Valid secondary booking actions live under `••• خيارات أخرى` in order: `تعديل بيانات الحجز`, then `تغيير الموعد` when allowed, then a separator, then danger `إلغاء الحجز` last. Active recurrence shows inline `إيقاف الحجز الأسبوعي` (outline, not danger) and must not duplicate that action under `•••`. Confirmation explains that the current Booking remains unchanged. Do not show backend-roadmap copy, a separate recurring domain, or unsupported single-occurrence cancellation from booking details.
+- Valid secondary booking actions live under `••• خيارات أخرى` in order: `تعديل بيانات الحجز`, then `تغيير الموعد` when allowed, then a separator, then danger `إلغاء الحجز` last. Active recurrence shows inline danger `إيقاف الحجز الأسبوعي` and must not duplicate that action under `•••`; the recurrence container itself stays neutral. Confirmation explains that the current Booking remains unchanged. Do not show backend-roadmap copy, a separate recurring domain, or unsupported single-occurrence cancellation from booking details.
 - `تعديل بيانات الحجز` is a secondary action for HOLD and CONFIRMED. It PATCHes only `customer_name`, `customer_phone`, and `notes`. The PATCH response is partial; refetch Booking detail afterwards and never replace the canonical Booking with it.
 - `تغيير الموعد` is a separate secondary action for HOLD and CONFIRMED bookings that are not actively recurring. It posts `{ court, start_time, end_time, reason? }` to `bookings/{id}/reschedule/` using a backend-available slot. Hide it for `is_recurring === true && recurrence_status === 'ACTIVE'`.
 - Recurring identity is contextual `↻ حجز أسبوعي` metadata for every recurring Booking. Only strict `is_recurring === true && recurrence_status === 'ACTIVE'` enables stop-recurrence and the cancellation/no-show recurrence-ending warnings; `RENEWED` and `ENDED` are not active.
@@ -240,10 +240,11 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Backend remains the authority for settlement permissions; settled transactions are locked/read-only and the frontend must not offer raw transaction editing.
 - Transaction correction is cancel payment with a required reason through the transaction cancel endpoint; do not add edit/void payment flows.
 - Cancelled transactions remain visible and frontend code must not manually count them in payment totals.
-- Transactions list defaults to the last 7 days using Egypt-local dates and supports date/status filters using the existing transaction query fields.
+- Transactions list defaults to all available server history with no hidden date filter. `اليوم` and `آخر 7 أيام` are explicit shortcuts only, and reset returns to all history plus newest-first ordering.
+- Transaction list ordering is server-side through `ordering=-created` (newest) and `ordering=created` (oldest). The shared `ListSortControl` is a compact two-arrow control (`↓` newest / `↑` oldest), not a dropdown, and emits semantic newest/oldest only; do not leak raw Backend ordering syntax. Place it on the visual left of the results area, immediately before the cards. It is available for every role that can open the Transaction ledger (`معاملاتي المالية` and `سجل المعاملات المالية`); do not gate it on Staff. Sort preserves Search and filters, resets page to 1, and refreshes `ResultRefreshRegion` without scrolling the page. Do not client-sort the loaded page.
 - Staff may access Transactions. Staff Transactions are backend Court-scoped, not creator-scoped, so the frontend must not force `created_by` to the current user for Staff.
 - Transactions list supports URL query filters used by Summary cards, including date, date range, court, payment method, collected user, settlement status, cancellation status, and page.
-- Direct Transactions visits default to the last 7 days only when the URL has no transaction filters; Summary redirect filters must not be overwritten by default dates.
+- Direct Transactions visits send no date filter; Summary/context redirect filters must remain intact.
 - Transactions active filter chips must reflect the current URL/effective query params, and transaction filter links must be built with the shared query helper.
 - Transactions collector filters must display staff/user names instead of raw IDs while still sending numeric user IDs to the backend.
 - `/transactions` is product-labeled `معاملاتي المالية` for Staff and `سجل المعاملات المالية` for Owner/Manager. Keep route and API terminology unchanged internally. Owner/Manager do not see `/transactions` in primary Burger navigation.
@@ -251,6 +252,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Staff Transactions must ignore URL `court`/`created_by` overrides, send the assigned Court only, and hide the collector selector. Owner/Manager may use named Court and collector filters.
 - Transaction and settlement surfaces share the canonical payment-method labels and money formatter. Prefer historical names returned by finance responses and use calm unavailable/former-user copy instead of exposing raw user, Court, Booking, or Transaction IDs.
 - Frontend transaction lists must not calculate settlement totals; backend Summary endpoints own financial totals.
+- Transaction cancellation uses `إلغاء المعاملة` terminology and is shown only for PAYMENT/legacy rows with explicit `is_cancelled === false`, explicit `is_settled === false`, and confirmed ownership by the current user. Missing authoritative state must hide the action.
+- Transaction list rows stay lightweight. `عرض التفاصيل` loads `GET transactions/{id}/` for that one row only; never N+1 detail requests for the loaded page. Notes that exist only on the detail resource render there: non-empty notes show `ملاحظات`, and empty/null/whitespace notes hide the section instead of `غير متاح`. CASH hides `payment_reference`; non-cash methods show `مرجع الدفع` when returned.
 - Sprint 7 implements backend-calculated dashboard, reports, and audit logs; these pages use `selectedClubSlug` from `useAuth()`.
 - Dashboard and report financial metrics must come from backend summary/report endpoints. Do not fake numbers or manually count cancelled transactions in totals; cancelled transactions remain visible while backend summaries decide accounting.
 - `/schedule` is the visible operational Home labeled `الرئيسية`. After login, Home navigation, and `NewBookingFAB`, land on Schedule. Do not create a second Home page.
@@ -341,6 +344,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Never introduce parallel page-header implementations; `PageHeader` is the canonical visual page header.
 - `PageHeader` keeps the original `.sloty-green-surface` visual in the transient page-context region. At scroll top the full context is visible. While scrolling, that context progressively fades and blurs, then disappears. The large header is not sticky. Only persistent navigation stays: Burger on the RTL start/top-right edge, and Home on the opposite/top-left edge for non-Home pages. Home is omitted on `الرئيسية`. Returning to the top restores full context. `RouteScrollReset` in `AppShell` resets window scroll on pathname/hash change, preserves hash targets, and ignores query-only live-search updates.
 - Quick-search shortcuts start collapsed and auto-collapse once the live text-search draft changes to a meaningful query. The accordion trigger stays enabled; the user may expand it again while a query is present, and further typing auto-collapses it. Simple checkbox/select filters auto-refresh; do not add a redundant `عرض النتائج` button on those surfaces.
+- Removing or externally resetting a `LiveSearchField` query must synchronize the external value, visible draft, and pending debounce. A removed query must not reappear after the debounce window, and result refresh must preserve input focus and reject stale responses.
+- Chronological paginated lists default to newest first. Expose the shared two-arrow `ListSortControl` (`↓` = `الأحدث أولًا`, `↑` = `الأقدم أولًا`) only where the Backend confirms server ordering. Do not use a dropdown for this compact control. Sort preserves Search and filters, resets pagination to page 1, and refreshes only the result region. Never sort only the loaded page. Booking History currently has no server ordering contract, so do not show a misleading sort control or reverse the current page.
+- Reduced list representations are not authoritative detail objects. If a details surface needs fields guaranteed only by a detail endpoint, load that detail lazily on explicit detail interaction.
+- List pages start without hidden filters unless Product explicitly defines a default.
 - Schedule follows `PageHeader` then booking controls, `AppDateNavigator`, the status legend, a lightweight non-sticky Schedule summary, operational sections, and the Court board. The summary must not render another `header`, green hero, page title, Club/date identity, or employee identity.
 - The canonical header mobile hamburger is a right-side RTL menu button with three horizontal lines; hide it when desktop sidebar mode is active. Home sits on the opposite/top-left edge and must not share the burger's action group.
 - The hamburger and mobile drawer are mobile-only; the drawer opens from the right and must close or be hidden when switching to desktop view.
@@ -348,7 +355,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - No authenticated role uses a mobile bottom navigation.
 - Hide unfinished Platform Settings from primary navigation until that page is implemented.
 - Mobile Overview must hide the desktop sidebar even on wide screens and keep the hamburger/drawer available.
-- Desktop Overview must expose logout in the sidebar.
+- Desktop Overview exposes logout in the sidebar.
 - Mobile navigation uses the shell header, hamburger drawer, and route-gated `NewBookingFAB`; desktop navigation uses the sidebar.
 - Finance, admin, history, reports, audit, settlements, and settings links live in the hamburger menu and desktop sidebar.
 - Primary drawer/sidebar club navigation contains only direct hub pages: `الرئيسية` (`/schedule`), `سجل الحجوزات`, role-aware finance (`إدارة الأموال` or Staff `معاملاتي المالية` + `عهدتي`), `التقارير`, and `الإعدادات`. `/dashboard` remains routed but is not a Burger item.
@@ -363,7 +370,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Keep one Sloty visual fingerprint across the project: Arabic-first, RTL-first, mobile-first, green brand system, rounded cards, shared `AppCard`/`AppButton` patterns, consistent spacing, and responsive layouts.
 - Any new page must look like part of the same product, not a separate prototype.
 - Do not create separate mobile and desktop business pages for the same workflow; share data/request flow and vary presentation only.
-- Mobile/desktop view switches must change presentation only, not route, filters, data, or API behavior.
+- Responsive viewport changes affect presentation only, not route, filters, data, or API behavior.
 
 ## Change Review
 

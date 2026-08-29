@@ -120,7 +120,8 @@ function LinkedTransactions({
                 {formatMoneyAmount(transaction.amount)} ·{' '}
                 {settlementPaymentMethodLabels[transaction.payment_method]}
               </p>
-              {transaction.payment_reference ? (
+              {transaction.payment_method !== 'CASH' &&
+              transaction.payment_reference ? (
                 <p className="mt-1 text-xs font-medium text-[var(--sloty-text-muted)]">
                   {financeCopy.paymentReference}
                   <span className="ms-1 font-semibold text-[var(--sloty-text-primary)]">
@@ -379,7 +380,7 @@ export function SettlementsHubPage() {
               {navigationCopy.staffMoneyPage}
             </h2>
             <p className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]">
-              المبالغ اللي لسه مع الموظفين ولم يتم استلامها.
+              المبالغ اللي لسه مع الموظفين.
             </p>
           </div>
 
@@ -514,7 +515,7 @@ export function SettlementsHubPage() {
                 })}
               </p>
               <p className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]">
-                من {currentPreview.transaction_count} عملية
+                من {currentPreview.transaction_count} معاملة
               </p>
             </div>
             <PeriodBlock
@@ -584,7 +585,7 @@ export function SettlementsHubPage() {
                       })}
                     </p>
                     <p className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]">
-                      من {staff.unsettled_transaction_count} عملية
+                      من {staff.unsettled_transaction_count} معاملة
                     </p>
                   </div>
                   <Link
@@ -653,7 +654,7 @@ export function SettlementsHubPage() {
                   ) : null}
                   {settlement.transaction_count !== undefined ? (
                     <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
-                      {settlement.transaction_count} عملية
+                      {settlement.transaction_count} معاملة
                     </p>
                   ) : null}
                   <PeriodBlock

@@ -7,7 +7,7 @@ import {
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
-import { bookingStatusCopy } from '../../../shared/copy/appCopy'
+import { bookingActionCopy, bookingStatusCopy, recurringCopy } from '../../../shared/copy/appCopy'
 import {
   canChooseOperationalCourt,
   getAssignedOperationalCourtId,
@@ -203,6 +203,9 @@ export function SchedulePage() {
   > | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [settledSlotsDate, setSettledSlotsDate] = useState<string | null>(null)
+  const [isBookingDetailLoading, setIsBookingDetailLoading] = useState(false)
+  const [openedBookingId, setOpenedBookingId] = useState<number | null>(null)
+  const bookingDetailGenerationRef = useRef(0)
   const slotsSectionRef = useRef<HTMLElement | null>(null)
   const daySectionRef = useRef<HTMLElement | null>(null)
   const pendingSlotsScrollDateRef = useRef<string | null>(null)
@@ -623,11 +626,11 @@ export function SchedulePage() {
       )
       setSelectedActionBooking(updatedBooking)
       setSelectedSlot(null)
-      setSuccessMessage('تم إيقاف الحجز الأسبوعي')
+      setSuccessMessage(recurringCopy.stopWeeklySuccess)
       await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
-        getApiErrorMessage(error, 'تعذر إيقاف الحجز الأسبوعي. حاول مرة أخرى'),
+        getApiErrorMessage(error, recurringCopy.stopWeeklyFailure),
       )
     } finally {
       setIsLifecycleSubmitting(false)
@@ -772,11 +775,11 @@ export function SchedulePage() {
     try {
       await endBookingRecurrence(selectedClubSlug, recurrenceContextBookingId)
       setSelectedSlot(null)
-      setSuccessMessage('تم إيقاف الحجز الأسبوعي')
+      setSuccessMessage(recurringCopy.stopWeeklySuccess)
       await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
-        getApiErrorMessage(error, 'تعذر إيقاف الحجز الأسبوعي. حاول مرة أخرى'),
+        getApiErrorMessage(error, recurringCopy.stopWeeklyFailure),
       )
       await reloadScheduleSlots()
 
@@ -866,53 +869,101 @@ export function SchedulePage() {
     }
   }
 
+  async function hydrateActualBookingDetail(bookingId: number): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    const generation = bookingDetailGenerationRef.current + 1
+    bookingDetailGenerationRef.current = generation
+    setOpenedBookingId(bookingId)
+    setSelectedActionBooking(null)
+    setHoldBooking(null)
+    setIsBookingDetailLoading(true)
+    setLifecycleError(null)
+    setHoldActionError(null)
+
+    try {
+      const freshBooking = await getBooking(selectedClubSlug, bookingId)
+
+      if (bookingDetailGenerationRef.current !== generation) {
+        return
+      }
+
+      setSelectedActionBooking(freshBooking)
+      setHoldBooking(freshBooking.status === 'HOLD' ? freshBooking : null)
+    } catch (error) {
+      if (bookingDetailGenerationRef.current !== generation) {
+        return
+      }
+
+      setSelectedActionBooking(null)
+      setHoldBooking(null)
+      setLifecycleError(
+        getApiErrorMessage(error, bookingActionCopy.loadDetailFailure),
+      )
+    } finally {
+      if (bookingDetailGenerationRef.current === generation) {
+        setIsBookingDetailLoading(false)
+      }
+    }
+  }
+
   async function handleSelectSlot(slot: ScheduleBooking): Promise<void> {
     setSuccessMessage(null)
-    setSelectedActionBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
-    setLifecycleError(null)
     setLifecycleFieldErrors(null)
-    setHoldActionError(null)
 
     // FREE → create booking. Virtual recurrence is an explicit status branch,
     // never inferred from a missing booking summary.
     if (slot.status === 'available' && slot.isAvailable) {
+      bookingDetailGenerationRef.current += 1
+      setIsBookingDetailLoading(false)
+      setOpenedBookingId(null)
       setSelectedSlot(slot)
+      setSelectedActionBooking(null)
       setHoldBooking(null)
+      setLifecycleError(null)
+      setHoldActionError(null)
       return
     }
 
     if (slot.status === 'recurring_reserved') {
+      bookingDetailGenerationRef.current += 1
+      setIsBookingDetailLoading(false)
+      setOpenedBookingId(null)
       setSelectedSlot(slot)
+      setSelectedActionBooking(null)
       setHoldBooking(null)
+      setLifecycleError(null)
+      setHoldActionError(null)
       return
     }
 
     if (slot.booking) {
-      setSelectedSlot(slot)
-      setHoldBooking(slot.status === 'hold' ? slot.booking : null)
-      return
+      setSelectedSlot(null)
+      await hydrateActualBookingDetail(slot.booking.id)
     }
   }
 
   function handleSelectClosingBooking(booking: BookingListItem): void {
     setSuccessMessage(null)
     setSelectedSlot(null)
-    setSelectedActionBooking(booking)
-    setHoldBooking(null)
     setCreateError(null)
     setCreateFieldErrors(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
-    setLifecycleError(null)
     setLifecycleFieldErrors(null)
-    setHoldActionError(null)
+    void hydrateActualBookingDetail(booking.id)
   }
 
   function clearScheduleSelection(): void {
+    bookingDetailGenerationRef.current += 1
+    setIsBookingDetailLoading(false)
+    setOpenedBookingId(null)
     setSelectedSlot(null)
     setSelectedActionBooking(null)
     setHoldBooking(null)
@@ -1007,6 +1058,8 @@ export function SchedulePage() {
           !selectedSlot &&
           !selectedActionBooking &&
           !holdBooking &&
+          !isBookingDetailLoading &&
+          openedBookingId === null &&
           !cancellingBooking &&
           !completingBooking &&
           !noShowBooking &&
@@ -1164,29 +1217,25 @@ export function SchedulePage() {
       !noShowBooking &&
       !editingBooking &&
       !reschedulingBooking &&
-      (holdBooking ||
-      selectedActionBooking ||
-      (selectedSlot &&
-        selectedSlot.status !== 'recurring_reserved' &&
-        selectedSlot.booking &&
-        (selectedSlot.status === 'hold' ||
-          selectedSlot.status === 'confirmed' ||
-          selectedSlot.status === 'completed' ||
-          selectedSlot.status === 'no_show'))) ? (
+      (isBookingDetailLoading ||
+        selectedActionBooking ||
+        holdBooking ||
+        (openedBookingId !== null && Boolean(lifecycleError))) ? (
         <BookingActionSheet
-          booking={selectedActionBooking ?? holdBooking ?? selectedSlot?.booking ?? null}
+          booking={selectedActionBooking ?? holdBooking ?? null}
           courtName={selectedCourt?.name ?? 'لا يوجد ملعب'}
           dateValue={selectedDate}
           error={
             paymentBooking || cancellingBooking || completingBooking || noShowBooking
               ? null
-              : (selectedActionBooking ?? selectedSlot?.booking)?.status === 'HOLD'
+              : (selectedActionBooking ?? holdBooking)?.status === 'HOLD'
               ? holdActionError
               : lifecycleError
           }
+          isLoadingDetail={isBookingDetailLoading}
           isOpen
           isSubmitting={
-            (selectedActionBooking ?? selectedSlot?.booking)?.status === 'HOLD'
+            (selectedActionBooking ?? holdBooking)?.status === 'HOLD'
               ? isHoldActionSubmitting
               : isLifecycleSubmitting
           }
@@ -1199,6 +1248,9 @@ export function SchedulePage() {
             void handleRequestCancelBooking(booking)
           }}
           onClose={() => {
+            bookingDetailGenerationRef.current += 1
+            setIsBookingDetailLoading(false)
+            setOpenedBookingId(null)
             setSelectedSlot(null)
             setSelectedActionBooking(null)
             setHoldBooking(null)

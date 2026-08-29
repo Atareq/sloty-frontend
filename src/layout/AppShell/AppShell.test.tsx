@@ -16,6 +16,22 @@ vi.mock('../../core/auth/useAuth', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const clearSelectedClub = vi.fn()
 
+function setDesktopViewport(matches: boolean): void {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches,
+      media: '(min-width: 1024px)',
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  )
+}
+
 function SheetHarness() {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -148,6 +164,7 @@ describe('AppShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.localStorage.clear()
+    setDesktopViewport(false)
     Object.defineProperty(window, 'scrollY', {
       configurable: true,
       value: 0,
@@ -220,11 +237,17 @@ describe('AppShell', () => {
     const drawer = dialog.querySelector('aside')
 
     expect(drawer).toHaveClass('right-0')
+    expect(drawer).toHaveClass('rounded-l-[26px]')
     expect(drawer).not.toHaveClass('left-0')
+    expect(
+      within(dialog)
+        .getByRole('button', { name: 'تسجيل الخروج' })
+        .querySelector('svg'),
+    ).not.toBeNull()
   })
 
   it('keeps desktop sidebar navigation and omits the mobile burger', () => {
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    setDesktopViewport(true)
 
     renderAppShell('/bookings')
 
@@ -241,8 +264,7 @@ describe('AppShell', () => {
       .toBeInTheDocument()
     expect(within(sidebar).getByRole('link', { name: /الرئيسية/ }))
       .toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'عرض الهاتف' }))
-      .toBeInTheDocument()
+    expect(screen.queryByText('عرض الهاتف')).not.toBeInTheDocument()
   })
 
   it('shows change-club action only for multi-club users', () => {
@@ -366,7 +388,7 @@ describe('AppShell', () => {
   })
 
   it('keeps desktop sidebar navigation to direct primary items only', () => {
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    setDesktopViewport(true)
     mockedUseAuth.mockReturnValue(getAuthValue(2, { role: 'OWNER' }))
 
     renderAppShell()
@@ -563,106 +585,36 @@ describe('AppShell', () => {
     expect(await screen.findByText('تسجيل الدخول')).toBeInTheDocument()
   })
 
-  it('stores desktop view preference and hides the mobile footer', async () => {
-    const user = userEvent.setup()
-
+  it('uses the mobile shell on a narrow viewport without a view toggle', async () => {
     renderAppShell('/bookings')
 
     expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
       .toHaveAttribute('data-view-mode', 'mobile')
+    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
+      .toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'حجز جديد' }))
       .toBeInTheDocument()
-
+    const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
-    await user.click(screen.getByRole('button', { name: 'عرض سطح المكتب' }))
+    expect(screen.queryByText('عرض سطح المكتب')).not.toBeInTheDocument()
+    expect(screen.queryByText('عرض الهاتف')).not.toBeInTheDocument()
+  })
 
-    expect(window.localStorage.getItem('sloty:view-mode')).toBe('desktop')
+  it('uses the desktop shell automatically on a wide viewport', () => {
+    setDesktopViewport(true)
+
+    renderAppShell('/bookings')
+
     expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
       .toHaveAttribute('data-view-mode', 'desktop')
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
       .not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'حجز جديد' }))
       .not.toBeInTheDocument()
-  })
-
-  it('defaults to mobile view when no saved view mode exists', () => {
-    renderAppShell('/bookings')
-
-    expect(window.localStorage.getItem('sloty:view-mode')).toBeNull()
-    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
-      .toHaveAttribute('data-view-mode', 'mobile')
-    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
+    expect(screen.getByRole('navigation', { name: 'تنقل التطبيق' }))
       .toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'حجز جديد' }))
-      .toBeInTheDocument()
-  })
-
-  it('ignores invalid saved view mode values and resets them to mobile', () => {
-    window.localStorage.setItem('sloty:view-mode', 'tablet')
-
-    renderAppShell()
-
-    expect(window.localStorage.getItem('sloty:view-mode')).toBe('mobile')
-    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
-      .toHaveAttribute('data-view-mode', 'mobile')
-    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
-      .toBeInTheDocument()
-  })
-
-  it('respects an explicit desktop view preference', () => {
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
-
-    renderAppShell()
-
-    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
-      .toHaveAttribute('data-view-mode', 'desktop')
-    expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
-      .not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'حجز جديد' }))
-      .not.toBeInTheDocument()
-  })
-
-  it('renders a visible mobile recovery action in desktop view', () => {
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
-
-    renderAppShell()
-
-    expect(screen.getByRole('button', { name: 'عرض الهاتف' }))
-      .toBeInTheDocument()
-  })
-
-  it('switches desktop view back to mobile and stores the mobile preference', async () => {
-    const user = userEvent.setup()
-
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
-
-    renderAppShell('/bookings')
-
-    await user.click(screen.getByRole('button', { name: 'عرض الهاتف' }))
-
-    expect(window.localStorage.getItem('sloty:view-mode')).toBe('mobile')
-    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
-      .toHaveAttribute('data-view-mode', 'mobile')
-    expect(screen.getByRole('button', { name: 'فتح القائمة' }))
-      .toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'حجز جديد' }))
-      .toBeInTheDocument()
-  })
-
-  it('never traps desktop view without a visible way back to mobile', () => {
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
-
-    renderAppShell()
-
-    expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
-      .toHaveAttribute('data-view-mode', 'desktop')
-    expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
-      .not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'عرض الهاتف' }))
-      .toBeInTheDocument()
+    expect(screen.queryByText('عرض سطح المكتب')).not.toBeInTheDocument()
+    expect(screen.queryByText('عرض الهاتف')).not.toBeInTheDocument()
   })
 
   it('shows platform admin drawer links and hides the club-user bottom nav', async () => {
@@ -694,7 +646,7 @@ describe('AppShell', () => {
     const user = userEvent.setup()
     const logout = vi.fn()
 
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    setDesktopViewport(true)
     mockedUseAuth.mockReturnValue({
       ...getAuthValue(0, { role: 'PLATFORM_ADMIN' }),
       logout,
@@ -715,7 +667,7 @@ describe('AppShell', () => {
     expect(await screen.findByText('تسجيل الدخول')).toBeInTheDocument()
   })
 
-  it('keeps the desktop view toggle inside the mobile drawer in mobile mode', async () => {
+  it('keeps production view toggles out of the mobile drawer', async () => {
     const user = userEvent.setup()
 
     renderAppShell()
@@ -724,8 +676,8 @@ describe('AppShell', () => {
 
     const dialog = screen.getByRole('dialog')
 
-    expect(within(dialog).getByRole('button', { name: 'عرض سطح المكتب' }))
-      .toBeInTheDocument()
+    expect(within(dialog).queryByText('عرض سطح المكتب')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('عرض الهاتف')).not.toBeInTheDocument()
   })
 
   it('opens the owner overview dashboard in mobile view on a fresh load', () => {
@@ -974,7 +926,7 @@ describe('AppShell', () => {
   })
 
   it('keeps desktop sidebar navigation after page context collapses', async () => {
-    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    setDesktopViewport(true)
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       callback(0)
       return 1
@@ -1001,7 +953,7 @@ describe('AppShell', () => {
     expect(
       screen.getByRole('navigation', { name: 'تنقل التطبيق' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'عرض الهاتف' })).toBeInTheDocument()
+    expect(screen.queryByText('عرض الهاتف')).not.toBeInTheDocument()
     vi.unstubAllGlobals()
   })
 })

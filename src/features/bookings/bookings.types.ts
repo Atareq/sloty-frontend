@@ -6,6 +6,9 @@ import { bookingStatusLabels as canonicalBookingStatusLabels } from './bookingDi
 
 export type BookingStatus = BackendBookingStatus
 
+/** Backend list ordering for appointment `start_time`. Newest first is default. */
+export type BookingOrdering = 'start_time' | '-start_time'
+
 export interface BookingsQueryParams {
   date?: string
   date_from?: string
@@ -20,6 +23,7 @@ export interface BookingsQueryParams {
   ended?: boolean | string | ''
   hold_expiring?: boolean | string | ''
   page?: number | string
+  ordering?: BookingOrdering | ''
 }
 
 export type Booking = BookingListItem

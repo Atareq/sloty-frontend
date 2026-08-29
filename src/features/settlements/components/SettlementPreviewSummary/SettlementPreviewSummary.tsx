@@ -29,7 +29,7 @@ export function SettlementPreviewSummary({
 
         <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3">
           <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
-            عدد العمليات
+            عدد المعاملات
           </dt>
           <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
             {preview.transaction_count}

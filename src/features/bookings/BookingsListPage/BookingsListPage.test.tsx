@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
+import { listCopy } from '../../../shared/copy/appCopy'
 import { listCourts } from '../../courts/courtsApi'
 import {
   cancelBooking,
@@ -115,6 +116,11 @@ async function expandQuickShortcuts(
   fireEvent.click(toggle)
 }
 
+async function openHistoryCard(user: { click: (element: HTMLElement) => Promise<unknown> }, name: string) {
+  await user.click(await screen.findByRole('button', { name }))
+  expect(await screen.findByRole('dialog', { name: 'تفاصيل الحجز' })).toBeInTheDocument()
+}
+
 function mockAuth(
   selectedClubSlug: string | null = 'nasr-club',
   role: 'MANAGER' | 'STAFF' = 'MANAGER',
@@ -203,6 +209,39 @@ describe('BookingsListPage', () => {
       retained_amount: '100.00',
       can_cancel: true,
     })
+    mockedGetBooking.mockImplementation(async (_clubSlug, bookingId) => {
+      const id = Number(bookingId)
+
+      for (
+        let index = mockedListBookings.mock.results.length - 1;
+        index >= 0;
+        index -= 1
+      ) {
+        const result = mockedListBookings.mock.results[index]
+
+        if (result.type !== 'return') {
+          continue
+        }
+
+        const response = await result.value
+        const match = response?.results?.find(
+          (booking: Booking) => booking.id === id,
+        )
+
+        if (match) {
+          return match
+        }
+      }
+
+      return bookingFixture({
+        id,
+        court: 3,
+        customer_name: 'عميل',
+        start_time: '2026-07-21T18:00:00Z',
+        end_time: '2026-07-21T19:00:00Z',
+        status: 'CONFIRMED',
+      })
+    })
     mockAuth()
   })
 
@@ -220,8 +259,11 @@ describe('BookingsListPage', () => {
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('تاريخ محدد')).not.toBeInTheDocument()
     expect(mockedListBookings).toHaveBeenCalledWith('nasr-club', {})
+    expect(mockedGetBooking).not.toHaveBeenCalled()
     expect(
-      screen.getByRole('searchbox', { name: 'اسم العميل أو رقم الموبايل' }),
+      screen.getByRole('searchbox', {
+        name: 'اسم العميل أو رقم الموبايل أو ملاحظة',
+      }),
     ).toHaveClass('sloty-mobile-safe-input')
     expect(
       screen.getByRole('button', { name: 'اختصارات البحث السريع' }),
@@ -257,7 +299,7 @@ describe('BookingsListPage', () => {
 
     await screen.findByText('مفيش حجوزات مطابقة للفلاتر الحالية.')
     const searchInput = screen.getByRole('searchbox', {
-      name: 'اسم العميل أو رقم الموبايل',
+      name: 'اسم العميل أو رقم الموبايل أو ملاحظة',
     })
 
     fireEvent.change(searchInput, { target: { value: '01012345678' } })
@@ -288,6 +330,40 @@ describe('BookingsListPage', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('clears the shared search draft when the Search chip is removed', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockedListBookings.mockResolvedValue(paginatedResponse([]))
+
+    renderBookingsPage()
+
+    await screen.findByText('مفيش حجوزات لسه.')
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'اسم العميل أو رقم الموبايل أو ملاحظة',
+    })
+    await user.type(searchInput, 'أحمد')
+    await act(async () => {
+      vi.advanceTimersByTime(350)
+    })
+
+    const searchChip = await screen.findByRole('button', {
+      name: 'إزالة فلتر بحث: أحمد',
+    })
+    expect(searchInput).toHaveValue('أحمد')
+
+    await user.click(searchChip)
+
+    expect(searchInput).toHaveValue('')
+    await act(async () => {
+      vi.advanceTimersByTime(700)
+    })
+    expect(mockedListBookings).toHaveBeenLastCalledWith('nasr-club', {})
+    expect(
+      screen.queryByRole('button', { name: 'إزالة فلتر بحث: أحمد' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps quick-search shortcuts clickable while a live query is present', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
@@ -302,7 +378,7 @@ describe('BookingsListPage', () => {
       name: 'اختصارات البحث السريع',
     })
     const searchInput = screen.getByRole('searchbox', {
-      name: 'اسم العميل أو رقم الموبايل',
+      name: 'اسم العميل أو رقم الموبايل أو ملاحظة',
     })
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -706,12 +782,12 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز ليلى حسن')
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('متبقي 200.00 ج.م')).toBeInTheDocument()
+    expect(mockedGetBooking).toHaveBeenCalledWith('nasr-club', 32)
+    expect(await screen.findByRole('dialog', { name: 'تفاصيل الحجز' }))
+      .toBeInTheDocument()
+    expect(await screen.findByText('متبقي 200.00 ج.م')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'حصّل 200.00 ج.م' }))
       .toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'تم اللعب' })).not.toBeInTheDocument()
@@ -755,9 +831,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز ليلى حسن')
     await user.click(screen.getByRole('button', { name: 'حصّل 200.00 ج.م' }))
 
     expect(mockedCompleteBooking).not.toHaveBeenCalled()
@@ -808,9 +882,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز ليلى حسن')
     await user.click(screen.getByRole('button', { name: 'تم اللعب' }))
     await user.click(
       screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
@@ -864,9 +936,7 @@ describe('BookingsListPage', () => {
     })
 
     renderBookingsPage('/bookings?date=2026-07-21')
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز ليلى الأسبوعية' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز ليلى الأسبوعية')
     await user.click(screen.getByRole('button', { name: 'تم اللعب' }))
     await waitFor(() => {
       expect(mockedGetBookingRecurrenceNext).toHaveBeenCalledWith('nasr-club', 41)
@@ -912,9 +982,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز ليلى حسن')
     await user.click(screen.getByRole('button', { name: 'تم اللعب' }))
     await user.click(
       screen.getByRole('button', { name: 'تأكيد إكمال الحجز' }),
@@ -963,9 +1031,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=CONFIRMED&page=3')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز ليلى حسن' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز ليلى حسن')
     await user.click(screen.getByRole('button', { name: 'حصّل 200.00 ج.م' }))
     await user.type(screen.getByLabelText('المبلغ'), '50')
     await user.click(screen.getByRole('button', { name: 'تسجيل التحصيل' }))
@@ -1009,9 +1075,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=COMPLETED')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز أحمد علي' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز أحمد علي')
 
     expect(within(screen.getByRole('dialog')).getByText('تم اللعب'))
       .toBeInTheDocument()
@@ -1054,9 +1118,7 @@ describe('BookingsListPage', () => {
 
     renderBookingsPage('/bookings?date=2026-07-21&status=HOLD')
 
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز مروان سمير' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز مروان سمير')
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
 
@@ -1105,9 +1167,7 @@ describe('BookingsListPage', () => {
     mockedEndBookingRecurrence.mockResolvedValueOnce(endedRecurringBooking)
 
     renderBookingsPage('/bookings?date=2026-07-21')
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز أحمد الأسبوعي' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز أحمد الأسبوعي')
     await user.click(screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' }))
     const stopButtons = screen.getAllByRole('button', {
       name: 'إيقاف الحجز الأسبوعي',
@@ -1145,6 +1205,7 @@ describe('BookingsListPage', () => {
       }]))
     mockedGetBooking
       .mockResolvedValueOnce(holdBooking)
+      .mockResolvedValueOnce(holdBooking)
       .mockResolvedValueOnce({
         ...holdBooking,
         customer_name: 'منى حسن',
@@ -1157,9 +1218,7 @@ describe('BookingsListPage', () => {
     })
 
     renderBookingsPage('/bookings')
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز أحمد علي' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز أحمد علي')
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'تعديل بيانات الحجز' }))
 
@@ -1177,7 +1236,7 @@ describe('BookingsListPage', () => {
         notes: 'ملاحظة جديدة',
       })
     })
-    expect(mockedGetBooking).toHaveBeenCalledTimes(2)
+    expect(mockedGetBooking).toHaveBeenCalledTimes(3)
     expect(mockedListBookings).toHaveBeenCalledTimes(2)
   })
 
@@ -1199,9 +1258,7 @@ describe('BookingsListPage', () => {
     )
 
     renderBookingsPage('/bookings')
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز حجز مكتمل' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز حجز مكتمل')
 
     expect(screen.queryByRole('button', { name: 'تعديل بيانات الحجز' }))
       .not.toBeInTheDocument()
@@ -1261,9 +1318,7 @@ describe('BookingsListPage', () => {
     })
 
     renderBookingsPage('/bookings')
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز عميل النقل' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز عميل النقل')
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'تغيير الموعد' }))
     await user.click(await screen.findByRole('button', { name: '6:00 م' }))
@@ -1302,13 +1357,108 @@ describe('BookingsListPage', () => {
     })
 
     renderBookingsPage('/bookings')
-    await user.click(
-      await screen.findByRole('button', { name: 'مراجعة حجز أسبوعي مؤكد' }),
-    )
+    await openHistoryCard(user, 'مراجعة حجز أسبوعي مؤكد')
     await user.click(screen.getByText('••• خيارات أخرى'))
     expect(screen.queryByRole('button', { name: 'تغيير الموعد' }))
       .not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'تعديل بيانات الحجز' }))
       .toBeInTheDocument()
+  })
+
+  it('hydrates BookingActionSheet from Booking detail notes, not the list row', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookings.mockResolvedValueOnce(
+      paginatedResponse([
+        bookingFixture({
+          id: 70,
+          court: 3,
+          customer_name: 'عميل القائمة',
+          start_time: '2026-07-21T18:00:00Z',
+          end_time: '2026-07-21T19:00:00Z',
+          status: 'CONFIRMED',
+          paid_amount: '100.00',
+          remaining_amount: '0.00',
+        }),
+      ]),
+    )
+    mockedGetBooking.mockResolvedValueOnce(
+      bookingFixture({
+        id: 70,
+        court: 3,
+        customer_name: 'عميل القائمة',
+        start_time: '2026-07-21T18:00:00Z',
+        end_time: '2026-07-21T19:00:00Z',
+        status: 'CONFIRMED',
+        paid_amount: '100.00',
+        remaining_amount: '0.00',
+        notes: 'يحب الإنارة',
+      }),
+    )
+
+    renderBookingsPage('/bookings')
+
+    expect(await screen.findByText('عميل القائمة')).toBeInTheDocument()
+    expect(screen.queryByText('يحب الإنارة')).not.toBeInTheDocument()
+    expect(mockedGetBooking).not.toHaveBeenCalled()
+
+    await openHistoryCard(user, 'مراجعة حجز عميل القائمة')
+
+    expect(mockedGetBooking).toHaveBeenCalledTimes(1)
+    expect(mockedGetBooking).toHaveBeenCalledWith('nasr-club', 70)
+    expect(screen.getByText('ملاحظات')).toBeInTheDocument()
+    expect(screen.getByText('يحب الإنارة')).toBeInTheDocument()
+    expect(screen.queryByText('غير متاح')).not.toBeInTheDocument()
+  })
+
+  it('hides booking notes when the detail response is empty', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookings.mockResolvedValueOnce(
+      paginatedResponse([
+        bookingFixture({
+          id: 71,
+          court: 3,
+          customer_name: 'بدون ملاحظة',
+          notes: 'ملاحظة القائمة فقط',
+          start_time: '2026-07-21T18:00:00Z',
+          end_time: '2026-07-21T19:00:00Z',
+          status: 'CONFIRMED',
+          paid_amount: '100.00',
+          remaining_amount: '0.00',
+        }),
+      ]),
+    )
+    mockedGetBooking.mockResolvedValueOnce(
+      bookingFixture({
+        id: 71,
+        court: 3,
+        customer_name: 'بدون ملاحظة',
+        notes: '   ',
+        start_time: '2026-07-21T18:00:00Z',
+        end_time: '2026-07-21T19:00:00Z',
+        status: 'CONFIRMED',
+        paid_amount: '100.00',
+        remaining_amount: '0.00',
+      }),
+    )
+
+    renderBookingsPage('/bookings')
+    await openHistoryCard(user, 'مراجعة حجز بدون ملاحظة')
+
+    expect(screen.queryByText('ملاحظات')).not.toBeInTheDocument()
+    expect(screen.queryByText('ملاحظة القائمة فقط')).not.toBeInTheDocument()
+    expect(screen.queryByText('غير متاح')).not.toBeInTheDocument()
+  })
+
+  it('does not expose a Booking History sort control while Backend ordering is unsupported', async () => {
+    mockedListBookings.mockResolvedValueOnce(paginatedResponse([]))
+
+    renderBookingsPage()
+
+    await screen.findByText('مفيش حجوزات لسه.')
+    expect(screen.queryByText(listCopy.ordering)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: listCopy.newestFirst }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: listCopy.oldestFirst }))
+      .not.toBeInTheDocument()
   })
 })

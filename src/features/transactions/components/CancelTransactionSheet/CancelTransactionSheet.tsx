@@ -6,6 +6,7 @@ import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
+import { financeCopy } from '../../../../shared/copy/appCopy'
 
 export interface CancelTransactionValues {
   reason: string
@@ -56,18 +57,19 @@ export function CancelTransactionSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="إلغاء تسجيل الدفعة" onRequestClose={requestClose}>
+      <AppSheet ariaLabel="إلغاء المعاملة" onRequestClose={requestClose}>
       <form
         className="p-5 pt-14"
         onSubmit={handleSubmit}
       >
         <div className="space-y-2">
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            إلغاء تسجيل الدفعة
+            إلغاء المعاملة؟
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            هذا تصحيح لدفعة مسجلة بالخطأ، وليس عملية استرداد للعميل. ستظل
-            الدفعة ظاهرة في السجل، لكن مش هتدخل ضمن الإجماليات.
+            استخدم الإلغاء لو المعاملة اتسجلت بالخطأ. هتفضل ظاهرة في السجل
+            كمعاملة ملغية، لكن مش هتتحسب ضمن الإجماليات أو العهدة. ده مش
+            استرداد فلوس للعميل.
           </p>
         </div>
 
@@ -102,7 +104,7 @@ export function CancelTransactionSheet({
             type="submit"
             variant="danger"
           >
-            {isSubmitting ? 'جاري الإلغاء...' : 'تأكيد إلغاء تسجيل الدفعة'}
+            {isSubmitting ? 'جاري الإلغاء...' : financeCopy.cancelTransaction}
           </AppButton>
           <AppButton
             disabled={isSubmitting}

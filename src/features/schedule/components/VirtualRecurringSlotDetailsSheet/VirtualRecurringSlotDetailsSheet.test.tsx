@@ -41,7 +41,7 @@ describe('VirtualRecurringSlotDetailsSheet', () => {
     expect(screen.getByText('+201012345678')).toBeInTheDocument()
     expect(screen.getByText('↻ محجوز أسبوعيًا')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' }))
-      .toBeInTheDocument()
+      .toHaveClass('bg-[var(--sloty-danger)]')
     expect(screen.queryByText('••• خيارات أخرى')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'إلغاء الحجز' }))
       .not.toBeInTheDocument()
@@ -59,9 +59,11 @@ describe('VirtualRecurringSlotDetailsSheet', () => {
     await user.click(screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' }))
     expect(screen.getByRole('heading', { name: 'إيقاف الحجز الأسبوعي؟' }))
       .toBeInTheDocument()
-    await user.click(
-      screen.getAllByRole('button', { name: 'إيقاف الحجز الأسبوعي' }).at(-1)!,
-    )
+    const confirmStop = screen
+      .getAllByRole('button', { name: 'إيقاف الحجز الأسبوعي' })
+      .at(-1)!
+    expect(confirmStop).toHaveClass('bg-[var(--sloty-danger)]')
+    await user.click(confirmStop)
     expect(onEndRecurrence).toHaveBeenCalledWith(120)
   })
 })
