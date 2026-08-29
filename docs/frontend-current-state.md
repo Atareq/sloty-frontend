@@ -113,12 +113,13 @@ See also:
 
 ## UI Rules
 
-- Authenticated pages receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header. Non-Home pages expose a visible `الرئيسية` Home affordance to `/schedule`.
+- Authenticated pages receive the shared `PageHeader` from `AppShell`; feature pages must not render a second page header. The shell header keeps the original `.sloty-green-surface` visual in the transient page-context region. That context fades/blurs on window scroll and then disappears; only Burger and Home remain as a compact sticky navigation layer. Non-Home pages expose a visible `الرئيسية` Home affordance to `/schedule`.
 - Feature-specific page buttons use the shared layout-only `PageActions` component when they need to sit below the shell header.
 - Product-facing dropdowns use shared `AppSelect` instead of native browser select menus.
 - Categorical filters remain `AppSelect`; Boolean operational inclusion conditions use checkboxes, with shared `FilterCheckboxGroup` available for related Boolean state choices.
 - Active filter chips are fully clickable removable buttons, not nested icon-only controls.
 - Schedule uses the shell `PageHeader` as its only page identity header. Its primary local flow is the authorized Court selector when applicable, `اختار اليوم` with `AppDateNavigator`, then `اختار المعاد` and the Court board; summary and closing sections follow the slot-selection workspace.
+- Schedule `حجوزات تحتاج إغلاق` is a local today-only group of HOLD/CONFIRMED bookings that still need payment or a complete/no-show decision. `NO_SHOW` and `COMPLETED` are omitted even with remaining money. `EXPIRED` stays out of this group and may still appear in History `تحتاج إجراء`.
 - An explicit date selection keeps loading local to the slots area and scrolls once to `اختار المعاد` only after that date's slot request settles. Initial load and Court changes do not auto-scroll.
 - Schedule slot cards show only start time, human status, and a small top-right `↻` for existing recurring bookings, FREE slots where `can_start_recurring: true`, or backend `RECURRING_RESERVED`. Customer, phone, notes, price, and payment values remain outside the cards. `RECURRING_RESERVED` uses the ordinary reserved/محجوز presentation and opens `VirtualRecurringSlotDetailsSheet` from the selected slot plus `recurring_context`. Never fetch the anchor Booking as the selected occurrence.
 - Add Booking uses one optional `ثبّت نفس الموعد كل أسبوع` checkbox and one confirmation action. It sends that choice directly as `is_recurring`. When the backend marks a free slot ineligible, the checkbox is disabled and `recurring_blocked_reason` plus `first_recurring_conflict_start` become human Arabic context; no frontend conflict calculation or alternate start is offered. The existing availability request still validates before creation.

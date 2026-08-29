@@ -5,6 +5,18 @@
 Authenticated pages receive exactly one shell `PageHeader` from `AppShell`.
 Feature pages must not render a second page title card.
 
+### Global header scroll
+
+- At the top of the page, full header/page context is visible (title, Sloty branding, club context, subtitle, original green visual).
+- While scrolling down, that page context progressively fades and blurs, then disappears.
+- The large header is not `position: sticky`. It must not remain as a floating rectangle.
+- After collapse, only persistent global navigation remains: Burger (RTL top-right) and Home (top-left) on non-Home pages.
+- On `الرئيسية`, Home is omitted before and after collapse; only Burger remains.
+- Persistent controls do not fade, blur, or jump.
+- Scrolling back to the top restores full context.
+- New routes start at `scrollTop = 0`, so the header starts expanded.
+- Use window/document scroll only. AppSheet/modal internal scrolling must not collapse the header.
+
 ## Home
 
 On authenticated non-Home pages, PageHeader shows a visible Home affordance labeled `الرئيسية`.
@@ -99,7 +111,7 @@ CHECKBOX/SELECT:
 - no redundant Apply / `عرض النتائج`
 - same results refresh feedback
 
-Quick-search shortcuts start collapsed (`اختصارات البحث السريع`) and collapse when typing starts.
+Quick-search shortcuts start collapsed (`اختصارات البحث السريع`) and auto-collapse when the live search draft changes to meaningful text. The accordion trigger stays enabled so the user can expand it again while a query is present; further typing auto-collapses it again.
 
 ## Date navigation
 

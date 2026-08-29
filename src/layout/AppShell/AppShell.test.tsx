@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../core/auth/useAuth'
 import { PageActions } from '../../shared/components/PageActions/PageActions'
 import { AppSheet } from '../../shared/components/AppSheet/AppSheet'
+import { HEADER_COLLAPSE_END_PX } from '../../shared/hooks/usePageHeaderScroll'
 import { AppShell } from './AppShell'
 
 vi.mock('../../core/auth/useAuth', () => ({
@@ -147,7 +148,23 @@ describe('AppShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.localStorage.clear()
-    window.scrollTo = vi.fn()
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      value: 0,
+    })
+    window.scrollTo = vi.fn(
+      (xOrOptions?: number | ScrollToOptions, y?: number) => {
+        const nextY =
+          typeof xOrOptions === 'object' && xOrOptions !== null
+            ? Number(xOrOptions.top ?? 0)
+            : Number(y ?? 0)
+
+        Object.defineProperty(window, 'scrollY', {
+          configurable: true,
+          value: Number.isFinite(nextY) ? nextY : 0,
+        })
+      },
+    ) as typeof window.scrollTo
     mockedUseAuth.mockReturnValue(getAuthValue())
   })
 
@@ -182,7 +199,15 @@ describe('AppShell', () => {
     const homeButton = within(header).getByRole('button', { name: 'الرئيسية' })
 
     expect(header).toHaveAttribute('dir', 'rtl')
-    expect(header).toHaveClass('sticky', 'top-0')
+    expect(header).toHaveAttribute('data-header-scroll-state', 'expanded')
+    expect(header).not.toHaveClass('sticky')
+    expect(header.querySelector('[data-page-header-context]')).toHaveClass(
+      'sloty-green-surface',
+    )
+    expect(header.querySelector('.sloty-page-header-controls')).toHaveClass(
+      'sticky',
+      'top-0',
+    )
     expect(startActions?.parentElement?.firstElementChild).toBe(startActions)
     expect(startActions?.parentElement?.lastElementChild).toBe(endActions)
     expect(startActions).toContainElement(menuButton)
@@ -808,5 +833,175 @@ describe('AppShell', () => {
     act(() => vi.advanceTimersByTime(3000))
     expect(screen.queryByText('تم الحفظ بنجاح')).not.toBeInTheDocument()
     vi.useRealTimers()
+  })
+
+  it('collapses page context from window scroll and restores it at the top', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+
+    renderAppShell('/bookings')
+
+    const header = screen.getByRole('banner')
+    expect(header).toHaveAttribute('data-header-scroll-state', 'expanded')
+    expect(screen.getByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'فتح القائمة' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'الرئيسية' })).toBeVisible()
+
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      value: HEADER_COLLAPSE_END_PX,
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(header).toHaveAttribute('data-header-scroll-state', 'collapsed')
+    expect(screen.queryByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'فتح القائمة' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'الرئيسية' })).toBeVisible()
+
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      value: 0,
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(header).toHaveAttribute('data-header-scroll-state', 'expanded')
+    expect(screen.getByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps Home hidden on الرئيسية after the header context collapses', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+
+    renderAppShell('/schedule')
+
+    expect(screen.getByRole('heading', { level: 1, name: 'الرئيسية' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'الرئيسية' }))
+      .not.toBeInTheDocument()
+
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      value: HEADER_COLLAPSE_END_PX,
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(screen.getByRole('banner')).toHaveAttribute(
+      'data-header-scroll-state',
+      'collapsed',
+    )
+    expect(screen.getByRole('button', { name: 'فتح القائمة' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'الرئيسية' }))
+      .not.toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
+  it('restores expanded header context after route navigation to the top', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+
+    renderAppShell('/bookings')
+
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      value: HEADER_COLLAPSE_END_PX,
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+    expect(screen.getByRole('banner')).toHaveAttribute(
+      'data-header-scroll-state',
+      'collapsed',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'الرئيسية' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'الرئيسية' }))
+      .toBeInTheDocument()
+    expect(screen.getByRole('banner')).toHaveAttribute(
+      'data-header-scroll-state',
+      'expanded',
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it('does not collapse the global header when an AppSheet panel scrolls', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+
+    renderAppShell('/bookings')
+    await user.click(screen.getByRole('button', { name: 'افتح مهمة' }))
+
+    const sheet = screen.getByRole('dialog', { name: 'مهمة حجز' })
+    Object.defineProperty(sheet, 'scrollTop', {
+      configurable: true,
+      value: 240,
+    })
+    await act(async () => {
+      sheet.dispatchEvent(new Event('scroll', { bubbles: true }))
+    })
+
+    expect(screen.getByRole('banner')).toHaveAttribute(
+      'data-header-scroll-state',
+      'expanded',
+    )
+    expect(screen.getByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps desktop sidebar navigation after page context collapses', async () => {
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+
+    renderAppShell('/bookings')
+
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      value: HEADER_COLLAPSE_END_PX,
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    expect(screen.getByRole('banner')).toHaveAttribute(
+      'data-header-scroll-state',
+      'collapsed',
+    )
+    expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'الرئيسية' })).toBeVisible()
+    expect(
+      screen.getByRole('navigation', { name: 'تنقل التطبيق' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'عرض الهاتف' })).toBeInTheDocument()
+    vi.unstubAllGlobals()
   })
 })

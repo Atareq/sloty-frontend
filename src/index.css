@@ -28,6 +28,8 @@
   --sloty-instapay: #4f46e5;
   --sloty-wallet: #7c3aed;
   --sloty-shadow: 0 8px 24px rgb(17 24 39 / 6%);
+  --sloty-header-collapse: 0;
+  --sloty-header-control-offset: 3.75rem;
 
   color: var(--sloty-text-primary);
   background: var(--sloty-bg);
@@ -38,6 +40,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --sloty-header-control-offset: 4rem;
+  }
 }
 
 * {
@@ -89,6 +97,39 @@ select {
     url('/images/sloty-green-surface-bg.png');
   background-position: center;
   background-size: cover;
+}
+
+/**
+ * PageHeader scroll collapse: only the transient page context fades/blurs.
+ * Persistent Burger/Home stay sharp. Progress lives on --sloty-header-collapse.
+ */
+.sloty-page-header-controls {
+  background-color: color-mix(
+    in srgb,
+    var(--sloty-surface) calc(var(--sloty-header-collapse, 0) * 94%),
+    transparent
+  );
+}
+
+.sloty-page-header-context {
+  isolation: isolate;
+  overflow: hidden;
+  opacity: calc(1 - var(--sloty-header-collapse, 0));
+  filter: blur(calc(var(--sloty-header-collapse, 0) * 6px));
+  transform: translate3d(0, calc(var(--sloty-header-collapse, 0) * -10px), 0);
+}
+
+.sloty-page-header-context-under-controls {
+  margin-top: calc(-1 * var(--sloty-header-control-offset));
+}
+
+[data-header-scroll-state='collapsed'] .sloty-page-header-controls {
+  box-shadow: 0 1px 0 var(--sloty-border);
+}
+
+[data-header-scroll-state='collapsed'] .sloty-page-header-context {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .sloty-phone-input {

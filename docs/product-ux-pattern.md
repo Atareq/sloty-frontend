@@ -16,7 +16,8 @@ Practical presentation baseline for the Sloty frontend.
 - Feature pages must not render a second page header.
 - Back and Home remain distinct: Back is contextual; Home goes to `/schedule` (`الرئيسية`).
 - On authenticated non-Home pages, PageHeader shows a visible `الرئيسية` Home affordance on the opposite/top-left edge from the burger. It is hidden on Home itself (`/schedule`).
-- `PageHeader` is sticky (`top-0`) with a compact clear surface, not a giant green hero.
+- `PageHeader` uses the original `.sloty-green-surface` visual (`public/images/sloty-green-surface-bg.png`) for page context at the top of the page. That context is not a second page-level hero and is not a permanently sticky card.
+- GLOBAL HEADER SCROLL RULE: full page context is visible at the top. While scrolling, page context (title, Sloty branding, club/court line, subtitle, and the green visual) progressively fades and blurs, then disappears. After the threshold, only persistent global navigation remains: Burger at RTL top-right, Home at top-left on non-Home pages. Home is absent on `الرئيسية`. The large header height does not remain as empty sticky space. Scrolling back to the top restores full context. AppSheet/modal internal scroll does not drive this.
 - Route changes reset window scroll; query-only live search does not.
 - `NewBookingFAB` (`+ حجز جديد`) appears on mobile for `/dashboard` and `/bookings` only. It is hidden on `/schedule`.
 - Burger identity uses the current user name, club or Staff Court, and role. No `القائمة` title and no letter markers. Active items use soft mint + green + semibold weight.

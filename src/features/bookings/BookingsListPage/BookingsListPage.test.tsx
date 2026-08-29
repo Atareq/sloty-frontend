@@ -288,6 +288,64 @@ describe('BookingsListPage', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('keeps quick-search shortcuts clickable while a live query is present', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListBookings.mockResolvedValue(paginatedResponse([]))
+
+    renderBookingsPage()
+
+    await screen.findByText('مفيش حجوزات لسه.')
+    const toggle = screen.getByRole('button', {
+      name: 'اختصارات البحث السريع',
+    })
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'اسم العميل أو رقم الموبايل',
+    })
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toBeEnabled()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('checkbox', { name: 'الحجوزات القادمة فقط' }),
+    ).toBeInTheDocument()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(toggle)
+    await user.type(searchInput, 'Ahmed')
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toBeEnabled()
+    expect(searchInput).toHaveFocus()
+    expect(searchInput).toHaveValue('Ahmed')
+    expect(
+      screen.queryByRole('checkbox', { name: 'الحجوزات القادمة فقط' }),
+    ).not.toBeInTheDocument()
+
+    await act(async () => {
+      vi.advanceTimersByTime(350)
+    })
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('checkbox', { name: 'الحجوزات القادمة فقط' }),
+    ).toBeInTheDocument()
+    expect(searchInput).toHaveValue('Ahmed')
+
+    await user.type(searchInput, 's')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toBeEnabled()
+    expect(searchInput).toHaveFocus()
+    expect(searchInput).toHaveValue('Ahmeds')
+  })
+
   it('shows date and HOLD chips from URL filters', async () => {
     mockedListBookings.mockResolvedValueOnce(paginatedResponse([]))
 

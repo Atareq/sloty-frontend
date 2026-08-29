@@ -44,4 +44,28 @@ describe('LiveSearchField', () => {
     expect(input).toBeInTheDocument()
     expect(input).toHaveValue('أحمد')
   })
+
+  it('reports the live draft immediately without waiting for debounce', () => {
+    const onSearch = vi.fn()
+    const onDraftChange = vi.fn()
+
+    render(
+      <LiveSearchField
+        label="اسم العميل أو رقم الموبايل"
+        onDraftChange={onDraftChange}
+        onSearch={onSearch}
+        value=""
+      />,
+    )
+
+    const input = screen.getByRole('searchbox', {
+      name: 'اسم العميل أو رقم الموبايل',
+    })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'Ahmed' } })
+
+    expect(onDraftChange).toHaveBeenCalledWith('Ahmed')
+    expect(onSearch).not.toHaveBeenCalled()
+    expect(input).toHaveValue('Ahmed')
+  })
 })

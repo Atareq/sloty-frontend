@@ -113,6 +113,22 @@ describe('SettingsCourtDetailsPage', () => {
     expect(
       screen.getByText('يسترد العميل التأمين عند الإلغاء قبل الموعد بـ'),
     ).toBeInTheDocument()
+    const policyForm = screen.getByText('الحد الأدنى للعربون').closest('form')
+    const refundField = screen.getByText('سياسة استرداد التأمين').closest('label')
+    const refundInput = refundField?.querySelector('input')
+    const helper = screen.getByText(
+      'يسترد العميل التأمين عند الإلغاء قبل الموعد بـ',
+    )
+    expect(policyForm).toHaveClass('md:grid-cols-2', 'items-start')
+    expect(refundField).toContainElement(helper)
+    expect(refundInput).not.toBeNull()
+    expect(
+      Boolean(
+        refundInput &&
+          (refundInput.compareDocumentPosition(helper) &
+            Node.DOCUMENT_POSITION_FOLLOWING),
+      ),
+    ).toBe(true)
     expect(screen.queryByText('سعر الفترة الواحدة')).not.toBeInTheDocument()
     expect(screen.getByText('cannot-edit-hours')).toBeInTheDocument()
   })

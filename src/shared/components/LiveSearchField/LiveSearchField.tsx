@@ -6,6 +6,11 @@ export interface LiveSearchFieldProps {
   debounceMs?: number
   label: string
   onSearch: (value: string) => void
+  /**
+   * Immediate draft updates for sibling UI such as quick-search shortcuts.
+   * Debounced `onSearch` remains the server-query callback.
+   */
+  onDraftChange?: (value: string) => void
   placeholder?: string
   value: string
 }
@@ -19,6 +24,7 @@ export function LiveSearchField({
   debounceMs = 350,
   label,
   onSearch,
+  onDraftChange,
   placeholder,
   value,
 }: LiveSearchFieldProps) {
@@ -49,8 +55,10 @@ export function LiveSearchField({
         id={inputId}
         onBlur={() => setIsFocused(false)}
         onChange={(event) => {
+          const nextDraft = event.target.value
           setIsFocused(true)
-          setDraft(event.target.value)
+          setDraft(nextDraft)
+          onDraftChange?.(nextDraft)
         }}
         onFocus={() => {
           setDraft(value)

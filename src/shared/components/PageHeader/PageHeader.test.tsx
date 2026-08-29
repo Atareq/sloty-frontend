@@ -1,6 +1,7 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { HEADER_COLLAPSE_END_PX } from '../../hooks/usePageHeaderScroll'
 import { PageHeader } from './PageHeader'
 
 function getHeaderActionGroup(
@@ -18,7 +19,45 @@ function getHeaderActionGroup(
   return group
 }
 
+function getHeader(container: HTMLElement): HTMLElement {
+  const header = container.querySelector('header')
+
+  if (!(header instanceof HTMLElement)) {
+    throw new Error('Missing page header')
+  }
+
+  return header
+}
+
+function setWindowScrollY(scrollY: number): void {
+  Object.defineProperty(window, 'scrollY', {
+    configurable: true,
+    value: scrollY,
+  })
+}
+
+async function scrollWindow(scrollY: number): Promise<void> {
+  setWindowScrollY(scrollY)
+  await act(async () => {
+    window.dispatchEvent(new Event('scroll'))
+  })
+}
+
 describe('PageHeader', () => {
+  beforeEach(() => {
+    setWindowScrollY(0)
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => undefined)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    setWindowScrollY(0)
+  })
+
   it('renders Sloty, club name, page title, subtitle, and mobile menu button', async () => {
     const user = userEvent.setup()
     const onMenuClick = vi.fn()
@@ -31,6 +70,10 @@ describe('PageHeader', () => {
         title="الرئيسية"
       />,
     )
+
+    const header = getHeader(container)
+    const context = header.querySelector('[data-page-header-context]')
+    const controls = header.querySelector('.sloty-page-header-controls')
 
     expect(screen.getByText('Sloty')).toBeInTheDocument()
     expect(screen.getByText('النادي الحالي: Demo Football Club'))
@@ -45,8 +88,11 @@ describe('PageHeader', () => {
     const headerRow = startActions.parentElement
 
     expect(menuButton).toBeInTheDocument()
-    expect(container.querySelector('header')?.dir).toBe('rtl')
-    expect(container.querySelector('header')).toHaveClass('sticky', 'top-0')
+    expect(header.dir).toBe('rtl')
+    expect(header).toHaveAttribute('data-header-scroll-state', 'expanded')
+    expect(header).not.toHaveClass('sticky')
+    expect(context).toHaveClass('sloty-green-surface')
+    expect(controls).toHaveClass('sticky', 'top-0')
     expect(startActions).toContainElement(menuButton)
     expect(headerRow?.firstElementChild).toBe(startActions)
     expect(headerRow).toHaveClass(
@@ -136,8 +182,10 @@ describe('PageHeader', () => {
     expect(container.querySelector('header')).toHaveAttribute('dir', 'rtl')
     expect(screen.getByRole('heading', { level: 1, name: 'إعدادات المنصة' }))
       .toBeInTheDocument()
-    expect(getHeaderActionGroup(container, 'start').childElementCount).toBe(0)
-    expect(getHeaderActionGroup(container, 'end').childElementCount).toBe(0)
+    expect(container.querySelector('[data-page-header-actions="start"]'))
+      .not.toBeInTheDocument()
+    expect(container.querySelector('.sloty-page-header-controls'))
+      .not.toBeInTheDocument()
   })
 
   it('renders an accessible Home affordance when the shell requests it', async () => {
@@ -161,5 +209,79 @@ describe('PageHeader', () => {
     )
     await user.click(screen.getByRole('button', { name: 'الرئيسية' }))
     expect(onHomeClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('fades page context on scroll while keeping Burger and Home usable', async () => {
+    const user = userEvent.setup()
+    const onHomeClick = vi.fn()
+    const onMenuClick = vi.fn()
+
+    const { container } = render(
+      <PageHeader
+        clubName="نادي النصر"
+        onHomeClick={onHomeClick}
+        onMenuClick={onMenuClick}
+        showHomeButton
+        subtitle="سجل الحجوزات"
+        title="سجل الحجوزات"
+      />,
+    )
+
+    const header = getHeader(container)
+    const context = header.querySelector('[data-page-header-context]')
+    const menuButton = screen.getByRole('button', { name: 'فتح القائمة' })
+    const homeButton = screen.getByRole('button', { name: 'الرئيسية' })
+
+    expect(header).toHaveAttribute('data-header-scroll-state', 'expanded')
+    expect(screen.getByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .toBeInTheDocument()
+
+    await scrollWindow(40)
+    expect(header).toHaveAttribute('data-header-scroll-state', 'transitioning')
+    expect(screen.getByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .toBeInTheDocument()
+
+    await scrollWindow(HEADER_COLLAPSE_END_PX)
+    expect(header).toHaveAttribute('data-header-scroll-state', 'collapsed')
+    expect(context).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.queryByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .not.toBeInTheDocument()
+    expect(menuButton).toBeVisible()
+    expect(homeButton).toBeVisible()
+
+    await user.click(menuButton)
+    await user.click(homeButton)
+    expect(onMenuClick).toHaveBeenCalledTimes(1)
+    expect(onHomeClick).toHaveBeenCalledTimes(1)
+
+    await scrollWindow(0)
+    expect(header).toHaveAttribute('data-header-scroll-state', 'expanded')
+    expect(screen.getByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
+      .toBeInTheDocument()
+    expect(screen.getByText('النادي الحالي: نادي النصر')).toBeInTheDocument()
+  })
+
+  it('restores expanded context when resetKey changes at the top', async () => {
+    const { container, rerender } = render(
+      <PageHeader resetKey="/bookings" showHomeButton title="سجل الحجوزات" />,
+    )
+
+    await scrollWindow(HEADER_COLLAPSE_END_PX)
+    expect(getHeader(container)).toHaveAttribute(
+      'data-header-scroll-state',
+      'collapsed',
+    )
+
+    setWindowScrollY(0)
+    rerender(
+      <PageHeader resetKey="/schedule" showHomeButton title="الرئيسية" />,
+    )
+
+    expect(getHeader(container)).toHaveAttribute(
+      'data-header-scroll-state',
+      'expanded',
+    )
+    expect(screen.getByRole('heading', { level: 1, name: 'الرئيسية' }))
+      .toBeInTheDocument()
   })
 })

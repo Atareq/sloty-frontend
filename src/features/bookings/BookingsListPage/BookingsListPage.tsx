@@ -436,6 +436,7 @@ export function BookingsListPage() {
     ApiFieldError[]
   > | null>(null)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [searchDraft, setSearchDraft] = useState('')
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [courtRecords, setCourtRecords] = useState<Court[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
@@ -1096,12 +1097,13 @@ export function BookingsListPage() {
     <div className="space-y-5">
       <LiveSearchField
         label={customerCopy.customerOrMobileSearch}
+        onDraftChange={setSearchDraft}
         onSearch={handleSearch}
         placeholder={customerCopy.customerOrMobileSearch}
         value={effectiveParams.search ?? ''}
       />
 
-      <QuickSearchShortcuts collapseWhen={Boolean(effectiveParams.search)}>
+      <QuickSearchShortcuts searchQuery={searchDraft}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <FilterCheckboxGroup
             className="min-w-0 flex-1"

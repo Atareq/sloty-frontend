@@ -317,6 +317,7 @@ export function AppShell() {
             navigate(appRoutes.home)
           }}
           onMenuClick={handleOpenMenu}
+          resetKey={location.pathname}
           showHomeButton={shouldShowHomeButton}
           showMenuButton={isDrawerAllowed}
           subtitle={pageHeaderMeta.subtitle}

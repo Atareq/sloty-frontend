@@ -282,27 +282,33 @@ function getClosingBookingPriority(
   return 3
 }
 
+/**
+ * Local Schedule grouping for `تحتاج إغلاق`.
+ *
+ * Only HOLD/CONFIRMED bookings that still need payment or a complete/no-show
+ * decision belong here. NO_SHOW and COMPLETED are already closed
+ * operationally, even when remaining money exists. CANCELLED and EXPIRED never
+ * belong in this group. EXPIRED may still appear in History `تحتاج إجراء`
+ * through backend `needs_action`; do not reuse this helper for that filter.
+ */
 function shouldIncludeClosingBooking(
   booking: BookingListItem,
   now = new Date(),
 ): boolean {
-  if (booking.status === 'CANCELLED' || booking.status === 'EXPIRED') {
+  if (
+    booking.status === 'CANCELLED' ||
+    booking.status === 'EXPIRED' ||
+    booking.status === 'NO_SHOW' ||
+    booking.status === 'COMPLETED'
+  ) {
     return false
   }
 
-  if (booking.status === 'CONFIRMED') {
+  if (booking.status === 'CONFIRMED' || booking.status === 'HOLD') {
     return isEndedBooking(booking, now) || hasPositiveRemainingAmount(booking)
   }
 
-  if (booking.status === 'HOLD') {
-    return isEndedBooking(booking, now) || hasPositiveRemainingAmount(booking)
-  }
-
-  if (booking.status === 'COMPLETED') {
-    return hasPositiveRemainingAmount(booking)
-  }
-
-  return hasPositiveRemainingAmount(booking)
+  return false
 }
 
 export function getScheduleClosingBookings(

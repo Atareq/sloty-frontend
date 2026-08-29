@@ -184,8 +184,12 @@ export function SettingsCourtDetailsPage() {
                 سياسة استرداد التأمين للعرض فقط في هذا الحساب.
               </p>
             ) : null}
-            <form className="grid gap-3 md:grid-cols-2" onSubmit={handleSavePolicy}>
-              <label className="space-y-2 text-sm font-semibold">
+            <form
+              className="grid items-start gap-x-4 gap-y-4 md:grid-cols-2"
+              dir="rtl"
+              onSubmit={handleSavePolicy}
+            >
+              <label className="flex flex-col gap-2 text-sm font-semibold">
                 <span>الحد الأدنى للعربون</span>
                 <input
                   className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
@@ -195,11 +199,8 @@ export function SettingsCourtDetailsPage() {
                   value={minimumDeposit}
                 />
               </label>
-              <label className="space-y-2 text-sm font-semibold">
+              <label className="flex flex-col gap-2 text-sm font-semibold">
                 <span>سياسة استرداد التأمين</span>
-                <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
-                  يسترد العميل التأمين عند الإلغاء قبل الموعد بـ
-                </span>
                 <input
                   className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
                   disabled={!canEditRefundPolicy}
@@ -211,6 +212,9 @@ export function SettingsCourtDetailsPage() {
                   type="number"
                   value={refundNoticeDays}
                 />
+                <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
+                  يسترد العميل التأمين عند الإلغاء قبل الموعد بـ
+                </span>
               </label>
               <p className="text-xs font-bold text-[var(--sloty-text-muted)] md:col-span-2">
                 الأيام بتتحسب قبل موعد الحجز، وسياسة الاسترداد المحفوظة هي اللي بتظهر وقت الإلغاء.

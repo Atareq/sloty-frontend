@@ -77,7 +77,7 @@ describe('scheduleBoard helpers', () => {
     })
   })
 
-  it('includes ended confirmed bookings and bookings with remaining amounts', () => {
+  it('includes ended confirmed bookings and remaining HOLD/CONFIRMED amounts', () => {
     const result = getScheduleClosingBookings(
       [
         closingBooking(1, 'CONFIRMED', '10:00'),
@@ -88,17 +88,20 @@ describe('scheduleBoard helpers', () => {
       now,
     )
 
-    expect(result.totalCount).toBe(3)
-    expect(result.items.map((booking) => booking.id)).toEqual([1, 2, 3])
+    expect(result.totalCount).toBe(2)
+    expect(result.items.map((booking) => booking.id)).toEqual([1, 2])
   })
 
-  it('excludes cancelled, expired, and fully paid completed bookings', () => {
+  it('excludes cancelled, expired, completed, and no-show bookings', () => {
     const result = getScheduleClosingBookings(
       [
         closingBooking(1, 'CANCELLED', '10:00', '100.00'),
         closingBooking(2, 'EXPIRED', '10:00', '100.00'),
         closingBooking(3, 'COMPLETED', '10:00', '0.00'),
         closingBooking(4, 'COMPLETED', '10:00', null),
+        closingBooking(5, 'COMPLETED', '09:00', '20.00'),
+        closingBooking(6, 'NO_SHOW', '10:00'),
+        closingBooking(7, 'NO_SHOW', '09:00', '40.00'),
       ],
       today,
       now,
@@ -108,6 +111,17 @@ describe('scheduleBoard helpers', () => {
       items: [],
       totalCount: 0,
     })
+  })
+
+  it('keeps ended unresolved CONFIRMED bookings in تحتاج إغلاق', () => {
+    const result = getScheduleClosingBookings(
+      [closingBooking(1, 'CONFIRMED', '10:00')],
+      today,
+      now,
+    )
+
+    expect(result.items.map((booking) => booking.id)).toEqual([1])
+    expect(result.totalCount).toBe(1)
   })
 
   it('sorts by closure priority and end time, returning max three items', () => {
@@ -123,7 +137,7 @@ describe('scheduleBoard helpers', () => {
       now,
     )
 
-    expect(result.totalCount).toBe(5)
+    expect(result.totalCount).toBe(4)
     expect(result.items.map((booking) => booking.id)).toEqual([2, 1, 4])
   })
 
