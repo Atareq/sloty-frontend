@@ -1,20 +1,25 @@
-import { Link } from 'react-router'
+import { RepeatOff } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
+import {
+  bookingActionCopy,
+  recurringCopy,
+} from '../../../../shared/copy/appCopy'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type { BookingListItem } from '../../../schedule/scheduleApi.types'
 import {
-  bookingStatusLabels,
-  canBookingAddPayment,
-  canBookingCancel,
-  canBookingComplete,
-  canBookingFreeHold,
-  canBookingNoShow,
+  getBookingActionPresentation,
+  type BookingSecondaryAction,
+} from '../../bookingActionPresentation.helpers'
+import { hasActiveRecurrence } from '../../bookingRecurrence.helpers'
+import {
   formatBookingDateTimeRangeWithWeekday,
+  formatHoldExpiryMessage,
   getBookingCourtLabel,
   getBookingDateFallback,
   getBookingNotes,
   hasRemainingAmount,
-  isBookingReadOnlyStatus,
 } from '../../bookingDisplay.helpers'
 
 export interface BookingActionSheetProps {
@@ -30,24 +35,22 @@ export interface BookingActionSheetProps {
   onNoShow?: (booking: BookingListItem) => void
   onCancel?: (booking: BookingListItem) => void
   onFreeHold?: (booking: BookingListItem) => void
+  onEndRecurrence?: (booking: BookingListItem) => void
+  onEditCustomer?: (booking: BookingListItem) => void
+  onReschedule?: (booking: BookingListItem) => void
 }
 
-function getReadOnlyMessage(booking: BookingListItem): string | null {
-  const messages: Partial<Record<BookingListItem['status'], string>> = {
-    COMPLETED: 'هذا الحجز مكتمل ومغلق للعرض فقط',
-    CANCELLED: 'هذا الحجز ملغي للعرض فقط',
-    NO_SHOW: 'تم تسجيل هذا الحجز كعدم حضور للعرض فقط',
-    EXPIRED: 'انتهت صلاحية هذا الحجز للعرض فقط',
-  }
-
-  return messages[booking.status] ?? null
+function hasMoneyValue(value: string | number | null | undefined): boolean {
+  return value !== null && value !== undefined && value !== ''
 }
+
+const HOLD_COUNTDOWN_INTERVAL_MS = 30_000
 
 /**
- * Reusable booking action/details sheet.
+ * Canonical booking details and action sheet for Schedule and Booking History.
  *
- * API mutations still live in the calling page for now. This component only
- * presents one consistent action entry point for existing bookings.
+ * API mutations stay in the calling page. This component translates the
+ * current booking state into one primary next step and valid secondary actions.
  */
 export function BookingActionSheet({
   booking,
@@ -60,240 +63,390 @@ export function BookingActionSheet({
   onCancel,
   onClose,
   onComplete,
+  onEditCustomer,
+  onEndRecurrence,
   onFreeHold,
   onNoShow,
+  onReschedule,
 }: BookingActionSheetProps) {
-  if (!isOpen) {
-    return null
+  const [isEndRecurrenceConfirming, setIsEndRecurrenceConfirming] = useState(false)
+  const [now, setNow] = useState(() => new Date())
+  const optionsRef = useRef<HTMLDetailsElement>(null)
+  const fallbackDate =
+    dateValue ?? (booking ? getBookingDateFallback(booking) : null)
+  const notes = booking ? getBookingNotes(booking) : null
+  const shouldTickHoldCountdown =
+    isOpen &&
+    booking?.status === 'HOLD' &&
+    Boolean(booking.hold_expires_at)
+  const holdExpiryMessage =
+    booking?.status === 'HOLD'
+      ? formatHoldExpiryMessage(booking.hold_expires_at, now)
+      : null
+  const presentation = booking
+    ? getBookingActionPresentation(booking, {
+        canAddPayment: Boolean(onAddPayment),
+        canCancel: Boolean(onCancel),
+        canComplete: Boolean(onComplete),
+        canEditCustomer: Boolean(onEditCustomer),
+        canFreeHold: Boolean(onFreeHold),
+        canNoShow: Boolean(onNoShow),
+        canEndRecurrence: Boolean(onEndRecurrence),
+        canReschedule: Boolean(onReschedule),
+      })
+    : null
+
+  useEffect(() => {
+    if (!shouldTickHoldCountdown) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNow(new Date())
+    }, 0)
+    const intervalId = window.setInterval(() => {
+      setNow(new Date())
+    }, HOLD_COUNTDOWN_INTERVAL_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      window.clearInterval(intervalId)
+    }
+  }, [booking?.hold_expires_at, booking?.id, shouldTickHoldCountdown])
+
+  function closeDetails(): void {
+    setIsEndRecurrenceConfirming(false)
+    onClose()
   }
 
-  const fallbackDate = dateValue ?? (booking ? getBookingDateFallback(booking) : null)
-  const readOnlyMessage = booking ? getReadOnlyMessage(booking) : null
-  const notes = booking ? getBookingNotes(booking) : null
-  const recurringAgreementId = booking?.recurring_agreement_id
-  const isRecurringBooking =
-    booking?.is_recurring || booking?.source === 'RECURRING'
+  function runPrimaryAction(): void {
+    if (!booking || !presentation?.primaryAction) {
+      return
+    }
+
+    if (presentation.primaryAction.type === 'PAYMENT') {
+      onAddPayment?.(booking)
+      return
+    }
+
+    onComplete?.(booking)
+  }
+
+  function runSecondaryAction(action: BookingSecondaryAction): void {
+    if (!booking) {
+      return
+    }
+
+    if (action === 'EDIT_CUSTOMER') {
+      onEditCustomer?.(booking)
+      return
+    }
+
+    if (action === 'RESCHEDULE') {
+      onReschedule?.(booking)
+      return
+    }
+
+    if (action === 'NO_SHOW') {
+      onNoShow?.(booking)
+      return
+    }
+
+    if (action === 'END_RECURRENCE') {
+      setIsEndRecurrenceConfirming(true)
+      return
+    }
+
+    if (booking.status === 'HOLD') {
+      onFreeHold?.(booking)
+      return
+    }
+
+    onCancel?.(booking)
+  }
 
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-      role="dialog"
-    >
-      <div className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl">
-        <div className="space-y-2">
-          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            تفاصيل الحجز
-          </p>
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            {booking ? `حجز ${bookingStatusLabels[booking.status]}` : 'تفاصيل الحجز'}
-          </h2>
-          {booking ? (
-            <>
-              <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-                {getBookingCourtLabel(booking, courtName)}
-              </p>
-              <p className="text-lg font-black text-[var(--sloty-primary-dark)]">
+    <>
+      <AppSheet
+        ariaLabel="تفاصيل الحجز"
+        isOpen={isOpen}
+        onRequestClose={closeDetails}
+      >
+      <div className="p-5 pt-14">
+        {booking ? (
+          <>
+            <header>
+              <h2 className="text-2xl font-extrabold text-[var(--sloty-text-primary)]">
+                {booking.customer_name || 'عميل غير محدد'}
+              </h2>
+              {booking.customer_phone ? (
+                <p
+                  className="mt-1 w-fit text-base font-medium text-[var(--sloty-text-muted)]"
+                  dir="ltr"
+                >
+                  {booking.customer_phone}
+                </p>
+              ) : null}
+              <p className="mt-3 text-lg font-extrabold text-[var(--sloty-primary-dark)]">
                 {formatBookingDateTimeRangeWithWeekday(
                   booking.start_time,
                   booking.end_time,
                   fallbackDate,
                 )}
               </p>
-            </>
-          ) : null}
-        </div>
+              <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+                {getBookingCourtLabel(booking, courtName)}
+              </p>
+              {booking.is_recurring && !hasActiveRecurrence(booking) ? (
+                <p className="mt-3 inline-flex rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-semibold text-[var(--sloty-primary-dark)]">
+                  {recurringCopy.weeklyBooking}
+                </p>
+              ) : null}
+              {hasActiveRecurrence(booking) ? (
+                <section className="mt-4 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-base font-semibold text-[var(--sloty-primary-dark)]">
+                      {recurringCopy.weeklyBooking}
+                    </p>
+                    {onEndRecurrence ? (
+                      <AppButton
+                        className="shrink-0"
+                        disabled={isSubmitting}
+                        onClick={() => setIsEndRecurrenceConfirming(true)}
+                        type="button"
+                        variant="secondary"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <RepeatOff aria-hidden="true" className="h-4 w-4" />
+                          {bookingActionCopy.endRecurrence}
+                        </span>
+                      </AppButton>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm font-medium leading-6 text-[var(--sloty-text-muted)]">
+                    {recurringCopy.weeklyHelper}
+                  </p>
+                </section>
+              ) : null}
+            </header>
 
-        {booking ? (
-          <dl className="mt-5 grid grid-cols-1 gap-3 text-sm">
-            <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
-              <dt className="font-bold text-[var(--sloty-text-muted)]">
-                اسم العميل
-              </dt>
-              <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                {booking.customer_name || 'غير متوفر'}
-              </dd>
-            </div>
-            {booking.customer_phone ? (
-              <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
-                <dt className="font-bold text-[var(--sloty-text-muted)]">
-                  رقم الهاتف
-                </dt>
-                <dd
-                  className="mt-1 font-black text-[var(--sloty-text-primary)]"
-                  dir="ltr"
-                >
-                  {booking.customer_phone}
-                </dd>
+            <section
+              aria-label="حالة الحجز"
+              className="mt-5 rounded-2xl bg-[var(--sloty-soft-mint)] p-4"
+            >
+              <p className="text-lg font-extrabold text-[var(--sloty-primary-dark)]">
+                {presentation?.stateMessage}
+              </p>
+              {booking.status === 'HOLD' && holdExpiryMessage ? (
+                <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+                  {holdExpiryMessage}
+                </p>
+              ) : null}
+            </section>
+
+            {hasMoneyValue(booking.total_price) ||
+            hasMoneyValue(booking.paid_amount) ||
+            hasMoneyValue(booking.remaining_amount) ? (
+              <dl className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {hasMoneyValue(booking.total_price) ? (
+                  <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
+                    <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                      إجمالي الحجز
+                    </dt>
+                    <dd className="mt-1 font-extrabold text-[var(--sloty-text-primary)]" dir="ltr">
+                      {formatMoneyAmount(booking.total_price)}
+                    </dd>
+                  </div>
+                ) : null}
+                {hasMoneyValue(booking.paid_amount) ? (
+                  <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
+                    <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                      المدفوع
+                    </dt>
+                    <dd className="mt-1 font-extrabold text-[var(--sloty-text-primary)]" dir="ltr">
+                      {formatMoneyAmount(booking.paid_amount)}
+                    </dd>
+                  </div>
+                ) : null}
+                {hasMoneyValue(booking.remaining_amount) ? (
+                  <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
+                    <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                      المتبقي
+                    </dt>
+                    <dd className="mt-1 font-extrabold text-[var(--sloty-text-primary)]" dir="ltr">
+                      {formatMoneyAmount(booking.remaining_amount)}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
+
+            {booking.status === 'COMPLETED' && hasRemainingAmount(booking) ? (
+              <p className="mt-4 rounded-xl bg-amber-100 px-3 py-2 text-sm font-black text-amber-900">
+                {bookingActionCopy.completedWithRemaining}
+              </p>
+            ) : null}
+
+            {notes ? (
+              <div className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+                <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                  {bookingActionCopy.notes}
+                </p>
+                <p className="mt-1 text-sm font-bold text-[var(--sloty-text-primary)]">
+                  {notes}
+                </p>
               </div>
             ) : null}
-            {isRecurringBooking ? (
-              <div className="rounded-2xl bg-[var(--sloty-soft-mint)] p-3">
-                <dt className="font-bold text-[var(--sloty-text-muted)]">
-                  نوع الحجز
-                </dt>
-                <dd className="mt-1 font-black text-[var(--sloty-primary-dark)]">
-                  حجز أسبوعي
-                </dd>
-              </div>
+
+            {error ? (
+              <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+                {error}
+              </p>
             ) : null}
-            <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
-              <dt className="font-bold text-[var(--sloty-text-muted)]">
-                الحالة
-              </dt>
-              <dd className="mt-1 font-black text-[var(--sloty-primary-dark)]">
-                {bookingStatusLabels[booking.status]}
-              </dd>
-            </div>
-            {booking.paid_amount ? (
-              <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
-                <dt className="font-bold text-[var(--sloty-text-muted)]">
-                  المدفوع
-                </dt>
-                <dd className="mt-1 font-black text-[var(--sloty-text-primary)]" dir="ltr">
-                  {formatMoneyAmount(booking.paid_amount)}
-                </dd>
-              </div>
+
+            {presentation?.primaryAction ? (
+              <AppButton
+                className="mt-5"
+                disabled={isSubmitting}
+                fullWidth
+                onClick={runPrimaryAction}
+                type="button"
+                variant="primary"
+              >
+                {presentation.primaryAction.label}
+              </AppButton>
             ) : null}
-            {booking.remaining_amount ? (
-              <div className="rounded-2xl bg-[var(--sloty-bg)] p-3">
-                <dt className="font-bold text-[var(--sloty-text-muted)]">
-                  المتبقي
-                </dt>
-                <dd className="mt-1 font-black text-[var(--sloty-text-primary)]" dir="ltr">
-                  {formatMoneyAmount(booking.remaining_amount)}
-                </dd>
-              </div>
+
+            {presentation?.parallelActions.includes('NO_SHOW') ? (
+              <AppButton
+                className="mt-3"
+                disabled={isSubmitting}
+                fullWidth
+                onClick={() => runSecondaryAction('NO_SHOW')}
+                type="button"
+                variant="secondary"
+              >
+                {bookingActionCopy.noShow}
+              </AppButton>
             ) : null}
-          </dl>
+
+            {presentation &&
+            presentation.secondaryActions.filter(
+              (action) => action !== 'END_RECURRENCE',
+            ).length > 0 ? (
+              <details
+                className="group mt-4 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)]"
+                onToggle={(event) => {
+                  if (
+                    event.currentTarget.open &&
+                    typeof event.currentTarget.scrollIntoView === 'function'
+                  ) {
+                    event.currentTarget.scrollIntoView({ block: 'nearest' })
+                  }
+                }}
+                ref={optionsRef}
+              >
+                <summary className="cursor-pointer list-none px-4 py-3 text-center text-sm font-semibold text-[var(--sloty-text-primary)] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--sloty-primary)]/30">
+                  {bookingActionCopy.otherOptions}
+                </summary>
+                <div className="space-y-2 border-t border-[var(--sloty-border)] p-3">
+                  {presentation.secondaryActions.includes('EDIT_CUSTOMER') ? (
+                    <AppButton
+                      disabled={isSubmitting}
+                      fullWidth
+                      onClick={() => runSecondaryAction('EDIT_CUSTOMER')}
+                      type="button"
+                      variant="secondary"
+                    >
+                      {bookingActionCopy.editCustomer}
+                    </AppButton>
+                  ) : null}
+                  {presentation.secondaryActions.includes('RESCHEDULE') ? (
+                    <AppButton
+                      disabled={isSubmitting}
+                      fullWidth
+                      onClick={() => runSecondaryAction('RESCHEDULE')}
+                      type="button"
+                      variant="secondary"
+                    >
+                      {bookingActionCopy.reschedule}
+                    </AppButton>
+                  ) : null}
+                  {presentation.secondaryActions.includes('NO_SHOW') ? (
+                    <AppButton
+                      disabled={isSubmitting}
+                      fullWidth
+                      onClick={() => runSecondaryAction('NO_SHOW')}
+                      type="button"
+                      variant="secondary"
+                    >
+                      {bookingActionCopy.noShow}
+                    </AppButton>
+                  ) : null}
+                  {presentation.secondaryActions.includes('CANCEL') ? (
+                    <>
+                      <div
+                        aria-hidden="true"
+                        className="border-t border-[var(--sloty-border)]"
+                      />
+                      <AppButton
+                        disabled={isSubmitting}
+                        fullWidth
+                        onClick={() => runSecondaryAction('CANCEL')}
+                        type="button"
+                        variant="danger"
+                      >
+                        {isSubmitting ? 'جاري الإلغاء...' : bookingActionCopy.cancelBooking}
+                      </AppButton>
+                    </>
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
+          </>
         ) : (
-          <p className="mt-5 rounded-2xl bg-[var(--sloty-bg)] p-4 text-sm font-bold text-[var(--sloty-text-muted)]">
+          <p className="rounded-2xl bg-[var(--sloty-bg)] p-4 text-sm font-bold text-[var(--sloty-text-muted)]">
             لا توجد تفاصيل كافية لهذا الحجز
           </p>
         )}
-
-        {booking && booking.status === 'COMPLETED' && hasRemainingAmount(booking) ? (
-          <p className="mt-4 rounded-xl bg-amber-100 px-3 py-2 text-sm font-black text-amber-900">
-            حجز مكتمل به مبلغ متبقي — يحتاج مراجعة مالية
+      </div>
+      </AppSheet>
+      {booking && hasActiveRecurrence(booking) && isEndRecurrenceConfirming ? (
+        <AppSheet
+          ariaLabel={recurringCopy.stopWeeklyConfirmTitle}
+          isOpen
+          onRequestClose={() => setIsEndRecurrenceConfirming(false)}
+        >
+        <div className="p-5 pt-14">
+          <h2 className="text-xl font-bold text-[var(--sloty-text-primary)]">
+            {recurringCopy.stopWeeklyConfirmTitle}
+          </h2>
+          <p className="mt-2 text-sm font-medium leading-6 text-[var(--sloty-text-muted)]">
+            {recurringCopy.stopWeeklyConfirmBody}
           </p>
-        ) : null}
-
-        {notes ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-            {notes}
-          </p>
-        ) : null}
-
-        {readOnlyMessage ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            {readOnlyMessage}
-          </p>
-        ) : null}
-
-        {booking?.status === 'CONFIRMED' ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-            تغيير الموعد سيتم إضافته بعد اعتماد واجهة الخلفية
-          </p>
-        ) : null}
-
-        {recurringAgreementId ? (
-          <Link
-            className="mt-4 block rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-center text-sm font-black text-[var(--sloty-primary-dark)]"
-            to={`/recurring-agreements/${recurringAgreementId}`}
-          >
-            عرض الحجز الأسبوعي
-          </Link>
-        ) : null}
-
-        {isRecurringBooking ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-            إلغاء هذا الحجز الأسبوعي يتم من صفحة الحجز الأسبوعي حتى لا يظهر
-            كإلغاء حجز منفرد.
-          </p>
-        ) : null}
-
-        {error ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {booking && canBookingAddPayment(booking.status) && onAddPayment ? (
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <AppButton
               disabled={isSubmitting}
               fullWidth
-              onClick={() => onAddPayment(booking)}
-              type="button"
-              variant="primary"
-            >
-              إضافة دفعة
-            </AppButton>
-          ) : null}
-          {booking && canBookingFreeHold(booking.status) && onFreeHold ? (
-            <AppButton
-              disabled={isSubmitting}
-              fullWidth
-              onClick={() => onFreeHold(booking)}
-              type="button"
-              variant="danger"
-            >
-              {isSubmitting ? 'جاري التحرير...' : 'تحرير الموعد'}
-            </AppButton>
-          ) : null}
-          {booking && canBookingComplete(booking.status) && onComplete ? (
-            <AppButton
-              disabled={isSubmitting}
-              fullWidth
-              onClick={() => onComplete(booking)}
-              type="button"
-              variant="primary"
-            >
-              إكمال الحجز
-            </AppButton>
-          ) : null}
-          {booking && canBookingNoShow(booking.status) && onNoShow ? (
-            <AppButton
-              disabled={isSubmitting}
-              fullWidth
-              onClick={() => onNoShow(booking)}
+              onClick={() => setIsEndRecurrenceConfirming(false)}
               type="button"
               variant="secondary"
             >
-              تسجيل عدم حضور
+              رجوع
             </AppButton>
-          ) : null}
-          {booking &&
-          !isRecurringBooking &&
-          canBookingCancel(booking.status) &&
-          onCancel ? (
             <AppButton
               disabled={isSubmitting}
               fullWidth
-              onClick={() => onCancel(booking)}
+              onClick={() => onEndRecurrence?.(booking)}
               type="button"
-              variant="danger"
+              variant="secondary"
             >
-              إلغاء الحجز
+              {isSubmitting ? 'جاري الإيقاف...' : bookingActionCopy.endRecurrence}
             </AppButton>
-          ) : null}
-          {booking && isBookingReadOnlyStatus(booking.status) ? (
-            <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)] sm:col-span-2">
-              عرض التفاصيل فقط
-            </p>
-          ) : null}
-          <AppButton
-            className="sm:col-span-2"
-            disabled={isSubmitting}
-            fullWidth
-            onClick={onClose}
-            type="button"
-            variant="secondary"
-          >
-            إغلاق
-          </AppButton>
+          </div>
         </div>
-      </div>
-    </div>
+        </AppSheet>
+      ) : null}
+    </>
   )
 }

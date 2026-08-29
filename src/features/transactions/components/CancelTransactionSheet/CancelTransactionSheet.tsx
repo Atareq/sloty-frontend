@@ -4,6 +4,8 @@ import {
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
+import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 
 export interface CancelTransactionValues {
   reason: string
@@ -26,7 +28,17 @@ export function CancelTransactionSheet({
 }: CancelTransactionSheetProps) {
   const [reason, setReason] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
   const reasonFieldError = getFirstFieldErrorMessage(fieldErrors, 'reason')
+
+  function requestClose(): boolean | void {
+    if (reason.length > 0) {
+      setIsDiscardPromptOpen(true)
+      return false
+    }
+
+    onClose()
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -43,13 +55,10 @@ export function CancelTransactionSheet({
   }
 
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-      role="dialog"
-    >
+    <>
+      <AppSheet ariaLabel="إلغاء تسجيل الدفعة" onRequestClose={requestClose}>
       <form
-        className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl"
+        className="p-5 pt-14"
         onSubmit={handleSubmit}
       >
         <div className="space-y-2">
@@ -58,14 +67,14 @@ export function CancelTransactionSheet({
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             هذا تصحيح لدفعة مسجلة بالخطأ، وليس عملية استرداد للعميل. ستظل
-            الدفعة ظاهرة في السجل بدون احتسابها ضمن إجماليات الخلفية.
+            الدفعة ظاهرة في السجل، لكن مش هتدخل ضمن الإجماليات.
           </p>
         </div>
 
         <label className="mt-5 block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
           <span>سبب الإلغاء</span>
           <textarea
-            className="min-h-24 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+            className="min-h-24 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
             disabled={isSubmitting}
             onChange={(event) => {
               setReason(event.target.value)
@@ -98,7 +107,7 @@ export function CancelTransactionSheet({
           <AppButton
             disabled={isSubmitting}
             fullWidth
-            onClick={onClose}
+            onClick={requestClose}
             type="button"
             variant="secondary"
           >
@@ -106,6 +115,15 @@ export function CancelTransactionSheet({
           </AppButton>
         </div>
       </form>
-    </div>
+      </AppSheet>
+      <UnsavedChangesPrompt
+        isOpen={isDiscardPromptOpen}
+        onContinueEditing={() => setIsDiscardPromptOpen(false)}
+        onDiscard={() => {
+          setIsDiscardPromptOpen(false)
+          onClose()
+        }}
+      />
+    </>
   )
 }

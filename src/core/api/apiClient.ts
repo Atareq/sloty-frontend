@@ -1,5 +1,13 @@
-import { getAccessToken } from '../auth/authStorage'
+import { apiEndpoints } from '../../shared/api/apiEndpoints'
+import { sessionCopy } from '../../shared/copy/appCopy'
 import { API_BASE_URL } from '../../shared/config/api'
+import {
+  getAccessToken,
+  getRefreshToken,
+  markSessionExpiredNotice,
+  setAccessToken,
+} from '../auth/authStorage'
+import { decodeAccessToken, isJwtExpired } from '../auth/tokenUtils'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -7,6 +15,9 @@ export interface ApiRequestOptions {
   method?: HttpMethod
   body?: unknown
   headers?: HeadersInit
+  signal?: AbortSignal
+  skipAuthRefresh?: boolean
+  retried?: boolean
 }
 
 export interface ApiFieldError {
@@ -33,6 +44,8 @@ export interface ApiClientErrorOptions {
 
 export const DEFAULT_API_ERROR_MESSAGE =
   'حدث خطأ غير متوقع. حاول مرة أخرى.'
+
+export const SESSION_EXPIRED_MESSAGE = sessionCopy.expired
 
 const VALIDATION_ERROR_FALLBACK_MESSAGE =
   'يرجى مراجعة البيانات المدخلة.'
@@ -90,7 +103,7 @@ function getFallbackErrorMessage(
   }
 
   if (status === 401 || code === 'UNAUTHORIZED') {
-    return 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.'
+    return SESSION_EXPIRED_MESSAGE
   }
 
   if (status === 403 || code === 'FORBIDDEN') {
@@ -110,6 +123,17 @@ function getFallbackErrorMessage(
   }
 
   return DEFAULT_API_ERROR_MESSAGE
+}
+
+function looksLikeRawTokenMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+
+  return (
+    normalized.includes('invalid token') ||
+    normalized.includes('token is invalid') ||
+    normalized.includes('token not valid') ||
+    normalized.includes('given token not valid')
+  )
 }
 
 function getBackendErrorMessage(
@@ -249,10 +273,14 @@ async function createApiClientError(
    * 3. First localized field error.
    * 4. Frontend fallback.
    */
-  const message =
+  const rawMessage =
     getBackendErrorMessage(payload) ??
     getFirstFieldErrorMessage(fieldErrors) ??
     getFallbackErrorMessage(response.status, code)
+  const message =
+    response.status === 401 && looksLikeRawTokenMessage(rawMessage)
+      ? SESSION_EXPIRED_MESSAGE
+      : rawMessage
 
   return new ApiClientError(message, response.status, {
     code,
@@ -265,17 +293,159 @@ async function createApiClientError(
   })
 }
 
+function isAuthTokenPath(path: string): boolean {
+  return (
+    path === apiEndpoints.auth.token ||
+    path === apiEndpoints.auth.refresh
+  )
+}
+
+type AccessTokenListener = (token: string) => void
+type SessionExpiredListener = () => void
+
+let accessTokenListeners: AccessTokenListener[] = []
+let sessionExpiredListeners: SessionExpiredListener[] = []
+let refreshInFlight: Promise<string | null> | null = null
+
+/**
+ * Lets AuthProvider keep React session state aligned with a silent refresh.
+ */
+export function subscribeAccessToken(
+  listener: AccessTokenListener,
+): () => void {
+  accessTokenListeners = [...accessTokenListeners, listener]
+
+  return () => {
+    accessTokenListeners = accessTokenListeners.filter(
+      (currentListener) => currentListener !== listener,
+    )
+  }
+}
+
+/**
+ * Lets AuthProvider clear the session after a failed refresh.
+ */
+export function subscribeSessionExpired(
+  listener: SessionExpiredListener,
+): () => void {
+  sessionExpiredListeners = [...sessionExpiredListeners, listener]
+
+  return () => {
+    sessionExpiredListeners = sessionExpiredListeners.filter(
+      (currentListener) => currentListener !== listener,
+    )
+  }
+}
+
+function notifyAccessToken(token: string): void {
+  accessTokenListeners.forEach((listener) => listener(token))
+}
+
+function failExpiredSession(): void {
+  markSessionExpiredNotice()
+  sessionExpiredListeners.forEach((listener) => listener())
+}
+
+function shouldAttemptSilentRefresh(
+  path: string,
+  options: ApiRequestOptions,
+  status?: number,
+): boolean {
+  if (options.skipAuthRefresh || options.retried || isAuthTokenPath(path)) {
+    return false
+  }
+
+  if (status !== undefined && status !== 401) {
+    return false
+  }
+
+  return Boolean(getRefreshToken())
+}
+
+async function refreshAccessTokenOnce(): Promise<string | null> {
+  if (refreshInFlight) {
+    return refreshInFlight
+  }
+
+  refreshInFlight = (async () => {
+    const refreshToken = getRefreshToken()
+
+    if (!refreshToken) {
+      return null
+    }
+
+    try {
+      const response = await fetch(getApiUrl(apiEndpoints.auth.refresh), {
+        method: 'POST',
+        headers: {
+          'Accept-Language': 'ar',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh: refreshToken }),
+      })
+
+      if (!response.ok) {
+        return null
+      }
+
+      const payload: unknown = await response.json()
+
+      if (
+        !isRecord(payload) ||
+        typeof payload.access !== 'string' ||
+        !payload.access.trim()
+      ) {
+        return null
+      }
+
+      const accessToken = payload.access.trim()
+      setAccessToken(accessToken)
+      notifyAccessToken(accessToken)
+      return accessToken
+    } catch {
+      return null
+    }
+  })().finally(() => {
+    refreshInFlight = null
+  })
+
+  return refreshInFlight
+}
+
+/**
+ * Test-only reset for in-flight refresh state.
+ */
+export function resetSilentRefreshForTests(): void {
+  refreshInFlight = null
+}
+
 /**
  * Centralized typed fetch helper for Sloty API access.
  *
  * The backend is responsible for localized business and validation messages.
  * Frontend Arabic messages are used only when the backend does not provide one
- * or when the request cannot reach the backend.
+ * or when the request cannot reach the backend. Expired access tokens are
+ * refreshed once, with concurrent 401s sharing a single refresh request.
  */
 export async function apiRequest<TResponse>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<TResponse> {
+  if (shouldAttemptSilentRefresh(path, options)) {
+    const claims = decodeAccessToken(getAccessToken())
+
+    if (isJwtExpired(claims)) {
+      const refreshedToken = await refreshAccessTokenOnce()
+
+      if (!refreshedToken) {
+        failExpiredSession()
+        throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+          code: 'UNAUTHORIZED',
+        })
+      }
+    }
+  }
+
   const token = getAccessToken()
   const headers = new Headers(options.headers)
 
@@ -300,19 +470,51 @@ export async function apiRequest<TResponse>(
     response = await fetch(getApiUrl(path), {
       method: options.method ?? 'GET',
       headers,
+      signal: options.signal,
       body:
         options.body === undefined
           ? undefined
           : JSON.stringify(options.body),
     })
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error
+    }
+
     throw new ApiClientError(NETWORK_ERROR_MESSAGE, 0, {
       code: 'NETWORK_ERROR',
       raw: error,
     })
   }
 
-  if (!response.ok) {
+    if (!response.ok) {
+    if (shouldAttemptSilentRefresh(path, options, response.status)) {
+      const refreshedToken = await refreshAccessTokenOnce()
+
+      if (refreshedToken) {
+        return apiRequest(path, {
+          ...options,
+          retried: true,
+        })
+      }
+
+      failExpiredSession()
+      throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+        code: 'UNAUTHORIZED',
+      })
+    }
+
+    if (
+      response.status === 401 &&
+      !options.skipAuthRefresh &&
+      !isAuthTokenPath(path)
+    ) {
+      failExpiredSession()
+      throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+        code: 'UNAUTHORIZED',
+      })
+    }
+
     throw await createApiClientError(response)
   }
 

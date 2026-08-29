@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CancelTransactionSheet } from './CancelTransactionSheet'
@@ -36,7 +36,9 @@ describe('CancelTransactionSheet', () => {
       />,
     )
 
-    await user.type(screen.getByLabelText('سبب الإلغاء'), '  مبلغ خاطئ  ')
+    fireEvent.change(screen.getByLabelText('سبب الإلغاء'), {
+      target: { value: '  مبلغ خاطئ  ' },
+    })
     await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }))
 
     expect(onSubmit).toHaveBeenCalledWith({ reason: 'مبلغ خاطئ' })
@@ -61,5 +63,34 @@ describe('CancelTransactionSheet', () => {
     )
 
     expect(screen.getByText('اكتب سبب الإلغاء')).toBeInTheDocument()
+  })
+
+  it('uses AppSheet dismissal and protects a typed reason', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    render(
+      <CancelTransactionSheet
+        error={null}
+        isSubmitting={false}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('dialog', { name: 'إلغاء تسجيل الدفعة' }))
+      .toBeInTheDocument()
+    expect(screen.queryByText(/إجماليات الخلفية/)).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('سبب الإلغاء'), {
+      target: { value: 'مبلغ خاطئ' },
+    })
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'إلغاء تسجيل الدفعة' }))
+        .getByRole('button', { name: 'إغلاق' }),
+    )
+
+    expect(screen.getByText('عندك تعديلات لسه متحفظتش.')).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

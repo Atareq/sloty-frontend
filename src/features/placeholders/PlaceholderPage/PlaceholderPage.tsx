@@ -6,8 +6,10 @@ export interface PlaceholderPageProps {
 }
 
 /**
- * Lightweight authenticated placeholder for routes whose real screens are not
- * in scope yet. It avoids mock business data while keeping navigation usable.
+ * Authenticated placeholder for unfinished Platform Admin Settings.
+ *
+ * Keep this until `/admin/settings` has a real screen. Do not reuse it for
+ * obsolete bottom-nav routes such as `/more`.
  */
 export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
   return (

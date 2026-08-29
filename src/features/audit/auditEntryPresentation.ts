@@ -1,11 +1,4 @@
 import { bookingStatusLabels } from '../bookings/bookingDisplay.helpers'
-import { getRecurringWeekdayLabel } from '../recurringAgreements/recurringAgreementsDisplay.helpers'
-import {
-  recurringAgreementStatusLabels,
-  recurringDepositStatusLabels,
-  type RecurringAgreementStatus,
-  type RecurringDepositStatus,
-} from '../recurringAgreements/recurringAgreements.types'
 import { formatTime12Hour } from '../schedule/scheduleBoard.helpers'
 import { settlementStatusLabels } from '../settlements/settlements.types'
 import {
@@ -43,6 +36,33 @@ export interface AuditEntryPresentation {
 
 type AuditValueFormatter = (value: unknown) => string | null
 
+const recurrenceStatusLabels: Record<string, string> = {
+  ACTIVE: 'نشط',
+  RENEWED: 'تم تجديده',
+  ENDED: 'منتهي',
+}
+
+const legacyDepositStatusLabels: Record<string, string> = {
+  HELD: 'محتجز',
+  REFUND_DUE: 'مستحق للاسترداد',
+  REFUNDED: 'تم الاسترداد',
+  FORFEITED: 'تم احتجازه',
+}
+
+const weekdayLabels: Record<number, string> = {
+  0: 'الاثنين',
+  1: 'الثلاثاء',
+  2: 'الأربعاء',
+  3: 'الخميس',
+  4: 'الجمعة',
+  5: 'السبت',
+  6: 'الأحد',
+}
+
+function getRecurringWeekdayLabel(weekday: number): string {
+  return weekdayLabels[weekday] ?? `اليوم #${weekday}`
+}
+
 const sensitiveKeyParts = [
   'password',
   'token',
@@ -63,7 +83,6 @@ const genericMetadataLabels: Record<string, string> = {
   payment_method: 'طريقة الدفع',
   amount: 'المبلغ',
   settlement_id: 'التسوية',
-  recurring_agreement_id: 'الحجز الأسبوعي',
   reason: 'السبب',
 }
 
@@ -85,7 +104,7 @@ const fieldPresenters: Record<
   amount: { label: 'القيمة', format: formatMoney },
   payment_method: { label: 'طريقة الدفع', format: formatPaymentMethod },
   transaction_type: { label: 'نوع المعاملة', format: formatTransactionType },
-  deposit_status: { label: 'حالة التأمين', format: formatRecurringDepositStatus },
+  deposit_status: { label: 'حالة التأمين', format: formatLegacyDepositStatus },
   deposit_amount: { label: 'مبلغ التأمين', format: formatMoney },
   cancellation_reason: { label: 'سبب الإلغاء', format: formatCancellationReason },
 }
@@ -144,13 +163,13 @@ function formatBookingStatus(value: unknown): string | null {
 
 function formatRecurringStatus(value: unknown): string | null {
   return typeof value === 'string'
-    ? recurringAgreementStatusLabels[value as RecurringAgreementStatus] ?? value
+    ? recurrenceStatusLabels[value] ?? value
     : null
 }
 
-function formatRecurringDepositStatus(value: unknown): string | null {
+function formatLegacyDepositStatus(value: unknown): string | null {
   return typeof value === 'string'
-    ? recurringDepositStatusLabels[value as RecurringDepositStatus] ?? value
+    ? legacyDepositStatusLabels[value] ?? value
     : null
 }
 
@@ -440,7 +459,7 @@ function addRecurringDetails(
   addDetail(details, 'تاريخ البداية', formatDate(metadata.start_date))
   addDetail(details, 'الحالة', formatRecurringStatus(metadata.status))
   addDetail(details, 'مبلغ التأمين', formatMoney(metadata.deposit_amount))
-  addDetail(details, 'حالة التأمين', formatRecurringDepositStatus(metadata.deposit_status))
+  addDetail(details, 'حالة التأمين', formatLegacyDepositStatus(metadata.deposit_status))
   addDetail(details, 'سبب الإلغاء', formatCancellationReason(metadata.cancellation_reason))
   addDetail(details, 'تاريخ السريان', formatDate(metadata.effective_date))
   addDetail(details, 'موعد التعثر', formatDateTime(metadata.failed_occurrence_start))

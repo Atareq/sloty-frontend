@@ -55,15 +55,15 @@ describe('SettingsHubPage', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByText('إدارة الملاعب')).toBeInTheDocument()
+    expect(screen.getByText('إعدادات الملاعب')).toBeInTheDocument()
     expect(screen.getByText('المستخدمون والصلاحيات')).toBeInTheDocument()
-    expect(screen.getByText('سجل النشاطات')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'إعدادات الملاعب' }))
+    expect(screen.getByText('سجل النشاط')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'فتح إعدادات الملاعب' }))
       .toHaveAttribute('href', '/settings/courts')
     expect(
       screen.getByRole('link', { name: 'فتح المستخدمين والصلاحيات' }),
     ).toHaveAttribute('href', '/settings/users')
-    expect(screen.getByRole('link', { name: 'عرض سجل النشاطات' }))
+    expect(screen.getByRole('link', { name: 'عرض سجل النشاط' }))
       .toHaveAttribute('href', '/audit-logs')
   })
 
@@ -76,7 +76,7 @@ describe('SettingsHubPage', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('link', { name: 'إعدادات الملاعب' }))
+    expect(screen.getByRole('link', { name: 'فتح إعدادات الملاعب' }))
       .toHaveAttribute('href', '/settings/courts')
     expect(
       screen.queryByRole('link', { name: 'فتح المستخدمين والصلاحيات' }),

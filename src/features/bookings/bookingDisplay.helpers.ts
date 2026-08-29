@@ -2,7 +2,9 @@ import type {
   BackendBookingStatus,
   BookingListItem,
 } from '../schedule/scheduleApi.types'
+import { bookingStatusCopy } from '../../shared/copy/appCopy'
 import { hasPositiveRemainingAmount } from './bookingPayment.helpers'
+import { hasActiveRecurrence } from './bookingRecurrence.helpers'
 
 const arabicDateTimeFormatter = new Intl.DateTimeFormat('ar-EG', {
   day: 'numeric',
@@ -17,13 +19,9 @@ const arabicTimeFormatter = new Intl.DateTimeFormat('ar-EG', {
   timeZone: 'Africa/Cairo',
 })
 
+/** Canonical Booking status labels for History, filters, audit, and closing rows. */
 export const bookingStatusLabels: Record<BackendBookingStatus, string> = {
-  HOLD: 'بانتظار العربون',
-  CONFIRMED: 'مؤكد',
-  COMPLETED: 'مكتمل',
-  CANCELLED: 'ملغي',
-  NO_SHOW: 'لم يحضر',
-  EXPIRED: 'منتهي',
+  ...bookingStatusCopy,
 }
 
 function getOptionalBookingField(
@@ -76,6 +74,32 @@ export function formatBookingDateTimeRangeWithWeekday(
   )} - ${arabicTimeFormatter.format(endDate)}`
 }
 
+/** Backend ISO instant → Egypt-local weekday + date. Never add 7 days locally. */
+export function formatBookingDateWithWeekday(
+  value: string,
+  fallbackDate?: string | null,
+): string {
+  const date = parseBookingDateTime(value, fallbackDate)
+
+  return date ? arabicDateTimeFormatter.format(date) : value
+}
+
+/** Backend ISO instants → Egypt-local 12-hour range. */
+export function formatBookingTimeRange(
+  startTime: string,
+  endTime: string,
+  fallbackDate?: string | null,
+): string {
+  const startDate = parseBookingDateTime(startTime, fallbackDate)
+  const endDate = parseBookingDateTime(endTime, fallbackDate)
+
+  if (!startDate || !endDate) {
+    return `${startTime} - ${endTime}`
+  }
+
+  return `${arabicTimeFormatter.format(startDate)} – ${arabicTimeFormatter.format(endDate)}`
+}
+
 export function getBookingCourtLabel(
   booking: BookingListItem,
   explicitCourtName?: string | null,
@@ -107,6 +131,55 @@ export function hasRemainingAmount(booking: BookingListItem): boolean {
   return hasPositiveRemainingAmount(booking.remaining_amount)
 }
 
+/**
+ * Formats the backend-owned HOLD deadline without making lifecycle decisions.
+ * A missing/invalid value stays silent because Court policy is not a deadline.
+ *
+ * Copy stays a remaining-time countdown. Production expiry still depends on
+ * `python manage.py expire_hold_bookings` being scheduled, so Booking details
+ * must not promise automatic cancellation.
+ */
+export function formatHoldExpiryMessage(
+  holdExpiresAt: string | null | undefined,
+  now = new Date(),
+): string | null {
+  if (!holdExpiresAt) {
+    return null
+  }
+
+  const deadline = new Date(holdExpiresAt)
+
+  if (Number.isNaN(deadline.getTime())) {
+    return null
+  }
+
+  const remainingMinutes = Math.ceil(
+    (deadline.getTime() - now.getTime()) / (60 * 1000),
+  )
+
+  if (remainingMinutes <= 0) {
+    return 'انتهت مهلة دفع العربون'
+  }
+
+  if (remainingMinutes < 60) {
+    return remainingMinutes === 1
+      ? 'متبقي دقيقة'
+      : `متبقي ${remainingMinutes} دقيقة`
+  }
+
+  const remainingHours = Math.ceil(remainingMinutes / 60)
+
+  if (remainingHours === 1) {
+    return 'متبقي ساعة'
+  }
+
+  if (remainingHours === 2) {
+    return 'متبقي ساعتين'
+  }
+
+  return `متبقي ${remainingHours} ساعات`
+}
+
 export function isBookingReadOnlyStatus(status: BackendBookingStatus): boolean {
   return ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'EXPIRED'].includes(status)
 }
@@ -129,4 +202,14 @@ export function canBookingCancel(status: BackendBookingStatus): boolean {
 
 export function canBookingFreeHold(status: BackendBookingStatus): boolean {
   return status === 'HOLD'
+}
+
+export function canBookingEditCustomer(status: BackendBookingStatus): boolean {
+  return status === 'HOLD' || status === 'CONFIRMED'
+}
+
+export function canBookingReschedule(
+  booking: Pick<BookingListItem, 'status' | 'is_recurring' | 'recurrence_status'>,
+): boolean {
+  return canBookingEditCustomer(booking.status) && !hasActiveRecurrence(booking)
 }

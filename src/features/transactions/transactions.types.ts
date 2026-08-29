@@ -14,7 +14,7 @@ export const paymentMethodLabels: Record<PaymentMethod, string> = {
 export type TransactionType = 'PAYMENT' | 'REFUND'
 
 export const transactionTypeLabels: Record<TransactionType, string> = {
-  PAYMENT: 'دفعة',
+  PAYMENT: 'تحصيل',
   REFUND: 'استرداد',
 }
 
@@ -38,9 +38,14 @@ export interface Transaction {
   transaction_type?: TransactionType
   amount: string
   payment_method: PaymentMethod
-  reference?: string | null
+  payment_reference?: string | null
   notes?: string | null
   created?: string
+  booking_start_time?: string | null
+  booking_end_time?: string | null
+  court?: number | null
+  court_name?: string | null
+  created_by_username?: string | null
   modified?: string
   created_by?: number | { id: number; name?: string } | null
   is_settled?: boolean
@@ -54,7 +59,7 @@ export interface TransactionCreatePayload {
   booking?: number
   amount: string
   payment_method: PaymentMethod
-  reference?: string
+  payment_reference?: string
   notes?: string
 }
 

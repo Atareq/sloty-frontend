@@ -11,8 +11,9 @@ import {
   getClubUserDisplayName,
   getCourtDisplayName,
 } from '../../../shared/utils/displayNames'
-import { formatMoneyAmount } from '../../../shared/utils/money'
+import { bookingStatusCopy } from '../../../shared/copy/appCopy'
 import { toQueryObject } from '../../../shared/utils/queryParams'
+import { formatMoneyAmount } from '../../../shared/utils/money'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
@@ -67,16 +68,16 @@ const reportStatusOptions: Array<{
 }> = [
   { value: '', label: 'الحالة الافتراضية' },
   { value: 'HOLD', label: 'بانتظار العربون' },
-  { value: 'CONFIRMED', label: 'مؤكد' },
-  { value: 'COMPLETED', label: 'مكتمل' },
+  { value: 'CONFIRMED', label: bookingStatusCopy.CONFIRMED },
+  { value: 'COMPLETED', label: bookingStatusCopy.COMPLETED },
   { value: 'NO_SHOW', label: 'عدم حضور' },
 ]
 
 const reportStatusLabels: Record<CourtUsageReportStatus, string> = {
-  HOLD: 'بانتظار العربون',
-  CONFIRMED: 'مؤكد',
-  COMPLETED: 'مكتمل',
-  NO_SHOW: 'عدم حضور',
+  HOLD: bookingStatusCopy.HOLD,
+  CONFIRMED: bookingStatusCopy.CONFIRMED,
+  COMPLETED: bookingStatusCopy.COMPLETED,
+  NO_SHOW: bookingStatusCopy.NO_SHOW,
 }
 
 function getPeriodLabel(period: CourtUsageReportPeriod): string {
@@ -497,7 +498,7 @@ export function ReportsPage() {
               <label className="space-y-2 text-sm font-semibold">
                 <span>من تاريخ</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   onChange={(event) =>
                     updateFilter('date_from', event.target.value)
                   }
@@ -508,7 +509,7 @@ export function ReportsPage() {
               <label className="space-y-2 text-sm font-semibold">
                 <span>إلى تاريخ</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   onChange={(event) =>
                     updateFilter('date_to', event.target.value)
                   }
@@ -541,7 +542,7 @@ export function ReportsPage() {
                   <label className="space-y-2 text-sm font-semibold">
                     <span>من الساعة</span>
                     <input
-                      className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                      className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                       onChange={(event) =>
                         updateFilter('hour_from', event.target.value)
                       }
@@ -552,7 +553,7 @@ export function ReportsPage() {
                   <label className="space-y-2 text-sm font-semibold">
                     <span>إلى الساعة</span>
                     <input
-                      className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                      className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                       onChange={(event) =>
                         updateFilter('hour_to', event.target.value)
                       }

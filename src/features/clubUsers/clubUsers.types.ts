@@ -23,6 +23,40 @@ export interface ClubUser {
   can_manage_settlements?: boolean
 }
 
+export interface ClubMembershipUserSummary {
+  id: number
+  username: string
+  email: string
+  first_name: string
+  last_name: string
+  phone_number?: string | null
+  is_active: boolean
+}
+
+/** Resource shape returned by `/memberships/`, separate from `/users/`. */
+export interface ClubMembership {
+  id: number
+  club: number
+  user: number
+  user_summary: ClubMembershipUserSummary
+  role: ClubUserRole
+  court: number | null
+  manager_can_settle_transactions: boolean
+  manager_can_change_pricing: boolean
+  is_active: boolean
+  created_by: number | null
+  created: string
+  modified: string
+}
+
+export type MembershipUiState = 'ACTIVE' | 'DEACTIVATED'
+
+export function getMembershipUiState(
+  membership: Pick<ClubMembership, 'is_active'>,
+): MembershipUiState {
+  return membership.is_active ? 'ACTIVE' : 'DEACTIVATED'
+}
+
 export interface UpdateManagerPermissionsPayload {
   manager_can_settle_transactions?: boolean
   manager_can_change_pricing?: boolean

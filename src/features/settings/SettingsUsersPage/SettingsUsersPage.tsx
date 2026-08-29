@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { Value } from 'react-phone-number-input'
 import { useLocation, useNavigate } from 'react-router'
 import {
@@ -12,7 +12,15 @@ import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { AppSheet } from '../../../shared/components/AppSheet/AppSheet'
+import { UnsavedChangesPrompt } from '../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
+import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { LiveSearchField } from '../../../shared/components/LiveSearchField/LiveSearchField'
+import { PasswordField } from '../../../shared/components/PasswordField/PasswordField'
+import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
+import { settingsCopy } from '../../../shared/copy/appCopy'
+import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import {
   buildPathWithQuery,
@@ -22,6 +30,7 @@ import { toQueryObject } from '../../../shared/utils/queryParams'
 import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
 import {
   createClubMembership,
+  deleteClubMembership,
   listClubUsers,
   updateMembershipActivity,
   updateManagerPermissions,
@@ -68,7 +77,7 @@ const userRoleFilterOptions = [
 const userStatusFilterOptions = [
   { value: '', label: 'الكل' },
   { value: 'true', label: 'نشط' },
-  { value: 'false', label: 'غير نشط' },
+  { value: 'false', label: 'متوقف مؤقتًا' },
 ]
 
 const createMembershipRoleOptions = [
@@ -88,6 +97,7 @@ interface AddUserFormState {
   email: string
   username: string
   password: string
+  confirm_password: string
   existingUserId: string
   court: string
   manager_can_settle_transactions: boolean
@@ -103,6 +113,7 @@ type AddUserFieldName =
   | 'email'
   | 'username'
   | 'password'
+  | 'confirm_password'
   | 'user_id'
   | 'court'
   | 'manager_can_settle_transactions'
@@ -127,6 +138,7 @@ const emptyAddUserForm: AddUserFormState = {
   email: '',
   username: '',
   password: '',
+  confirm_password: '',
   existingUserId: '',
   court: '',
   manager_can_settle_transactions: false,
@@ -273,11 +285,6 @@ function UsersFilterForm({
         >
           إعادة ضبط
         </AppButton>
-        {onClose ? (
-          <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
-            إغلاق
-          </AppButton>
-        ) : null}
       </div>
     </form>
   )
@@ -301,7 +308,7 @@ function ActiveBadge({ isActive }: { isActive: boolean | undefined }) {
           : 'bg-slate-100 text-slate-700',
       ].join(' ')}
     >
-      {isActive ? 'نشط' : 'غير نشط'}
+      {isActive ? 'نشط' : 'متوقف مؤقتًا'}
     </span>
   )
 }
@@ -346,6 +353,10 @@ function validateAddUserForm(values: AddUserFormState): AddUserFieldErrors {
 
     if (!values.password) {
       errors.password = 'كلمة المرور مطلوبة'
+    }
+
+    if (values.password !== values.confirm_password) {
+      errors.confirm_password = settingsCopy.passwordMismatch
     }
 
     if (values.phone_number && !isValidSlotyPhoneNumber(values.phone_number)) {
@@ -423,6 +434,17 @@ function AddUserSheet({
     null,
   )
   const [isSearchingUsers, setIsSearchingUsers] = useState(false)
+  const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
+  const isDirty = values !== emptyAddUserForm || existingUserSearch.length > 0
+
+  function requestClose(): boolean | void {
+    if (isDirty) {
+      setIsDiscardPromptOpen(true)
+      return false
+    }
+
+    onClose()
+  }
 
   function updateValue<Field extends keyof AddUserFormState>(
     field: Field,
@@ -485,13 +507,14 @@ function AddUserSheet({
   }
 
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 sm:items-center sm:justify-center"
-      role="dialog"
-    >
+    <>
+      <AppSheet
+        ariaLabel="إضافة مستخدم"
+        className="md:max-w-2xl"
+        onRequestClose={requestClose}
+      >
       <form
-        className="max-h-[92vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl bg-[var(--sloty-surface)] p-4 shadow-xl"
+        className="space-y-4 p-5 pt-14"
         onSubmit={handleSubmit}
       >
         <div className="space-y-1">
@@ -553,7 +576,7 @@ function AddUserSheet({
               <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
                 <span>البحث عن المستخدم</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
                   disabled={isSubmitting || isSearchingUsers}
                   onChange={(event) => setExistingUserSearch(event.target.value)}
                   placeholder="الاسم أو اسم المستخدم أو الهاتف أو البريد"
@@ -638,7 +661,7 @@ function AddUserSheet({
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>الاسم الأول</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
               disabled={isSubmitting}
               onChange={(event) => updateValue('first_name', event.target.value)}
               value={values.first_name}
@@ -653,7 +676,7 @@ function AddUserSheet({
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>اسم العائلة</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
               disabled={isSubmitting}
               onChange={(event) => updateValue('last_name', event.target.value)}
               value={values.last_name}
@@ -679,7 +702,7 @@ function AddUserSheet({
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>البريد الإلكتروني</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
               disabled={isSubmitting}
               dir="ltr"
               onChange={(event) => updateValue('email', event.target.value)}
@@ -696,7 +719,7 @@ function AddUserSheet({
           <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>اسم المستخدم</span>
             <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 sm:text-sm"
               disabled={isSubmitting}
               dir="ltr"
               onChange={(event) => updateValue('username', event.target.value)}
@@ -709,21 +732,22 @@ function AddUserSheet({
             ) : null}
           </label>
 
-          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>كلمة المرور</span>
-            <input
-              className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-              disabled={isSubmitting}
-              onChange={(event) => updateValue('password', event.target.value)}
-              type="password"
-              value={values.password}
-            />
-            {fieldErrors.password ? (
-              <span className="block text-xs font-bold text-[var(--sloty-danger)]">
-                {fieldErrors.password}
-              </span>
-            ) : null}
-          </label>
+          <PasswordField
+            autoComplete="new-password"
+            disabled={isSubmitting}
+            error={fieldErrors.password}
+            label="كلمة المرور"
+            onChange={(value) => updateValue('password', value)}
+            value={values.password}
+          />
+          <PasswordField
+            autoComplete="new-password"
+            disabled={isSubmitting}
+            error={fieldErrors.confirm_password}
+            label={settingsCopy.confirmPassword}
+            onChange={(value) => updateValue('confirm_password', value)}
+            value={values.confirm_password}
+          />
         </section>
         ) : null}
 
@@ -771,7 +795,7 @@ function AddUserSheet({
           <AppButton
             disabled={isSubmitting}
             fullWidth
-            onClick={onClose}
+            onClick={requestClose}
             type="button"
             variant="secondary"
           >
@@ -779,7 +803,16 @@ function AddUserSheet({
           </AppButton>
         </div>
       </form>
-    </div>
+      </AppSheet>
+      <UnsavedChangesPrompt
+        isOpen={isDiscardPromptOpen}
+        onContinueEditing={() => setIsDiscardPromptOpen(false)}
+        onDiscard={() => {
+          setIsDiscardPromptOpen(false)
+          onClose()
+        }}
+      />
+    </>
   )
 }
 
@@ -787,14 +820,19 @@ function UserCard({
   canEditPermissions,
   courts,
   onEditPermissions,
-  onUpdateMembershipActivity,
+  onDeleteMembership,
+  onRequestMembershipActivityUpdate,
   updatingMembershipId,
   user,
 }: {
   canEditPermissions: boolean
   courts: Court[]
   onEditPermissions: (user: ClubUser) => void
-  onUpdateMembershipActivity: (user: ClubUser, isActive: boolean) => void
+  onDeleteMembership: (user: ClubUser) => void
+  onRequestMembershipActivityUpdate: (
+    user: ClubUser,
+    isActive: boolean,
+  ) => void
   updatingMembershipId: number | null
   user: ClubUser
 }) {
@@ -837,12 +875,6 @@ function UserCard({
             </dd>
           </div>
         ) : null}
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-          <dt className="font-bold text-[var(--sloty-text-muted)]">رقم العضوية</dt>
-          <dd className="font-black text-[var(--sloty-text-primary)]" dir="ltr">
-            #{user.membership_id}
-          </dd>
-        </div>
       </dl>
 
       <UserPermissions user={user} />
@@ -859,24 +891,35 @@ function UserCard({
       ) : null}
 
       {canEditPermissions && canToggleMembership ? (
-        <AppButton
-          disabled={updatingMembershipId === user.membership_id}
-          fullWidth
-          onClick={() =>
-            onUpdateMembershipActivity(
-              user,
-              user.membership_is_active === false,
-            )
-          }
-          type="button"
-          variant={user.membership_is_active === false ? 'primary' : 'secondary'}
-        >
-          {updatingMembershipId === user.membership_id
-            ? 'جاري تحديث العضوية...'
-            : user.membership_is_active === false
-              ? 'تفعيل العضوية'
-              : 'تعطيل العضوية'}
-        </AppButton>
+        <div className="space-y-2">
+          <AppButton
+            disabled={updatingMembershipId === user.membership_id}
+            fullWidth
+            onClick={() =>
+              onRequestMembershipActivityUpdate(
+                user,
+                user.membership_is_active === false,
+              )
+            }
+            type="button"
+            variant={user.membership_is_active === false ? 'primary' : 'secondary'}
+          >
+            {updatingMembershipId === user.membership_id
+              ? 'جاري تحديث العضوية...'
+              : user.membership_is_active === false
+                ? 'تفعيل المستخدم'
+                : 'إيقاف المستخدم'}
+          </AppButton>
+          <AppButton
+            disabled={updatingMembershipId === user.membership_id}
+            fullWidth
+            onClick={() => onDeleteMembership(user)}
+            type="button"
+            variant="danger"
+          >
+            حذف المستخدم من النادي نهائيًا
+          </AppButton>
+        </div>
       ) : null}
     </AppCard>
   )
@@ -892,6 +935,9 @@ export function SettingsUsersPage() {
   const [users, setUsers] = useState<ClubUser[]>([])
   const [courts, setCourts] = useState<Court[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const hasCompletedInitialLoadRef = useRef(false)
+  const { nextGeneration, isCurrent } = useRequestGeneration()
   const [usersReloadKey, setUsersReloadKey] = useState(0)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
   const [isAddUserSheetOpen, setIsAddUserSheetOpen] = useState(false)
@@ -903,6 +949,16 @@ export function SettingsUsersPage() {
   const [isSavingPermissions, setIsSavingPermissions] = useState(false)
   const [updatingMembershipId, setUpdatingMembershipId] = useState<
     number | null
+  >(null)
+  const [membershipPendingDeletion, setMembershipPendingDeletion] =
+    useState<ClubUser | null>(null)
+  const [membershipPendingDeactivation, setMembershipPendingDeactivation] =
+    useState<ClubUser | null>(null)
+  const [membershipDeletionError, setMembershipDeletionError] = useState<
+    string | null
+  >(null)
+  const [membershipActivityError, setMembershipActivityError] = useState<
+    string | null
   >(null)
   const [permissionsError, setPermissionsError] = useState<string | null>(null)
   const [permissionsFieldErrors, setPermissionsFieldErrors] = useState<
@@ -920,6 +976,9 @@ export function SettingsUsersPage() {
     [queryParams],
   )
   const isOwner = selectedMembership?.role === 'OWNER'
+  const isSuccessNotice = Boolean(
+    message && (message.startsWith('✓ ') || message.includes('بنجاح')),
+  )
 
   useEffect(() => {
     let isActive = true
@@ -956,6 +1015,7 @@ export function SettingsUsersPage() {
 
   useEffect(() => {
     let isActive = true
+    const generation = nextGeneration()
 
     async function loadUsers(): Promise<void> {
       if (!selectedClubSlug) {
@@ -963,6 +1023,7 @@ export function SettingsUsersPage() {
         setError(null)
         setMessage('اختر ناديًا أولًا لعرض المستخدمين والصلاحيات')
         setIsLoading(false)
+        setIsRefreshing(false)
         return
       }
 
@@ -971,21 +1032,27 @@ export function SettingsUsersPage() {
         setError('ليس لديك صلاحية إدارة المستخدمين والصلاحيات')
         setMessage(null)
         setIsLoading(false)
+        setIsRefreshing(false)
         return
       }
 
-      setIsLoading(true)
+      if (hasCompletedInitialLoadRef.current) {
+        setIsRefreshing(true)
+      } else {
+        setIsLoading(true)
+      }
       setError(null)
-      setMessage(null)
+      setMessage((current) => current?.startsWith('✓ ') ? current : null)
 
       try {
         const usersResponse = await listClubUsers(selectedClubSlug, queryParams)
 
-        if (isActive) {
+        if (isActive && isCurrent(generation)) {
           setUsers(normalizeClubUsersResponse(usersResponse))
+          hasCompletedInitialLoadRef.current = true
         }
       } catch (error) {
-        if (isActive) {
+        if (isActive && isCurrent(generation)) {
           setUsers([])
           setError(
             getApiErrorMessage(
@@ -995,8 +1062,9 @@ export function SettingsUsersPage() {
           )
         }
       } finally {
-        if (isActive) {
+        if (isActive && isCurrent(generation)) {
           setIsLoading(false)
+          setIsRefreshing(false)
         }
       }
     }
@@ -1006,7 +1074,7 @@ export function SettingsUsersPage() {
     return () => {
       isActive = false
     }
-  }, [isOwner, queryParams, selectedClubSlug, usersReloadKey])
+  }, [isCurrent, isOwner, nextGeneration, queryParams, selectedClubSlug, usersReloadKey])
 
   function applyFilters(nextFilters: UsersFilterState): void {
     navigate(
@@ -1028,12 +1096,7 @@ export function SettingsUsersPage() {
     )
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault()
-    applyFilters(filters)
-  }
-
-  function updateSearch(value: string): void {
+  const updateSearch = useCallback((value: string): void => {
     navigate(
       {
         pathname: location.pathname,
@@ -1046,7 +1109,7 @@ export function SettingsUsersPage() {
       },
       { replace: true },
     )
-  }
+  }, [filters, location.pathname, navigate])
 
   async function handleUpdateManagerPermissions(
     payload: UpdateManagerPermissionsPayload,
@@ -1116,20 +1179,59 @@ export function SettingsUsersPage() {
 
     setUpdatingMembershipId(user.membership_id)
     setError(null)
+    setMembershipActivityError(null)
 
     try {
       await updateMembershipActivity(selectedClubSlug, user.membership_id, {
         is_active: isActive,
       })
+      setMembershipPendingDeactivation(null)
       setUsersReloadKey((current) => current + 1)
-      setMessage(isActive ? 'تم تفعيل العضوية' : 'تم تعطيل العضوية')
+      setMessage(isActive ? '✓ تم تفعيل المستخدم' : '✓ تم إيقاف المستخدم')
 
       if (selectedMembership?.id === user.membership_id) {
         await refreshCurrentUser()
       }
     } catch (error) {
-      setError(
-        getApiErrorMessage(error, 'تعذر تحديث حالة العضوية. حاول مرة أخرى'),
+      const errorMessage = getApiErrorMessage(
+        error,
+        'تعذر تحديث حالة العضوية. حاول مرة أخرى',
+      )
+
+      if (!isActive && membershipPendingDeactivation) {
+        setMembershipActivityError(errorMessage)
+      } else {
+        setError(errorMessage)
+      }
+
+      if (isApiClientError(error) && error.status === 403) {
+        await refreshCurrentUser()
+      }
+    } finally {
+      setUpdatingMembershipId(null)
+    }
+  }
+
+  async function handleDeleteMembership(): Promise<void> {
+    if (!selectedClubSlug || !membershipPendingDeletion) {
+      return
+    }
+
+    const membershipId = membershipPendingDeletion.membership_id
+    setUpdatingMembershipId(membershipId)
+    setMembershipDeletionError(null)
+
+    try {
+      await deleteClubMembership(selectedClubSlug, membershipId)
+      setUsers((currentUsers) =>
+        currentUsers.filter((user) => user.membership_id !== membershipId),
+      )
+      setMembershipPendingDeletion(null)
+      setUsersReloadKey((current) => current + 1)
+      setMessage('✓ تم حذف المستخدم من النادي نهائيًا')
+    } catch (error) {
+      setMembershipDeletionError(
+        getApiErrorMessage(error, 'تعذر حذف المستخدم من النادي. حاول مرة أخرى'),
       )
 
       if (isApiClientError(error) && error.status === 403) {
@@ -1199,28 +1301,30 @@ export function SettingsUsersPage() {
     <div className="space-y-5">
       {selectedClubSlug && isOwner ? (
         <>
-          <form className="flex gap-2" onSubmit={handleSearchSubmit}>
-            <input
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <LiveSearchField
               aria-label="بحث المستخدمين"
-              className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-              onChange={(event) => updateSearch(event.target.value)}
+              label="بحث المستخدمين"
+              onSearch={updateSearch}
               placeholder="بحث بالاسم أو الهاتف أو اسم المستخدم"
               value={filters.search}
             />
-            <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
-              فلترة
-            </AppButton>
-            <AppButton
-              onClick={() => {
-                setAddUserError(null)
-                setAddUserFieldErrors({})
-                setIsAddUserSheetOpen(true)
-              }}
-              type="button"
-            >
-              إضافة مستخدم
-            </AppButton>
-          </form>
+            <div className="flex gap-2">
+              <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
+                فلترة
+              </AppButton>
+              <AppButton
+                onClick={() => {
+                  setAddUserError(null)
+                  setAddUserFieldErrors({})
+                  setIsAddUserSheetOpen(true)
+                }}
+                type="button"
+              >
+                إضافة مستخدم
+              </AppButton>
+            </div>
+          </div>
 
           {filterOptionsError ? (
             <p className="text-xs font-bold text-[var(--sloty-danger)]">
@@ -1265,7 +1369,14 @@ export function SettingsUsersPage() {
         </AppCard>
       ) : null}
 
-      {!isLoading && (error || message) ? (
+      {isSuccessNotice && message ? (
+        <AppSuccessNotice
+          message={message}
+          onDismiss={() => setMessage(null)}
+        />
+      ) : null}
+
+      {!isLoading && (error || (message && !isSuccessNotice)) ? (
         <AppCard>
           <p
             className={[
@@ -1289,23 +1400,37 @@ export function SettingsUsersPage() {
       ) : null}
 
       {!isLoading && !error && users.length > 0 ? (
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {users.map((user) => (
-            <UserCard
-              canEditPermissions={isOwner}
-              courts={courts}
-              key={user.membership_id}
-              onEditPermissions={(user) => {
-                setPermissionsError(null)
-                setPermissionsFieldErrors({})
-                setEditingManager(user)
-              }}
-              onUpdateMembershipActivity={handleUpdateMembershipActivity}
-              updatingMembershipId={updatingMembershipId}
-              user={user}
-            />
-          ))}
-        </section>
+        <ResultRefreshRegion isRefreshing={isRefreshing}>
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {users.map((user) => (
+              <UserCard
+                canEditPermissions={isOwner}
+                courts={courts}
+                key={user.membership_id}
+                onEditPermissions={(user) => {
+                  setPermissionsError(null)
+                  setPermissionsFieldErrors({})
+                  setEditingManager(user)
+                }}
+                onDeleteMembership={(user) => {
+                  setMembershipDeletionError(null)
+                  setMembershipPendingDeletion(user)
+                }}
+                onRequestMembershipActivityUpdate={(user, isActive) => {
+                  if (isActive) {
+                    void handleUpdateMembershipActivity(user, true)
+                    return
+                  }
+
+                  setMembershipActivityError(null)
+                  setMembershipPendingDeactivation(user)
+                }}
+                updatingMembershipId={updatingMembershipId}
+                user={user}
+              />
+            ))}
+          </section>
+        </ResultRefreshRegion>
       ) : null}
 
       {editingManager ? (
@@ -1337,6 +1462,109 @@ export function SettingsUsersPage() {
           }}
           onSubmit={handleCreateMembership}
         />
+      ) : null}
+
+      {membershipPendingDeletion ? (
+        <AppSheet
+          ariaLabel="حذف المستخدم من النادي"
+          onRequestClose={() => {
+            if (updatingMembershipId === null) {
+              setMembershipPendingDeletion(null)
+            }
+          }}
+        >
+          <div className="p-5 pt-14">
+            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
+              حذف المستخدم من النادي نهائيًا؟
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
+              هيتم حذف عضوية {getClubUserDisplayName(membershipPendingDeletion)} من
+              النادي. الحساب الشخصي مش هيتنحذف، بس المستخدم هيخسر صلاحية الدخول للنادي
+              ده.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
+              الحجوزات والمدفوعات والعمليات السابقة هتفضل محفوظة.
+            </p>
+            {membershipDeletionError ? (
+              <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+                {membershipDeletionError}
+              </p>
+            ) : null}
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <AppButton
+                disabled={updatingMembershipId !== null}
+                fullWidth
+                onClick={() => void handleDeleteMembership()}
+                type="button"
+                variant="danger"
+              >
+                {updatingMembershipId !== null ? 'جاري الحذف...' : 'حذف نهائي'}
+              </AppButton>
+              <AppButton
+                disabled={updatingMembershipId !== null}
+                fullWidth
+                onClick={() => setMembershipPendingDeletion(null)}
+                type="button"
+                variant="secondary"
+              >
+                رجوع
+              </AppButton>
+            </div>
+          </div>
+        </AppSheet>
+      ) : null}
+
+      {membershipPendingDeactivation ? (
+        <AppSheet
+          ariaLabel="إيقاف المستخدم"
+          onRequestClose={() => {
+            if (updatingMembershipId === null) {
+              setMembershipPendingDeactivation(null)
+            }
+          }}
+        >
+          <div className="p-5 pt-14">
+            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
+              إيقاف المستخدم؟
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--sloty-text-muted)]">
+              {getClubUserDisplayName(membershipPendingDeactivation)} مش هيقدر
+              يدخل النادي لحد ما يتم تفعيله مرة تانية.
+            </p>
+            {membershipActivityError ? (
+              <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+                {membershipActivityError}
+              </p>
+            ) : null}
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <AppButton
+                disabled={updatingMembershipId !== null}
+                fullWidth
+                onClick={() =>
+                  void handleUpdateMembershipActivity(
+                    membershipPendingDeactivation,
+                    false,
+                  )
+                }
+                type="button"
+                variant="danger"
+              >
+                {updatingMembershipId !== null
+                  ? 'جاري الإيقاف...'
+                  : 'إيقاف المستخدم'}
+              </AppButton>
+              <AppButton
+                disabled={updatingMembershipId !== null}
+                fullWidth
+                onClick={() => setMembershipPendingDeactivation(null)}
+                type="button"
+                variant="secondary"
+              >
+                رجوع
+              </AppButton>
+            </div>
+          </div>
+        </AppSheet>
       ) : null}
     </div>
   )

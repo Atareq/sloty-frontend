@@ -30,7 +30,7 @@ export function ClubSelectionPage() {
 
     if (currentUser.memberships.length === 1) {
       selectClub(currentUser.memberships[0].club.slug)
-      navigate('/dashboard', { replace: true })
+      navigate('/schedule', { replace: true })
     }
   }, [currentUser, navigate, selectClub])
 
@@ -48,7 +48,7 @@ export function ClubSelectionPage() {
 
   function handleSelectClub(membership: CurrentUserMembership): void {
     selectClub(membership.club.slug)
-    navigate('/dashboard', { replace: true })
+    navigate('/schedule', { replace: true })
   }
 
   return (

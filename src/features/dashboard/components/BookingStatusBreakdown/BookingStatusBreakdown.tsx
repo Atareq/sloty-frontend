@@ -1,14 +1,15 @@
 import { SummaryActionCard } from '../SummaryActionCard/SummaryActionCard'
 import type { DashboardSummaryResponse } from '../../dashboard.types'
 import { buildSummaryLink } from '../../summaryLinks'
+import { bookingStatusCopy } from '../../../../shared/copy/appCopy'
 
 const bookingStatuses = [
-  { key: 'hold_bookings', label: 'بانتظار العربون', status: 'HOLD', tone: 'amber' },
-  { key: 'confirmed_bookings', label: 'مؤكد', status: 'CONFIRMED', tone: 'green' },
-  { key: 'completed_bookings', label: 'مكتمل', status: 'COMPLETED', tone: 'blue' },
-  { key: 'cancelled_bookings', label: 'ملغي', status: 'CANCELLED', tone: 'red' },
-  { key: 'no_show_bookings', label: 'لم يحضر', status: 'NO_SHOW', tone: 'red' },
-  { key: 'expired_bookings', label: 'منتهي', status: 'EXPIRED', tone: 'gray' },
+  { key: 'hold_bookings', label: bookingStatusCopy.HOLD, status: 'HOLD', tone: 'amber' },
+  { key: 'confirmed_bookings', label: bookingStatusCopy.CONFIRMED, status: 'CONFIRMED', tone: 'green' },
+  { key: 'completed_bookings', label: bookingStatusCopy.COMPLETED, status: 'COMPLETED', tone: 'blue' },
+  { key: 'cancelled_bookings', label: bookingStatusCopy.CANCELLED, status: 'CANCELLED', tone: 'red' },
+  { key: 'no_show_bookings', label: bookingStatusCopy.NO_SHOW, status: 'NO_SHOW', tone: 'red' },
+  { key: 'expired_bookings', label: bookingStatusCopy.EXPIRED, status: 'EXPIRED', tone: 'gray' },
 ] as const
 
 interface BookingStatusBreakdownProps {

@@ -2,6 +2,7 @@ import type {
   BackendBookingStatus,
   BookingListItem,
 } from '../schedule/scheduleApi.types'
+import { bookingStatusLabels as canonicalBookingStatusLabels } from './bookingDisplay.helpers'
 
 export type BookingStatus = BackendBookingStatus
 
@@ -13,7 +14,9 @@ export interface BookingsQueryParams {
   status?: BookingStatus | ''
   needs_action?: boolean | string | ''
   overdue?: boolean | string | ''
-  remaining_amount_gt?: number | string
+  search?: string
+  upcoming?: boolean | string | ''
+  has_remaining_amount?: boolean | string | ''
   ended?: boolean | string | ''
   hold_expiring?: boolean | string | ''
   page?: number | string
@@ -21,11 +24,5 @@ export interface BookingsQueryParams {
 
 export type Booking = BookingListItem
 
-export const bookingStatusLabels: Record<BookingStatus, string> = {
-  HOLD: 'بانتظار العربون',
-  CONFIRMED: 'مؤكد',
-  COMPLETED: 'مكتمل',
-  CANCELLED: 'ملغي',
-  NO_SHOW: 'لم يحضر',
-  EXPIRED: 'منتهي',
-}
+/** Canonical Booking status labels live in `bookingDisplay.helpers`. */
+export const bookingStatusLabels = canonicalBookingStatusLabels

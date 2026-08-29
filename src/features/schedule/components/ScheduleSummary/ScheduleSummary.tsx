@@ -1,5 +1,6 @@
 import { MoneySummaryCard } from '../MoneySummaryCard/MoneySummaryCard'
 import type { ScheduleSummary as ScheduleSummaryData } from '../../schedule.types'
+import { bookingStatusCopy } from '../../../../shared/copy/appCopy'
 
 export interface ScheduleSummaryProps {
   summary: ScheduleSummaryData
@@ -18,7 +19,7 @@ export function ScheduleSummary({ summary }: ScheduleSummaryProps) {
         value={summary.availableCount}
       />
       <MoneySummaryCard
-        label="مؤكد"
+        label={bookingStatusCopy.CONFIRMED}
         tone="success"
         value={summary.confirmedCount}
       />

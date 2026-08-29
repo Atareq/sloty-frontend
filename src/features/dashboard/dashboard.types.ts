@@ -85,25 +85,3 @@ export interface DashboardSummaryResponse {
 }
 
 export type DashboardResponse = DashboardSummaryResponse
-
-export interface DashboardActivityActor {
-  id: number
-  name: string
-}
-
-export interface DashboardActivityCourt {
-  id: number
-  name: string
-}
-
-export interface DashboardActivity {
-  id: number
-  action: string
-  action_label?: string
-  message: string
-  created?: string
-  actor?: DashboardActivityActor | null
-  court?: DashboardActivityCourt | null
-  entity_type?: string | null
-  entity_id?: number | string | null
-}

@@ -28,6 +28,8 @@
   --sloty-instapay: #4f46e5;
   --sloty-wallet: #7c3aed;
   --sloty-shadow: 0 8px 24px rgb(17 24 39 / 6%);
+  --sloty-header-collapse: 0;
+  --sloty-header-control-offset: 3.75rem;
 
   color: var(--sloty-text-primary);
   background: var(--sloty-bg);
@@ -38,6 +40,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --sloty-header-control-offset: 4rem;
+  }
 }
 
 * {
@@ -91,6 +99,39 @@ select {
   background-size: cover;
 }
 
+/**
+ * PageHeader scroll collapse: only the transient page context fades/blurs.
+ * Persistent Burger/Home stay sharp. Progress lives on --sloty-header-collapse.
+ */
+.sloty-page-header-controls {
+  background-color: color-mix(
+    in srgb,
+    var(--sloty-surface) calc(var(--sloty-header-collapse, 0) * 94%),
+    transparent
+  );
+}
+
+.sloty-page-header-context {
+  isolation: isolate;
+  overflow: hidden;
+  opacity: calc(1 - var(--sloty-header-collapse, 0));
+  filter: blur(calc(var(--sloty-header-collapse, 0) * 6px));
+  transform: translate3d(0, calc(var(--sloty-header-collapse, 0) * -10px), 0);
+}
+
+.sloty-page-header-context-under-controls {
+  margin-top: calc(-1 * var(--sloty-header-control-offset));
+}
+
+[data-header-scroll-state='collapsed'] .sloty-page-header-controls {
+  box-shadow: 0 1px 0 var(--sloty-border);
+}
+
+[data-header-scroll-state='collapsed'] .sloty-page-header-context {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .sloty-phone-input {
   display: flex;
   min-height: 2.75rem;
@@ -139,11 +180,25 @@ select {
   background: transparent;
   color: var(--sloty-text-primary);
   direction: ltr;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 600;
   outline: none;
   padding-inline: 0.75rem;
   text-align: left;
+}
+
+.sloty-mobile-safe-input {
+  font-size: 1rem;
+}
+
+@media (min-width: 640px) {
+  .sloty-phone-input__number {
+    font-size: 0.875rem;
+  }
+
+  .sloty-mobile-safe-input {
+    font-size: 0.875rem;
+  }
 }
 
 .sloty-phone-input__country:has(> button:disabled),

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
+import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 
 export interface NoShowReasonValues {
@@ -11,6 +13,7 @@ export interface NoShowReasonValues {
 export interface NoShowReasonSheetProps {
   isSubmitting: boolean
   error: string | null
+  recurrenceWillEnd?: boolean
   onClose: () => void
   onSubmit: (values: NoShowReasonValues) => Promise<void> | void
 }
@@ -28,13 +31,25 @@ const reasonOptions = [
 export function NoShowReasonSheet({
   isSubmitting,
   error,
+  recurrenceWillEnd = false,
   onClose,
   onSubmit,
 }: NoShowReasonSheetProps) {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
   const requiresNotes = reason === 'أخرى'
+  const isDirty = reason.length > 0 || notes.length > 0
+
+  function requestClose(): boolean | void {
+    if (isDirty) {
+      setIsDiscardPromptOpen(true)
+      return false
+    }
+
+    onClose()
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -55,21 +70,17 @@ export function NoShowReasonSheet({
   }
 
   return (
-    <div
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-end bg-slate-950/45 p-0 md:items-center md:justify-center md:p-6"
-      role="dialog"
-    >
-      <form
-        className="w-full rounded-t-3xl bg-[var(--sloty-surface)] p-5 shadow-2xl md:max-w-md md:rounded-3xl"
-        onSubmit={handleSubmit}
-      >
+    <>
+      <AppSheet ariaLabel="تسجيل عدم حضور" onRequestClose={requestClose}>
+        <form className="p-5 pt-14" onSubmit={handleSubmit}>
         <div className="space-y-1">
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
             تسجيل عدم حضور
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            سيتم تسجيل العميل كعدم حضور لهذا الحجز
+            {recurrenceWillEnd
+              ? 'تسجيل الحجز كعدم حضور هيوقف كمان التكرار الأسبوعي.'
+              : 'سيتم تسجيل العميل كعدم حضور لهذا الحجز'}
           </p>
         </div>
 
@@ -94,7 +105,7 @@ export function NoShowReasonSheet({
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>
             <textarea
-              className="min-h-24 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+              className="min-h-24 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
               disabled={isSubmitting}
               onChange={(event) => {
                 setNotes(event.target.value)
@@ -123,14 +134,23 @@ export function NoShowReasonSheet({
           <AppButton
             disabled={isSubmitting}
             fullWidth
-            onClick={onClose}
+            onClick={requestClose}
             type="button"
             variant="secondary"
           >
             رجوع
           </AppButton>
         </div>
-      </form>
-    </div>
+        </form>
+      </AppSheet>
+      <UnsavedChangesPrompt
+        isOpen={isDiscardPromptOpen}
+        onContinueEditing={() => setIsDiscardPromptOpen(false)}
+        onDiscard={() => {
+          setIsDiscardPromptOpen(false)
+          onClose()
+        }}
+      />
+    </>
   )
 }

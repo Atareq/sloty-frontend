@@ -1,57 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { X } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
   canViewOwnSettlements,
   type AuthRole,
   type CurrentUserMembership,
-  type CurrentUserProfile,
 } from '../../core/auth/auth.types'
 import { useAuth } from '../../core/auth/useAuth'
-import { MobileBottomNav } from '../../shared/components/MobileBottomNav/MobileBottomNav'
+import {
+  useAppOverlayRegistration,
+  useHasActiveAppSheet,
+} from '../../shared/components/AppSheet/appSheetOverlay'
+import { NewBookingFAB } from '../../shared/components/NewBookingFAB/NewBookingFAB'
 import { PageHeader } from '../../shared/components/PageHeader/PageHeader'
+import { AppSuccessNotice } from '../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { roleCopy } from '../../shared/copy/appCopy'
+import { appRoutes } from '../../shared/navigation/appRoutes'
+import { getAuthenticatedUserDisplayName } from '../../shared/utils/displayNames'
 import {
   getNavigationItemsForRole,
   getPageHeaderMeta,
   type NavigationItem,
 } from '../../shared/navigation/navigation.config'
+import { RouteScrollReset } from '../RouteScrollReset'
 import { AppViewModeContext, type ViewMode } from './AppShell.viewMode'
 
 const viewModeStorageKey = 'sloty:view-mode'
 
-interface NavigationGroup {
-  title: string
-  paths: string[]
-}
+function isNavigationItemActive(pathname: string, itemPath: string): boolean {
+  if (pathname === itemPath) {
+    return true
+  }
 
-const mobileMenuGroups: NavigationGroup[] = [
-  {
-    title: 'التشغيل اليومي',
-    paths: ['/dashboard', '/schedule', '/bookings'],
-  },
-  {
-    title: 'الأموال والجرد',
-    paths: ['/transactions', '/settlements'],
-  },
-  {
-    title: 'الإدارة والمتابعة',
-    paths: ['/reports', '/settings'],
-  },
-  {
-    title: 'إدارة المنصة',
-    paths: ['/admin/clubs', '/admin/users'],
-  },
-]
+  if (itemPath === '/schedule') {
+    return false
+  }
 
-function getUserDisplayName(
-  currentUser: CurrentUserProfile | null,
-  claimName: string | undefined,
-): string {
-  const profileName = [currentUser?.first_name, currentUser?.last_name]
-    .filter(Boolean)
-    .join(' ')
-    .trim()
-
-  return profileName || currentUser?.username || claimName || 'مستخدم سلوتي'
+  return pathname.startsWith(`${itemPath}/`)
 }
 
 function canShowNavigationItem(
@@ -106,7 +91,7 @@ function getViewModeToggleLabel(currentViewMode: ViewMode): string {
  * Role-aware application shell for authenticated Sloty pages.
  *
  * AppShell owns the authenticated chrome: one unified header, the mobile
- * drawer/account menu, desktop navigation, and the three-item mobile footer.
+ * drawer/account menu, desktop navigation, and global mobile booking action.
  */
 export function AppShell() {
   const {
@@ -121,45 +106,66 @@ export function AppShell() {
   const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
-  const pageHeaderMeta = getPageHeaderMeta(location.pathname)
+  const hasActiveAppSheet = useHasActiveAppSheet()
+  const pageHeaderMeta = getPageHeaderMeta(
+    location.pathname,
+    role,
+    selectedMembership,
+  )
   const shouldUseDesktopNav = viewMode === 'desktop'
   const shouldShowMobileMenu = !shouldUseDesktopNav
   const desktopItems = useMemo(
     () =>
       role
-        ? getNavigationItemsForRole(role, { primaryOnly: true }).filter((item) =>
+        ? getNavigationItemsForRole(
+            role,
+            { primaryOnly: true },
+            selectedMembership,
+          ).filter((item) =>
             canShowNavigationItem(item, selectedMembership, role),
           )
         : [],
     [role, selectedMembership],
   )
-  const displayName = getUserDisplayName(currentUser, claims?.name)
+  const displayName = getAuthenticatedUserDisplayName(
+    currentUser,
+    claims?.name,
+  )
   const selectedClubName = selectedMembership?.club.name ?? null
+  const selectedCourtName = selectedMembership?.court?.name ?? null
+  const roleLabel = selectedMembership
+    ? roleCopy[selectedMembership.role]
+    : role
+      ? roleCopy[role]
+      : null
+  const identityContext =
+    selectedMembership?.role === 'STAFF' && selectedCourtName
+      ? selectedCourtName
+      : selectedClubName
   const canChangeClub = (currentUser?.memberships.length ?? 0) > 1
   const flashMessage = getFlashMessage(location.state)
   const isDrawerAllowed = shouldShowMobileMenu
-  const menuItems = useMemo(
-    () =>
-      desktopItems.reduce<Record<string, NavigationItem>>(
-        (itemsByPath, item) => {
-          itemsByPath[item.path] = item
-
-          return itemsByPath
-        },
-        {},
-      ),
-    [desktopItems],
+  const isBookingRoute = ['/dashboard', '/bookings'].includes(
+    location.pathname,
   )
-  const mobileItems = role
-    ? getNavigationItemsForRole(role, { mobileOnly: true })
-        .filter((item) => canShowNavigationItem(item, selectedMembership, role))
-        .map((item) => ({
-          key: item.path,
-          label: item.label,
-          marker: item.marker,
-          path: item.path,
-        }))
-    : []
+  const canCreateBooking =
+    role === 'OWNER' || role === 'MANAGER' || role === 'STAFF'
+  const shouldShowBookingFab =
+    isBookingRoute &&
+    canCreateBooking &&
+    !shouldUseDesktopNav &&
+    !isMenuOpen &&
+    !hasActiveAppSheet
+  const isHomeRoute = location.pathname === appRoutes.home
+  const shouldShowHomeButton =
+    !isHomeRoute &&
+    (role === 'OWNER' ||
+      role === 'MANAGER' ||
+      role === 'STAFF' ||
+      role === 'PLATFORM_ADMIN')
+  const requestCloseMenu = useAppOverlayRegistration(isMenuOpen, () => {
+    setIsMenuOpen(false)
+  })
 
   const clearFlashMessage = useCallback((): void => {
     navigate(`${location.pathname}${location.search}${location.hash}`, {
@@ -167,18 +173,6 @@ export function AppShell() {
       state: null,
     })
   }, [location.hash, location.pathname, location.search, navigate])
-
-  useEffect(() => {
-    if (!flashMessage) {
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      clearFlashMessage()
-    }, 3500)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [clearFlashMessage, flashMessage])
 
   function handleOpenMenu(): void {
     if (!isDrawerAllowed) {
@@ -200,15 +194,6 @@ export function AppShell() {
     navigate('/select-club')
   }
 
-  function handleMobileNavigation(nextPath: string): void {
-    navigate(nextPath)
-  }
-
-  function handleMenuNavigation(nextPath: string): void {
-    setIsMenuOpen(false)
-    navigate(nextPath)
-  }
-
   function handleSetViewMode(nextViewMode: ViewMode): void {
     window.localStorage.setItem(viewModeStorageKey, nextViewMode)
     setIsMenuOpen(false)
@@ -226,6 +211,22 @@ export function AppShell() {
     })
   }
 
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return
+    }
+
+    function handleEscape(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        requestCloseMenu()
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [isMenuOpen, requestCloseMenu])
+
   return (
     <div
       aria-label="هيكل تطبيق سلوتي"
@@ -237,18 +238,18 @@ export function AppShell() {
           'fixed bottom-0 right-0 top-0 z-40 w-72 flex-col border-l border-[var(--sloty-border)] bg-[var(--sloty-surface)] px-4 py-5 shadow-[var(--sloty-shadow)]',
           shouldUseDesktopNav ? 'flex' : 'hidden',
         ].join(' ')}
+        hidden={!shouldUseDesktopNav}
       >
         <div className="sloty-green-surface rounded-3xl p-4 text-white">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/16 text-xl font-black">
-            س
-          </div>
-          <p className="mt-3 text-lg font-black">Sloty</p>
-          <p className="mt-1 text-xs leading-5 text-white/78">
-            {displayName}
-          </p>
-          {selectedClubName ? (
-            <p className="mt-3 rounded-2xl bg-white/12 px-3 py-2 text-xs font-bold leading-5 text-white">
-              النادي الحالي: {selectedClubName}
+          <p className="text-base font-bold leading-6">{displayName}</p>
+          {identityContext ? (
+            <p className="mt-1 text-xs font-medium leading-5 text-white/78">
+              {identityContext}
+            </p>
+          ) : null}
+          {roleLabel ? (
+            <p className="mt-1 text-xs font-medium leading-5 text-white/78">
+              {roleLabel}
             </p>
           ) : null}
         </div>
@@ -257,28 +258,27 @@ export function AppShell() {
           aria-label="تنقل التطبيق"
           className="mt-5 flex flex-1 flex-col gap-1"
         >
-          {desktopItems.map((item) => (
-            <NavLink
-              className={({ isActive }) =>
-                [
-                  'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition',
-                  isActive
-                    ? 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]'
-                    : 'text-[var(--sloty-text-muted)] hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)]',
-                ].join(' ')
-              }
-              key={item.path}
-              to={item.path}
-            >
-              <span
-                aria-hidden="true"
-                className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--sloty-bg)] text-xs font-black"
+          {desktopItems.map((item) => {
+            const Icon = item.icon
+
+            return (
+              <NavLink
+                className={({ isActive }) =>
+                  [
+                    'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-[15px] font-semibold transition',
+                    isActive || isNavigationItemActive(location.pathname, item.path)
+                      ? 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]'
+                      : 'text-[var(--sloty-text-muted)] hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)]',
+                  ].join(' ')
+                }
+                key={item.path}
+                to={item.path}
               >
-                {item.marker}
-              </span>
-              {item.label}
-            </NavLink>
-          ))}
+                <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+                {item.label}
+              </NavLink>
+            )
+          })}
         </nav>
 
         {shouldUseDesktopNav ? (
@@ -310,9 +310,15 @@ export function AppShell() {
           'transition-[padding]',
         ].join(' ')}
       >
+        <RouteScrollReset />
         <PageHeader
           clubName={selectedClubName}
+          onHomeClick={() => {
+            navigate(appRoutes.home)
+          }}
           onMenuClick={handleOpenMenu}
+          resetKey={location.pathname}
+          showHomeButton={shouldShowHomeButton}
           showMenuButton={isDrawerAllowed}
           subtitle={pageHeaderMeta.subtitle}
           title={pageHeaderMeta.title}
@@ -320,28 +326,17 @@ export function AppShell() {
 
         <main
           className={[
-            'min-h-svh px-4 pb-24 pt-5 sm:px-6 lg:pl-8 lg:pb-8 lg:pt-8',
+            'min-h-svh px-4 pt-5 sm:px-6 lg:pl-8 lg:pb-8 lg:pt-8',
+            isBookingRoute && canCreateBooking ? 'pb-24' : 'pb-8',
             shouldUseDesktopNav ? 'pr-4 sm:pr-6' : 'lg:pr-8',
           ].join(' ')}
         >
           <div className="mx-auto w-full max-w-7xl">
             {flashMessage ? (
-              <div
-                aria-live="polite"
-                className="mb-4 rounded-2xl border border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)] px-4 py-3 text-sm font-bold text-[var(--sloty-primary-dark)] shadow-[var(--sloty-shadow)]"
-                role="status"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span>{flashMessage}</span>
-                  <button
-                    className="rounded-lg px-2 py-1 text-xs hover:bg-white/70"
-                    onClick={clearFlashMessage}
-                    type="button"
-                  >
-                    إغلاق
-                  </button>
-                </div>
-              </div>
+              <AppSuccessNotice
+                message={flashMessage}
+                onDismiss={clearFlashMessage}
+              />
             ) : null}
             <AppViewModeContext.Provider value={viewMode}>
               <Outlet />
@@ -352,6 +347,7 @@ export function AppShell() {
 
       {isMenuOpen && isDrawerAllowed ? (
         <div
+          aria-label="قائمة التنقل"
           aria-modal="true"
           className="fixed inset-0 z-50 bg-slate-950/45"
           role="dialog"
@@ -359,67 +355,71 @@ export function AppShell() {
           <button
             aria-label="إغلاق القائمة"
             className="absolute inset-0 h-full w-full cursor-default"
-            onClick={() => setIsMenuOpen(false)}
+            onClick={requestCloseMenu}
             type="button"
           />
-          <aside className="absolute bottom-0 right-0 top-0 flex w-full max-w-sm flex-col overflow-y-auto bg-[var(--sloty-surface)] p-4 shadow-2xl">
-            <div className="flex items-center justify-between gap-3 border-b border-[var(--sloty-border)] pb-4">
-              <div>
-                <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-                  القائمة
-                </h2>
-                <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+          <aside className="absolute bottom-0 right-0 top-0 flex w-[min(82vw,320px)] flex-col overflow-y-auto bg-[var(--sloty-surface)] p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--sloty-border)] pb-4">
+              <div className="min-w-0">
+                <p className="text-base font-bold leading-6 text-[var(--sloty-text-primary)]">
                   {displayName}
                 </p>
+                {identityContext ? (
+                  <p className="mt-1 text-xs font-medium leading-5 text-[var(--sloty-text-muted)]">
+                    {identityContext}
+                  </p>
+                ) : null}
+                {roleLabel ? (
+                  <p className="mt-0.5 text-xs font-medium leading-5 text-[var(--sloty-text-muted)]">
+                    {roleLabel}
+                  </p>
+                ) : null}
               </div>
+              <button
+                aria-label="إغلاق القائمة"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--sloty-text-muted)] transition hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)]"
+                onClick={requestCloseMenu}
+                type="button"
+              >
+                <X aria-hidden="true" size={20} />
+              </button>
             </div>
 
-            <div className="flex flex-1 flex-col gap-5 py-5">
-              {mobileMenuGroups.map((group) => {
-                const groupItems = group.paths
-                  .map((path) => menuItems[path])
-                  .filter(Boolean)
-
-                if (groupItems.length === 0) {
-                  return null
-                }
+            <nav
+              aria-label="تنقل التطبيق"
+              className="flex flex-1 flex-col gap-1 py-5"
+            >
+              {desktopItems.map((item) => {
+                const Icon = item.icon
+                const isActive = isNavigationItemActive(
+                  location.pathname,
+                  item.path,
+                )
 
                 return (
-                  <nav
-                    aria-label={group.title}
-                    className="space-y-2"
-                    key={group.title}
+                  <NavLink
+                    aria-current={isActive ? 'page' : undefined}
+                    className={[
+                      'flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-right text-[15px] font-semibold transition',
+                      isActive
+                        ? 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]'
+                        : 'text-[var(--sloty-text-primary)] hover:bg-[var(--sloty-bg)]',
+                    ].join(' ')}
+                    key={item.path}
+                    onClick={() => setIsMenuOpen(false)}
+                    to={item.path}
                   >
-                    <p className="px-1 text-xs font-black text-[var(--sloty-text-muted)]">
-                      {group.title}
-                    </p>
-                    {groupItems.map((item) => (
-                      <button
-                        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
-                        key={item.path}
-                        onClick={() => handleMenuNavigation(item.path)}
-                        type="button"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--sloty-soft-mint)] text-xs font-black text-[var(--sloty-primary-dark)]"
-                        >
-                          {item.marker}
-                        </span>
-                        {item.label}
-                      </button>
-                    ))}
-                  </nav>
+                    <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+                    {item.label}
+                  </NavLink>
                 )
               })}
+            </nav>
 
-              <section className="mt-auto space-y-2 border-t border-[var(--sloty-border)] pt-5">
-                <p className="px-1 text-xs font-black text-[var(--sloty-text-muted)]">
-                  الحساب
-                </p>
+            <section className="mt-auto space-y-2 border-t border-[var(--sloty-border)] pt-5">
                 {canChangeClub ? (
                   <button
-                    className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
+                    className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
                     onClick={handleChangeClub}
                     type="button"
                   >
@@ -427,30 +427,31 @@ export function AppShell() {
                   </button>
                 ) : null}
                 <button
-                  className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
+                  className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
                   onClick={handleToggleViewMode}
                   type="button"
                 >
                   {getViewModeToggleLabel(viewMode)}
                 </button>
                 <button
-                  className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
+                  className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
                   onClick={handleLogout}
                   type="button"
                 >
                   تسجيل الخروج
                 </button>
-              </section>
-            </div>
+            </section>
           </aside>
         </div>
       ) : null}
 
-      {mobileItems.length > 0 && !shouldUseDesktopNav ? (
-        <MobileBottomNav
-          activeKey={location.pathname}
-          items={mobileItems}
-          onChange={handleMobileNavigation}
+      {shouldShowBookingFab ? (
+        <NewBookingFAB
+          onClick={() => {
+            navigate(appRoutes.home, {
+              state: { beginAtDayChoice: true },
+            })
+          }}
         />
       ) : null}
     </div>

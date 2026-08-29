@@ -1,5 +1,5 @@
 # Layout
 
-`src/layout` owns app-level layout surfaces, shells, navigation containers, and route protection wrappers.
+`AppShell` owns authenticated chrome: `PageHeader`, hamburger drawer, desktop sidebar, `RouteScrollReset`, and `NewBookingFAB`.
 
-Do not place page-specific feature logic or backend API calls here. Route guards should stay thin until real authentication and permission contracts exist.
+Route guards live in `src/core/auth`, not here. Do not place feature pages or domain API calls in layout.

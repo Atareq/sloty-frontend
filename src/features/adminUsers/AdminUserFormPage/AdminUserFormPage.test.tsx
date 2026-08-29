@@ -129,7 +129,11 @@ describe('AdminUserFormPage', () => {
       first_name: 'مالك',
       last_name: '',
       role: 'OWNER',
-    })
+      user_summary: {
+        id: 20,
+        username: 'existing-user',
+      },
+    } as never)
   })
 
   it('shows platform admin account fields without club membership fields by default', async () => {
@@ -179,6 +183,7 @@ describe('AdminUserFormPage', () => {
     await testUser.type(screen.getByLabelText('الاسم الأول'), 'سامي')
     await testUser.type(screen.getByLabelText('اسم المستخدم'), 'staff-user')
     await testUser.type(screen.getByLabelText('كلمة المرور'), 'secret123')
+    await testUser.type(screen.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
     await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'موظف')
     await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
@@ -305,6 +310,7 @@ describe('AdminUserFormPage', () => {
     await testUser.type(await screen.findByLabelText('الاسم الأول'), 'منى')
     await testUser.type(screen.getByLabelText('اسم المستخدم'), 'admin')
     await testUser.type(screen.getByLabelText('كلمة المرور'), 'secret123')
+    await testUser.type(screen.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
 
     expect(await screen.findAllByText('اسم المستخدم مستخدم بالفعل'))

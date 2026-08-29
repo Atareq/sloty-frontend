@@ -1,9 +1,27 @@
-import type { AuthRole } from '../../core/auth/auth.types'
+import type { LucideIcon } from 'lucide-react'
+import {
+  BarChart3,
+  Building2,
+  CalendarDays,
+  ClipboardList,
+  LayoutDashboard,
+  Receipt,
+  ScrollText,
+  Settings,
+  Users,
+  Wallet,
+} from 'lucide-react'
+import {
+  canManageSettlements,
+  type AuthRole,
+  type CurrentUserMembership,
+} from '../../core/auth/auth.types'
+import { auditCopy, appNavCopy } from '../copy/appCopy'
 
 export interface NavigationItem {
   path: string
   label: string
-  marker: string
+  icon: LucideIcon
   allowedRoles: AuthRole[]
   showInMobile: boolean
   showInPrimaryNav: boolean
@@ -24,70 +42,63 @@ const allRoles: AuthRole[] = [
 /**
  * Single role-based navigation source for desktop and mobile shells.
  *
- * `showInMobile` keeps the bottom navigation focused on main actions.
+ * `showInMobile` is retained for route metadata compatibility.
  * `showInPrimaryNav` keeps routable detail pages out of drawer/sidebar chrome.
+ * Owner/Manager transaction ledger stays routable but out of primary nav.
  */
 export const navigationItems: NavigationItem[] = [
   {
-    path: '/dashboard',
-    label: 'لوحة التحكم',
-    marker: 'ل',
+    path: '/schedule',
+    label: appNavCopy.home,
+    icon: CalendarDays,
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: true,
     showInPrimaryNav: true,
   },
   {
-    path: '/schedule',
-    label: 'الجدول',
-    marker: 'ج',
+    path: '/dashboard',
+    label: appNavCopy.followUp,
+    icon: LayoutDashboard,
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
-    showInMobile: true,
-    showInPrimaryNav: true,
+    showInMobile: false,
+    showInPrimaryNav: false,
   },
   {
     path: '/bookings',
-    label: 'سجل الحجوزات',
-    marker: 'ح',
+    label: appNavCopy.bookings,
+    icon: ClipboardList,
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: true,
-    showInPrimaryNav: true,
-  },
-  {
-    path: '/recurring-agreements',
-    label: 'الحجوزات الأسبوعية',
-    marker: 'أ',
-    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
-    showInMobile: false,
     showInPrimaryNav: true,
   },
   {
     path: '/transactions',
-    label: 'سجل المعاملات المالية',
-    marker: 'د',
+    label: appNavCopy.transactionsManagement,
+    icon: Receipt,
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
   {
     path: '/settlements',
-    label: 'التسويات المالية والجرد',
-    marker: 'ت',
+    label: appNavCopy.moneyManagement,
+    icon: Wallet,
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
   {
     path: '/reports',
-    label: 'التقارير الاستهلاكية للملاعب',
-    marker: 'ق',
+    label: appNavCopy.reports,
+    icon: BarChart3,
     allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
   {
     path: '/audit-logs',
-    label: 'سجل النشاطات',
-    marker: 'ن',
+    label: appNavCopy.audit,
+    icon: ScrollText,
     allowedRoles: ['OWNER'],
     showInMobile: false,
     showInPrimaryNav: false,
@@ -95,15 +106,15 @@ export const navigationItems: NavigationItem[] = [
   {
     path: '/settings/courts',
     label: 'إعدادات الملاعب',
-    marker: 'ع',
+    icon: Settings,
     allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
     showInPrimaryNav: false,
   },
   {
     path: '/settings',
-    label: 'الإعدادات',
-    marker: 'ض',
+    label: appNavCopy.settings,
+    icon: Settings,
     allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
     showInPrimaryNav: true,
@@ -111,7 +122,7 @@ export const navigationItems: NavigationItem[] = [
   {
     path: '/settings/users',
     label: 'المستخدمون والصلاحيات',
-    marker: 'ص',
+    icon: Users,
     allowedRoles: ['OWNER'],
     showInMobile: false,
     showInPrimaryNav: false,
@@ -119,7 +130,7 @@ export const navigationItems: NavigationItem[] = [
   {
     path: '/admin/clubs',
     label: 'الأندية',
-    marker: 'أ',
+    icon: Building2,
     allowedRoles: ['PLATFORM_ADMIN'],
     showInMobile: false,
     showInPrimaryNav: true,
@@ -127,7 +138,7 @@ export const navigationItems: NavigationItem[] = [
   {
     path: '/admin/users',
     label: 'المستخدمون',
-    marker: 'س',
+    icon: Users,
     allowedRoles: ['PLATFORM_ADMIN'],
     showInMobile: false,
     showInPrimaryNav: true,
@@ -135,7 +146,7 @@ export const navigationItems: NavigationItem[] = [
   {
     path: '/admin/settings',
     label: 'إعدادات المنصة',
-    marker: 'ض',
+    icon: Settings,
     allowedRoles: ['PLATFORM_ADMIN'],
     showInMobile: false,
     showInPrimaryNav: false,
@@ -144,47 +155,44 @@ export const navigationItems: NavigationItem[] = [
 
 export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   '/dashboard': {
-    title: 'لوحة التحكم',
-    subtitle: 'متابعة الحجوزات والتحصيل والمبالغ غير المسواة',
+    title: appNavCopy.followUp,
+    subtitle: 'متابعة شغل النهاردة والحجوزات اللي محتاجة إجراء',
   },
   '/schedule': {
-    title: 'الجدول',
-    subtitle: 'إدارة مواعيد وحجوزات اليوم',
+    title: appNavCopy.home,
+    subtitle: 'اختار اليوم وبعدين اختار المعاد',
   },
   '/bookings': {
-    title: 'سجل الحجوزات',
+    title: appNavCopy.bookings,
     subtitle: 'قائمة مراجعة الحجوزات حسب الفلاتر',
   },
-  '/recurring-agreements': {
-    title: 'الحجوزات الأسبوعية',
-    subtitle: 'متابعة اتفاقات الحجز الأسبوعي والتأمين',
-  },
   '/transactions': {
-    title: 'سجل المعاملات المالية',
-    subtitle: 'سجل المدفوعات المسجلة على حجوزات النادي النشط',
+    title: appNavCopy.transactionsManagement,
+    subtitle: 'ابحث وراجع كل المعاملات المالية المسجلة في النادي.',
   },
   '/settlements': {
-    title: 'التسويات المالية والجرد',
-    subtitle: 'مراجعة وتسوية دفعات الموظفين',
+    title: appNavCopy.moneyManagement,
+    subtitle:
+      'تابع المبالغ اللي لسه مع الموظفين، واستلمها وراجع العمليات المالية عند الحاجة.',
   },
   '/settlements/history': {
-    title: 'التسويات المالية والجرد',
-    subtitle: 'متابعة التسويات السابقة وحالات الجرد',
+    title: 'تم استلامها سابقًا',
+    subtitle: 'متابعة المبالغ التي تم استلامها سابقًا',
   },
   '/settlements/preview': {
-    title: 'مراجعة التسوية',
-    subtitle: 'مراجعة الدفعات غير المسواة قبل التأكيد',
+    title: 'استلام المبلغ',
+    subtitle: 'راجع المبلغ قبل تأكيد الاستلام',
   },
   '/reports': {
-    title: 'التقارير الاستهلاكية للملاعب',
+    title: appNavCopy.reports,
     subtitle: 'تحليل إشغال الملاعب والطلب حسب الفترة والموظف',
   },
   '/audit-logs': {
-    title: 'سجل النشاطات',
-    subtitle: 'متابعة التغييرات المهمة داخل النادي',
+    title: appNavCopy.audit,
+    subtitle: auditCopy.helper,
   },
   '/settings': {
-    title: 'الإعدادات',
+    title: appNavCopy.settings,
     subtitle: 'إعدادات النادي والصلاحيات',
   },
   '/settings/users': {
@@ -212,13 +220,31 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
 export function getNavigationItemsForRole(
   role: AuthRole,
   options: { mobileOnly?: boolean; primaryOnly?: boolean } = {},
+  membership: CurrentUserMembership | null = null,
 ): NavigationItem[] {
-  return navigationItems.filter(
-    (item) =>
+  return navigationItems
+    .filter((item) =>
       item.allowedRoles.includes(role) &&
       (!options.mobileOnly || item.showInMobile) &&
-      (!options.primaryOnly || item.showInPrimaryNav),
-  )
+      (!options.primaryOnly || item.showInPrimaryNav) &&
+      // Owner/Manager ledger stays a secondary destination, not a Burger item.
+      (item.path !== '/transactions' || role === 'STAFF'),
+    )
+    .map((item) => {
+      if (item.path === '/transactions' && role === 'STAFF') {
+        return { ...item, label: appNavCopy.transactionsStaff }
+      }
+
+      if (
+        item.path === '/settlements' &&
+        membership &&
+        !canManageSettlements(membership, role)
+      ) {
+        return { ...item, label: appNavCopy.custodyStaff }
+      }
+
+      return item
+    })
 }
 
 export function canRoleAccessPath(role: AuthRole, path: string): boolean {
@@ -231,7 +257,29 @@ export function getAllNavigationRoles(): AuthRole[] {
   return allRoles
 }
 
-export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
+export function getPageHeaderMeta(
+  pathname: string,
+  role: AuthRole | null = null,
+  membership: CurrentUserMembership | null = null,
+): PageHeaderMeta {
+  if (pathname === '/transactions' && role === 'STAFF') {
+    return {
+      title: appNavCopy.transactionsStaff,
+      subtitle: 'راجع التحصيلات والاستردادات اللي سجلتها.',
+    }
+  }
+
+  if (
+    pathname === '/settlements' &&
+    role &&
+    !canManageSettlements(membership, role)
+  ) {
+    return {
+      title: appNavCopy.custodyStaff,
+      subtitle: 'المبلغ اللي لسه معاك دلوقتي.',
+    }
+  }
+
   if (pageHeaderMetaByPath[pathname]) {
     return pageHeaderMetaByPath[pathname]
   }
@@ -241,15 +289,8 @@ export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
     pathname !== '/settlements/preview'
   ) {
     return {
-      title: 'تفاصيل التسوية',
-      subtitle: 'مراجعة تفاصيل التسوية وحالة الدفعات',
-    }
-  }
-
-  if (pathname.startsWith('/recurring-agreements/')) {
-    return {
-      title: 'تفاصيل الحجز الأسبوعي',
-      subtitle: 'مراجعة الاتفاق والتأمين والإلغاء',
+      title: 'تفاصيل الاستلام',
+      subtitle: 'مراجعة المبلغ المستلم والعمليات المرتبطة',
     }
   }
 
@@ -271,13 +312,6 @@ export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
     return {
       title: 'تفاصيل المستخدم',
       subtitle: 'تفاصيل الحساب والعضويات كما يرسلها الخادم',
-    }
-  }
-
-  if (pathname === '/more') {
-    return {
-      title: 'المزيد',
-      subtitle: 'مسار مؤقت للمزيد من إجراءات الموظف والمدير',
     }
   }
 
@@ -317,7 +351,7 @@ export function getPageHeaderMeta(pathname: string): PageHeaderMeta {
   }
 
   return {
-    title: 'لوحة التحكم',
+    title: appNavCopy.home,
     subtitle: 'ملخص اليوم ومؤشرات التشغيل',
   }
 }

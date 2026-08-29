@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
@@ -15,13 +15,20 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
+import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { financeCopy, navigationCopy } from '../../../shared/copy/appCopy'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
+import {
+  formatBookingDateWithWeekday,
+  formatBookingTimeRange,
+} from '../../bookings/bookingDisplay.helpers'
 import {
   formatArabicDateTime,
   formatDateInputValue,
   getLastSevenDaysRange,
 } from '../../../shared/utils/date'
+import { formatMoneyAmount } from '../../../shared/utils/money'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
@@ -30,6 +37,7 @@ import type { Court } from '../../courts/courts.types'
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import { cancelTransaction, listTransactions } from '../transactionsApi'
+import { getSinglePairValue } from '../transactionFilters.helpers'
 import type {
   PaymentMethod,
   Transaction,
@@ -156,12 +164,12 @@ function paramsFromFilterState(filters: FilterState): TransactionQueryParams {
     ...(filters.created_by ? { created_by: filters.created_by } : {}),
     ...(filters.date_from ? { date_from: filters.date_from } : {}),
     ...(filters.date_to ? { date_to: filters.date_to } : {}),
-    ...(filters.is_cancelled.length === 1
-      ? { is_cancelled: filters.is_cancelled[0] }
+    ...(getSinglePairValue(filters.is_cancelled) !== undefined
+      ? { is_cancelled: getSinglePairValue(filters.is_cancelled) }
       : {}),
     ...(filters.payment_method ? { payment_method: filters.payment_method } : {}),
-    ...(filters.settlement_status.length === 1
-      ? { settlement_status: filters.settlement_status[0] }
+    ...(getSinglePairValue(filters.settlement_status) !== undefined
+      ? { settlement_status: getSinglePairValue(filters.settlement_status) }
       : {}),
   }
 }
@@ -191,11 +199,11 @@ function getChipLabel(
   }
 
   if (key === 'court') {
-    return labels.courtLabels[String(value)] ?? `ملعب #${value}`
+    return labels.courtLabels[String(value)] ?? 'ملعب محدد'
   }
 
   if (key === 'created_by') {
-    return labels.collectorLabels[String(value)] ?? `الموظف المحصل #${value}`
+    return labels.collectorLabels[String(value)] ?? 'موظف محدد'
   }
 
   if (key === 'payment_method') {
@@ -203,7 +211,7 @@ function getChipLabel(
   }
 
   if (key === 'settlement_status') {
-    return value === 'unsettled' ? 'غير مسواة' : 'مسواة'
+    return value === 'unsettled' ? 'لم يتم استلامها' : 'تم استلامها'
   }
 
   if (key === 'is_cancelled') {
@@ -248,7 +256,7 @@ function getClubUserName(user: ClubUser): string {
     .filter(Boolean)
     .join(' ')
 
-  return fullName || user.username || `#${user.id}`
+  return fullName || user.username || 'مستخدم النادي'
 }
 
 function getActorId(
@@ -268,10 +276,11 @@ function getActorName(
     return null
   }
 
-  return value.name ?? `#${value.id}`
+  return value.name ?? null
 }
 
 interface TransactionsFilterFormProps {
+  canChooseCollector: boolean
   canChooseCourt: boolean
   collectorOptions: FilterOption[]
   courtOptions: FilterOption[]
@@ -283,6 +292,7 @@ interface TransactionsFilterFormProps {
 }
 
 function TransactionsFilterForm({
+  canChooseCollector,
   canChooseCourt,
   collectorOptions,
   courtOptions,
@@ -332,7 +342,7 @@ function TransactionsFilterForm({
     { value: '', label: 'كل الملاعب' },
     ...(filters.court
     && !courtOptions.some((option) => option.value === filters.court)
-      ? [{ value: filters.court, label: `ملعب #${filters.court}` }]
+      ? [{ value: filters.court, label: 'ملعب محدد' }]
       : []),
     ...courtOptions,
   ]
@@ -344,7 +354,7 @@ function TransactionsFilterForm({
       ? [
         {
           value: filters.created_by,
-          label: `الموظف المحصل #${filters.created_by}`,
+          label: 'موظف محدد',
         },
       ]
       : []),
@@ -359,7 +369,7 @@ function TransactionsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>من تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_from', event.target.value)}
           type="date"
           value={filters.date_from}
@@ -369,7 +379,7 @@ function TransactionsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>إلى تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_to', event.target.value)}
           type="date"
           value={filters.date_to}
@@ -378,7 +388,7 @@ function TransactionsFilterForm({
 
       <FilterCheckboxGroup
         className="md:col-span-2 xl:col-span-1"
-        label="حالة التسوية"
+        label="حالة الاستلام"
         onChange={(key, checked) =>
           updateFilter(
             'settlement_status',
@@ -392,12 +402,12 @@ function TransactionsFilterForm({
         options={[
           {
             key: 'unsettled',
-            label: 'غير مسواة',
+            label: 'لم يتم استلامها',
             checked: filters.settlement_status.includes('unsettled'),
           },
           {
             key: 'settled',
-            label: 'مسواة',
+            label: 'تم استلامها',
             checked: filters.settlement_status.includes('settled'),
           },
         ]}
@@ -455,12 +465,14 @@ function TransactionsFilterForm({
         </div>
       )}
 
-      <AppSelect
-        label="الموظف المحصل"
-        onChange={(value) => updateFilter('created_by', value)}
-        options={collectorFilterOptions}
-        value={filters.created_by}
-      />
+      {canChooseCollector ? (
+        <AppSelect
+          label="الموظف المحصل"
+          onChange={(value) => updateFilter('created_by', value)}
+          options={collectorFilterOptions}
+          value={filters.created_by}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-2 md:justify-end">
         <AppButton disabled={isLoading} fullWidth type="submit">
@@ -478,11 +490,6 @@ function TransactionsFilterForm({
         >
           إعادة ضبط
         </AppButton>
-        {onClose ? (
-          <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
-            إغلاق
-          </AppButton>
-        ) : null}
       </div>
     </form>
   )
@@ -500,12 +507,25 @@ export function TransactionsListPage() {
     selectedMembership,
   )
   const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
+  const canChooseCollector = canChooseCourt
   const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
   const urlParams = useMemo(
     () => parseTransactionQueryParams(location.search),
     [location.search],
   )
-  const urlHasTransactionFilters = hasTransactionFilters(urlParams)
+  const scopedUrlParams = useMemo(() => {
+    if (canChooseCourt) {
+      return urlParams
+    }
+
+    const staffParams = { ...urlParams }
+    delete staffParams.court
+    // Backend self-scopes Staff collections to assigned Court + current user.
+    // Do not send created_by=currentUser as a frontend security/scoping hack.
+    delete staffParams.created_by
+    return staffParams
+  }, [canChooseCourt, urlParams])
+  const urlHasTransactionFilters = hasTransactionFilters(scopedUrlParams)
   const effectiveParams = useMemo(() => {
     const fixedCourtParams =
       !canChooseCourt && assignedCourtId
@@ -514,7 +534,7 @@ export function TransactionsListPage() {
 
     if (urlHasTransactionFilters) {
       return {
-        ...urlParams,
+        ...scopedUrlParams,
         ...fixedCourtParams,
       }
     }
@@ -527,7 +547,7 @@ export function TransactionsListPage() {
     assignedCourtId,
     canChooseCourt,
     urlHasTransactionFilters,
-    urlParams,
+    scopedUrlParams,
     usesUnfilteredEmptyUrl,
   ])
   const initialFilters = useMemo(
@@ -561,7 +581,20 @@ export function TransactionsListPage() {
     }),
     [collectorOptions, courtOptions],
   )
-  const activeFilterChips = getActiveFilterChips(effectiveParams, filterLabelMaps)
+  const visibleEffectiveParams = useMemo(() => {
+    if (canChooseCourt) {
+      return effectiveParams
+    }
+
+    const visibleParams = { ...effectiveParams }
+    delete visibleParams.court
+    delete visibleParams.created_by
+    return visibleParams
+  }, [canChooseCourt, effectiveParams])
+  const activeFilterChips = getActiveFilterChips(
+    visibleEffectiveParams,
+    filterLabelMaps,
+  )
   const hasActiveFilters = activeFilterChips.length > 0
 
   useEffect(() => {
@@ -580,7 +613,9 @@ export function TransactionsListPage() {
       try {
         const [courtsResponse, usersResponse] = await Promise.all([
           canChooseCourt ? listCourts(selectedClubSlug) : Promise.resolve(null),
-          listClubUsers(selectedClubSlug, { is_active: true }),
+          canChooseCollector
+            ? listClubUsers(selectedClubSlug, { is_active: true })
+            : Promise.resolve(null),
         ])
 
         if (!isActive) {
@@ -605,10 +640,12 @@ export function TransactionsListPage() {
               : [],
         )
         setCollectorOptions(
-          normalizeClubUsersResponse(usersResponse).map((user) => ({
-            value: String(user.id),
-            label: getClubUserName(user),
-          })),
+          usersResponse
+            ? normalizeClubUsersResponse(usersResponse).map((user) => ({
+                value: String(user.id),
+                label: getClubUserName(user),
+              }))
+            : [],
         )
       } catch {
         if (isActive) {
@@ -624,7 +661,7 @@ export function TransactionsListPage() {
     return () => {
       isActive = false
     }
-  }, [canChooseCourt, selectedClubSlug, selectedMembership])
+  }, [canChooseCollector, canChooseCourt, selectedClubSlug, selectedMembership])
 
   async function reloadTransactions(
     nextParams = effectiveParams,
@@ -648,7 +685,7 @@ export function TransactionsListPage() {
       if (!selectedClubSlug) {
         setTransactions([])
         setError(null)
-        setMessage('اختر ناديًا أولًا لعرض المعاملات')
+        setMessage('اختر ناديًا أولًا لعرض المعاملات المالية')
         setIsLoading(false)
         return
       }
@@ -672,7 +709,7 @@ export function TransactionsListPage() {
           setError(
             getApiErrorMessage(
               error,
-              'تعذر تحميل المعاملات. حاول مرة أخرى',
+              'تعذر تحميل المعاملات المالية. حاول مرة أخرى',
             ),
           )
         }
@@ -692,6 +729,11 @@ export function TransactionsListPage() {
 
   function handleApplyFilters(nextFilters: FilterState): void {
     const nextParams = paramsFromFilterState(nextFilters)
+    delete nextParams.page
+    if (!canChooseCourt) {
+      delete nextParams.court
+      delete nextParams.created_by
+    }
     const nextSearch = getTransactionSearch(nextParams)
 
     setUsesUnfilteredEmptyUrl(!nextSearch)
@@ -749,9 +791,10 @@ export function TransactionsListPage() {
   }
 
   function handleRemoveFilter(key: (typeof chipFilterKeys)[number]): void {
-    const nextParams = { ...effectiveParams }
+    const nextParams = { ...scopedUrlParams }
 
     delete nextParams[key]
+    delete nextParams.page
 
     const nextSearch = getTransactionSearch(nextParams)
 
@@ -779,11 +822,11 @@ export function TransactionsListPage() {
     try {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
-      setSuccessMessage('تم إلغاء تسجيل الدفعة بنجاح')
+      setSuccessMessage('تم إلغاء العملية')
       await reloadTransactions()
     } catch (error) {
       setCancelError(
-        getApiErrorMessage(error, 'تعذر إلغاء تسجيل الدفعة. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر إلغاء التحصيل. حاول مرة أخرى'),
       )
       setCancelFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -793,6 +836,15 @@ export function TransactionsListPage() {
 
   return (
     <div className="space-y-5">
+      {role !== 'STAFF' ? (
+        <Link
+          className="inline-flex text-sm font-black text-[var(--sloty-primary-dark)]"
+          to="/settlements"
+        >
+          {navigationCopy.ledgerBackToMoney}
+        </Link>
+      ) : null}
+
       <div className="flex gap-2 overflow-x-auto pb-1">
         <AppButton onClick={handleQuickLastSevenDays} type="button" variant="secondary">
           آخر 7 أيام
@@ -801,7 +853,7 @@ export function TransactionsListPage() {
           اليوم
         </AppButton>
         <AppButton onClick={handleQuickUnsettled} type="button" variant="secondary">
-          غير مسواة
+          لم يتم استلامها
         </AppButton>
         <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
           فلترة
@@ -816,6 +868,7 @@ export function TransactionsListPage() {
 
       <AppCard className="hidden md:block">
         <TransactionsFilterForm
+          canChooseCollector={canChooseCollector}
           canChooseCourt={canChooseCourt}
           collectorOptions={collectorOptions}
           courtOptions={courtOptions}
@@ -830,9 +883,10 @@ export function TransactionsListPage() {
       <FilterSheet
         isOpen={isFilterSheetOpen}
         onClose={() => setIsFilterSheetOpen(false)}
-        title="فلترة المعاملات"
+        title="فلترة المعاملات المالية"
       >
         <TransactionsFilterForm
+          canChooseCollector={canChooseCollector}
           canChooseCourt={canChooseCourt}
           collectorOptions={collectorOptions}
           courtOptions={courtOptions}
@@ -848,43 +902,31 @@ export function TransactionsListPage() {
       {hasActiveFilters ? (
         <div className="flex flex-wrap gap-2">
           {activeFilterChips.map((chip) => (
-            <span
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]"
+            <button
+              aria-label={`إزالة فلتر ${chip.label}`}
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)] transition hover:bg-emerald-100"
               key={chip.key}
+              onClick={() => handleRemoveFilter(chip.key)}
+              type="button"
             >
               {chip.label}
-              <button
-                aria-label={`إزالة فلتر ${chip.label}`}
-                className="rounded-full px-1 text-sm leading-none hover:bg-white/70"
-                onClick={() => handleRemoveFilter(chip.key)}
-                type="button"
-              >
-                ×
-              </button>
-            </span>
+              <span aria-hidden="true" className="text-sm leading-none">×</span>
+            </button>
           ))}
         </div>
       ) : null}
 
       {successMessage ? (
-        <AppCard>
-          <div className="flex items-center justify-between gap-3 text-sm font-bold text-[var(--sloty-primary-dark)]">
-            <span>{successMessage}</span>
-            <button
-              className="rounded-lg px-2 py-1 text-xs hover:bg-[var(--sloty-soft-mint)]"
-              onClick={() => setSuccessMessage(null)}
-              type="button"
-            >
-              إغلاق
-            </button>
-          </div>
-        </AppCard>
+        <AppSuccessNotice
+          message={successMessage}
+          onDismiss={() => setSuccessMessage(null)}
+        />
       ) : null}
 
       {isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            جاري تحميل المعاملات...
+            جاري تحميل المعاملات المالية...
           </p>
         </AppCard>
       ) : null}
@@ -907,9 +949,11 @@ export function TransactionsListPage() {
       {!isLoading && !error && !message && transactions.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            {hasActiveFilters
-              ? 'لا توجد دفعات مطابقة للفلاتر الحالية'
-              : 'لا توجد معاملات مسجلة حتى الآن'}
+            {urlHasTransactionFilters
+              ? 'مفيش عمليات مالية مطابقة للفلاتر الحالية.'
+              : role === 'STAFF'
+                ? 'مفيش عمليات تحصيل لسه.'
+                : 'مفيش عمليات مالية لسه.'}
           </p>
         </AppCard>
       ) : null}
@@ -918,11 +962,23 @@ export function TransactionsListPage() {
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {transactions.map((transaction) => {
             const createdLabel = formatArabicDateTime(transaction.created)
-            const cancelledAtLabel = formatArabicDateTime(
-              transaction.cancelled_at ?? undefined,
-            )
-            const cancelledByName = getActorName(transaction.cancelled_by)
             const createdById = getActorId(transaction.created_by)
+            const collectorName =
+              transaction.created_by_username ||
+              getActorName(transaction.created_by) ||
+              (createdById
+                ? filterLabelMaps.collectorLabels[String(createdById)]
+                : null)
+            const bookingDateLabel = transaction.booking_start_time
+              ? formatBookingDateWithWeekday(transaction.booking_start_time)
+              : null
+            const bookingSlotLabel =
+              transaction.booking_start_time && transaction.booking_end_time
+                ? formatBookingTimeRange(
+                    transaction.booking_start_time,
+                    transaction.booking_end_time,
+                  )
+                : createdLabel
             const transactionType = getTransactionType(transaction)
             const isRefund = isRefundTransaction(transaction)
             const canCancel =
@@ -933,22 +989,36 @@ export function TransactionsListPage() {
 
             return (
               <AppCard className="space-y-3" key={transaction.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                      المبلغ
+                <div className="space-y-1">
+                  {bookingDateLabel ? (
+                    <p className="text-base font-bold text-[var(--sloty-text-primary)]">
+                      {bookingDateLabel}
                     </p>
-                    <p
-                      className="mt-1 text-xl font-black text-[var(--sloty-primary-dark)]"
-                      dir="ltr"
-                    >
-                      {transaction.amount}
+                  ) : null}
+                  {bookingSlotLabel ? (
+                    <p className="text-sm font-semibold text-[var(--sloty-text-primary)]">
+                      {bookingSlotLabel}
                     </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
+                  ) : null}
+                  <p className="text-lg font-bold text-[var(--sloty-primary-dark)]">
+                    {formatMoneyAmount(transaction.amount, { suffix: 'ج.م' })} ·{' '}
+                    {paymentMethodLabels[transaction.payment_method]}
+                  </p>
+                  {collectorName ? (
+                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
+                      {financeCopy.collectedBy}: {collectorName}
+                    </p>
+                  ) : null}
+                  {transaction.court_name ? (
+                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
+                      {transaction.court_name}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
                     <span
                       className={[
-                        'rounded-full px-3 py-1 text-xs font-black',
+                        'rounded-full px-3 py-1 text-xs font-semibold',
                         isRefund
                           ? 'bg-rose-100 text-rose-800'
                           : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
@@ -956,82 +1026,37 @@ export function TransactionsListPage() {
                     >
                       {transactionTypeLabels[transactionType]}
                     </span>
-                    <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
-                      {paymentMethodLabels[transaction.payment_method]}
-                    </span>
                     {transaction.is_cancelled ? (
-                      <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-black text-[var(--sloty-danger)]">
-                        ملغي
+                      <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-semibold text-[var(--sloty-danger)]">
+                        ملغية
                       </span>
                     ) : null}
-                  </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {transaction.is_settled ? 'تم استلامها' : 'لم يتم استلامها'}
+                    </span>
                 </div>
 
-                <dl className="grid grid-cols-1 gap-2 text-sm">
-                  {transaction.booking ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        الحجز
-                      </dt>
-                      <dd
-                        className="font-black text-[var(--sloty-text-primary)]"
-                        dir="ltr"
-                      >
-                        #{transaction.booking}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {transaction.reference ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        المرجع
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {transaction.reference}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {createdLabel ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        التاريخ
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {createdLabel}
-                      </dd>
-                    </div>
-                  ) : null}
+                {transaction.payment_method !== 'CASH' &&
+                transaction.payment_reference ? (
+                  <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm">
+                    <p className="font-medium text-[var(--sloty-text-muted)]">
+                      {financeCopy.paymentReference}
+                    </p>
+                    <p className="mt-1 font-semibold text-[var(--sloty-text-primary)]">
+                      {transaction.payment_reference}
+                    </p>
+                  </div>
+                ) : null}
                   {transaction.cancellation_reason ? (
                     <div className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-danger)]">
+                      <p className="font-semibold text-[var(--sloty-danger)]">
                         سبب الإلغاء
-                      </dt>
-                      <dd className="mt-1 font-black text-[var(--sloty-danger)]">
+                      </p>
+                      <p className="mt-1 font-semibold text-[var(--sloty-danger)]">
                         {transaction.cancellation_reason}
-                      </dd>
+                      </p>
                     </div>
                   ) : null}
-                  {cancelledAtLabel ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        تاريخ الإلغاء
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {cancelledAtLabel}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {cancelledByName ? (
-                    <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                      <dt className="font-bold text-[var(--sloty-text-muted)]">
-                        ألغي بواسطة
-                      </dt>
-                      <dd className="font-black text-[var(--sloty-text-primary)]">
-                        {cancelledByName}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
 
                 {canCancel ? (
                   <AppButton
@@ -1043,7 +1068,7 @@ export function TransactionsListPage() {
                     }}
                     variant="danger"
                   >
-                    إلغاء تسجيل الدفعة
+                    إلغاء التحصيل
                   </AppButton>
                 ) : null}
               </AppCard>

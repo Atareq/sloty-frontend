@@ -395,9 +395,9 @@ describe('ReportsPage', () => {
       .toHaveValue('')
     expect(screen.getByRole('option', { name: 'بانتظار العربون' }))
       .toHaveValue('HOLD')
-    expect(screen.getByRole('option', { name: 'مؤكد' }))
+    expect(screen.getByRole('option', { name: 'العربون مدفوع' }))
       .toHaveValue('CONFIRMED')
-    expect(screen.getByRole('option', { name: 'مكتمل' }))
+    expect(screen.getByRole('option', { name: 'تم اللعب' }))
       .toHaveValue('COMPLETED')
     expect(screen.getByRole('option', { name: 'عدم حضور' }))
       .toHaveValue('NO_SHOW')
@@ -419,7 +419,7 @@ describe('ReportsPage', () => {
     await chooseAppSelectOption(user, screen.getByLabelText('الفترة'), 'فترة مخصصة')
     await user.type(screen.getByLabelText('من الساعة'), '18:00')
     await user.type(screen.getByLabelText('إلى الساعة'), '23:00')
-    await chooseAppSelectOption(user, screen.getByLabelText('حالة الحجز'), 'مكتمل')
+    await chooseAppSelectOption(user, screen.getByLabelText('حالة الحجز'), 'تم اللعب')
     await user.click(screen.getByRole('button', { name: 'عرض التقرير' }))
 
     expect(screen.getByTestId('location')).toHaveTextContent(

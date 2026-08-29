@@ -11,6 +11,9 @@ export const appRoutes = {
   auditLogs: '/audit-logs',
   bookings: '/bookings',
   dashboard: '/dashboard',
+  /** Operational Booking/Schedule workspace. Visible Home destination. */
+  home: '/schedule',
+  schedule: '/schedule',
   settlementDetail: (id: AppRouteId) => `/settlements/${id}`,
   settlementPreview: '/settlements/preview',
   settlements: '/settlements',

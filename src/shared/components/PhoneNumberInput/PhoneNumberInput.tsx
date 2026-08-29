@@ -14,6 +14,8 @@ export interface SlotyPhoneNumberInputProps {
   disabled?: boolean
   placeholder?: string
   error?: boolean
+  /** Accessible name for the number field. Defaults to Egyptian-Arabic product copy. */
+  ariaLabel?: string
 }
 
 const countries = getCountries()
@@ -31,6 +33,7 @@ export function SlotyPhoneNumberInput({
   disabled = false,
   placeholder = '01012345678',
   error = false,
+  ariaLabel = 'رقم الموبايل',
 }: SlotyPhoneNumberInputProps) {
   const [selectedCountry, setSelectedCountry] =
     useState<Country>(defaultCountry)
@@ -60,7 +63,7 @@ export function SlotyPhoneNumberInput({
       />
 
       <PhoneInput
-        aria-label="رقم الهاتف"
+        aria-label={ariaLabel}
         autoComplete="tel"
         className="sloty-phone-input__number"
         country={selectedCountry}

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { chooseAppSelectOption } from '../../../../test/appSelectTestUtils'
@@ -61,13 +61,15 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
-    await user.type(screen.getByLabelText('المبلغ'), '150')
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '150' },
+    })
     await chooseAppSelectOption(
       user,
       screen.getByLabelText('طريقة الدفع'),
       'محفظة رقمية',
     )
-    await user.type(screen.getByLabelText('رقم العملية'), ' REF-123 ')
+    await user.type(screen.getByLabelText('مرجع الدفع'), ' REF-123 ')
     await user.type(screen.getByLabelText('ملاحظات'), ' دفعة مقدمة ')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
 
@@ -98,7 +100,57 @@ describe('RecordPaymentSheet', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('shows backend field errors near amount and reference fields', () => {
+  it('protects dirty values and lets the user continue or discard', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '150' },
+    })
+    await user.click(screen.getByRole('button', { name: 'إلغاء' }))
+    expect(screen.getByText('عندك تعديلات لسه متحفظتش.')).toBeInTheDocument()
+    onClose.mockClear()
+
+    await user.click(screen.getByRole('button', { name: 'كمل التعديل' }))
+    expect(screen.getByLabelText('المبلغ')).toHaveValue('150')
+
+    await user.click(screen.getByRole('button', { name: 'إلغاء' }))
+    await user.click(screen.getByRole('button', { name: 'اخرج من غير حفظ' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['deposit', 'تسجيل العربون', 'سجل العربون لتأكيد الحجز'],
+    ['remaining', 'تحصيل المبلغ المتبقي', 'سجل المبلغ الذي تم تحصيله لهذا الحجز'],
+  ] as const)('uses contextual %s payment copy', (paymentPurpose, title, description) => {
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        paymentPurpose={paymentPurpose}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
+    expect(screen.getByText(description)).toBeInTheDocument()
+  })
+
+  it('shows backend field errors near amount and reference fields', async () => {
+    const user = userEvent.setup()
+
     render(
       <RecordPaymentSheet
         bookingId={10}
@@ -113,7 +165,7 @@ describe('RecordPaymentSheet', () => {
           reference: [
             {
               code: 'PAYMENT_REFERENCE_REQUIRED',
-              message: 'رقم العملية مطلوب',
+              message: 'مرجع الدفع مطلوب',
             },
           ],
         }}
@@ -123,8 +175,10 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
+    await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'محفظة رقمية')
+
     expect(screen.getByText('المبلغ أكبر من المتبقي')).toBeInTheDocument()
-    expect(screen.getByText('رقم العملية مطلوب')).toBeInTheDocument()
+    expect(screen.getByText('مرجع الدفع مطلوب')).toBeInTheDocument()
   })
 
   it('shows minimum deposit guidance without blocking local validation', () => {
@@ -136,12 +190,11 @@ describe('RecordPaymentSheet', () => {
         minimumDepositHint="100.00"
         onClose={vi.fn()}
         onSubmit={vi.fn()}
+        paymentPurpose="deposit"
       />,
     )
 
-    expect(
-      screen.getByText(/الحد الأدنى للعربون في إعدادات الملعب/),
-    ).toBeInTheDocument()
-    expect(screen.getByText('100.00 جنيه')).toBeInTheDocument()
+    expect(screen.getByText('العربون المطلوب')).toBeInTheDocument()
+    expect(screen.getByText('100.00 ج.م')).toBeInTheDocument()
   })
 })

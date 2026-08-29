@@ -52,7 +52,7 @@ function renderRoleRoute() {
       <MemoryRouter initialEntries={['/admin-only']}>
         <Routes>
           <Route element={<p>صفحة تسجيل الدخول</p>} path="/login" />
-          <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
+          <Route element={<p>لوحة التحكم</p>} path="/schedule" />
           <Route
             element={
               <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>

@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { navigationCopy } from '../../../shared/copy/appCopy'
 
 interface SettingsLinkCardProps {
   title: string
@@ -19,7 +20,7 @@ function SettingsLinkCard({
   return (
     <AppCard className="space-y-4">
       <div>
-        <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+        <h2 className="text-lg font-extrabold text-[var(--sloty-text-primary)]">
           {title}
         </h2>
         <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
@@ -46,9 +47,9 @@ export function SettingsHubPage() {
     <div className="space-y-5">
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <SettingsLinkCard
-          actionLabel="إعدادات الملاعب"
+          actionLabel="فتح إعدادات الملاعب"
           description="إدارة بيانات الملاعب ومواعيد العمل والأسعار."
-          title="إدارة الملاعب"
+          title={navigationCopy.courtSettings}
           to="/settings/courts"
         />
 
@@ -63,9 +64,9 @@ export function SettingsHubPage() {
 
         {canViewOwnerLinks ? (
           <SettingsLinkCard
-            actionLabel="عرض سجل النشاطات"
+            actionLabel="عرض سجل النشاط"
             description="متابعة الإجراءات والتعديلات داخل النادي."
-            title="سجل النشاطات"
+            title="سجل النشاط"
             to="/audit-logs"
           />
         ) : null}

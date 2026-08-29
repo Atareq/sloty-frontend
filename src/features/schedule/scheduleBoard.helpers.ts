@@ -1,10 +1,4 @@
-import {
-  isTimeRangeOrdered,
-  normalizeTimeString,
-  getCourtWeekdayFromDate,
-  sortPeriodsByStartTime,
-} from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
-import type { CourtWorkingDay } from '../courts/courtWorkingHours.types'
+import { normalizeTimeString } from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
 import type { BookingBoardPeriod, ScheduleBooking } from './schedule.types'
 import type {
   BookingListItem,
@@ -12,17 +6,12 @@ import type {
   BookingSlotsResponse,
 } from './scheduleApi.types'
 
-interface DateFilterOption {
-  key: string
-  label: string
-  date: string
-}
-
-export interface SlotGenerationResult {
-  slots: ScheduleBooking[]
-  message: string | null
-}
-
+/**
+ * Schedule board mapping helpers.
+ *
+ * Slot availability comes from the backend slots API. This module maps those
+ * slots into compact board cards and derives the today-only closing list.
+ */
 export interface ScheduleClosingBookingsResult {
   items: BookingListItem[]
   totalCount: number
@@ -34,23 +23,14 @@ const bookingSlotStatusToBoardStatus: Record<
 > = {
   FREE: 'available',
   UNAVAILABLE: 'unavailable',
+  RECURRING_RESERVED: 'recurring_reserved',
   HOLD: 'hold',
   CONFIRMED: 'confirmed',
   COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
   NO_SHOW: 'no_show',
+  EXPIRED: 'available',
 }
-
-const hiddenBookingStatuses = new Set([
-  'NO_SHOW',
-  'EXPIRED',
-])
-
-const activeSlotStatusPriority = [
-  'COMPLETED',
-  'CONFIRMED',
-  'HOLD',
-  'CANCELLED',
-] as const
 
 const EGYPT_TIME_ZONE = 'Africa/Cairo'
 export const PM_START_MINUTES = 12 * 60
@@ -88,14 +68,15 @@ export function getEgyptDateValue(now = new Date()): string {
   ].join('-')
 }
 
-export function getEgyptDateValueOffset(
-  daysOffset: number,
-  now = new Date(),
-): string {
-  const { year, month, day } = getEgyptDateParts(now)
-  const offsetDate = new Date(Date.UTC(year, month - 1, day + daysOffset, 12))
+/** Converts a backend instant to the Egypt-local `YYYY-MM-DD` calendar date. */
+export function getEgyptDateValueFromInstant(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value)
 
-  return getEgyptDateValue(offsetDate)
+  if (Number.isNaN(date.getTime())) {
+    return getEgyptDateValue()
+  }
+
+  return getEgyptDateValue(date)
 }
 
 export function getEgyptCurrentMinutes(now = new Date()): number {
@@ -164,28 +145,6 @@ export function formatTime12Hour(time: string): string {
   return `${hours12}:${padTimePart(minutes)} ${period}`
 }
 
-export function createDateFilterOptions(today = new Date()): DateFilterOption[] {
-  return [
-    { key: 'today', label: 'اليوم', date: getEgyptDateValueOffset(0, today) },
-    {
-      key: 'tomorrow',
-      label: 'غداً',
-      date: getEgyptDateValueOffset(1, today),
-    },
-    {
-      key: 'afterTomorrow',
-      label: 'بعد غد',
-      date: getEgyptDateValueOffset(2, today),
-    },
-  ]
-}
-
-export function getWeekdayFromDateValue(
-  dateValue: string,
-): CourtWorkingDay['weekday'] {
-  return getCourtWeekdayFromDate(dateValue)
-}
-
 export function formatBookingDateTime(
   dateValue: string,
   timeValue: string,
@@ -241,12 +200,10 @@ export function mapBookingSlotToScheduleBooking(
         paid_amount: slot.booking.total_paid_amount,
         remaining_amount: slot.booking.remaining_amount,
         ...(slot.booking.source ? { source: slot.booking.source } : {}),
-        ...(slot.booking.is_recurring === undefined
-          ? {}
-          : { is_recurring: slot.booking.is_recurring }),
-        ...(slot.booking.recurring_agreement_id === undefined
-          ? {}
-          : { recurring_agreement_id: slot.booking.recurring_agreement_id }),
+        is_recurring: slot.booking.is_recurring,
+        recurrence_status: slot.booking.recurrence_status,
+        previous_recurring_booking_id: null,
+        next_recurring_booking_id: null,
       }
     : undefined
 
@@ -257,10 +214,16 @@ export function mapBookingSlotToScheduleBooking(
       startTime.replace(':', ''),
       endTime.replace(':', ''),
     ].join('-'),
+    date: slot.date,
     status: bookingSlotStatusToBoardStatus[slot.slot_status],
     label: slot.label,
     isAvailable: slot.is_available,
     slotPrice: slot.slot_price,
+    canStartRecurring: slot.can_start_recurring,
+    recurringAnchorBookingId: slot.recurring_anchor_booking_id,
+    recurringContext: slot.recurring_context,
+    recurringBlockedReason: slot.recurring_blocked_reason,
+    firstRecurringConflictStart: slot.first_recurring_conflict_start,
     startTime,
     endTime,
     period: getSlotPeriod(startMinutes),
@@ -319,27 +282,33 @@ function getClosingBookingPriority(
   return 3
 }
 
+/**
+ * Local Schedule grouping for `تحتاج إغلاق`.
+ *
+ * Only HOLD/CONFIRMED bookings that still need payment or a complete/no-show
+ * decision belong here. NO_SHOW and COMPLETED are already closed
+ * operationally, even when remaining money exists. CANCELLED and EXPIRED never
+ * belong in this group. EXPIRED may still appear in History `تحتاج إجراء`
+ * through backend `needs_action`; do not reuse this helper for that filter.
+ */
 function shouldIncludeClosingBooking(
   booking: BookingListItem,
   now = new Date(),
 ): boolean {
-  if (booking.status === 'CANCELLED' || booking.status === 'EXPIRED') {
+  if (
+    booking.status === 'CANCELLED' ||
+    booking.status === 'EXPIRED' ||
+    booking.status === 'NO_SHOW' ||
+    booking.status === 'COMPLETED'
+  ) {
     return false
   }
 
-  if (booking.status === 'CONFIRMED') {
+  if (booking.status === 'CONFIRMED' || booking.status === 'HOLD') {
     return isEndedBooking(booking, now) || hasPositiveRemainingAmount(booking)
   }
 
-  if (booking.status === 'HOLD') {
-    return isEndedBooking(booking, now) || hasPositiveRemainingAmount(booking)
-  }
-
-  if (booking.status === 'COMPLETED') {
-    return hasPositiveRemainingAmount(booking)
-  }
-
-  return hasPositiveRemainingAmount(booking)
+  return false
 }
 
 export function getScheduleClosingBookings(
@@ -374,206 +343,6 @@ export function getScheduleClosingBookings(
   }
 }
 
-function minutesToTime(minutes: number): string {
-  return `${padTimePart(Math.floor(minutes / 60))}:${padTimePart(minutes % 60)}`
-}
-
 export function getSlotPeriod(startMinutes: number): BookingBoardPeriod {
   return startMinutes < PM_START_MINUTES ? 'am' : 'pm'
-}
-function bookingOverlapsSlot(
-  booking: BookingListItem,
-  slotStart: number,
-  slotEnd: number,
-): boolean {
-  const bookingStart = timeToMinutes(booking.start_time)
-  const bookingEnd = timeToMinutes(booking.end_time)
-
-  if (bookingStart === null || bookingEnd === null) {
-    return false
-  }
-
-  return bookingStart < slotEnd && bookingEnd > slotStart
-}
-
-export function getVisibleBookings(bookings: BookingListItem[]): BookingListItem[] {
-  return bookings.filter((booking) => !hiddenBookingStatuses.has(booking.status))
-}
-
-function getSlotStatus(
-  bookings: BookingListItem[],
-  slotStart: number,
-  slotEnd: number,
-): ScheduleBooking['status'] {
-  const visibleBookings = getVisibleBookings(bookings)
-  const overlappingBooking = getSlotBooking(visibleBookings, slotStart, slotEnd)
-
-  if (overlappingBooking?.status === 'COMPLETED') {
-    return 'completed'
-  }
-
-  if (overlappingBooking?.status === 'CONFIRMED') {
-    return 'confirmed'
-  }
-
-  if (overlappingBooking?.status === 'HOLD') {
-    return 'hold'
-  }
-
-  if (overlappingBooking?.status === 'CANCELLED') {
-    return 'cancelled'
-  }
-
-  if (
-    visibleBookings.some((booking) =>
-      bookingOverlapsSlot(booking, slotStart, slotEnd),
-    )
-  ) {
-    return 'hold'
-  }
-
-  return 'available'
-}
-
-function getSlotBooking(
-  bookings: BookingListItem[],
-  slotStart: number,
-  slotEnd: number,
-): BookingListItem | undefined {
-  const visibleBookings = getVisibleBookings(bookings)
-  const prioritizedBooking = activeSlotStatusPriority
-    .map((status) =>
-      visibleBookings.find(
-        (booking) =>
-          booking.status === status &&
-          bookingOverlapsSlot(booking, slotStart, slotEnd),
-      ),
-    )
-    .find(Boolean)
-
-  if (prioritizedBooking) {
-    return prioritizedBooking
-  }
-
-  return visibleBookings.find((booking) =>
-    bookingOverlapsSlot(booking, slotStart, slotEnd),
-  )
-}
-
-export function generateSlotsFromWorkingHour(
-  workingHour: CourtWorkingDay | undefined,
-  slotDurationMinutes: number,
-  bookings: BookingListItem[] = [],
-  selectedDate?: string,
-  now = new Date(),
-): SlotGenerationResult {
-  if (selectedDate && isPastEgyptDate(selectedDate, now)) {
-    return {
-      slots: [],
-      message: 'لا يمكن حجز مواعيد سابقة',
-    }
-  }
-
-  if (!workingHour) {
-    return {
-      slots: [],
-      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
-    }
-  }
-
-  const safeBookings = Array.isArray(bookings)
-    ? bookings
-    : []
-  const pricingPeriods = Array.isArray(workingHour.pricing_periods)
-    ? workingHour.pricing_periods
-    : []
-
-  if (pricingPeriods.length === 0) {
-    return {
-      slots: [],
-      message: 'الملعب مغلق في هذا اليوم',
-    }
-  }
-
-  const duration =
-    Number.isFinite(slotDurationMinutes) &&
-    slotDurationMinutes > 0
-      ? slotDurationMinutes
-      : 60
-
-  const slots: ScheduleBooking[] = []
-  let hiddenPastSlotCount = 0
-  const validPeriods = sortPeriodsByStartTime(pricingPeriods)
-    .filter((period) => isTimeRangeOrdered(period))
-
-  if (validPeriods.length === 0) {
-    return {
-      slots: [],
-      message: 'لم يتم ضبط مواعيد العمل لهذا اليوم',
-    }
-  }
-
-  validPeriods.forEach((period, periodIndex) => {
-    const startsAt = timeToMinutes(period.starts_at)
-    const endsAt = timeToMinutes(period.ends_at)
-
-    if (startsAt === null || endsAt === null) {
-      return
-    }
-
-    for (
-      let slotStart = startsAt;
-      slotStart + duration <= endsAt;
-      slotStart += duration
-    ) {
-      const slotEnd = slotStart + duration
-      const startTime = minutesToTime(slotStart)
-      const endTime = minutesToTime(slotEnd)
-
-      if (selectedDate && isPastSlot(selectedDate, endTime, now)) {
-        hiddenPastSlotCount += 1
-        continue
-      }
-
-      const booking = getSlotBooking(
-        safeBookings,
-        slotStart,
-        slotEnd,
-      )
-
-      slots.push({
-        id: [
-          'slot',
-          periodIndex,
-          normalizeTimeString(startTime).replace(':', ''),
-        ].join('-'),
-        status: getSlotStatus(
-          safeBookings,
-          slotStart,
-          slotEnd,
-        ),
-        startTime,
-        endTime,
-        period: getSlotPeriod(slotStart),
-        ...(booking ? { booking } : {}),
-      })
-    }
-  })
-
-  if (slots.length === 0) {
-    return {
-      slots,
-      message:
-        selectedDate &&
-        hiddenPastSlotCount > 0 &&
-        isTodayInEgypt(selectedDate, now)
-          ? 'لا توجد مواعيد متاحة بعد الوقت الحالي'
-          : 'لم يتم ضبط مواعيد العمل لهذا اليوم',
-    }
-  }
-
-  return {
-    slots,
-    message: null,
-  }
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getClubUserDisplayName, getCourtDisplayName } from './displayNames'
+import {
+  getAuthenticatedUserDisplayName,
+  getClubUserDisplayName,
+  getCourtDisplayName,
+} from './displayNames'
 
 describe('display name helpers', () => {
   it('prefers club user full name before username, phone, then id', () => {
@@ -24,5 +28,29 @@ describe('display name helpers', () => {
   it('prefers court name before id fallback', () => {
     expect(getCourtDisplayName({ id: 3, name: 'ملعب 1' })).toBe('ملعب 1')
     expect(getCourtDisplayName({ id: 4, name: '   ' })).toBe('ملعب #4')
+  })
+
+  it('uses a real authenticated name before token name and username', () => {
+    expect(
+      getAuthenticatedUserDisplayName(
+        {
+          id: 1,
+          first_name: 'محمد',
+          last_name: 'أحمد',
+          username: 'mohamed.staff',
+        },
+        'اسم التوكن',
+      ),
+    ).toBe('محمد أحمد')
+    expect(
+      getAuthenticatedUserDisplayName(
+        { id: 1, username: 'mohamed.staff' },
+        'محمد من التوكن',
+      ),
+    ).toBe('محمد من التوكن')
+    expect(
+      getAuthenticatedUserDisplayName({ id: 1, username: 'mohamed.staff' }),
+    ).toBe('mohamed.staff')
+    expect(getAuthenticatedUserDisplayName(null)).toBe('مستخدم سلوتي')
   })
 })

@@ -7,16 +7,32 @@ import {
 } from './navigation.config'
 
 describe('navigation config', () => {
+  const membership = {
+    id: 10,
+    role: 'MANAGER' as const,
+    club: {
+      id: 1,
+      slug: 'demo-club',
+      name: 'نادي التجربة',
+      is_active: true,
+    },
+    court: null,
+    permissions: {
+      can_change_pricing: false,
+      can_manage_working_hours: false,
+      can_manage_settlements: false,
+    },
+  }
+
   it('filters staff navigation items by role', () => {
     const staffPaths = getNavigationItemsForRole('STAFF').map(
       (item) => item.path,
     )
 
     expect(staffPaths).toEqual([
-      '/dashboard',
       '/schedule',
+      '/dashboard',
       '/bookings',
-      '/recurring-agreements',
       '/transactions',
       '/settlements',
     ])
@@ -33,34 +49,52 @@ describe('navigation config', () => {
     expect(canRoleAccessPath('OWNER', '/settings/users')).toBe(true)
   })
 
+  it('uses role and effective settlement permission for finance labels', () => {
+    expect(
+      getNavigationItemsForRole('STAFF', {}, { ...membership, role: 'STAFF' })
+        .find((item) => item.path === '/transactions')?.label,
+    ).toBe('معاملاتي المالية')
+    expect(
+      getNavigationItemsForRole('MANAGER', {}, membership)
+        .find((item) => item.path === '/settlements')?.label,
+    ).toBe('عهدتي')
+    expect(
+      getNavigationItemsForRole('MANAGER', {}, {
+        ...membership,
+        permissions: {
+          ...membership.permissions,
+          can_manage_settlements: true,
+        },
+      }).find((item) => item.path === '/settlements')?.label,
+    ).toBe('إدارة الأموال')
+    expect(getPageHeaderMeta('/transactions', 'STAFF', membership).title)
+      .toBe('معاملاتي المالية')
+  })
+
   it('returns only direct primary navigation items when requested', () => {
     const ownerPrimaryLabels = getNavigationItemsForRole('OWNER', {
       primaryOnly: true,
     }).map((item) => item.label)
 
     expect(ownerPrimaryLabels).toEqual([
-      'لوحة التحكم',
-      'الجدول',
+      'الرئيسية',
       'سجل الحجوزات',
-      'الحجوزات الأسبوعية',
-      'سجل المعاملات المالية',
-      'التسويات المالية والجرد',
-      'التقارير الاستهلاكية للملاعب',
+      'إدارة الأموال',
+      'التقارير',
       'الإعدادات',
     ])
     expect(ownerPrimaryLabels).not.toEqual(
       expect.arrayContaining([
         'إعدادات الملاعب',
         'المستخدمون والصلاحيات',
-        'سجل النشاطات',
+        'سجل النشاط',
       ]),
     )
   })
 
   it('can return the three daily mobile footer items for each club role', () => {
     const expectedMobileLabels = [
-      'لوحة التحكم',
-      'الجدول',
+      'الرئيسية',
       'سجل الحجوزات',
     ]
     const ownerMobileLabels = getNavigationItemsForRole('OWNER', {
@@ -78,10 +112,39 @@ describe('navigation config', () => {
     expect(staffMobileLabels).toEqual(expectedMobileLabels)
   })
 
+  it('keeps the Owner/Manager transaction ledger out of primary Burger navigation', () => {
+    expect(
+      getNavigationItemsForRole('OWNER', { primaryOnly: true }).some(
+        (item) => item.path === '/transactions',
+      ),
+    ).toBe(false)
+    expect(
+      getNavigationItemsForRole('OWNER', { primaryOnly: true }).some(
+        (item) => ['التحصيلات', 'مبالغ الموظفين', 'عهد الموظفين'].includes(item.label),
+      ),
+    ).toBe(false)
+    expect(
+      getNavigationItemsForRole('STAFF', { primaryOnly: true }, {
+        ...membership,
+        role: 'STAFF',
+      }).map((item) => item.label),
+    ).toEqual([
+      'الرئيسية',
+      'سجل الحجوزات',
+      'معاملاتي المالية',
+      'عهدتي',
+    ])
+    expect(
+      getNavigationItemsForRole('STAFF', { primaryOnly: true }, {
+        ...membership,
+        role: 'STAFF',
+      }).some((item) => item.label === 'إدارة الأموال'),
+    ).toBe(false)
+  })
+
   it('keeps finance, admin, history, and settings pages out of the footer', () => {
     const hiddenMobilePaths = [
       '/transactions',
-      '/recurring-agreements',
       '/settlements',
       '/reports',
       '/audit-logs',
@@ -119,13 +182,13 @@ describe('navigation config', () => {
 
     expect(labels).toEqual(
       expect.arrayContaining([
-        'لوحة التحكم',
-        'الجدول',
+        'الرئيسية',
+        'المتابعة',
         'سجل الحجوزات',
         'سجل المعاملات المالية',
-        'التسويات المالية والجرد',
-        'سجل النشاطات',
-        'التقارير الاستهلاكية للملاعب',
+        'إدارة الأموال',
+        'سجل النشاط',
+        'التقارير',
         'الإعدادات',
         'المستخدمون والصلاحيات',
       ]),
@@ -135,8 +198,9 @@ describe('navigation config', () => {
         'الحجوزات',
         'المعاملات',
         'التسويات',
-        'التقارير',
-        'سجل النشاط',
+        'عهد الموظفين',
+        'التقارير الاستهلاكية للملاعب',
+        'سجل النشاطات',
         'سحل النشاطات',
         'الجدويل',
         'لوحع التحكم',
@@ -157,8 +221,6 @@ describe('navigation config', () => {
       '/dashboard',
       '/schedule',
       '/bookings',
-      '/recurring-agreements',
-      '/recurring-agreements/12',
       '/transactions',
       '/settlements',
       '/settlements/history',
@@ -170,7 +232,6 @@ describe('navigation config', () => {
       '/settings/courts/5',
       '/settings',
       '/settings/users',
-      '/more',
       '/admin/clubs',
       '/admin/clubs/new',
       '/admin/clubs/demo-club',
@@ -185,7 +246,7 @@ describe('navigation config', () => {
 
     for (const path of routeSamples) {
       expect(getPageHeaderMeta(path), path).not.toEqual({
-        title: 'لوحة التحكم',
+        title: 'الرئيسية',
         subtitle: 'ملخص اليوم ومؤشرات التشغيل',
       })
       expect(getPageHeaderMeta(path).title).not.toHaveLength(0)

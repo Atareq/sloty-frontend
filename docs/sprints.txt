@@ -1,8 +1,8 @@
+HISTORICAL DOCUMENT — not current frontend architecture.
+
+Use this file only as original sprint-planning notes. It still mentions Angular, Phase 3-only work, and next steps that the current React frontend has already completed. For frontend implementation, follow the current working tree, `AGENTS.md`, and the durable docs under `docs/*.md`.
+
 Phase 3 Started — Senior Team Lead / Sprint Planning
-
-Current Frontend Implementation Status
-
-This file is still a planning reference, not the exact source of truth for current frontend implementation details.
 
 Current frontend reality:
 - The frontend is React + TypeScript + Vite + Tailwind CSS + React Router + Vitest, not Angular.

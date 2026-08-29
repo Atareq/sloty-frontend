@@ -28,7 +28,19 @@ function mockAuth() {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
-    currentUser: null,
+    currentUser: {
+      id: 1,
+      username: 'owner',
+      email: 'owner@example.com',
+      first_name: 'Owner',
+      last_name: 'User',
+      phone_number: null,
+      is_active: true,
+      is_platform_admin: false,
+      account_created_by: null,
+      requires_club_selection: false,
+      memberships: [],
+    },
     selectedClubSlug: 'nasr-club',
     selectedMembership: {
       id: 10,
@@ -115,11 +127,11 @@ describe('SettlementDetailPage', () => {
   it('renders collected-by settlement detail with display-only backend period', async () => {
     renderPage()
 
-    expect(await screen.findByText('رقم التسوية')).toBeInTheDocument()
-    expect(screen.getByText('Ahmed Staff')).toBeInTheDocument()
-    expect(screen.getByText('2000.00')).toBeInTheDocument()
+    expect(await screen.findByText('الموظف')).toBeInTheDocument()
+    expect(screen.getAllByText('Ahmed Staff')).not.toHaveLength(0)
+    expect(screen.getByText('2,000.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('Shift settlement')).toBeInTheDocument()
-    expect(screen.getByText('#101')).toBeInTheDocument()
+    expect(screen.queryByText('#101')).not.toBeInTheDocument()
     expect(mockedGetSettlement).toHaveBeenCalledWith('nasr-club', '9')
   })
 
@@ -129,14 +141,17 @@ describe('SettlementDetailPage', () => {
     renderPage()
 
     await user.click(await screen.findByRole('button', {
-      name: 'تأكيد الاستلام',
+      name: 'تأكيد استلام المبلغ',
     }))
+    await user.click(screen.getAllByRole('button', {
+      name: 'تأكيد استلام المبلغ',
+    })[1])
 
     await waitFor(() => {
       expect(mockedMarkSettlementSettled).toHaveBeenCalledWith('nasr-club', '9')
     })
-    expect(await screen.findByText('تم تحديث حالة التسوية')).toBeInTheDocument()
-    expect(screen.getByText('مسواة')).toBeInTheDocument()
+    expect(await screen.findByText('تم استلام المبلغ بنجاح')).toBeInTheDocument()
+    expect(screen.getByText('تم الاستلام')).toBeInTheDocument()
   })
 
   it('shows 403 mark-settled error, refreshes current user, and does not retry', async () => {
@@ -149,13 +164,35 @@ describe('SettlementDetailPage', () => {
     renderPage()
 
     await user.click(await screen.findByRole('button', {
-      name: 'تأكيد الاستلام',
+      name: 'تأكيد استلام المبلغ',
     }))
+    await user.click(screen.getAllByRole('button', {
+      name: 'تأكيد استلام المبلغ',
+    })[1])
 
     expect(
       await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),
     ).toBeInTheDocument()
     expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
     expect(mockedMarkSettlementSettled).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let the collector mark their own settlement as settled', async () => {
+    mockedGetSettlement.mockResolvedValueOnce({
+      id: 9,
+      collected_by: 1,
+      collected_by_name: 'Owner User',
+      total_amount: '2000.00',
+      transaction_count: 8,
+      status: 'PENDING',
+    })
+
+    renderPage()
+
+    expect((await screen.findAllByText('Owner User')).length).toBeGreaterThan(0)
+    expect(
+      screen.queryByRole('button', { name: 'تأكيد استلام المبلغ' }),
+    ).not.toBeInTheDocument()
+    expect(mockedMarkSettlementSettled).not.toHaveBeenCalled()
   })
 })

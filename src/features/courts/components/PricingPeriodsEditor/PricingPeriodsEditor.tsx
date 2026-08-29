@@ -1,4 +1,6 @@
+import { Plus } from 'lucide-react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { settingsCopy } from '../../../../shared/copy/appCopy'
 
 export interface PricingPeriodDraft {
   localId: string
@@ -36,14 +38,9 @@ export function PricingPeriodsEditor({
 }: PricingPeriodsEditorProps) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
-          فترات العمل والأسعار
-        </h3>
-        <AppButton disabled={disabled} onClick={onAdd} variant="secondary">
-          + إضافة فترة
-        </AppButton>
-      </div>
+      <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
+        فترات العمل والأسعار
+      </h3>
 
       {periods.length === 0 ? (
         <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
@@ -63,6 +60,7 @@ export function PricingPeriodsEditor({
                 aria-label={`فترة العمل ${index + 1} من`}
                 className={timeInputClass}
                 disabled={disabled}
+                id={`working-hours-period-${period.localId}-starts`}
                 onChange={(event) =>
                   onUpdate(period.localId, { starts_at: event.target.value })
                 }
@@ -77,6 +75,7 @@ export function PricingPeriodsEditor({
                 aria-label={`فترة العمل ${index + 1} إلى`}
                 className={timeInputClass}
                 disabled={disabled}
+                id={`working-hours-period-${period.localId}-ends`}
                 onChange={(event) =>
                   onUpdate(period.localId, { ends_at: event.target.value })
                 }
@@ -91,6 +90,7 @@ export function PricingPeriodsEditor({
                 aria-label={`فترة العمل ${index + 1} السعر`}
                 className={timeInputClass}
                 disabled={disabled}
+                id={`working-hours-period-${period.localId}-price`}
                 min="0"
                 onChange={(event) =>
                   onUpdate(period.localId, { price: event.target.value })
@@ -119,6 +119,13 @@ export function PricingPeriodsEditor({
           </div>
         ))}
       </div>
+
+      <AppButton disabled={disabled} onClick={onAdd} variant="secondary">
+        <span className="inline-flex items-center gap-1">
+          <Plus aria-hidden="true" className="h-4 w-4" />
+          {settingsCopy.addPricingPeriod}
+        </span>
+      </AppButton>
     </div>
   )
 }

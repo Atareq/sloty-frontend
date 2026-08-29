@@ -46,6 +46,27 @@ describe('bookingsApi', () => {
     )
   })
 
+  it('sends final search, upcoming, and remaining-money filters', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listBookings('nasr-club', {
+      search: 'أحمد',
+      upcoming: true,
+      has_remaining_amount: true,
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.bookings.list(
+        'nasr-club',
+      )}?search=%D8%A3%D8%AD%D9%85%D8%AF&upcoming=true&has_remaining_amount=true`,
+    )
+  })
+
   it('keeps false and zero query values', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,
@@ -56,13 +77,13 @@ describe('bookingsApi', () => {
 
     await listBookings('nasr-club', {
       needs_action: false,
-      remaining_amount_gt: 0,
+      has_remaining_amount: false,
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.bookings.list(
         'nasr-club',
-      )}?needs_action=false&remaining_amount_gt=0`,
+      )}?needs_action=false&has_remaining_amount=false`,
     )
   })
 

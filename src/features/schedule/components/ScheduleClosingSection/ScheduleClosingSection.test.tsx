@@ -14,6 +14,10 @@ const booking: BookingListItem = {
   end_time: '09:00',
   status: 'CONFIRMED',
   remaining_amount: '50.00',
+  is_recurring: false,
+  recurrence_status: null,
+  previous_recurring_booking_id: null,
+  next_recurring_booking_id: null,
 }
 
 function renderSection(

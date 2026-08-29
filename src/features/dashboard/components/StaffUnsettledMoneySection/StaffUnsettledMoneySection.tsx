@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { financeCopy } from '../../../../shared/copy/appCopy'
 import { buildPathWithQuery } from '../../../../shared/utils/buildPathWithQuery'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type {
@@ -16,28 +17,64 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 
 interface StaffUnsettledMoneySectionProps {
   summary: DashboardSummaryResponse
+  mode: 'staff' | 'management'
 }
 
 export function StaffUnsettledMoneySection({
+  mode,
   summary,
 }: StaffUnsettledMoneySectionProps) {
+  if (mode === 'staff') {
+    const amount = summary.summary.unsettled_transaction_total_amount
+    const transactionCount = summary.summary.unsettled_transaction_count ?? 0
+    const hasUnsettledMoney = Number(amount ?? 0) !== 0 || transactionCount > 0
+
+    return (
+      <section className="space-y-3">
+        <h2 className="text-base font-extrabold text-[var(--sloty-text-primary)]">
+          عهدتي
+        </h2>
+
+        <AppCard className="space-y-2">
+          {hasUnsettledMoney ? (
+            <>
+              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                معاك دلوقتي
+              </p>
+              <p
+                className="text-right text-3xl font-black text-[var(--sloty-primary-dark)]"
+                dir="ltr"
+              >
+                {formatMoneyAmount(amount, { suffix: 'ج.م' })}
+              </p>
+              <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                من {transactionCount} عملية تحصيل
+              </p>
+            </>
+          ) : (
+            <p className="text-sm font-medium text-[var(--sloty-text-primary)]">
+              {financeCopy.noAmountWithYou}
+            </p>
+          )}
+        </AppCard>
+      </section>
+    )
+  }
+
   const visibleCount = summary.staff_unsettled_money.length
   const totalCount = summary.summary.staff_with_unsettled_transactions_count
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-          مبالغ الموظفين غير المسواة
+        <h2 className="text-base font-extrabold text-[var(--sloty-text-primary)]">
+          المبالغ مع الموظفين
         </h2>
 
         {visibleCount < totalCount ? (
           <Link
             className="text-sm font-black text-[var(--sloty-primary)]"
-            to={buildPathWithQuery('/transactions', {
-              is_cancelled: false,
-              settlement_status: 'unsettled',
-            })}
+            to="/settlements"
           >
             عرض كل الموظفين
           </Link>
@@ -46,18 +83,18 @@ export function StaffUnsettledMoneySection({
 
       {visibleCount === 0 ? (
         <AppCard>
-          <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-            لا توجد مبالغ غير مسواة حالياً
+          <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
+            مفيش مبالغ مع الموظفين دلوقتي
           </p>
-          <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-            كل الدفعات الحالية تمت تسويتها.
+          <p className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]">
+            كل المبالغ الحالية اتسلّمت.
           </p>
         </AppCard>
       ) : (
         <>
           {visibleCount < totalCount ? (
             <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-              يعرض {visibleCount} من أصل {totalCount} موظف لديهم مبالغ غير مسواة
+              يعرض {visibleCount} من أصل {totalCount} موظف معهم مبالغ دلوقتي
             </p>
           ) : null}
 
@@ -65,7 +102,7 @@ export function StaffUnsettledMoneySection({
             {summary.staff_unsettled_money.map((staff) => (
               <AppCard className="space-y-4" key={staff.collected_by}>
                 <div>
-                  <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+                  <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
                     {staff.collected_by_name}
                   </p>
                   {staff.court_name ? (
@@ -76,14 +113,14 @@ export function StaffUnsettledMoneySection({
                 </div>
 
                 <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3">
-                  <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                    غير مسوى
+                  <p className="text-xs font-semibold text-[var(--sloty-text-muted)]">
+                    {financeCopy.withEmployeeNow}
                   </p>
-                  <p className="mt-1 text-xl font-black text-[var(--sloty-primary-dark)]">
+                  <p className="mt-1 text-xl font-extrabold text-[var(--sloty-primary-dark)]">
                     {formatMoneyAmount(staff.total_unsettled_amount)}
                   </p>
-                  <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
-                    {staff.unsettled_transaction_count} دفعات
+                  <p className="mt-1 text-xs font-semibold text-[var(--sloty-text-muted)]">
+                    من {staff.unsettled_transaction_count} عملية تحصيل
                   </p>
                 </div>
 
@@ -108,7 +145,7 @@ export function StaffUnsettledMoneySection({
                     court: staff.court,
                   })}
                 >
-                  مراجعة التسوية
+                  {financeCopy.receiveAmount}
                 </Link>
               </AppCard>
             ))}

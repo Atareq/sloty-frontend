@@ -1,8 +1,8 @@
+HISTORICAL DOCUMENT — not current frontend architecture.
+
+Use this file only as original business/product planning. For frontend implementation, follow the current working tree, `AGENTS.md`, and the durable docs under `docs/*.md`.
+
 The goal of Phase 2 was to convert the business idea from Phase 1 into clear operational rules, workflows, roles, permissions, edge cases, and acceptance criteria.
-
-Frontend implementation note:
-
-This document is a business/product reference and some early wording predates the current React frontend implementation. For frontend implementation details, follow AGENTS.md and the current source code. The MVP 1 vs MVP 2 separation in this document remains valid.
 
 This document should be used later as a reference for:
 

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
@@ -7,6 +7,7 @@ import {
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { loginWithPassword } from '../../../core/auth/authApi'
+import { consumeSessionExpiredNotice } from '../../../core/auth/authStorage'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -40,6 +41,17 @@ export function LoginPage() {
   > | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  useEffect(() => {
+    const notice = consumeSessionExpiredNotice()
+
+    if (notice) {
+      // SessionStorage consume is a mount-only external sync. useState init
+      // would drop the notice under StrictMode's double invoke.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- consume once after mount
+      setError(notice)
+    }
+  }, [])
   const usernameFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'username') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')

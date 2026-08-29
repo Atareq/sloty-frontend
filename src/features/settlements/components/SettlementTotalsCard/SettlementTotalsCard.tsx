@@ -1,4 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { formatMoneyAmount, isNonZeroMoneyAmount } from '../../../../shared/utils/money'
 import type { SettlementPaymentMethod } from '../../settlements.types'
 import { settlementPaymentMethodLabels } from '../../settlements.types'
 
@@ -28,11 +29,11 @@ export function SettlementTotalsCard({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-            إجمالي المعاملات
+            إجمالي المبلغ
           </h2>
           {transactionCount !== undefined ? (
             <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-              عدد المعاملات: {transactionCount}
+              عدد العمليات: {transactionCount}
             </p>
           ) : null}
         </div>
@@ -41,13 +42,17 @@ export function SettlementTotalsCard({
             className="sloty-green-surface rounded-2xl px-4 py-2 text-lg font-black text-white"
             dir="ltr"
           >
-            {totalAmount}
+            {formatMoneyAmount(totalAmount)}
           </p>
         ) : null}
       </div>
 
       <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {paymentMethods.map((method) => (
+        {paymentMethods
+          .filter((method) =>
+            isNonZeroMoneyAmount(totalsByPaymentMethod[method]),
+          )
+          .map((method) => (
           <div
             className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3"
             key={method}
@@ -59,7 +64,7 @@ export function SettlementTotalsCard({
               className="mt-1 text-lg font-black text-[var(--sloty-text-primary)]"
               dir="ltr"
             >
-              {totalsByPaymentMethod[method] ?? '0.00'}
+              {formatMoneyAmount(totalsByPaymentMethod[method] ?? '0.00')}
             </dd>
           </div>
         ))}

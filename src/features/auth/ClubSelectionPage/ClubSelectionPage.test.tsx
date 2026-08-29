@@ -78,7 +78,7 @@ function renderClubSelectionPage() {
     <MemoryRouter initialEntries={['/select-club']}>
       <Routes>
         <Route element={<ClubSelectionPage />} path="/select-club" />
-        <Route element={<p>لوحة التحكم</p>} path="/dashboard" />
+        <Route element={<p>لوحة التحكم</p>} path="/schedule" />
       </Routes>
     </MemoryRouter>,
   )

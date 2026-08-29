@@ -210,7 +210,7 @@ export function AuditLogsPage() {
       {!selectedClubSlug ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر ناديًا أولًا لعرض سجل النشاطات
+            اختر ناديًا أولًا لعرض سجل النشاط
           </p>
         </AppCard>
       ) : null}
@@ -218,7 +218,7 @@ export function AuditLogsPage() {
       {selectedClubSlug && !canViewAuditLogs ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-danger)]">
-            ليس لديك صلاحية عرض سجل النشاطات
+            ليس لديك صلاحية عرض سجل النشاط
           </p>
         </AppCard>
       ) : null}
@@ -235,7 +235,7 @@ export function AuditLogsPage() {
               <label className="space-y-2 text-sm font-semibold">
                 <span>من تاريخ</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   onChange={(event) =>
                     updateFilter('date_from', event.target.value)
                   }
@@ -246,7 +246,7 @@ export function AuditLogsPage() {
               <label className="space-y-2 text-sm font-semibold">
                 <span>إلى تاريخ</span>
                 <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
                   onChange={(event) =>
                     updateFilter('date_to', event.target.value)
                   }
@@ -295,7 +295,7 @@ export function AuditLogsPage() {
           {isLoading ? (
             <AppCard>
               <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                جاري تحميل سجل النشاطات...
+                جاري تحميل سجل النشاط...
               </p>
             </AppCard>
           ) : null}

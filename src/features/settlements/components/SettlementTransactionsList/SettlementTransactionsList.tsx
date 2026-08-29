@@ -1,4 +1,7 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { financeCopy } from '../../../../shared/copy/appCopy'
+import { formatArabicDateTime } from '../../../../shared/utils/date'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
 import type {
   SettlementLine,
   SettlementPreviewTransaction,
@@ -16,30 +19,16 @@ export interface SettlementTransactionsListProps {
   transactions: SettlementTransactionRow[]
 }
 
-function formatDate(value: string | undefined): string | null {
-  if (!value) {
+function getReference(transaction: SettlementTransactionRow): string | null {
+  if (
+    'payment_method' in transaction &&
+    transaction.payment_method === 'CASH'
+  ) {
     return null
   }
 
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('ar-EG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date)
-}
-
-function getReference(transaction: SettlementTransactionRow): string | null {
   if ('payment_reference' in transaction && transaction.payment_reference) {
     return transaction.payment_reference
-  }
-
-  if ('reference' in transaction && transaction.reference) {
-    return transaction.reference
   }
 
   return null
@@ -49,7 +38,7 @@ function getReference(transaction: SettlementTransactionRow): string | null {
  * Read-only list of transactions included in a settlement preview/detail.
  */
 export function SettlementTransactionsList({
-  emptyMessage = 'لا توجد معاملات غير مسواة لهذا المستخدم.',
+  emptyMessage = 'لا توجد عمليات مرتبطة لهذا الموظف.',
   transactions,
 }: SettlementTransactionsListProps) {
   if (transactions.length === 0) {
@@ -66,7 +55,9 @@ export function SettlementTransactionsList({
     <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
       {transactions.map((transaction) => {
         const createdLabel =
-          'created' in transaction ? formatDate(transaction.created) : null
+          'created' in transaction
+            ? formatArabicDateTime(transaction.created)
+            : null
         const reference = getReference(transaction)
         const transactionType = getTransactionType(transaction)
 
@@ -81,7 +72,7 @@ export function SettlementTransactionsList({
                   className="mt-1 text-xl font-black text-[var(--sloty-primary-dark)]"
                   dir="ltr"
                 >
-                  {transaction.amount}
+                  {formatMoneyAmount(transaction.amount)}
                 </p>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
@@ -105,36 +96,10 @@ export function SettlementTransactionsList({
                   </dd>
                 </div>
               ) : null}
-              {'booking' in transaction && transaction.booking ? (
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                  <dt className="font-bold text-[var(--sloty-text-muted)]">
-                    الحجز
-                  </dt>
-                  <dd
-                    className="font-black text-[var(--sloty-text-primary)]"
-                    dir="ltr"
-                  >
-                    #{transaction.booking}
-                  </dd>
-                </div>
-              ) : null}
-              {'transaction' in transaction ? (
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                  <dt className="font-bold text-[var(--sloty-text-muted)]">
-                    المعاملة
-                  </dt>
-                  <dd
-                    className="font-black text-[var(--sloty-text-primary)]"
-                    dir="ltr"
-                  >
-                    #{transaction.transaction}
-                  </dd>
-                </div>
-              ) : null}
               {reference ? (
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                   <dt className="font-bold text-[var(--sloty-text-muted)]">
-                    المرجع
+                    {financeCopy.paymentReference}
                   </dt>
                   <dd className="font-black text-[var(--sloty-text-primary)]">
                     {reference}

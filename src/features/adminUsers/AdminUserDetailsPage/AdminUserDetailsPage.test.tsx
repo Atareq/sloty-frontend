@@ -130,7 +130,7 @@ describe('AdminUserDetailsPage', () => {
       first_name: 'أحمد',
       last_name: 'عضو',
       role: 'MANAGER',
-    })
+    } as never)
     mockedUpdateMembershipActivity.mockResolvedValue({
       id: 21,
       membership_id: 101,
@@ -138,7 +138,7 @@ describe('AdminUserDetailsPage', () => {
       first_name: 'أحمد',
       last_name: 'عضو',
       role: 'MANAGER',
-    })
+    } as never)
   })
 
   it('renders account information and calm unavailable membership state', async () => {

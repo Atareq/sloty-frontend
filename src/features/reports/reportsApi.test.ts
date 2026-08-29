@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import { getCourtUsageReport, getReports } from './reportsApi'
+import { getCourtUsageReport } from './reportsApi'
 import {
   COURT_USAGE_REPORT_STATUSES,
   CUSTOM_REPORT_HOURS_REQUIRED,
@@ -17,23 +17,6 @@ vi.mock('../../core/api/apiClient', () => ({
 const mockedApiRequest = vi.mocked(apiRequest)
 
 describe('reportsApi', () => {
-  it('gets reports with filters', async () => {
-    mockedApiRequest.mockResolvedValueOnce({})
-
-    await getReports('nasr-club', {
-      date_from: '2026-07-01',
-      date_to: '2026-07-15',
-      court: 3,
-      staff: 5,
-      status: 'COMPLETED',
-      payment_method: 'CASH',
-    })
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.clubs.reports.list('nasr-club')}?date_from=2026-07-01&date_to=2026-07-15&court=3&staff=5&status=COMPLETED&payment_method=CASH`,
-    )
-  })
-
   it('gets court usage reports with required and optional filters', async () => {
     mockedApiRequest.mockResolvedValueOnce({})
 

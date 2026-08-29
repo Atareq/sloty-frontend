@@ -38,7 +38,7 @@ export function AuthLandingRedirect() {
   }
 
   if (currentUser.memberships.length === 1 || selectedClubSlug) {
-    return <Navigate replace to="/dashboard" />
+    return <Navigate replace to="/schedule" />
   }
 
   if (currentUser.memberships.length > 1) {

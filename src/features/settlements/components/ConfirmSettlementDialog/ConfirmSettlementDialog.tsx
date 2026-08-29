@@ -1,4 +1,6 @@
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
+import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
+import { financeCopy } from '../../../../shared/copy/appCopy'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 
 interface ConfirmSettlementDialogProps {
@@ -26,43 +28,42 @@ export function ConfirmSettlementDialog({
   totalAmount,
   transactionCount,
 }: ConfirmSettlementDialogProps) {
-  if (!isOpen) {
-    return null
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-3 sm:items-center">
-      <section
-        aria-labelledby="confirm-settlement-title"
-        aria-modal="true"
-        className="w-full max-w-lg rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)]"
-        role="dialog"
-      >
-        <div className="space-y-4">
+    <AppSheet
+      className="md:max-w-lg"
+      isOpen={isOpen}
+      onRequestClose={() => {
+        if (!isSubmitting) {
+          onClose()
+        }
+      }}
+      title={financeCopy.confirmReceiveAmount}
+    >
+      <section className="p-4 sm:p-5">
+        <div className="space-y-4 pt-7">
           <div>
             <h2
               className="text-lg font-black text-[var(--sloty-text-primary)]"
-              id="confirm-settlement-title"
             >
-              تأكيد التسوية
+              {financeCopy.confirmReceiveAmount}
             </h2>
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
-              هل أنت متأكد من تسوية {formatMoneyAmount(totalAmount)} للموظف{' '}
+              هل تؤكد استلام {formatMoneyAmount(totalAmount)} من{' '}
               {collectorName}؟
             </p>
             <p className="mt-1 text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-              بعد التأكيد لن تظهر هذه الدفعات ضمن المبالغ غير المسواة.
+              بعد التأكيد المبلغ مش هيفضل ظاهر ضمن المبالغ اللي لسه مع الموظف.
             </p>
           </div>
 
           <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3 text-sm font-bold text-[var(--sloty-text-primary)]">
-            عدد الدفعات: {transactionCount}
+            عدد العمليات: {transactionCount}
           </div>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات اختيارية</span>
             <textarea
-              className="min-h-24 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-right text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+              className="sloty-mobile-safe-input min-h-24 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-2 text-right outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
               onChange={(event) => onNotesChange(event.target.value)}
               value={notes}
             />
@@ -76,7 +77,9 @@ export function ConfirmSettlementDialog({
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <AppButton disabled={isSubmitting} onClick={onConfirm}>
-              {isSubmitting ? 'جاري تأكيد التسوية...' : 'تأكيد التسوية'}
+              {isSubmitting
+                ? 'جاري تأكيد الاستلام...'
+                : financeCopy.confirmReceiveAmount}
             </AppButton>
             <AppButton
               disabled={isSubmitting}
@@ -88,6 +91,6 @@ export function ConfirmSettlementDialog({
           </div>
         </div>
       </section>
-    </div>
+    </AppSheet>
   )
 }

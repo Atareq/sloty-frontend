@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from 'react'
@@ -13,15 +14,24 @@ import {
   getApiFieldErrors,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
+import {
+  canChooseOperationalCourt,
+  getAssignedOperationalCourtId,
+} from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
+import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { LiveSearchField } from '../../../shared/components/LiveSearchField/LiveSearchField'
+import { QuickSearchShortcuts } from '../../../shared/components/QuickSearchShortcuts/QuickSearchShortcuts'
+import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
+import { customerCopy } from '../../../shared/copy/appCopy'
+import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
-import { formatDateInputValue } from '../../../shared/utils/date'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
@@ -40,6 +50,9 @@ import {
   getActiveBookingFilterChips,
 } from '../components/BookingFilterChips/BookingFilterChips.helpers'
 import { BookingActionSheet } from '../components/BookingActionSheet/BookingActionSheet'
+import { EditBookingDetailsSheet } from '../components/EditBookingDetailsSheet/EditBookingDetailsSheet'
+import { RescheduleBookingSheet } from '../components/RescheduleBookingSheet/RescheduleBookingSheet'
+import { hasActiveRecurrence, shouldRefreshRecurrencePreview } from '../bookingRecurrence.helpers'
 import { BookingListCard } from '../components/BookingListCard/BookingListCard'
 import {
   CancelBookingReasonSheet,
@@ -53,12 +66,19 @@ import {
 import {
   cancelBooking,
   completeBooking,
+  endBookingRecurrence,
+  getBooking,
   markBookingNoShow,
   previewBookingCancellation,
+  rescheduleBooking,
+  updateBookingCustomer,
 } from '../../schedule/scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
+  type BookingCompletePayload,
   type BookingCancellationPreview,
+  type BookingCustomerUpdatePayload,
+  type BookingReschedulePayload,
 } from '../../schedule/scheduleApi.types'
 import {
   RecordPaymentSheet,
@@ -78,20 +98,25 @@ interface FilterState {
   hold_expiring: string
   needs_action: string
   overdue: string
-  remaining_amount_gt: string
+  upcoming: string
+  has_remaining_amount: string
   status: BookingStatus | ''
 }
 
 type OperationalFilterKey =
   | 'ended'
   | 'hold_expiring'
-  | 'needs_action'
   | 'overdue'
-  | 'remaining_amount_gt'
 
 interface FilterOption {
   value: string
   label: string
+}
+
+interface PaginationState {
+  count: number
+  hasNext: boolean
+  hasPrevious: boolean
 }
 
 const bookingFilterKeys = [
@@ -104,15 +129,11 @@ const bookingFilterKeys = [
   'needs_action',
   'overdue',
   'page',
-  'remaining_amount_gt',
+  'search',
+  'upcoming',
+  'has_remaining_amount',
   'status',
 ] as const
-
-function createDefaultQueryParams(): BookingsQueryParams {
-  return {
-    date: formatDateInputValue(new Date()),
-  }
-}
 
 function isBookingStatus(value: string): value is BookingStatus {
   return Object.keys(bookingStatusLabels).includes(value)
@@ -139,30 +160,29 @@ function parseBookingsQueryParams(search: string): BookingsQueryParams {
       || key === 'hold_expiring'
       || key === 'needs_action'
       || key === 'overdue'
+      || key === 'upcoming'
+      || key === 'has_remaining_amount'
     ) {
       params[key] = value
       return
     }
 
-    if (key === 'court' || key === 'page' || key === 'remaining_amount_gt') {
+    if (key === 'court' || key === 'page') {
       params[key] = value
       return
     }
 
-    if (key === 'date' || key === 'date_from' || key === 'date_to') {
+    if (
+      key === 'date'
+      || key === 'date_from'
+      || key === 'date_to'
+      || key === 'search'
+    ) {
       params[key] = value
     }
   })
 
   return params
-}
-
-function hasBookingFilters(params: BookingsQueryParams): boolean {
-  return bookingFilterKeys.some((key) => {
-    const value = params[key]
-
-    return value !== undefined && value !== ''
-  })
 }
 
 function filterStateFromParams(params: BookingsQueryParams): FilterState {
@@ -177,10 +197,11 @@ function filterStateFromParams(params: BookingsQueryParams): FilterState {
     needs_action:
       params.needs_action === undefined ? '' : String(params.needs_action),
     overdue: params.overdue === undefined ? '' : String(params.overdue),
-    remaining_amount_gt:
-      params.remaining_amount_gt === undefined
+    upcoming: params.upcoming === undefined ? '' : String(params.upcoming),
+    has_remaining_amount:
+      params.has_remaining_amount === undefined
         ? ''
-        : String(params.remaining_amount_gt),
+        : String(params.has_remaining_amount),
     status: params.status ?? '',
   }
 }
@@ -195,8 +216,9 @@ function paramsFromFilterState(filters: FilterState): BookingsQueryParams {
     ...(filters.hold_expiring ? { hold_expiring: filters.hold_expiring } : {}),
     ...(filters.needs_action ? { needs_action: filters.needs_action } : {}),
     ...(filters.overdue ? { overdue: filters.overdue } : {}),
-    ...(filters.remaining_amount_gt
-      ? { remaining_amount_gt: filters.remaining_amount_gt }
+    ...(filters.upcoming ? { upcoming: filters.upcoming } : {}),
+    ...(filters.has_remaining_amount
+      ? { has_remaining_amount: filters.has_remaining_amount }
       : {}),
     ...(filters.status ? { status: filters.status } : {}),
   }
@@ -207,6 +229,7 @@ function getBookingsSearch(params: BookingsQueryParams): string {
 }
 
 interface BookingsFilterFormProps {
+  canChooseCourt: boolean
   courtOptions: FilterOption[]
   initialFilters: FilterState
   isLoading: boolean
@@ -216,6 +239,7 @@ interface BookingsFilterFormProps {
 }
 
 function BookingsFilterForm({
+  canChooseCourt,
   courtOptions,
   initialFilters,
   isLoading,
@@ -238,10 +262,7 @@ function BookingsFilterForm({
   ): void {
     const field = key as OperationalFilterKey
 
-    updateFilter(
-      field,
-      checked ? (field === 'remaining_amount_gt' ? '0' : 'true') : '',
-    )
+    updateFilter(field, checked ? 'true' : '')
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -269,13 +290,13 @@ function BookingsFilterForm({
 
   return (
     <form
-      className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
+      className="grid grid-cols-1 gap-3 md:grid-cols-2"
       onSubmit={handleSubmit}
     >
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>تاريخ محدد</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date', event.target.value)}
           type="date"
           value={filters.date}
@@ -285,7 +306,7 @@ function BookingsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>من تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_from', event.target.value)}
           type="date"
           value={filters.date_from}
@@ -295,19 +316,21 @@ function BookingsFilterForm({
       <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
         <span>إلى تاريخ</span>
         <input
-          className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-sm outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+          className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
           onChange={(event) => updateFilter('date_to', event.target.value)}
           type="date"
           value={filters.date_to}
         />
       </label>
 
-      <AppSelect
-        label="الملعب"
-        onChange={(value) => updateFilter('court', value)}
-        options={courtFilterOptions}
-        value={filters.court}
-      />
+      {canChooseCourt ? (
+        <AppSelect
+          label="الملعب"
+          onChange={(value) => updateFilter('court', value)}
+          options={courtFilterOptions}
+          value={filters.court}
+        />
+      ) : null}
 
       <AppSelect
         label="الحالة"
@@ -317,24 +340,14 @@ function BookingsFilterForm({
       />
 
       <FilterCheckboxGroup
-        className="md:col-span-2 xl:col-span-3"
+        className="md:col-span-2"
         label="فلاتر تشغيلية"
         onChange={updateOperationalFilter}
         options={[
           {
-            key: 'needs_action',
-            label: 'تحتاج إجراء',
-            checked: filters.needs_action === 'true',
-          },
-          {
             key: 'overdue',
             label: 'متأخرة',
             checked: filters.overdue === 'true',
-          },
-          {
-            key: 'remaining_amount_gt',
-            label: 'بها مبلغ متبقي',
-            checked: Boolean(filters.remaining_amount_gt),
           },
           {
             key: 'ended',
@@ -365,11 +378,6 @@ function BookingsFilterForm({
         >
           إعادة ضبط
         </AppButton>
-        {onClose ? (
-          <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
-            إغلاق
-          </AppButton>
-        ) : null}
       </div>
     </form>
   )
@@ -381,10 +389,22 @@ function BookingsFilterForm({
 export function BookingsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { selectedClubSlug } = useAuth()
-  const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
+  const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
+  const assignedCourtId = getAssignedOperationalCourtId(
+    role,
+    selectedMembership,
+  )
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [pagination, setPagination] = useState<PaginationState>({
+    count: 0,
+    hasNext: false,
+    hasPrevious: false,
+  })
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const hasCompletedInitialLoadRef = useRef(false)
+  const { nextGeneration, isCurrent } = useRequestGeneration()
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -399,6 +419,10 @@ export function BookingsListPage() {
     setCompletingBookingRemainingAmount,
   ] = useState<string | null>(null)
   const [noShowBooking, setNoShowBooking] = useState<Booking | null>(null)
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null)
+  const [reschedulingBooking, setReschedulingBooking] = useState<Booking | null>(
+    null,
+  )
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [paymentFieldErrors, setPaymentFieldErrors] = useState<Record<
@@ -412,6 +436,7 @@ export function BookingsListPage() {
     ApiFieldError[]
   > | null>(null)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [searchDraft, setSearchDraft] = useState('')
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [courtRecords, setCourtRecords] = useState<Court[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
@@ -419,14 +444,18 @@ export function BookingsListPage() {
     () => parseBookingsQueryParams(location.search),
     [location.search],
   )
-  const urlHasBookingFilters = hasBookingFilters(urlParams)
   const effectiveParams = useMemo(() => {
-    if (urlHasBookingFilters) {
+    if (canChooseCourt) {
       return urlParams
     }
 
-    return usesUnfilteredEmptyUrl ? {} : createDefaultQueryParams()
-  }, [urlHasBookingFilters, urlParams, usesUnfilteredEmptyUrl])
+    const staffParams = { ...urlParams }
+    delete staffParams.court
+    if (assignedCourtId !== null) {
+      staffParams.court = assignedCourtId
+    }
+    return staffParams
+  }, [assignedCourtId, canChooseCourt, urlParams])
   const initialFilters = useMemo(
     () => filterStateFromParams(effectiveParams),
     [effectiveParams],
@@ -437,8 +466,17 @@ export function BookingsListPage() {
     ),
     [courtOptions],
   )
+  const visibleFilterParams = useMemo(() => {
+    if (canChooseCourt) {
+      return effectiveParams
+    }
+
+    const params = { ...effectiveParams }
+    delete params.court
+    return params
+  }, [canChooseCourt, effectiveParams])
   const activeFilterChips = getActiveBookingFilterChips(
-    effectiveParams,
+    visibleFilterParams,
     courtLabels,
   )
   const hasActiveFilters = activeFilterChips.length > 0
@@ -447,7 +485,7 @@ export function BookingsListPage() {
     let isActive = true
 
     async function loadCourtOptions(): Promise<void> {
-      if (!selectedClubSlug) {
+      if (!selectedClubSlug || !canChooseCourt) {
         setCourtOptions([])
         setCourtRecords([])
         setFilterOptionsError(null)
@@ -486,42 +524,97 @@ export function BookingsListPage() {
     return () => {
       isActive = false
     }
-  }, [selectedClubSlug])
+  }, [canChooseCourt, selectedClubSlug])
 
   const reloadBookings = useCallback(async (): Promise<void> => {
+    const requestGeneration = nextGeneration()
+
     if (!selectedClubSlug) {
       setBookings([])
+      setPagination({ count: 0, hasNext: false, hasPrevious: false })
       setError(null)
       setMessage('اختر ناديًا أولًا لعرض الحجوزات')
       setIsLoading(false)
+      setIsRefreshing(false)
+      hasCompletedInitialLoadRef.current = false
       return
     }
 
-    setIsLoading(true)
+    if (hasCompletedInitialLoadRef.current) {
+      setIsRefreshing(true)
+    } else {
+      setIsLoading(true)
+    }
     setError(null)
     setMessage(null)
 
     try {
       const bookingsResponse = await listBookings(selectedClubSlug, effectiveParams)
 
+      if (!isCurrent(requestGeneration)) {
+        return
+      }
+
+      if (
+        bookingsResponse.results.length === 0
+        && bookingsResponse.previous
+        && Number(effectiveParams.page || 1) > 1
+      ) {
+        const previousPageParams = { ...effectiveParams }
+        const previousPage = Number(effectiveParams.page) - 1
+        if (previousPage <= 1) {
+          delete previousPageParams.page
+        } else {
+          previousPageParams.page = String(previousPage)
+        }
+        navigate(
+          {
+            pathname: location.pathname,
+            search: getBookingsSearch(previousPageParams),
+          },
+          { replace: true },
+        )
+        return
+      }
+
       setBookings(bookingsResponse.results)
+      setPagination({
+        count: bookingsResponse.count,
+        hasNext: Boolean(bookingsResponse.next),
+        hasPrevious: Boolean(bookingsResponse.previous),
+      })
+      hasCompletedInitialLoadRef.current = true
     } catch (error) {
+      if (!isCurrent(requestGeneration)) {
+        return
+      }
+
       setBookings([])
+      setPagination({ count: 0, hasNext: false, hasPrevious: false })
       setError(getApiErrorMessage(error, 'تعذر تحميل الحجوزات'))
     } finally {
-      setIsLoading(false)
+      if (isCurrent(requestGeneration)) {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
     }
-  }, [effectiveParams, selectedClubSlug])
+  }, [effectiveParams, isCurrent, location.pathname, navigate, nextGeneration, selectedClubSlug])
 
   useEffect(() => {
     void Promise.resolve().then(() => reloadBookings())
   }, [reloadBookings])
 
   function handleApplyFilters(nextFilters: FilterState): void {
-    const nextParams = paramsFromFilterState(nextFilters)
+    const nextParams = {
+      ...paramsFromFilterState(nextFilters),
+      ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
+    }
+    delete nextParams.page
+    if (!canChooseCourt) {
+      delete nextParams.court
+    }
     const nextSearch = getBookingsSearch(nextParams)
 
-    setUsesUnfilteredEmptyUrl(!nextSearch)
     navigate(
       {
         pathname: location.pathname,
@@ -532,37 +625,19 @@ export function BookingsListPage() {
   }
 
   function handleResetFilters(): void {
-    const defaultParams = createDefaultQueryParams()
+    const nextParams: BookingsQueryParams = {
+      ...(effectiveParams.needs_action
+        ? { needs_action: effectiveParams.needs_action }
+        : {}),
+      ...(effectiveParams.has_remaining_amount !== undefined
+        ? { has_remaining_amount: effectiveParams.has_remaining_amount }
+        : {}),
+      ...(effectiveParams.upcoming !== undefined
+        ? { upcoming: effectiveParams.upcoming }
+        : {}),
+      ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
+    }
 
-    setUsesUnfilteredEmptyUrl(false)
-    navigate(
-      {
-        pathname: location.pathname,
-        search: getBookingsSearch(defaultParams),
-      },
-      { replace: false },
-    )
-  }
-
-  function handleRemoveFilter(key: BookingFilterChipKey): void {
-    const nextParams = { ...effectiveParams }
-
-    delete nextParams[key]
-
-    const nextSearch = getBookingsSearch(nextParams)
-
-    setUsesUnfilteredEmptyUrl(!nextSearch)
-    navigate(
-      {
-        pathname: location.pathname,
-        search: nextSearch,
-      },
-      { replace: false },
-    )
-  }
-
-  function applyQuickParams(nextParams: BookingsQueryParams): void {
-    setUsesUnfilteredEmptyUrl(false)
     navigate(
       {
         pathname: location.pathname,
@@ -572,22 +647,97 @@ export function BookingsListPage() {
     )
   }
 
-  function handleQuickToday(): void {
-    applyQuickParams(createDefaultQueryParams())
+  function handleRemoveFilter(key: BookingFilterChipKey): void {
+    const nextParams = { ...urlParams }
+
+    delete nextParams[key]
+    delete nextParams.page
+
+    const nextSearch = getBookingsSearch(nextParams)
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch,
+      },
+      { replace: false },
+    )
   }
 
-  function handleQuickNeedsClosing(): void {
-    applyQuickParams({
-      date: formatDateInputValue(new Date()),
-      needs_action: 'true',
-    })
+  function handlePrimaryFilter(key: string, checked: boolean): void {
+    const nextParams = { ...urlParams }
+    delete nextParams.page
+
+    if (key === 'needs_action') {
+      if (checked) {
+        nextParams.needs_action = 'true'
+      } else {
+        delete nextParams.needs_action
+      }
+    }
+
+    if (key === 'has_remaining_amount') {
+      if (checked) {
+        nextParams.has_remaining_amount = 'true'
+      } else {
+        delete nextParams.has_remaining_amount
+      }
+    }
+
+    if (key === 'upcoming') {
+      if (checked) {
+        nextParams.upcoming = 'true'
+      } else {
+        delete nextParams.upcoming
+      }
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: false },
+    )
   }
 
-  function handleQuickHold(): void {
-    applyQuickParams({
-      date: formatDateInputValue(new Date()),
-      status: 'HOLD',
-    })
+  const handleSearch = useCallback((value: string): void => {
+    const nextParams = { ...urlParams }
+    delete nextParams.page
+    if (value) {
+      nextParams.search = value
+    } else {
+      delete nextParams.search
+    }
+    if (!canChooseCourt) {
+      delete nextParams.court
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: true },
+    )
+  }, [canChooseCourt, location.pathname, navigate, urlParams])
+
+  function handlePageChange(nextPage: number): void {
+    const nextParams = { ...urlParams }
+
+    if (nextPage <= 1) {
+      delete nextParams.page
+    } else {
+      nextParams.page = String(nextPage)
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: false },
+    )
   }
 
   function closeBookingSheets(): void {
@@ -598,6 +748,8 @@ export function BookingsListPage() {
     setCompletingBooking(null)
     setCompletingBookingRemainingAmount(null)
     setNoShowBooking(null)
+    setEditingBooking(null)
+    setReschedulingBooking(null)
     setPaymentError(null)
     setPaymentFieldErrors(null)
     setActionError(null)
@@ -620,11 +772,18 @@ export function BookingsListPage() {
         booking: paymentBooking.id,
         amount: values.amount,
         payment_method: values.payment_method,
-        ...(values.reference ? { reference: values.reference } : {}),
+        ...(values.reference
+          ? { payment_reference: values.reference }
+          : {}),
         ...(values.notes ? { notes: values.notes } : {}),
       })
       setPaymentBooking(null)
-      setSuccessMessage('تم تسجيل الدفعة بنجاح')
+      setSelectedBooking(null)
+      setSuccessMessage(
+        paymentBooking.status === 'HOLD'
+          ? 'تم تسجيل العربون وتأكيد الحجز بنجاح'
+          : 'تم تسجيل التحصيل بنجاح',
+      )
       await reloadBookings()
     } catch (error) {
       const errorCode = getApiErrorCode(error)
@@ -657,15 +816,15 @@ export function BookingsListPage() {
 
     try {
       await cancelBooking(selectedClubSlug, booking.id, {
-        reason: 'تحرير الحجز المؤقت',
-        notes: 'تم تحرير الموعد من سجل الحجوزات',
+        reason: 'إلغاء الحجز المؤقت',
+        notes: 'تم إلغاء الحجز من سجل الحجوزات',
       })
       setSelectedBooking(null)
-      setSuccessMessage('تم تحرير الموعد بنجاح')
+      setSuccessMessage('تم إلغاء الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
       setActionError(
-        getApiErrorMessage(error, 'تعذر تحرير الموعد. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
       )
     } finally {
       setIsActionSubmitting(false)
@@ -687,6 +846,7 @@ export function BookingsListPage() {
       await cancelBooking(selectedClubSlug, cancellingBooking.id, values)
       setCancellingBooking(null)
       setCancellationPreview(null)
+      setSelectedBooking(null)
       setSuccessMessage('تم إلغاء الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
@@ -723,7 +883,6 @@ export function BookingsListPage() {
 
       setCancellationPreview(preview)
       setCancellingBooking(booking)
-      setSelectedBooking(null)
     } catch (error) {
       if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
         setActionError('انتهى وقت إلغاء هذا الحجز لأنه بدأ بالفعل.')
@@ -739,7 +898,9 @@ export function BookingsListPage() {
     }
   }
 
-  async function handleCompleteBooking(): Promise<void> {
+  async function handleCompleteBooking(
+    payload?: BookingCompletePayload,
+  ): Promise<void> {
     if (!selectedClubSlug || !completingBooking) {
       return
     }
@@ -748,9 +909,14 @@ export function BookingsListPage() {
     setActionError(null)
 
     try {
-      await completeBooking(selectedClubSlug, completingBooking.id)
+      if (payload) {
+        await completeBooking(selectedClubSlug, completingBooking.id, payload)
+      } else {
+        await completeBooking(selectedClubSlug, completingBooking.id)
+      }
       setCompletingBooking(null)
       setCompletingBookingRemainingAmount(null)
+      setSelectedBooking(null)
       setSuccessMessage('تم إكمال الحجز بنجاح')
       await reloadBookings()
     } catch (error) {
@@ -768,6 +934,9 @@ export function BookingsListPage() {
       setActionError(
         getApiErrorMessage(error, 'تعذر إكمال الحجز. حاول مرة أخرى'),
       )
+      if (shouldRefreshRecurrencePreview(getApiErrorCode(error))) {
+        throw error
+      }
     } finally {
       setIsActionSubmitting(false)
     }
@@ -786,6 +955,7 @@ export function BookingsListPage() {
     try {
       await markBookingNoShow(selectedClubSlug, noShowBooking.id, values)
       setNoShowBooking(null)
+      setSelectedBooking(null)
       setSuccessMessage('تم تسجيل عدم الحضور بنجاح')
       await reloadBookings()
     } catch (error) {
@@ -798,26 +968,170 @@ export function BookingsListPage() {
     }
   }
 
+  async function handleEndRecurrence(booking: Booking): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsActionSubmitting(true)
+    setActionError(null)
+
+    try {
+      const updatedBooking = await endBookingRecurrence(
+        selectedClubSlug,
+        booking.id,
+      )
+      setSelectedBooking(updatedBooking)
+      setSuccessMessage('تم إيقاف الحجز الأسبوعي')
+      await reloadBookings()
+    } catch (error) {
+      setActionError(
+        getApiErrorMessage(error, 'تعذر إيقاف الحجز الأسبوعي. حاول مرة أخرى'),
+      )
+    } finally {
+      setIsActionSubmitting(false)
+    }
+  }
+
+  async function handleStartEditCustomer(booking: Booking): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsActionSubmitting(true)
+    setActionError(null)
+
+    try {
+      const freshBooking = await getBooking(selectedClubSlug, booking.id)
+      setEditingBooking(freshBooking)
+    } catch (error) {
+      setActionError(
+        getApiErrorMessage(error, 'تعذر تحميل بيانات الحجز. حاول مرة أخرى'),
+      )
+    } finally {
+      setIsActionSubmitting(false)
+    }
+  }
+
+  async function handleUpdateBookingCustomer(
+    payload: BookingCustomerUpdatePayload,
+  ): Promise<void> {
+    if (!selectedClubSlug || !editingBooking) {
+      return
+    }
+
+    setIsActionSubmitting(true)
+    setActionError(null)
+    setActionFieldErrors(null)
+
+    try {
+      await updateBookingCustomer(selectedClubSlug, editingBooking.id, payload)
+      const freshBooking = await getBooking(selectedClubSlug, editingBooking.id)
+      setEditingBooking(null)
+      setSelectedBooking(freshBooking)
+      setSuccessMessage('تم تحديث بيانات الحجز')
+      await reloadBookings()
+    } catch (error) {
+      setActionError(
+        getApiErrorMessage(error, 'تعذر تحديث بيانات الحجز. حاول مرة أخرى'),
+      )
+      setActionFieldErrors(getApiFieldErrors(error))
+    } finally {
+      setIsActionSubmitting(false)
+    }
+  }
+
+  async function handleStartReschedule(booking: Booking): Promise<void> {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    setIsActionSubmitting(true)
+    setActionError(null)
+
+    try {
+      const freshBooking = await getBooking(selectedClubSlug, booking.id)
+      setReschedulingBooking(freshBooking)
+    } catch (error) {
+      setActionError(
+        getApiErrorMessage(error, 'تعذر تحميل بيانات الحجز. حاول مرة أخرى'),
+      )
+    } finally {
+      setIsActionSubmitting(false)
+    }
+  }
+
+  async function handleRescheduleBooking(
+    payload: BookingReschedulePayload,
+  ): Promise<void> {
+    if (!selectedClubSlug || !reschedulingBooking) {
+      return
+    }
+
+    setIsActionSubmitting(true)
+    setActionError(null)
+    setActionFieldErrors(null)
+
+    try {
+      await rescheduleBooking(selectedClubSlug, reschedulingBooking.id, payload)
+      const freshBooking = await getBooking(
+        selectedClubSlug,
+        reschedulingBooking.id,
+      )
+      setReschedulingBooking(null)
+      setSelectedBooking(freshBooking)
+      setSuccessMessage('تم تغيير الموعد بنجاح')
+      await reloadBookings()
+    } catch (error) {
+      setActionError(
+        getApiErrorMessage(error, 'تعذر تغيير الموعد. حاول مرة أخرى'),
+      )
+      setActionFieldErrors(getApiFieldErrors(error))
+      throw error
+    } finally {
+      setIsActionSubmitting(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <AppButton onClick={handleQuickToday} type="button" variant="secondary">
-          اليوم
-        </AppButton>
-        <AppButton
-          onClick={handleQuickNeedsClosing}
-          type="button"
-          variant="secondary"
-        >
-          تحتاج إغلاق
-        </AppButton>
-        <AppButton onClick={handleQuickHold} type="button" variant="secondary">
-          بانتظار العربون
-        </AppButton>
-        <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
-          فلترة
-        </AppButton>
-      </div>
+      <LiveSearchField
+        label={customerCopy.customerOrMobileSearch}
+        onDraftChange={setSearchDraft}
+        onSearch={handleSearch}
+        placeholder={customerCopy.customerOrMobileSearch}
+        value={effectiveParams.search ?? ''}
+      />
+
+      <QuickSearchShortcuts searchQuery={searchDraft}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <FilterCheckboxGroup
+            className="min-w-0 flex-1"
+            label="مراجعة سريعة"
+            onChange={handlePrimaryFilter}
+            options={[
+              {
+                key: 'upcoming',
+                label: 'الحجوزات القادمة فقط',
+                checked: effectiveParams.upcoming === 'true',
+              },
+              {
+                key: 'needs_action',
+                label: 'تحتاج إجراء',
+                checked: effectiveParams.needs_action === 'true',
+              },
+              {
+                key: 'has_remaining_amount',
+                label: 'بها مبلغ متبقي',
+                checked: effectiveParams.has_remaining_amount === 'true',
+              },
+            ]}
+          />
+          <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
+            فلاتر إضافية
+          </AppButton>
+        </div>
+      </QuickSearchShortcuts>
 
       {filterOptionsError ? (
         <p className="text-xs font-bold text-[var(--sloty-danger)]">
@@ -825,27 +1139,17 @@ export function BookingsListPage() {
         </p>
       ) : null}
 
-      <AppCard className="hidden md:block">
-        <BookingsFilterForm
-          courtOptions={courtOptions}
-          initialFilters={initialFilters}
-          isLoading={isLoading}
-          key={`desktop-${getBookingsSearch(effectiveParams) || 'empty-filters'}`}
-          onApply={handleApplyFilters}
-          onReset={handleResetFilters}
-        />
-      </AppCard>
-
       <FilterSheet
         isOpen={isFilterSheetOpen}
         onClose={() => setIsFilterSheetOpen(false)}
         title="فلترة الحجوزات"
       >
         <BookingsFilterForm
+          canChooseCourt={canChooseCourt}
           courtOptions={courtOptions}
           initialFilters={initialFilters}
           isLoading={isLoading}
-          key={`mobile-${getBookingsSearch(effectiveParams) || 'empty-filters'}`}
+          key={getBookingsSearch(effectiveParams) || 'empty-filters'}
           onApply={handleApplyFilters}
           onClose={() => setIsFilterSheetOpen(false)}
           onReset={handleResetFilters}
@@ -857,7 +1161,8 @@ export function BookingsListPage() {
         onRemove={handleRemoveFilter}
       />
 
-      {isLoading ? (
+      <ResultRefreshRegion isRefreshing={isRefreshing}>
+      {isLoading && bookings.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             جاري تحميل الحجوزات...
@@ -883,52 +1188,91 @@ export function BookingsListPage() {
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             {hasActiveFilters
-              ? 'لا توجد حجوزات مطابقة للفلاتر الحالية'
-              : 'لا توجد حجوزات لهذا اليوم'}
+              ? effectiveParams.search
+                ? 'ملقيناش حجوزات مطابقة للبحث.'
+                : 'مفيش حجوزات مطابقة للفلاتر الحالية.'
+              : 'مفيش حجوزات لسه.'}
           </p>
         </AppCard>
       ) : null}
 
-      {!isLoading && !error && bookings.length > 0 ? (
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {bookings.map((booking) => (
-            <BookingListCard
-              booking={booking}
-              key={booking.id}
-              onSelect={(booking) => {
-                setSelectedBooking(booking)
-                setActionError(null)
-                setActionFieldErrors(null)
-              }}
-            />
-          ))}
-        </section>
+      {(!isLoading || bookings.length > 0) && !error && bookings.length > 0 ? (
+        <>
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {bookings.map((booking) => (
+              <BookingListCard
+                booking={booking}
+                key={booking.id}
+                onSelect={(booking) => {
+                  setSelectedBooking(booking)
+                  setActionError(null)
+                  setActionFieldErrors(null)
+                }}
+              />
+            ))}
+          </section>
+
+          {pagination.hasNext || pagination.hasPrevious ? (
+            <nav
+              aria-label="صفحات سجل الحجوزات"
+              className="flex items-center justify-center gap-3"
+            >
+              <AppButton
+                disabled={!pagination.hasPrevious}
+                onClick={() => handlePageChange(
+                  Math.max(1, Number(effectiveParams.page || 1) - 1),
+                )}
+                type="button"
+                variant="secondary"
+              >
+                السابق
+              </AppButton>
+              <span className="text-sm font-bold text-[var(--sloty-text-muted)]">
+                صفحة {effectiveParams.page || 1} · {pagination.count} حجز
+              </span>
+              <AppButton
+                disabled={!pagination.hasNext}
+                onClick={() => handlePageChange(
+                  Number(effectiveParams.page || 1) + 1,
+                )}
+                type="button"
+                variant="secondary"
+              >
+                التالي
+              </AppButton>
+            </nav>
+          ) : null}
+        </>
       ) : null}
+      </ResultRefreshRegion>
 
       {successMessage ? (
-        <div className="fixed left-4 top-4 z-[70] max-w-sm rounded-2xl border border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)] px-4 py-3 text-sm font-bold text-[var(--sloty-primary-dark)] shadow-[var(--sloty-shadow)]">
-          <div className="flex items-center gap-3">
-            <span>{successMessage}</span>
-            <button
-              className="rounded-lg px-2 py-1 text-xs hover:bg-white/70"
-              onClick={() => setSuccessMessage(null)}
-              type="button"
-            >
-              إغلاق
-            </button>
-          </div>
-        </div>
+        <AppSuccessNotice
+          message={successMessage}
+          onDismiss={() => setSuccessMessage(null)}
+        />
       ) : null}
 
       <BookingActionSheet
         booking={selectedBooking}
         dateValue={typeof effectiveParams.date === 'string' ? effectiveParams.date : null}
-        error={actionError}
-        isOpen={Boolean(selectedBooking)}
+        error={
+          paymentBooking || cancellingBooking || completingBooking || noShowBooking
+            ? null
+            : actionError
+        }
+        isOpen={Boolean(
+          selectedBooking &&
+            !paymentBooking &&
+            !cancellingBooking &&
+            !completingBooking &&
+            !noShowBooking &&
+            !editingBooking &&
+            !reschedulingBooking,
+        )}
         isSubmitting={isActionSubmitting}
         onAddPayment={(booking) => {
           setPaymentBooking(booking)
-          setSelectedBooking(null)
           setPaymentError(null)
           setPaymentFieldErrors(null)
         }}
@@ -939,22 +1283,34 @@ export function BookingsListPage() {
         onComplete={(booking) => {
           setCompletingBooking(booking)
           setCompletingBookingRemainingAmount(null)
-          setSelectedBooking(null)
           setActionError(null)
+        }}
+        onEditCustomer={(booking) => {
+          void handleStartEditCustomer(booking)
+        }}
+        onEndRecurrence={(booking) => {
+          void handleEndRecurrence(booking)
         }}
         onFreeHold={(booking) => {
           void handleFreeHoldBooking(booking)
         }}
         onNoShow={(booking) => {
           setNoShowBooking(booking)
-          setSelectedBooking(null)
           setActionError(null)
+        }}
+        onReschedule={(booking) => {
+          void handleStartReschedule(booking)
         }}
       />
 
       {paymentBooking ? (
         <RecordPaymentSheet
           bookingId={paymentBooking.id}
+          bookingMoney={{
+            totalPrice: paymentBooking.total_price,
+            paidAmount: paymentBooking.paid_amount,
+            remainingAmount: paymentBooking.remaining_amount,
+          }}
           error={paymentError}
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
@@ -964,6 +1320,7 @@ export function BookingsListPage() {
                   ?.minimum_deposit ?? null
               : null
           }
+          paymentPurpose={paymentBooking.status === 'HOLD' ? 'deposit' : 'remaining'}
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
@@ -986,11 +1343,14 @@ export function BookingsListPage() {
           }}
           onSubmit={handleCancelBooking}
           preview={cancellationPreview}
+          recurrenceWillEnd={hasActiveRecurrence(cancellingBooking)}
         />
       ) : null}
 
-      {completingBooking ? (
+      {completingBooking && selectedClubSlug ? (
         <CompleteBookingConfirmSheet
+          booking={completingBooking}
+          clubSlug={selectedClubSlug}
           error={actionError}
           isSubmitting={isActionSubmitting}
           onClose={() => {
@@ -1018,6 +1378,39 @@ export function BookingsListPage() {
         />
       ) : null}
 
+      {editingBooking && selectedClubSlug ? (
+        <EditBookingDetailsSheet
+          booking={editingBooking}
+          error={actionError}
+          fieldErrors={actionFieldErrors}
+          isSubmitting={isActionSubmitting}
+          onClose={() => {
+            setEditingBooking(null)
+            setActionError(null)
+            setActionFieldErrors(null)
+          }}
+          onSubmit={handleUpdateBookingCustomer}
+        />
+      ) : null}
+
+      {reschedulingBooking && selectedClubSlug ? (
+        <RescheduleBookingSheet
+          assignedCourtId={assignedCourtId}
+          booking={reschedulingBooking}
+          canChooseCourt={canChooseCourt}
+          clubSlug={selectedClubSlug}
+          error={actionError}
+          fieldErrors={actionFieldErrors}
+          isSubmitting={isActionSubmitting}
+          onClose={() => {
+            setReschedulingBooking(null)
+            setActionError(null)
+            setActionFieldErrors(null)
+          }}
+          onSubmit={handleRescheduleBooking}
+        />
+      ) : null}
+
       {noShowBooking ? (
         <NoShowReasonSheet
           error={actionError}
@@ -1027,6 +1420,7 @@ export function BookingsListPage() {
             setActionError(null)
           }}
           onSubmit={handleNoShowBooking}
+          recurrenceWillEnd={hasActiveRecurrence(noShowBooking)}
         />
       ) : null}
     </div>

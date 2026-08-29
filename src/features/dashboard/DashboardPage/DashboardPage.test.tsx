@@ -82,7 +82,19 @@ function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
-    currentUser: null,
+    currentUser: {
+      id: 1,
+      username: 'mohamed.owner',
+      email: '',
+      first_name: 'محمد',
+      last_name: 'أحمد',
+      phone_number: null,
+      is_active: true,
+      is_platform_admin: false,
+      account_created_by: null,
+      requires_club_selection: false,
+      memberships: [],
+    },
     selectedClubSlug,
     selectedMembership: selectedClubSlug
       ? {
@@ -179,7 +191,7 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(
-      await screen.findByText('اختر ناديًا أولًا لعرض الملخص'),
+      await screen.findByText('اختر ناديًا أولًا لعرض ملخص التشغيل.'),
     ).toBeInTheDocument()
     expect(mockedGetDashboardSummary).not.toHaveBeenCalled()
     expect(mockedListCourts).not.toHaveBeenCalled()
@@ -190,7 +202,7 @@ describe('DashboardPage', () => {
 
     renderDashboard()
 
-    expect(screen.getByText('جاري تحميل الملخص...')).toBeInTheDocument()
+    expect(screen.getByText('جاري تحميل ملخص التشغيل...')).toBeInTheDocument()
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 
@@ -202,7 +214,8 @@ describe('DashboardPage', () => {
     expect((await screen.findAllByText('ملعب 3')).length).toBeGreaterThan(0)
     expect(screen.getByText('ملعب #4')).toBeInTheDocument()
     expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
-    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
+    expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
+      .toBeInTheDocument()
   })
 
   it('uses staff assigned court without exposing all-courts selection', async () => {
@@ -223,12 +236,21 @@ describe('DashboardPage', () => {
       role: 'STAFF',
     })
 
-    renderDashboard('/dashboard?court=4')
+    renderDashboard('/dashboard?shortcut=week&court=4')
 
-    expect(await screen.findByText('نطاق الملعب')).toBeInTheDocument()
+    expect(await screen.findByText('مساء الخير يا محمد')).toBeInTheDocument()
+    expect(screen.getByText(/ملعب 3/)).toBeInTheDocument()
+    expect(screen.queryByText('نطاق الملعب')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'كل الملاعب' }))
       .not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'ملعب #4' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByText('عهدتي')).toBeInTheDocument()
+    expect(screen.getByText('700.00 ج.م')).toBeInTheDocument()
+    expect(screen.getByText('من 7 عملية تحصيل')).toBeInTheDocument()
+    expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
+    expect(screen.queryByText('سوّي عهدتك')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'آخر 7 أيام' }))
       .not.toBeInTheDocument()
     expect(mockedListCourts).not.toHaveBeenCalled()
     await waitFor(() => {
@@ -239,6 +261,104 @@ describe('DashboardPage', () => {
     })
   })
 
+  it('does not expose employee settlement actions to a restricted Manager', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      selectedMembership: {
+        id: 10,
+        role: 'MANAGER',
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: null,
+        permissions: {
+          can_change_pricing: false,
+          can_manage_working_hours: false,
+          can_manage_settlements: false,
+        },
+      },
+      role: 'MANAGER',
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
+      .toBeInTheDocument()
+    expect(screen.queryByText('المبالغ مع الموظفين')).not.toBeInTheDocument()
+    expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
+  })
+
+  it('preserves employee custody management for an authorized Manager', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      selectedMembership: {
+        id: 10,
+        role: 'MANAGER',
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: null,
+        permissions: {
+          can_change_pricing: false,
+          can_manage_working_hours: false,
+          can_manage_settlements: true,
+        },
+      },
+      role: 'MANAGER',
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByText('المبالغ مع الموظفين')).toBeInTheDocument()
+    expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
+      'href',
+      '/settlements/preview?collected_by=15&court=3',
+    )
+  })
+
+  it('uses a human empty custody state for Staff without settlement actions', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      selectedMembership: {
+        id: 10,
+        role: 'STAFF',
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: { id: 3, name: 'ملعب 3' },
+      },
+      role: 'STAFF',
+    })
+    mockedGetDashboardSummary.mockResolvedValueOnce({
+      ...baseSummaryResponse,
+      summary: {
+        ...baseSummaryResponse.summary,
+        unsettled_transaction_count: 0,
+        unsettled_transaction_total_amount: '0',
+      },
+    })
+
+    renderDashboard()
+
+    expect(
+      await screen.findByText('مفيش مبالغ معاك دلوقتي.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
+    expect(screen.queryByText('سوّي عهدتك')).not.toBeInTheDocument()
+  })
+
   it('does not block summary when court options fail', async () => {
     mockedListCourts.mockRejectedValueOnce(new Error('failed'))
 
@@ -246,7 +366,8 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('تعذر تحميل خيارات الملاعب'))
       .toBeInTheDocument()
-    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
+    expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
+      .toBeInTheDocument()
     expect(mockedGetDashboardSummary).toHaveBeenCalled()
   })
 
@@ -367,51 +488,56 @@ describe('DashboardPage', () => {
       .toBeInTheDocument()
   })
 
-  it('renders main KPI cards with filtered links', async () => {
+  it('puts the accurate daily operational summary before secondary analytics', async () => {
     renderDashboard()
 
-    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
-    expect(screen.getAllByText('تحتاج إجراء')).not.toHaveLength(0)
-    expect(screen.getByText('تحصيل اليوم')).toBeInTheDocument()
-    expect(screen.getAllByText('مبالغ غير مسواة حالياً')).not.toHaveLength(0)
+    expect(await screen.findByText('مساء الخير يا محمد')).toBeInTheDocument()
+    const dailySection = screen.getByText('النهاردة').closest('section')
+    const analyticsSection = screen.getByText('متابعة وأرقام').closest('section')
 
-    expect(screen.getByText('حجوزات اليوم').closest('a')).toHaveAttribute(
-      'href',
-      '/bookings?date=2026-07-21',
-    )
-    expect(screen.getAllByText('تحتاج إجراء')[0].closest('a')).toHaveAttribute(
-      'href',
-      '/bookings?date=2026-07-21&needs_action=true',
-    )
-    expect(screen.getByText('تحصيل اليوم').closest('a')).toHaveAttribute(
-      'href',
-      '/transactions?date=2026-07-21&is_cancelled=false',
-    )
+    expect(dailySection).toBeInTheDocument()
+    expect(analyticsSection).toBeInTheDocument()
     expect(
-      screen.getAllByText('مبالغ غير مسواة حالياً')[0].closest('a'),
-    ).toHaveAttribute(
+      dailySection?.compareDocumentPosition(analyticsSection as Node)
+      ?? 0,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(screen.getByText('18 حجوزات مسجلة النهاردة')).toBeInTheDocument()
+    expect(screen.getByText('2 بانتظار العربون').closest('a')).toHaveAttribute(
       'href',
-      '/transactions?settlement_status=unsettled&is_cancelled=false',
+      '/bookings?date=2026-07-21&status=HOLD',
     )
+    expect(screen.getByText('محتاجين إجراء')).toBeInTheDocument()
+    expect(screen.getByText('متابعة وأرقام')).toBeInTheDocument()
+    expect(screen.queryByText('حجوزات اليوم')).not.toBeInTheDocument()
+    expect(screen.queryByText('تحصيل اليوم')).not.toBeInTheDocument()
+    expect(screen.queryByText('هذا الأسبوع')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'آخر 7 أيام' }))
+      .toBeInTheDocument()
   })
 
-  it('preserves selected court in supported Dashboard links only', async () => {
+  it('does not fabricate unsupported booking-level Home dependencies', async () => {
+    renderDashboard()
+
+    expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
+      .toBeInTheDocument()
+    expect(baseSummaryResponse).not.toHaveProperty('next_booking')
+    expect(baseSummaryResponse).not.toHaveProperty('hold_attention')
+    expect(baseSummaryResponse).not.toHaveProperty('action_items')
+    expect(baseSummaryResponse).not.toHaveProperty('my_custody')
+    expect(screen.queryByText('الحجز الجاي')).not.toBeInTheDocument()
+    expect(screen.queryByText(/ينتهي بعد/)).not.toBeInTheDocument()
+  })
+
+  it('preserves selected court in operational and settlement links', async () => {
     renderDashboard('/dashboard?court=3')
 
-    expect(await screen.findByText('حجوزات اليوم')).toBeInTheDocument()
-    expect(screen.getByText('حجوزات اليوم').closest('a')).toHaveAttribute(
+    expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
+      .toBeInTheDocument()
+    expect(screen.getByText('2 بانتظار العربون').closest('a')).toHaveAttribute(
       'href',
-      '/bookings?court=3&date=2026-07-21',
+      '/bookings?court=3&date=2026-07-21&status=HOLD',
     )
-    expect(screen.getAllByText('تحتاج إجراء')[0].closest('a')).toHaveAttribute(
-      'href',
-      '/bookings?court=3&date=2026-07-21&needs_action=true',
-    )
-    expect(screen.getByText('تحصيل اليوم').closest('a')).toHaveAttribute(
-      'href',
-      '/transactions?court=3&date=2026-07-21&is_cancelled=false',
-    )
-    expect(screen.getByText('مراجعة التسوية')).toHaveAttribute(
+    expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
       'href',
       '/settlements/preview?collected_by=15&court=3',
     )
@@ -421,10 +547,13 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(await screen.findByText('حالات الحجوزات')).toBeInTheDocument()
-    expect(screen.getByText('بانتظار العربون').closest('a')).toHaveAttribute(
-      'href',
-      '/bookings?date=2026-07-21&status=HOLD',
-    )
+    expect(
+      screen.getAllByText('بانتظار العربون').some(
+        (element) =>
+          element.closest('a')?.getAttribute('href') ===
+          '/bookings?date=2026-07-21&status=HOLD',
+      ),
+    ).toBe(true)
     expect(screen.getByText('كاش').closest('a')).toHaveAttribute(
       'href',
       '/transactions?date=2026-07-21&is_cancelled=false&payment_method=CASH',
@@ -435,7 +564,7 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(await screen.findByText('أحمد المحصل')).toBeInTheDocument()
-    expect(screen.getByText('مراجعة التسوية')).toHaveAttribute(
+    expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
       'href',
       '/settlements/preview?collected_by=15&court=3',
     )
@@ -455,6 +584,7 @@ describe('DashboardPage', () => {
       summary: {
         ...baseSummaryResponse.summary,
         needs_action_count: 0,
+        hold_bookings: 0,
         staff_with_unsettled_transactions_count: 0,
         total_remaining_amount: null,
         transaction_total: '0',
@@ -466,10 +596,10 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(
-      await screen.findByText('لا توجد حجوزات تحتاج إجراء'),
+      await screen.findByText('مفيش حجوزات محتاجة إجراء دلوقتي.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('لا توجد مبالغ غير مسواة حالياً'),
+      screen.getByText('مفيش مبالغ مع الموظفين دلوقتي'),
     ).toBeInTheDocument()
     expect(screen.getAllByText('-')).not.toHaveLength(0)
     expect(screen.getAllByText('0 جنيه')).not.toHaveLength(0)
