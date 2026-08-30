@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
+  isApiClientError,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import {
@@ -13,10 +14,22 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { AppSheet } from '../../../shared/components/AppSheet/AppSheet'
 import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { LiveSearchField } from '../../../shared/components/LiveSearchField/LiveSearchField'
+import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
 import { financeCopy, navigationCopy } from '../../../shared/copy/appCopy'
+import type { OfflineScope } from '../../../offline/offline.types'
+import {
+  getOfflineTransactionsView,
+  type OfflineTransactionViewParams,
+} from '../../../offline/transactions/offlineTransactionFilters'
+import { getTransactionSyncWindow } from '../../../offline/transactions/transactionSyncWindow'
+import { getScheduleFreshnessLabel } from '../../../offline/schedule/scheduleFreshness'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
+import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import {
@@ -36,7 +49,7 @@ import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
-import { cancelTransaction, listTransactions } from '../transactionsApi'
+import { cancelTransaction, getTransaction, listTransactions } from '../transactionsApi'
 import { getSinglePairValue } from '../transactionFilters.helpers'
 import type {
   PaymentMethod,
@@ -87,6 +100,15 @@ const chipFilterKeys = transactionFilterKeys.filter((key) => key !== 'page')
 
 function createDefaultQueryParams(): TransactionQueryParams {
   return getLastSevenDaysRange()
+}
+
+function createOfflineDefaultQueryParams(): TransactionQueryParams {
+  const syncWindow = getTransactionSyncWindow()
+
+  return {
+    date_from: syncWindow.dateFrom,
+    date_to: syncWindow.dateTo,
+  }
 }
 
 function isPaymentMethod(value: string): value is PaymentMethod {
@@ -277,6 +299,202 @@ function getActorName(
   }
 
   return value.name ?? null
+}
+
+function getTransactionCreatedValue(transaction: Transaction): string {
+  return transaction.created ?? transaction.modified ?? ''
+}
+
+function hasNonEmptyText(value?: string | null): value is string {
+  return Boolean(value?.trim())
+}
+
+interface TransactionDetailSheetProps {
+  detailError: string | null
+  isLoading: boolean
+  isOfflineMode: boolean
+  onClose: () => void
+  transaction: Transaction | null
+}
+
+function TransactionDetailSheet({
+  detailError,
+  isLoading,
+  isOfflineMode,
+  onClose,
+  transaction,
+}: TransactionDetailSheetProps) {
+  if (!transaction) {
+    return null
+  }
+
+  const createdLabel = formatArabicDateTime(getTransactionCreatedValue(transaction))
+  const bookingDateLabel = transaction.booking_start_time
+    ? formatBookingDateWithWeekday(transaction.booking_start_time)
+    : null
+  const bookingSlotLabel =
+    transaction.booking_start_time && transaction.booking_end_time
+      ? formatBookingTimeRange(
+          transaction.booking_start_time,
+          transaction.booking_end_time,
+        )
+      : null
+  const collectorName =
+    transaction.created_by_username ||
+    getActorName(transaction.created_by) ||
+    null
+  const cancellationActor =
+    getActorName(transaction.cancelled_by) ??
+    (getActorId(transaction.cancelled_by)
+      ? `مستخدم #${getActorId(transaction.cancelled_by)}`
+      : null)
+  const transactionType = getTransactionType(transaction)
+  const isReferenceVisible =
+    transaction.payment_method !== 'CASH' &&
+    hasNonEmptyText(transaction.payment_reference)
+
+  return (
+    <AppSheet
+      className="md:max-w-lg"
+      onRequestClose={onClose}
+      title="تفاصيل العملية المالية"
+    >
+      <div className="space-y-4">
+        {isOfflineMode ? (
+          <p className="rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-xs font-bold text-[var(--sloty-primary-dark)]">
+            بدون إنترنت · تفاصيل العملية للقراءة فقط، وأي إجراء مالي يحتاج اتصال.
+          </p>
+        ) : null}
+
+        {detailError ? (
+          <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+            {detailError}
+          </p>
+        ) : null}
+
+        {isLoading ? (
+          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+            جاري تحميل تفاصيل العملية...
+          </p>
+        ) : null}
+
+        <div className="space-y-1">
+          <p className="text-xl font-black text-[var(--sloty-primary-dark)]">
+            {formatMoneyAmount(transaction.amount, { suffix: 'ج.م' })}
+          </p>
+          <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
+            {transactionTypeLabels[transactionType]} ·{' '}
+            {paymentMethodLabels[transaction.payment_method]}
+          </p>
+          {createdLabel ? (
+            <p className="text-sm font-semibold text-[var(--sloty-text-muted)]">
+              اتسجلت: {createdLabel}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {bookingDateLabel || bookingSlotLabel ? (
+            <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                الحجز
+              </p>
+              {bookingDateLabel ? (
+                <p className="mt-1 text-sm font-bold text-[var(--sloty-text-primary)]">
+                  {bookingDateLabel}
+                </p>
+              ) : null}
+              {bookingSlotLabel ? (
+                <p className="text-sm font-semibold text-[var(--sloty-text-primary)]">
+                  {bookingSlotLabel}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {transaction.court_name ? (
+            <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                الملعب
+              </p>
+              <p className="mt-1 text-sm font-bold text-[var(--sloty-text-primary)]">
+                {transaction.court_name}
+              </p>
+            </div>
+          ) : null}
+
+          {collectorName ? (
+            <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                {financeCopy.collectedBy}
+              </p>
+              <p className="mt-1 text-sm font-bold text-[var(--sloty-text-primary)]">
+                {collectorName}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+            <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+              حالة الاستلام
+            </p>
+            <p className="mt-1 text-sm font-bold text-[var(--sloty-text-primary)]">
+              {transaction.is_settled ? 'تم استلامها' : 'لم يتم استلامها'}
+            </p>
+          </div>
+        </div>
+
+        {isReferenceVisible ? (
+          <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+            <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+              {financeCopy.paymentReference}
+            </p>
+            <p className="mt-1 break-words text-sm font-bold text-[var(--sloty-text-primary)]">
+              {transaction.payment_reference}
+            </p>
+          </div>
+        ) : null}
+
+        {hasNonEmptyText(transaction.notes) ? (
+          <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+            <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+              ملاحظات
+            </p>
+            <p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-[var(--sloty-text-primary)]">
+              {transaction.notes}
+            </p>
+          </div>
+        ) : null}
+
+        {transaction.is_cancelled ? (
+          <div className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2">
+            <p className="text-sm font-bold text-[var(--sloty-danger)]">
+              العملية ملغية
+            </p>
+            {hasNonEmptyText(transaction.cancellation_reason) ? (
+              <p className="mt-1 text-sm font-semibold text-[var(--sloty-danger)]">
+                {transaction.cancellation_reason}
+              </p>
+            ) : null}
+            {transaction.cancelled_at ? (
+              <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                {formatArabicDateTime(transaction.cancelled_at)}
+              </p>
+            ) : null}
+            {cancellationActor ? (
+              <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                بواسطة: {cancellationActor}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <AppButton fullWidth onClick={onClose} type="button" variant="secondary">
+          إغلاق
+        </AppButton>
+      </div>
+    </AppSheet>
+  )
 }
 
 interface TransactionsFilterFormProps {
@@ -502,6 +720,7 @@ export function TransactionsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
+  const { connectivity } = useOfflineSync()
   const assignedCourtId = getAssignedOperationalCourtId(
     role,
     selectedMembership,
@@ -509,10 +728,27 @@ export function TransactionsListPage() {
   const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
   const canChooseCollector = canChooseCourt
   const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
+  const [offlineSearchDraft, setOfflineSearchDraft] = useState('')
+  const [offlineSearchQuery, setOfflineSearchQuery] = useState('')
+  const [offlineSearchResetToken, setOfflineSearchResetToken] = useState(0)
+  const [offlineSort, setOfflineSort] = useState<'newest' | 'oldest'>('newest')
   const urlParams = useMemo(
     () => parseTransactionQueryParams(location.search),
     [location.search],
   )
+  const isOfflineMode =
+    connectivity.browserNetwork === 'offline' ||
+    connectivity.backendReachability === 'unreachable'
+  const offlineScope = useMemo<OfflineScope | null>(() => {
+    if (!currentUser || !selectedClubSlug) {
+      return null
+    }
+
+    return {
+      userId: currentUser.id,
+      clubSlug: selectedClubSlug,
+    }
+  }, [currentUser, selectedClubSlug])
   const scopedUrlParams = useMemo(() => {
     if (canChooseCourt) {
       return urlParams
@@ -550,12 +786,25 @@ export function TransactionsListPage() {
     scopedUrlParams,
     usesUnfilteredEmptyUrl,
   ])
+  const offlineBaseParams = useMemo(
+    () =>
+      isOfflineMode && !urlHasTransactionFilters && !usesUnfilteredEmptyUrl
+        ? createOfflineDefaultQueryParams()
+        : effectiveParams,
+    [
+      effectiveParams,
+      isOfflineMode,
+      urlHasTransactionFilters,
+      usesUnfilteredEmptyUrl,
+    ],
+  )
   const initialFilters = useMemo(
-    () => filterStateFromParams(effectiveParams),
-    [effectiveParams],
+    () => filterStateFromParams(offlineBaseParams),
+    [offlineBaseParams],
   )
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<Transaction | null>(null)
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -565,7 +814,12 @@ export function TransactionsListPage() {
   > | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [offlineLastSyncAt, setOfflineLastSyncAt] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [collectorOptions, setCollectorOptions] = useState<FilterOption[]>([])
@@ -596,12 +850,66 @@ export function TransactionsListPage() {
     filterLabelMaps,
   )
   const hasActiveFilters = activeFilterChips.length > 0
+  const offlineFreshness = getScheduleFreshnessLabel(offlineLastSyncAt)
+
+  const loadOfflineTransactions = useCallback(async (
+    fallbackError?: unknown,
+  ): Promise<boolean> => {
+    if (!offlineScope) {
+      return false
+    }
+
+    const metadata = await offlineRepositories.getSyncMetadata(offlineScope)
+    const cachedTransactions = await offlineRepositories.readCachedTransactions(
+      offlineScope,
+    )
+
+    setOfflineLastSyncAt(metadata?.transactions_last_sync_at ?? null)
+
+    if (!metadata?.transactions_last_sync_at) {
+      setTransactions([])
+      setError(null)
+      setMessage(
+        fallbackError
+          ? 'تعذر الاتصال بالخادم، ومفيش سجل معاملات محفوظ على الجهاز.'
+          : 'سجل المعاملات محتاج إنترنت أول مرة علشان يتعرض.',
+      )
+      return true
+    }
+
+    const offlineView = getOfflineTransactionsView(
+      cachedTransactions,
+      {
+        ...offlineBaseParams,
+        search: offlineSearchQuery,
+        sort: offlineSort,
+      } satisfies OfflineTransactionViewParams,
+    )
+
+    if (offlineView.state === 'outside_window') {
+      setTransactions([])
+      setError(null)
+      setMessage('البيانات للفترة دي محتاجة إنترنت علشان تتعرض.')
+      return true
+    }
+
+    setTransactions(offlineView.transactions)
+    setError(null)
+    setMessage(null)
+
+    return true
+  }, [
+    offlineBaseParams,
+    offlineScope,
+    offlineSearchQuery,
+    offlineSort,
+  ])
 
   useEffect(() => {
     let isActive = true
 
     async function loadFilterOptions(): Promise<void> {
-      if (!selectedClubSlug) {
+      if (!selectedClubSlug || isOfflineMode) {
         setCourtOptions([])
         setCollectorOptions([])
         setFilterOptionsError(null)
@@ -661,7 +969,13 @@ export function TransactionsListPage() {
     return () => {
       isActive = false
     }
-  }, [canChooseCollector, canChooseCourt, selectedClubSlug, selectedMembership])
+  }, [
+    canChooseCollector,
+    canChooseCourt,
+    isOfflineMode,
+    selectedClubSlug,
+    selectedMembership,
+  ])
 
   async function reloadTransactions(
     nextParams = effectiveParams,
@@ -691,10 +1005,16 @@ export function TransactionsListPage() {
       }
 
       setIsLoading(true)
+      setIsRefreshing(false)
       setError(null)
       setMessage(null)
 
       try {
+        if (isOfflineMode) {
+          await loadOfflineTransactions()
+          return
+        }
+
         const transactionsResponse = await listTransactions(
           selectedClubSlug,
           effectiveParams,
@@ -702,9 +1022,23 @@ export function TransactionsListPage() {
 
         if (isActive) {
           setTransactions(transactionsResponse.results)
+          setOfflineLastSyncAt(null)
         }
       } catch (error) {
         if (isActive) {
+          if (
+            isApiClientError(error) &&
+            (error.status === 0 || error.status >= 500)
+          ) {
+            try {
+              if (await loadOfflineTransactions(error)) {
+                return
+              }
+            } catch {
+              // Keep the original API error visible if IndexedDB fallback fails.
+            }
+          }
+
           setTransactions([])
           setError(
             getApiErrorMessage(
@@ -716,6 +1050,7 @@ export function TransactionsListPage() {
       } finally {
         if (isActive) {
           setIsLoading(false)
+          setIsRefreshing(false)
         }
       }
     }
@@ -725,7 +1060,14 @@ export function TransactionsListPage() {
     return () => {
       isActive = false
     }
-  }, [effectiveParams, selectedClubSlug])
+  }, [
+    effectiveParams,
+    isOfflineMode,
+    loadOfflineTransactions,
+    offlineSearchQuery,
+    offlineSort,
+    selectedClubSlug,
+  ])
 
   function handleApplyFilters(nextFilters: FilterState): void {
     const nextParams = paramsFromFilterState(nextFilters)
@@ -758,7 +1100,9 @@ export function TransactionsListPage() {
   }
 
   function handleQuickLastSevenDays(): void {
-    applyQuickParams(createDefaultQueryParams())
+    applyQuickParams(
+      isOfflineMode ? createOfflineDefaultQueryParams() : createDefaultQueryParams(),
+    )
   }
 
   function handleQuickToday(): void {
@@ -778,7 +1122,9 @@ export function TransactionsListPage() {
   }
 
   function handleResetFilters(): void {
-    const defaultParams = createDefaultQueryParams()
+    const defaultParams = isOfflineMode
+      ? createOfflineDefaultQueryParams()
+      : createDefaultQueryParams()
 
     setUsesUnfilteredEmptyUrl(false)
     navigate(
@@ -811,7 +1157,10 @@ export function TransactionsListPage() {
   async function handleCancelTransaction(
     values: CancelTransactionValues,
   ): Promise<void> {
-    if (!selectedClubSlug || !cancelTarget) {
+    if (!selectedClubSlug || !cancelTarget || isOfflineMode) {
+      if (isOfflineMode) {
+        setCancelError('يحتاج اتصال بالإنترنت')
+      }
       return
     }
 
@@ -832,6 +1181,80 @@ export function TransactionsListPage() {
     } finally {
       setIsCancelSubmitting(false)
     }
+  }
+
+  const handleOfflineSearch = useCallback((value: string): void => {
+    setOfflineSearchQuery(value)
+  }, [])
+
+  function handleClearOfflineSearch(): void {
+    setOfflineSearchDraft('')
+    setOfflineSearchQuery('')
+    setOfflineSearchResetToken((currentToken) => currentToken + 1)
+  }
+
+  async function loadAuthoritativeTransactionDetail(
+    transactionId: number,
+  ): Promise<Transaction> {
+    if (!selectedClubSlug) {
+      throw new Error('Transaction detail requires a selected Club.')
+    }
+
+    const freshTransaction = await getTransaction(selectedClubSlug, transactionId)
+
+    if (offlineScope) {
+      void offlineRepositories.saveTransactionDetail(
+        offlineScope,
+        freshTransaction,
+        new Date().toISOString(),
+      )
+    }
+
+    return freshTransaction
+  }
+
+  async function handleSelectTransaction(transaction: Transaction): Promise<void> {
+    setSelectedTransaction(transaction)
+    setDetailError(null)
+
+    if (isOfflineMode) {
+      if (!offlineScope) {
+        return
+      }
+
+      const cachedDetail = await offlineRepositories.readTransactionDetail(
+        offlineScope,
+        transaction.id,
+      )
+
+      if (cachedDetail) {
+        setSelectedTransaction(cachedDetail)
+      }
+      return
+    }
+
+    setIsDetailLoading(true)
+
+    try {
+      setSelectedTransaction(
+        await loadAuthoritativeTransactionDetail(transaction.id),
+      )
+    } catch (error) {
+      setDetailError(
+        getApiErrorMessage(
+          error,
+          'تعذر تحميل تفاصيل العملية. البيانات المعروضة من السجل الحالي.',
+        ),
+      )
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
+
+  function closeTransactionDetail(): void {
+    setSelectedTransaction(null)
+    setDetailError(null)
+    setIsDetailLoading(false)
   }
 
   return (
@@ -859,6 +1282,58 @@ export function TransactionsListPage() {
           فلترة
         </AppButton>
       </div>
+
+      {isOfflineMode ? (
+        <AppCard className="border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)]">
+          <p className="text-sm font-extrabold text-[var(--sloty-primary-dark)]">
+            بدون إنترنت
+            {offlineFreshness ? ` · ${offlineFreshness.text}` : ''}
+          </p>
+          <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+            سجل المعاملات المعروض محدود بآخر ٧ أيام محفوظة على الجهاز. البحث
+            دون إنترنت يشمل مرجع الدفع فقط لأن بيانات العميل غير موجودة كاملة في
+            سجل المعاملات الحالي.
+          </p>
+
+          <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
+            <LiveSearchField
+              aria-label="بحث في المعاملات المحفوظة"
+              debounceMs={120}
+              key={`offline-transaction-search-${offlineSearchResetToken}`}
+              label="بحث محفوظ"
+              onDraftChange={setOfflineSearchDraft}
+              onSearch={handleOfflineSearch}
+              placeholder="مرجع الدفع"
+              value={offlineSearchQuery}
+            />
+            <div className="flex shrink-0 gap-2">
+              <AppButton
+                onClick={() => setOfflineSort('newest')}
+                type="button"
+                variant={offlineSort === 'newest' ? 'primary' : 'secondary'}
+              >
+                ↓ الأحدث
+              </AppButton>
+              <AppButton
+                onClick={() => setOfflineSort('oldest')}
+                type="button"
+                variant={offlineSort === 'oldest' ? 'primary' : 'secondary'}
+              >
+                ↑ الأقدم
+              </AppButton>
+              {offlineSearchDraft || offlineSearchQuery ? (
+                <AppButton
+                  onClick={handleClearOfflineSearch}
+                  type="button"
+                  variant="secondary"
+                >
+                  مسح البحث
+                </AppButton>
+              ) : null}
+            </div>
+          </div>
+        </AppCard>
+      ) : null}
 
       {filterOptionsError ? (
         <p className="text-xs font-bold text-[var(--sloty-danger)]">
@@ -923,6 +1398,7 @@ export function TransactionsListPage() {
         />
       ) : null}
 
+      <ResultRefreshRegion isRefreshing={isRefreshing}>
       {isLoading ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
@@ -949,7 +1425,9 @@ export function TransactionsListPage() {
       {!isLoading && !error && !message && transactions.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            {urlHasTransactionFilters
+            {isOfflineMode && offlineSearchQuery
+              ? 'ملقيناش معاملات محفوظة مطابقة للبحث.'
+              : urlHasTransactionFilters
               ? 'مفيش عمليات مالية مطابقة للفلاتر الحالية.'
               : role === 'STAFF'
                 ? 'مفيش عمليات تحصيل لسه.'
@@ -982,6 +1460,7 @@ export function TransactionsListPage() {
             const transactionType = getTransactionType(transaction)
             const isRefund = isRefundTransaction(transaction)
             const canCancel =
+              !isOfflineMode &&
               !isRefund &&
               transaction.is_cancelled !== true &&
               transaction.is_settled !== true &&
@@ -1071,13 +1550,24 @@ export function TransactionsListPage() {
                     إلغاء التحصيل
                   </AppButton>
                 ) : null}
+                <AppButton
+                  fullWidth
+                  onClick={() => {
+                    void handleSelectTransaction(transaction)
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  عرض التفاصيل
+                </AppButton>
               </AppCard>
             )
           })}
         </section>
       ) : null}
+      </ResultRefreshRegion>
 
-      {cancelTarget ? (
+      {cancelTarget && !isOfflineMode ? (
         <CancelTransactionSheet
           error={cancelError}
           fieldErrors={cancelFieldErrors}
@@ -1090,6 +1580,14 @@ export function TransactionsListPage() {
           onSubmit={handleCancelTransaction}
         />
       ) : null}
+
+      <TransactionDetailSheet
+        detailError={detailError}
+        isLoading={isDetailLoading}
+        isOfflineMode={isOfflineMode}
+        onClose={closeTransactionDetail}
+        transaction={selectedTransaction}
+      />
     </div>
   )
 }

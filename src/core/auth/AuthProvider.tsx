@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  safelyClearUserOperationalData,
+  safelyPersistOfflineContext,
+} from '../../offline/security/offlineStorageSafety'
+import { getAuthenticatedUserDisplayName } from '../../shared/utils/displayNames'
 import { getApiErrorMessage } from '../api/apiError.helpers'
 import {
   ApiClientError,
@@ -56,6 +61,7 @@ function hasHydratableSession(): boolean {
  * does not implement backend permissions.
  */
 export function AuthProvider({ children }: AuthProviderProps) {
+  const offlineContextWriteRef = useRef<Promise<void>>(Promise.resolve())
   const [accessToken, setAccessTokenState] = useState<string | null>(() =>
     getAccessToken(),
   )
@@ -201,6 +207,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [clearSelectedClub, currentUser, selectClub, selectedClubSlug])
 
   useEffect(() => {
+    if (!currentUser || !selectedMembership || !selectedClubSlug) {
+      return
+    }
+
+    const contextInput = {
+      scope: {
+        userId: currentUser.id,
+        clubSlug: selectedClubSlug,
+      },
+      displayName: getAuthenticatedUserDisplayName(currentUser, claims?.name),
+      isPlatformAdmin: currentUser.is_platform_admin,
+      membership: selectedMembership,
+      lastVerifiedAt: new Date().toISOString(),
+    }
+
+    // Serialize verified-context writes so an explicit logout can wait for any
+    // already-started write before deleting this user's operational data.
+    offlineContextWriteRef.current = offlineContextWriteRef.current.then(
+      async () => {
+        await safelyPersistOfflineContext(contextInput)
+      },
+    )
+  }, [claims?.name, currentUser, selectedClubSlug, selectedMembership])
+
+  useEffect(() => {
     return subscribeAccessToken((token) => {
       setAccessTokenState(token)
     })
@@ -248,10 +279,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [setTokens],
   )
 
-  const logout = useCallback((): void => {
+  const logout = useCallback(async (): Promise<void> => {
+    const userId = currentUser?.id ?? claims?.user_id
+
+    await offlineContextWriteRef.current
+
+    if (userId) {
+      await safelyClearUserOperationalData(userId)
+    }
+
     clearSession()
     setIsLoadingSession(false)
-  }, [clearSession])
+  }, [claims?.user_id, clearSession, currentUser?.id])
 
   const value = useMemo<AuthContextValue>(
     () => ({

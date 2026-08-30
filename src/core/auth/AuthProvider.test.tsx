@@ -1,6 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  safelyClearUserOperationalData,
+  safelyPersistOfflineContext,
+} from '../../offline/security/offlineStorageSafety'
 import { AuthProvider } from './AuthProvider'
 import { fetchCurrentUserProfile } from './authApi'
 import { clearAuthTokens, getAccessToken } from './authStorage'
@@ -17,7 +21,16 @@ vi.mock('./authApi', () => ({
   fetchCurrentUserProfile: vi.fn(),
 }))
 
+vi.mock('../../offline/security/offlineStorageSafety', () => ({
+  safelyClearUserOperationalData: vi.fn(),
+  safelyPersistOfflineContext: vi.fn(),
+}))
+
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
+const mockedClearUserOperationalData = vi.mocked(
+  safelyClearUserOperationalData,
+)
+const mockedPersistOfflineContext = vi.mocked(safelyPersistOfflineContext)
 
 function AuthProviderHarness() {
   const {
@@ -65,6 +78,8 @@ describe('AuthProvider', () => {
     clearAuthTokens()
     clearSelectedClubSlug()
     vi.clearAllMocks()
+    mockedClearUserOperationalData.mockResolvedValue(true)
+    mockedPersistOfflineContext.mockResolvedValue(true)
   })
 
   const oneMembershipProfile = {
@@ -136,8 +151,64 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'خروج' }))
 
     await waitFor(() => expect(getAccessToken()).toBeNull())
+    expect(mockedClearUserOperationalData).toHaveBeenCalledWith(1)
     expect(getSelectedClubSlug()).toBeNull()
     expect(screen.getByText('لا يوجد مستخدم')).toBeInTheDocument()
+  })
+
+  it('persists only the selected Backend-verified membership context', async () => {
+    const user = userEvent.setup()
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(oneMembershipProfile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    await waitFor(() => {
+      expect(mockedPersistOfflineContext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope: { userId: 1, clubSlug: 'demo-football-club' },
+          displayName: 'أحمد علي',
+          isPlatformAdmin: false,
+          membership: oneMembershipProfile.memberships[0],
+        }),
+      )
+    })
+  })
+
+  it('waits for a pending context write and cleanup before releasing auth state', async () => {
+    const user = userEvent.setup()
+    let finishContextWrite: (() => void) | undefined
+    mockedPersistOfflineContext.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishContextWrite = () => resolve(true)
+        }),
+    )
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(oneMembershipProfile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+    expect(await screen.findByText('staff-user')).toBeInTheDocument()
+    await waitFor(() => expect(finishContextWrite).toBeTypeOf('function'))
+
+    await user.click(screen.getByRole('button', { name: 'خروج' }))
+
+    expect(getAccessToken()).not.toBeNull()
+    expect(mockedClearUserOperationalData).not.toHaveBeenCalled()
+    finishContextWrite?.()
+
+    await waitFor(() => expect(mockedClearUserOperationalData).toHaveBeenCalledWith(1))
+    await waitFor(() => expect(getAccessToken()).toBeNull())
   })
 
   it('auto-selects the only membership club after profile hydration', async () => {
@@ -192,12 +263,26 @@ describe('AuthProvider', () => {
     expect(await screen.findByText('Demo Football Club')).toBeInTheDocument()
     expect(screen.getByText('STAFF')).toBeInTheDocument()
     expect(screen.getByText('لا يمكن إدارة التسويات')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedPersistOfflineContext).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          scope: { userId: 1, clubSlug: 'demo-football-club' },
+        }),
+      )
+    })
 
     await user.click(screen.getByRole('button', { name: 'اختيار النادي الثاني' }))
 
     expect(screen.getByText('Second Club')).toBeInTheDocument()
     expect(screen.getByText('MANAGER')).toBeInTheDocument()
     expect(screen.getByText('يمكن إدارة التسويات')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedPersistOfflineContext).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          scope: { userId: 1, clubSlug: 'second-club' },
+        }),
+      )
+    })
 
     await user.click(screen.getByRole('button', { name: 'اختيار النادي الأول' }))
 

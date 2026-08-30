@@ -4,6 +4,8 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
+import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listCourts } from '../../courts/courtsApi'
 import {
@@ -24,6 +26,19 @@ import { BookingsListPage } from './BookingsListPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
   useAuth: vi.fn(),
+}))
+
+vi.mock('../../../offline/sync/offlineSyncContext', () => ({
+  useOfflineSync: vi.fn(),
+}))
+
+vi.mock('../../../offline/repositories/offlineRepositories', () => ({
+  offlineRepositories: {
+    getSyncMetadata: vi.fn(),
+    readCachedBookings: vi.fn(),
+    readBookingDetail: vi.fn(),
+    saveBookingDetail: vi.fn(),
+  },
 }))
 
 vi.mock('../bookingsApi', () => ({
@@ -52,6 +67,8 @@ vi.mock('../../transactions/transactionsApi', () => ({
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedUseOfflineSync = vi.mocked(useOfflineSync)
+const mockedOfflineRepositories = vi.mocked(offlineRepositories)
 const mockedListBookings = vi.mocked(listBookings)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedCancelBooking = vi.mocked(cancelBooking)
@@ -119,25 +136,39 @@ function mockAuth(
   selectedClubSlug: string | null = 'nasr-club',
   role: 'MANAGER' | 'STAFF' = 'MANAGER',
 ) {
+  const selectedMembership = selectedClubSlug
+    ? {
+        id: 10,
+        role,
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: selectedClubSlug,
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: role === 'STAFF' ? { id: 3, name: 'ملعب 1' } : null,
+      }
+    : null
+
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
-    currentUser: null,
+    currentUser: {
+      id: 1,
+      username: 'manager',
+      email: 'manager@example.com',
+      first_name: 'مدير',
+      last_name: 'النادي',
+      phone_number: '+201000000000',
+      is_active: true,
+      is_platform_admin: false,
+      account_created_by: null,
+      requires_club_selection: false,
+      memberships: selectedMembership ? [selectedMembership] : [],
+    },
     selectedClubSlug,
-    selectedMembership: selectedClubSlug
-      ? {
-          id: 10,
-          role,
-          club: {
-            id: 1,
-            name: 'نادي النصر',
-            slug: selectedClubSlug,
-            city: 'ASSIUT',
-            is_active: true,
-          },
-          court: role === 'STAFF' ? { id: 3, name: 'ملعب 1' } : null,
-        }
-      : null,
+    selectedMembership,
     role,
     isAuthenticated: true,
     isLoadingSession: false,
@@ -149,6 +180,28 @@ function mockAuth(
     clearSelectedClub: vi.fn(),
     refreshCurrentUser: vi.fn(),
     setTokens: vi.fn(),
+  })
+}
+
+function mockOfflineMode() {
+  mockedUseOfflineSync.mockReturnValue({
+    connectivity: {
+      browserNetwork: 'offline',
+      backendReachability: 'unknown',
+      eventVersion: 1,
+      lastBrowserEvent: 'offline',
+      lastConnectivityChangeAt: '2026-07-21T10:00:00.000Z',
+    },
+    requestSync: vi.fn(),
+    sync: {
+      status: 'idle',
+      activeScopeKey: null,
+      activeDataset: null,
+      backendReachability: 'unknown',
+      lastRunCompletedAt: null,
+      lastRunResult: null,
+      lastRunStartedAt: null,
+    },
   })
 }
 
@@ -204,6 +257,29 @@ describe('BookingsListPage', () => {
       can_cancel: true,
     })
     mockAuth()
+    mockedUseOfflineSync.mockReturnValue({
+      connectivity: {
+        browserNetwork: 'likely_online',
+        backendReachability: 'reachable',
+        eventVersion: 0,
+        lastBrowserEvent: null,
+        lastConnectivityChangeAt: null,
+      },
+      requestSync: vi.fn(),
+      sync: {
+        status: 'idle',
+        activeScopeKey: null,
+        activeDataset: null,
+        backendReachability: 'reachable',
+        lastRunCompletedAt: null,
+        lastRunResult: null,
+        lastRunStartedAt: null,
+      },
+    })
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue(undefined)
+    mockedOfflineRepositories.readCachedBookings.mockResolvedValue([])
+    mockedOfflineRepositories.readBookingDetail.mockResolvedValue(undefined)
+    mockedOfflineRepositories.saveBookingDetail.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -233,6 +309,167 @@ describe('BookingsListPage', () => {
     expect(
       screen.getByRole('checkbox', { name: 'الحجوزات القادمة فقط' }),
     ).toBeInTheDocument()
+  })
+
+  it('renders cached Booking History offline without calling the server', async () => {
+    mockOfflineMode()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValueOnce({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-21T09:00:00.000Z',
+      bookings_last_sync_at: '2026-07-21T09:00:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedBookings.mockResolvedValueOnce([
+      bookingFixture({
+        id: 10,
+        court: 3,
+        customer_name: 'أحمد علي',
+        customer_phone: '+201011111111',
+        start_time: '2026-07-21T18:00:00+03:00',
+        end_time: '2026-07-21T19:00:00+03:00',
+        status: 'CONFIRMED',
+        remaining_amount: '0.00',
+      }),
+    ])
+
+    renderBookingsPage('/bookings')
+
+    expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
+    expect(screen.getByText(/بدون إنترنت/)).toBeInTheDocument()
+    expect(mockedListBookings).not.toHaveBeenCalled()
+    expect(mockedListCourts).not.toHaveBeenCalled()
+  })
+
+  it('searches cached Booking names and phones locally while offline', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockOfflineMode()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-21T09:00:00.000Z',
+      bookings_last_sync_at: '2026-07-21T09:00:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedBookings.mockResolvedValue([
+      bookingFixture({
+        id: 10,
+        court: 3,
+        customer_name: 'أحمد علي',
+        customer_phone: '+201011111111',
+        start_time: '2026-07-21T18:00:00+03:00',
+        end_time: '2026-07-21T19:00:00+03:00',
+        status: 'CONFIRMED',
+        remaining_amount: '0.00',
+      }),
+      bookingFixture({
+        id: 11,
+        court: 3,
+        customer_name: 'منى سمير',
+        customer_phone: '+201022222222',
+        start_time: '2026-07-20T18:00:00+03:00',
+        end_time: '2026-07-20T19:00:00+03:00',
+        status: 'HOLD',
+        remaining_amount: '300.00',
+      }),
+    ])
+
+    renderBookingsPage('/bookings')
+
+    expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'اسم العميل أو رقم الموبايل',
+    })
+
+    await user.click(searchInput)
+    await user.type(searchInput, '0222')
+    await act(async () => {
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(await screen.findByText('منى سمير')).toBeInTheDocument()
+    expect(screen.queryByText('أحمد علي')).not.toBeInTheDocument()
+    expect(screen.getByText(/بتبحث في البيانات المحفوظة/)).toBeInTheDocument()
+    expect(searchInput).toHaveFocus()
+    expect(mockedListBookings).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes outside-cache dates from legitimate offline empty results', async () => {
+    mockOfflineMode()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-21T09:00:00.000Z',
+      bookings_last_sync_at: '2026-07-21T09:00:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedBookings.mockResolvedValue([])
+
+    renderBookingsPage('/bookings?date=2026-07-01')
+
+    expect(
+      await screen.findByText('البيانات للفترة دي محتاجة إنترنت علشان تتعرض.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('مفيش حجوزات مطابقة للفلاتر الحالية.'),
+    ).not.toBeInTheDocument()
+    expect(mockedListBookings).not.toHaveBeenCalled()
+  })
+
+  it('opens cached Booking detail offline without fetching or exposing mutations', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockOfflineMode()
+    const listBooking = bookingFixture({
+      id: 10,
+      court: 3,
+      customer_name: 'أحمد علي',
+      customer_phone: '+201011111111',
+      start_time: '2026-07-21T18:00:00+03:00',
+      end_time: '2026-07-21T19:00:00+03:00',
+      status: 'CONFIRMED',
+      remaining_amount: '200.00',
+      total_price: '300.00',
+      paid_amount: '100.00',
+    })
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-21T09:00:00.000Z',
+      bookings_last_sync_at: '2026-07-21T09:00:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedBookings.mockResolvedValue([listBooking])
+    mockedOfflineRepositories.readBookingDetail.mockResolvedValue({
+      ...listBooking,
+      notes: 'يفضل الملعب الجانبي',
+    })
+
+    renderBookingsPage('/bookings')
+
+    await user.click(await screen.findByRole('button', {
+      name: 'مراجعة حجز أحمد علي',
+    }))
+
+    expect(await screen.findByText('يفضل الملعب الجانبي')).toBeInTheDocument()
+    expect(
+      screen.getByText(/تفاصيل الحجز للقراءة فقط/),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /حصّل/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تعديل بيانات الحجز' }),
+    ).not.toBeInTheDocument()
+    expect(mockedGetBooking).not.toHaveBeenCalled()
+    expect(mockedCreateTransaction).not.toHaveBeenCalled()
   })
 
   it('respects needs_action summary redirect filters', async () => {
@@ -1178,6 +1415,15 @@ describe('BookingsListPage', () => {
       })
     })
     expect(mockedGetBooking).toHaveBeenCalledTimes(2)
+    expect(mockedOfflineRepositories.saveBookingDetail).toHaveBeenCalledWith(
+      { userId: 1, clubSlug: 'nasr-club' },
+      expect.objectContaining({
+        id: 55,
+        customer_name: 'منى حسن',
+        notes: 'ملاحظة جديدة',
+      }),
+      expect.any(String),
+    )
     expect(mockedListBookings).toHaveBeenCalledTimes(2)
   })
 

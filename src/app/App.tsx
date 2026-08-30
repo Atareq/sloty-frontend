@@ -1,5 +1,6 @@
 import { RouterProvider } from 'react-router'
 import { AuthProvider } from '../core/auth/AuthProvider'
+import { PwaProvider } from '../pwa/PwaProvider'
 import { router } from './router'
 
 /**
@@ -10,8 +11,10 @@ import { router } from './router'
  */
 export function App() {
   return (
-    <AuthProvider>
-      <RouterProvider router={router} />
-    </AuthProvider>
+    <PwaProvider>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </PwaProvider>
   )
 }

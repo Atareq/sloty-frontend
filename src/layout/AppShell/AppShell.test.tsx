@@ -547,7 +547,7 @@ describe('AppShell', () => {
 
   it('keeps logout in the menu instead of the visible header', async () => {
     const user = userEvent.setup()
-    const logout = vi.fn()
+    const logout = vi.fn().mockResolvedValue(undefined)
 
     mockedUseAuth.mockReturnValue({ ...getAuthValue(), logout })
 
@@ -558,6 +558,16 @@ describe('AppShell', () => {
 
     await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
     await user.click(screen.getByRole('button', { name: 'تسجيل الخروج' }))
+
+    const confirmation = screen.getByRole('dialog', {
+      name: 'تسجيل الخروج؟',
+    })
+    expect(within(confirmation).getByText(
+      'البيانات المحفوظة على الجهاز للاستخدام بدون إنترنت هتتمسح.',
+    )).toBeInTheDocument()
+    await user.click(
+      within(confirmation).getByRole('button', { name: 'تسجيل الخروج' }),
+    )
 
     expect(logout).toHaveBeenCalledTimes(1)
     expect(await screen.findByText('تسجيل الدخول')).toBeInTheDocument()
@@ -692,7 +702,7 @@ describe('AppShell', () => {
 
   it('shows platform admin desktop sidebar logout', async () => {
     const user = userEvent.setup()
-    const logout = vi.fn()
+    const logout = vi.fn().mockResolvedValue(undefined)
 
     window.localStorage.setItem('sloty:view-mode', 'desktop')
     mockedUseAuth.mockReturnValue({
@@ -710,6 +720,13 @@ describe('AppShell', () => {
       .toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'تسجيل الخروج' }))
+
+    const confirmation = screen.getByRole('dialog', {
+      name: 'تسجيل الخروج؟',
+    })
+    await user.click(
+      within(confirmation).getByRole('button', { name: 'تسجيل الخروج' }),
+    )
 
     expect(logout).toHaveBeenCalledTimes(1)
     expect(await screen.findByText('تسجيل الدخول')).toBeInTheDocument()

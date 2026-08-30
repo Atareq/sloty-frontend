@@ -27,6 +27,7 @@ export interface BookingActionSheetProps {
   isOpen: boolean
   isSubmitting?: boolean
   error?: string | null
+  notice?: string | null
   courtName?: string | null
   dateValue?: string | null
   onClose: () => void
@@ -57,6 +58,7 @@ export function BookingActionSheet({
   courtName,
   dateValue,
   error = null,
+  notice = null,
   isOpen,
   isSubmitting = false,
   onAddPayment,
@@ -301,6 +303,12 @@ export function BookingActionSheet({
             {error ? (
               <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
                 {error}
+              </p>
+            ) : null}
+
+            {notice ? (
+              <p className="mt-4 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
+                {notice}
               </p>
             ) : null}
 

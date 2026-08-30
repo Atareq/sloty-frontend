@@ -1,13 +1,22 @@
+import { useState } from 'react'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
+import { LogoutConfirmationSheet } from '../LogoutConfirmationSheet/LogoutConfirmationSheet'
 
 /**
  * Blocks authenticated users who do not currently belong to any active club.
  */
 export function NoClubAccessPage() {
   const { logout } = useAuth()
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  async function handleLogout(): Promise<void> {
+    setIsLoggingOut(true)
+    await logout()
+  }
 
   return (
     <main className="min-h-screen bg-[var(--sloty-bg)] px-4 py-6 text-right sm:px-6 lg:px-8">
@@ -23,11 +32,23 @@ export function NoClubAccessPage() {
             لا يوجد لديك صلاحية للوصول إلى أي نادي حتى الآن.
           </p>
 
-          <AppButton onClick={logout} variant="secondary">
+          <AppButton
+            onClick={() => setIsConfirmationOpen(true)}
+            variant="secondary"
+          >
             تسجيل الخروج
           </AppButton>
         </AppCard>
       </div>
+
+      <LogoutConfirmationSheet
+        isOpen={isConfirmationOpen}
+        isSubmitting={isLoggingOut}
+        onCancel={() => setIsConfirmationOpen(false)}
+        onConfirm={() => {
+          void handleLogout()
+        }}
+      />
     </main>
   )
 }

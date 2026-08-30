@@ -28,6 +28,7 @@ export interface AddBookingSheetProps {
   startTime: string
   endTime: string
   isSubmitting: boolean
+  offlineIntentMode?: boolean
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
   slotPrice?: string | null
@@ -72,6 +73,7 @@ export function AddBookingSheet({
   fieldErrors = null,
   firstRecurringConflictStart = null,
   isSubmitting,
+  offlineIntentMode = false,
   onClose,
   onSubmit,
   recurringBlockedReason = null,
@@ -92,10 +94,15 @@ export function AddBookingSheet({
     getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')
   const isRecurringBlocked = canStartRecurring === false
+  const shouldShowRecurringControl = canStartRecurring !== null
   const recurringBlockedMessage = getRecurringBlockedMessage(
     recurringBlockedReason,
     firstRecurringConflictStart,
   )
+  const submitLabel = offlineIntentMode ? 'احفظ طلب الحجز' : 'تأكيد الحجز'
+  const submittingLabel = offlineIntentMode
+    ? 'جاري حفظ الطلب...'
+    : 'جاري الحجز...'
 
   const displayStartTime = formatTime12Hour(startTime)
   const displayEndTime = formatTime12Hour(endTime)
@@ -135,7 +142,7 @@ export function AddBookingSheet({
     const values: AddBookingSheetValues = {
       customer_name: trimmedName,
       customer_phone: customerPhone,
-      is_recurring: isRecurring,
+      is_recurring: offlineIntentMode ? false : isRecurring,
       notes: trimmedNotes || undefined,
     }
 
@@ -162,6 +169,12 @@ export function AddBookingSheet({
           {slotPrice ? (
             <p className="text-sm font-black text-[var(--sloty-primary-dark)]">
               السعر {formatMoneyAmount(slotPrice)}
+            </p>
+          ) : null}
+          {offlineIntentMode ? (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
+              بدون إنترنت: هنحفظ طلب العميل فقط. الحجز الحقيقي محتاج تأكيد بعد
+              رجوع الاتصال.
             </p>
           ) : null}
         </div>
@@ -201,12 +214,12 @@ export function AddBookingSheet({
             </p>
           ) : null}
 
-          {canStartRecurring !== null ? (
+          {shouldShowRecurringControl ? (
             <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-3 text-[var(--sloty-text-primary)]">
               <input
                 checked={isRecurring}
                 className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--sloty-primary)]"
-                disabled={isSubmitting || isRecurringBlocked}
+                disabled={isSubmitting || isRecurringBlocked || offlineIntentMode}
                 onChange={(event) => {
                   setIsRecurring(event.target.checked)
                   setValidationError(null)
@@ -218,7 +231,9 @@ export function AddBookingSheet({
                   ثبّت نفس الموعد كل أسبوع
                 </span>
                 <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                  {isRecurringBlocked
+                  {offlineIntentMode
+                    ? 'الحجز الأسبوعي يحتاج اتصال بالإنترنت علشان نتأكد من التكرار والتعارضات.'
+                    : isRecurringBlocked
                     ? 'غير متاح تثبيت الموعد لهذا الحجز.'
                     : 'هيتحجز نفس اليوم والساعة للعميل كل أسبوع.'}
                 </span>
@@ -255,7 +270,7 @@ export function AddBookingSheet({
             type="submit"
             variant="primary"
           >
-            {isSubmitting ? 'جاري الحجز...' : 'تأكيد الحجز'}
+            {isSubmitting ? submittingLabel : submitLabel}
           </AppButton>
         </div>
         </form>

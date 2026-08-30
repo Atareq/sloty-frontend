@@ -50,6 +50,32 @@ describe('transactionsApi', () => {
     )
   })
 
+  it('passes an abort signal for background synchronization requests', async () => {
+    const controller = new AbortController()
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions(
+      'nasr-club',
+      {
+        date_from: '2026-07-13',
+        date_to: '2026-07-20',
+      },
+      { signal: controller.signal },
+    )
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.transactions.list(
+        'nasr-club',
+      )}?date_from=2026-07-13&date_to=2026-07-20`,
+      { signal: controller.signal },
+    )
+  })
+
   it('sends settlement status and keeps false query params', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,

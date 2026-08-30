@@ -19,12 +19,43 @@ Current interaction and navigation foundation:
 - `RECURRING_RESERVED` opens virtual recurring slot details from the selected Schedule slot and `recurring_context`. Do not load the anchor Booking as the selected future occurrence.
 - Canonical product copy lives in `src/shared/copy/appCopy.ts` and `docs/product-copy.md`.
 - Mobile text inputs use at least a 16px-equivalent font size without disabling browser zoom. Temporary success feedback uses `AppSuccessNotice` (~3 seconds); errors needing attention stay visible.
+- Sloty is installable as a standalone PWA. Install/update presentation is one lightweight global surface: Chromium uses the real browser prompt, iOS Safari shows Share → Add to Home Screen instructions, standalone mode stays quiet, and application updates wait for explicit confirmation. The current safe install message promises faster Home Screen access only.
+- The Service Worker keeps the compiled shell, icons, and approved static UI assets available after an online load. It does not cache authenticated Schedule, Booking, Transaction, settlement, user, auth, or `/me` responses. Schedule, recent Booking History, and recent Transactions use the separate scoped IndexedDB cache; BookingIntent is the only local offline write.
+- Explicit logout confirmation uses the shared responsive `AppSheet`: `تسجيل الخروج؟`, the on-device-data deletion warning, `رجوع`, and destructive `تسجيل الخروج`. Do not replace it with a browser confirm or imply offline credential login.
 
 Later sections of this file still contain historical screen inventories and old bottom-navigation sketches (`المزيد`, cash/Instapay wording). Those sketches are not current product architecture. Current navigation has no `/more` route and no mobile bottom nav.
 
 Current Schedule date/control UX:
 
 - Schedule uses `AppDateNavigator`, not a native browser date input, as the primary date selector.
+- Schedule is cache-first inside its synchronized window of today + next 30 Egypt-local days. Cached board data renders before refresh waiting; freshness copy appears as a small contextual notice, not a persistent online badge.
+- No-cache offline state uses `محتاج اتصال بالإنترنت أول مرة` with a retry action. Date outside the synchronized window uses internet-required copy. Cached empty days use the backend/fallback empty message and are not treated as no-cache.
+- Offline FREE Schedule slots open the existing booking sheet in request-save mode. The primary CTA is `احفظ طلب الحجز`, success is `تم حفظ طلب الحجز`, and status context is `بانتظار التأكيد`. All lifecycle/money/recurrence actions remain disabled or blocked with `يحتاج اتصال بالإنترنت`.
+
+Current BookingIntent review UX:
+
+- Schedule/Operational Home shows active saved requests inline, not in a new navigation page.
+- Active states use user-facing Arabic copy: `بانتظار التأكيد`, `المعاد متاح`, `المعاد مبقاش متاح`, `تم الحجز`, `تم تجاهل الطلب`, `انتهى الطلب`.
+- `READY_TO_BOOK` shows `✓ المعاد لسه متاح` plus `احجز الآن` and `تجاهل الطلب`; `احجز الآن` is manual and online-only.
+- `CONFLICT` shows `المعاد مبقاش متاح.` plus `اختار معاد تاني` and `تجاهل الطلب`.
+- Alternatives are shown as compact Court/time buttons from refreshed backend FREE slots only; do not present generated or calculated availability.
+
+Current Booking History offline UX:
+
+- Online Booking History keeps the normal server-backed search, filters, pagination, and ordering.
+- Offline/backend-unreachable Booking History shows the scoped previous-seven-day cached snapshot with a small `بدون إنترنت · آخر تحديث ...` context.
+- Offline search uses cached customer name and phone only. If notes exist from a lazily cached detail, they may display in details but are not treated as complete searchable history.
+- Date requests outside the seven-day cache window use internet-required copy. Empty results inside the cached window remain ordinary empty filter/search results.
+- Cached Booking details reuse `BookingActionSheet` in read-only mode and hide mutation CTAs.
+
+Current Transactions offline UX:
+
+- Online Transactions keep the existing backend-backed filters and pagination. The current backend contract still has no server search or ordering query, so the online ledger does not add those controls.
+- Offline/backend-unreachable Transactions show the scoped previous-seven-day cached snapshot with a small `بدون إنترنت · آخر تحديث ...` context.
+- Offline search uses cached payment reference only. Customer name/phone are not shown as searchable because Transaction rows do not include complete customer context and the frontend must not fetch linked Booking details per row.
+- Date requests outside the seven-day cache window use internet-required copy. Empty results inside the cached window remain ordinary empty filter/search results.
+- Offline sort controls (`↓ الأحدث`, `↑ الأقدم`) are local only over the complete bounded cache and must not imply server ordering.
+- Cached Transaction details use a read-only `AppSheet`, show only fields present in the response, hide CASH payment references, hide empty notes, and expose no payment/cancellation/refund/settlement action.
 - `AppDateNavigator` contains a rolling date strip, a fully clickable date trigger, and an in-app `@daypicker/react` calendar with Lucide icons.
 - Mobile calendar presentation behaves like a bottom sheet; desktop behaves like a compact modal.
 - Selecting a date already visible changes selection only; selecting an outside date rebuilds the 7-day range from that date.
@@ -1485,5 +1516,7 @@ Staff Today Schedule
 48. Booking History Review
 
 Booking History is a compact lookup and review surface, not a financial detail grid. The visible card contains customer name, phone, human appointment, human status, and only a subtle recurring marker when returned by the backend. Opening the whole card uses the canonical booking action sheet.
+
+When offline/backend-unreachable, this screen reads only the scoped previous-seven-day snapshot. Safe local filters/search may narrow that complete local dataset, but backend-derived operational filters require internet and must not be guessed.
 
 The page starts with a visible unified customer name/phone search, followed by the three supported primary review checkboxes: upcoming bookings, bookings needing action, and bookings with a remaining balance. Search is debounced, URL-backed, and server-side; it must not filter only the loaded page. Detailed Court, status, date, overdue, ended, and expiring-HOLD filters open in the same responsive sheet on mobile, tablet, and desktop. Staff stays scoped to the assigned membership Court without exposing a Court selector or accepting a Court URL override.

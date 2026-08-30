@@ -9,9 +9,19 @@ import type { Court, CourtPayload } from './courts.types'
  * The backend owns permissions and validation; these helpers only centralize
  * the typed frontend calls used by Sprint 2A setup screens.
  */
-export function listCourts(clubSlug: string): Promise<PaginatedResponse<Court>> {
+export function listCourts(
+  clubSlug: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<PaginatedResponse<Court>> {
+  const path = apiEndpoints.clubs.courts.list(clubSlug)
+
+  if (!options.signal) {
+    return apiRequest<PaginatedResponse<Court>>(path)
+  }
+
   return apiRequest<PaginatedResponse<Court>>(
-    apiEndpoints.clubs.courts.list(clubSlug),
+    path,
+    { signal: options.signal },
   )
 }
 

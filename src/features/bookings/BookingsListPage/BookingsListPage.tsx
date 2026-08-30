@@ -12,6 +12,7 @@ import {
   getApiErrorDetails,
   getApiErrorMessage,
   getApiFieldErrors,
+  isApiClientError,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import {
@@ -33,6 +34,13 @@ import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import { toQueryObject } from '../../../shared/utils/queryParams'
+import { getScheduleFreshnessLabel } from '../../../offline/schedule/scheduleFreshness'
+import type { OfflineScope } from '../../../offline/offline.types'
+import {
+  getOfflineBookingsView,
+} from '../../../offline/bookings/offlineBookingFilters'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
+import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import { listBookings } from '../bookingsApi'
@@ -231,6 +239,7 @@ function getBookingsSearch(params: BookingsQueryParams): string {
 interface BookingsFilterFormProps {
   canChooseCourt: boolean
   courtOptions: FilterOption[]
+  disabledOperationalFilterKeys?: OperationalFilterKey[]
   initialFilters: FilterState
   isLoading: boolean
   onClose?: () => void
@@ -241,6 +250,7 @@ interface BookingsFilterFormProps {
 function BookingsFilterForm({
   canChooseCourt,
   courtOptions,
+  disabledOperationalFilterKeys = [],
   initialFilters,
   isLoading,
   onClose,
@@ -348,16 +358,19 @@ function BookingsFilterForm({
             key: 'overdue',
             label: 'متأخرة',
             checked: filters.overdue === 'true',
+            disabled: disabledOperationalFilterKeys.includes('overdue'),
           },
           {
             key: 'ended',
             label: 'انتهى وقتها',
             checked: filters.ended === 'true',
+            disabled: disabledOperationalFilterKeys.includes('ended'),
           },
           {
             key: 'hold_expiring',
             label: 'انتظار قاربت على الانتهاء',
             checked: filters.hold_expiring === 'true',
+            disabled: disabledOperationalFilterKeys.includes('hold_expiring'),
           },
         ]}
       />
@@ -389,7 +402,8 @@ function BookingsFilterForm({
 export function BookingsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
+  const { connectivity } = useOfflineSync()
   const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
   const assignedCourtId = getAssignedOperationalCourtId(
     role,
@@ -407,6 +421,7 @@ export function BookingsListPage() {
   const { nextGeneration, isCurrent } = useRequestGeneration()
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [offlineLastSyncAt, setOfflineLastSyncAt] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null)
@@ -444,6 +459,19 @@ export function BookingsListPage() {
     () => parseBookingsQueryParams(location.search),
     [location.search],
   )
+  const isOfflineMode =
+    connectivity.browserNetwork === 'offline' ||
+    connectivity.backendReachability === 'unreachable'
+  const offlineScope = useMemo<OfflineScope | null>(() => {
+    if (!currentUser || !selectedClubSlug) {
+      return null
+    }
+
+    return {
+      userId: currentUser.id,
+      clubSlug: selectedClubSlug,
+    }
+  }, [currentUser, selectedClubSlug])
   const effectiveParams = useMemo(() => {
     if (canChooseCourt) {
       return urlParams
@@ -480,12 +508,70 @@ export function BookingsListPage() {
     courtLabels,
   )
   const hasActiveFilters = activeFilterChips.length > 0
+  const offlineFreshness = getScheduleFreshnessLabel(offlineLastSyncAt)
+  const disabledOfflineOperationalFilters: OperationalFilterKey[] =
+    isOfflineMode ? ['ended', 'hold_expiring', 'overdue'] : []
+
+  const loadOfflineBookings = useCallback(async (
+    requestGeneration: number,
+    fallbackError?: unknown,
+  ): Promise<boolean> => {
+    if (!offlineScope) {
+      return false
+    }
+
+    const metadata = await offlineRepositories.getSyncMetadata(offlineScope)
+    const cachedBookings = await offlineRepositories.readCachedBookings(
+      offlineScope,
+    )
+
+    if (!isCurrent(requestGeneration)) {
+      return true
+    }
+
+    setOfflineLastSyncAt(metadata?.bookings_last_sync_at ?? null)
+    setPagination({ count: 0, hasNext: false, hasPrevious: false })
+
+    if (!metadata?.bookings_last_sync_at) {
+      setBookings([])
+      setError(null)
+      setMessage(
+        fallbackError
+          ? 'تعذر الاتصال بالخادم، ومفيش سجل حجوزات محفوظ على الجهاز.'
+          : 'سجل الحجوزات محتاج إنترنت أول مرة علشان يتعرض.',
+      )
+      return true
+    }
+
+    const offlineView = getOfflineBookingsView(cachedBookings, effectiveParams)
+
+    if (offlineView.state === 'outside_window') {
+      setBookings([])
+      setError(null)
+      setMessage('البيانات للفترة دي محتاجة إنترنت علشان تتعرض.')
+      return true
+    }
+
+    if (offlineView.state === 'unsupported_filter') {
+      setBookings([])
+      setError(null)
+      setMessage('الفلاتر التشغيلية دي محتاجة إنترنت علشان تتعرض.')
+      return true
+    }
+
+    setBookings(offlineView.bookings)
+    setError(null)
+    setMessage(null)
+    hasCompletedInitialLoadRef.current = true
+
+    return true
+  }, [effectiveParams, isCurrent, offlineScope])
 
   useEffect(() => {
     let isActive = true
 
     async function loadCourtOptions(): Promise<void> {
-      if (!selectedClubSlug || !canChooseCourt) {
+      if (!selectedClubSlug || !canChooseCourt || isOfflineMode) {
         setCourtOptions([])
         setCourtRecords([])
         setFilterOptionsError(null)
@@ -524,7 +610,7 @@ export function BookingsListPage() {
     return () => {
       isActive = false
     }
-  }, [canChooseCourt, selectedClubSlug])
+  }, [canChooseCourt, isOfflineMode, selectedClubSlug])
 
   const reloadBookings = useCallback(async (): Promise<void> => {
     const requestGeneration = nextGeneration()
@@ -549,6 +635,11 @@ export function BookingsListPage() {
     setMessage(null)
 
     try {
+      if (isOfflineMode) {
+        await loadOfflineBookings(requestGeneration)
+        return
+      }
+
       const bookingsResponse = await listBookings(selectedClubSlug, effectiveParams)
 
       if (!isCurrent(requestGeneration)) {
@@ -578,6 +669,7 @@ export function BookingsListPage() {
       }
 
       setBookings(bookingsResponse.results)
+      setOfflineLastSyncAt(null)
       setPagination({
         count: bookingsResponse.count,
         hasNext: Boolean(bookingsResponse.next),
@@ -589,6 +681,16 @@ export function BookingsListPage() {
         return
       }
 
+      if (isApiClientError(error) && (error.status === 0 || error.status >= 500)) {
+        try {
+          if (await loadOfflineBookings(requestGeneration, error)) {
+            return
+          }
+        } catch {
+          // Keep the original API error visible if IndexedDB fallback also fails.
+        }
+      }
+
       setBookings([])
       setPagination({ count: 0, hasNext: false, hasPrevious: false })
       setError(getApiErrorMessage(error, 'تعذر تحميل الحجوزات'))
@@ -598,7 +700,16 @@ export function BookingsListPage() {
         setIsRefreshing(false)
       }
     }
-  }, [effectiveParams, isCurrent, location.pathname, navigate, nextGeneration, selectedClubSlug])
+  }, [
+    effectiveParams,
+    isCurrent,
+    isOfflineMode,
+    loadOfflineBookings,
+    location.pathname,
+    navigate,
+    nextGeneration,
+    selectedClubSlug,
+  ])
 
   useEffect(() => {
     void Promise.resolve().then(() => reloadBookings())
@@ -756,10 +867,58 @@ export function BookingsListPage() {
     setActionFieldErrors(null)
   }
 
+  async function loadAuthoritativeBookingDetail(
+    bookingId: number,
+  ): Promise<Booking> {
+    if (!selectedClubSlug) {
+      throw new Error('Booking detail requires a selected Club.')
+    }
+
+    const freshBooking = await getBooking(selectedClubSlug, bookingId)
+
+    if (offlineScope) {
+      void offlineRepositories.saveBookingDetail(
+        offlineScope,
+        freshBooking,
+        new Date().toISOString(),
+      )
+    }
+
+    return freshBooking
+  }
+
+  async function handleSelectBooking(booking: Booking): Promise<void> {
+    setSelectedBooking(booking)
+    setActionError(null)
+    setActionFieldErrors(null)
+
+    if (!isOfflineMode || !offlineScope) {
+      return
+    }
+
+    const cachedDetail = await offlineRepositories.readBookingDetail(
+      offlineScope,
+      booking.id,
+    )
+
+    if (cachedDetail) {
+      setSelectedBooking(cachedDetail)
+    }
+  }
+
+  function blockOfflineMutation(): boolean {
+    if (!isOfflineMode) {
+      return false
+    }
+
+    setActionError('يحتاج اتصال بالإنترنت')
+    return true
+  }
+
   async function handleRecordPayment(
     values: RecordPaymentSheetValues,
   ): Promise<void> {
-    if (!selectedClubSlug || !paymentBooking) {
+    if (!selectedClubSlug || !paymentBooking || blockOfflineMutation()) {
       return
     }
 
@@ -807,7 +966,7 @@ export function BookingsListPage() {
   }
 
   async function handleFreeHoldBooking(booking: Booking): Promise<void> {
-    if (!selectedClubSlug) {
+    if (!selectedClubSlug || blockOfflineMutation()) {
       return
     }
 
@@ -834,7 +993,7 @@ export function BookingsListPage() {
   async function handleCancelBooking(
     values: CancelBookingReasonValues,
   ): Promise<void> {
-    if (!selectedClubSlug || !cancellingBooking) {
+    if (!selectedClubSlug || !cancellingBooking || blockOfflineMutation()) {
       return
     }
 
@@ -866,7 +1025,7 @@ export function BookingsListPage() {
   }
 
   async function handleRequestCancelBooking(booking: Booking): Promise<void> {
-    if (!selectedClubSlug) {
+    if (!selectedClubSlug || blockOfflineMutation()) {
       return
     }
 
@@ -901,7 +1060,7 @@ export function BookingsListPage() {
   async function handleCompleteBooking(
     payload?: BookingCompletePayload,
   ): Promise<void> {
-    if (!selectedClubSlug || !completingBooking) {
+    if (!selectedClubSlug || !completingBooking || blockOfflineMutation()) {
       return
     }
 
@@ -945,7 +1104,7 @@ export function BookingsListPage() {
   async function handleNoShowBooking(
     values: NoShowReasonValues,
   ): Promise<void> {
-    if (!selectedClubSlug || !noShowBooking) {
+    if (!selectedClubSlug || !noShowBooking || blockOfflineMutation()) {
       return
     }
 
@@ -969,7 +1128,7 @@ export function BookingsListPage() {
   }
 
   async function handleEndRecurrence(booking: Booking): Promise<void> {
-    if (!selectedClubSlug) {
+    if (!selectedClubSlug || blockOfflineMutation()) {
       return
     }
 
@@ -981,6 +1140,13 @@ export function BookingsListPage() {
         selectedClubSlug,
         booking.id,
       )
+      if (offlineScope) {
+        void offlineRepositories.saveBookingDetail(
+          offlineScope,
+          updatedBooking,
+          new Date().toISOString(),
+        )
+      }
       setSelectedBooking(updatedBooking)
       setSuccessMessage('تم إيقاف الحجز الأسبوعي')
       await reloadBookings()
@@ -994,7 +1160,7 @@ export function BookingsListPage() {
   }
 
   async function handleStartEditCustomer(booking: Booking): Promise<void> {
-    if (!selectedClubSlug) {
+    if (!selectedClubSlug || blockOfflineMutation()) {
       return
     }
 
@@ -1002,7 +1168,7 @@ export function BookingsListPage() {
     setActionError(null)
 
     try {
-      const freshBooking = await getBooking(selectedClubSlug, booking.id)
+      const freshBooking = await loadAuthoritativeBookingDetail(booking.id)
       setEditingBooking(freshBooking)
     } catch (error) {
       setActionError(
@@ -1016,7 +1182,7 @@ export function BookingsListPage() {
   async function handleUpdateBookingCustomer(
     payload: BookingCustomerUpdatePayload,
   ): Promise<void> {
-    if (!selectedClubSlug || !editingBooking) {
+    if (!selectedClubSlug || !editingBooking || blockOfflineMutation()) {
       return
     }
 
@@ -1026,7 +1192,7 @@ export function BookingsListPage() {
 
     try {
       await updateBookingCustomer(selectedClubSlug, editingBooking.id, payload)
-      const freshBooking = await getBooking(selectedClubSlug, editingBooking.id)
+      const freshBooking = await loadAuthoritativeBookingDetail(editingBooking.id)
       setEditingBooking(null)
       setSelectedBooking(freshBooking)
       setSuccessMessage('تم تحديث بيانات الحجز')
@@ -1042,7 +1208,7 @@ export function BookingsListPage() {
   }
 
   async function handleStartReschedule(booking: Booking): Promise<void> {
-    if (!selectedClubSlug) {
+    if (!selectedClubSlug || blockOfflineMutation()) {
       return
     }
 
@@ -1050,7 +1216,7 @@ export function BookingsListPage() {
     setActionError(null)
 
     try {
-      const freshBooking = await getBooking(selectedClubSlug, booking.id)
+      const freshBooking = await loadAuthoritativeBookingDetail(booking.id)
       setReschedulingBooking(freshBooking)
     } catch (error) {
       setActionError(
@@ -1064,7 +1230,7 @@ export function BookingsListPage() {
   async function handleRescheduleBooking(
     payload: BookingReschedulePayload,
   ): Promise<void> {
-    if (!selectedClubSlug || !reschedulingBooking) {
+    if (!selectedClubSlug || !reschedulingBooking || blockOfflineMutation()) {
       return
     }
 
@@ -1074,8 +1240,7 @@ export function BookingsListPage() {
 
     try {
       await rescheduleBooking(selectedClubSlug, reschedulingBooking.id, payload)
-      const freshBooking = await getBooking(
-        selectedClubSlug,
+      const freshBooking = await loadAuthoritativeBookingDetail(
         reschedulingBooking.id,
       )
       setReschedulingBooking(null)
@@ -1114,11 +1279,13 @@ export function BookingsListPage() {
                 key: 'upcoming',
                 label: 'الحجوزات القادمة فقط',
                 checked: effectiveParams.upcoming === 'true',
+                disabled: isOfflineMode,
               },
               {
                 key: 'needs_action',
                 label: 'تحتاج إجراء',
                 checked: effectiveParams.needs_action === 'true',
+                disabled: isOfflineMode,
               },
               {
                 key: 'has_remaining_amount',
@@ -1147,6 +1314,7 @@ export function BookingsListPage() {
         <BookingsFilterForm
           canChooseCourt={canChooseCourt}
           courtOptions={courtOptions}
+          disabledOperationalFilterKeys={disabledOfflineOperationalFilters}
           initialFilters={initialFilters}
           isLoading={isLoading}
           key={getBookingsSearch(effectiveParams) || 'empty-filters'}
@@ -1160,6 +1328,25 @@ export function BookingsListPage() {
         chips={activeFilterChips}
         onRemove={handleRemoveFilter}
       />
+
+      {isOfflineMode ? (
+        <AppCard className="border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)]">
+          <p className="text-sm font-extrabold text-[var(--sloty-primary-dark)]">
+            بدون إنترنت
+            {offlineFreshness ? ` · ${offlineFreshness.text}` : ''}
+          </p>
+          {effectiveParams.search ? (
+            <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+              بتبحث في البيانات المحفوظة على الجهاز. البحث دون إنترنت يشمل اسم
+              العميل ورقم الموبايل فقط.
+            </p>
+          ) : (
+            <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
+              سجل الحجوزات المعروض محدود بآخر ٧ أيام محفوظة على الجهاز.
+            </p>
+          )}
+        </AppCard>
+      ) : null}
 
       <ResultRefreshRegion isRefreshing={isRefreshing}>
       {isLoading && bookings.length === 0 ? (
@@ -1204,9 +1391,7 @@ export function BookingsListPage() {
                 booking={booking}
                 key={booking.id}
                 onSelect={(booking) => {
-                  setSelectedBooking(booking)
-                  setActionError(null)
-                  setActionFieldErrors(null)
+                  void handleSelectBooking(booking)
                 }}
               />
             ))}
@@ -1261,6 +1446,11 @@ export function BookingsListPage() {
             ? null
             : actionError
         }
+        notice={
+          isOfflineMode
+            ? 'بدون إنترنت · تفاصيل الحجز للقراءة فقط، والإجراءات تحتاج اتصال.'
+            : null
+        }
         isOpen={Boolean(
           selectedBooking &&
             !paymentBooking &&
@@ -1271,39 +1461,55 @@ export function BookingsListPage() {
             !reschedulingBooking,
         )}
         isSubmitting={isActionSubmitting}
-        onAddPayment={(booking) => {
-          setPaymentBooking(booking)
-          setPaymentError(null)
-          setPaymentFieldErrors(null)
-        }}
-        onCancel={(booking) => {
-          void handleRequestCancelBooking(booking)
-        }}
+        onAddPayment={isOfflineMode
+          ? undefined
+          : (booking) => {
+              setPaymentBooking(booking)
+              setPaymentError(null)
+              setPaymentFieldErrors(null)
+            }}
+        onCancel={isOfflineMode
+          ? undefined
+          : (booking) => {
+              void handleRequestCancelBooking(booking)
+            }}
         onClose={closeBookingSheets}
-        onComplete={(booking) => {
-          setCompletingBooking(booking)
-          setCompletingBookingRemainingAmount(null)
-          setActionError(null)
-        }}
-        onEditCustomer={(booking) => {
-          void handleStartEditCustomer(booking)
-        }}
-        onEndRecurrence={(booking) => {
-          void handleEndRecurrence(booking)
-        }}
-        onFreeHold={(booking) => {
-          void handleFreeHoldBooking(booking)
-        }}
-        onNoShow={(booking) => {
-          setNoShowBooking(booking)
-          setActionError(null)
-        }}
-        onReschedule={(booking) => {
-          void handleStartReschedule(booking)
-        }}
+        onComplete={isOfflineMode
+          ? undefined
+          : (booking) => {
+              setCompletingBooking(booking)
+              setCompletingBookingRemainingAmount(null)
+              setActionError(null)
+            }}
+        onEditCustomer={isOfflineMode
+          ? undefined
+          : (booking) => {
+              void handleStartEditCustomer(booking)
+            }}
+        onEndRecurrence={isOfflineMode
+          ? undefined
+          : (booking) => {
+              void handleEndRecurrence(booking)
+            }}
+        onFreeHold={isOfflineMode
+          ? undefined
+          : (booking) => {
+              void handleFreeHoldBooking(booking)
+            }}
+        onNoShow={isOfflineMode
+          ? undefined
+          : (booking) => {
+              setNoShowBooking(booking)
+              setActionError(null)
+            }}
+        onReschedule={isOfflineMode
+          ? undefined
+          : (booking) => {
+              void handleStartReschedule(booking)
+            }}
       />
 
-      {paymentBooking ? (
+      {paymentBooking && !isOfflineMode ? (
         <RecordPaymentSheet
           bookingId={paymentBooking.id}
           bookingMoney={{
@@ -1330,7 +1536,7 @@ export function BookingsListPage() {
         />
       ) : null}
 
-      {cancellingBooking ? (
+      {cancellingBooking && !isOfflineMode ? (
         <CancelBookingReasonSheet
           error={actionError}
           fieldErrors={actionFieldErrors}
@@ -1347,7 +1553,7 @@ export function BookingsListPage() {
         />
       ) : null}
 
-      {completingBooking && selectedClubSlug ? (
+      {completingBooking && selectedClubSlug && !isOfflineMode ? (
         <CompleteBookingConfirmSheet
           booking={completingBooking}
           clubSlug={selectedClubSlug}
@@ -1378,7 +1584,7 @@ export function BookingsListPage() {
         />
       ) : null}
 
-      {editingBooking && selectedClubSlug ? (
+      {editingBooking && selectedClubSlug && !isOfflineMode ? (
         <EditBookingDetailsSheet
           booking={editingBooking}
           error={actionError}
@@ -1393,7 +1599,7 @@ export function BookingsListPage() {
         />
       ) : null}
 
-      {reschedulingBooking && selectedClubSlug ? (
+      {reschedulingBooking && selectedClubSlug && !isOfflineMode ? (
         <RescheduleBookingSheet
           assignedCourtId={assignedCourtId}
           booking={reschedulingBooking}
@@ -1411,7 +1617,7 @@ export function BookingsListPage() {
         />
       ) : null}
 
-      {noShowBooking ? (
+      {noShowBooking && !isOfflineMode ? (
         <NoShowReasonSheet
           error={actionError}
           isSubmitting={isActionSubmitting}

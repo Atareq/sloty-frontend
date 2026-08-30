@@ -40,10 +40,17 @@ function buildTransactionListPath(
 export function listTransactions(
   clubSlug: string,
   params: TransactionQueryParams = {},
+  options: { signal?: AbortSignal } = {},
 ): Promise<PaginatedResponse<Transaction>> {
-  return apiRequest<PaginatedResponse<Transaction>>(
-    buildTransactionListPath(clubSlug, params),
-  )
+  const path = buildTransactionListPath(clubSlug, params)
+
+  if (!options.signal) {
+    return apiRequest<PaginatedResponse<Transaction>>(path)
+  }
+
+  return apiRequest<PaginatedResponse<Transaction>>(path, {
+    signal: options.signal,
+  })
 }
 
 /**

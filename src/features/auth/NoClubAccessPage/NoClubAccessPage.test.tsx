@@ -10,7 +10,7 @@ vi.mock('../../../core/auth/useAuth', () => ({
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
-const logout = vi.fn()
+const logout = vi.fn().mockResolvedValue(undefined)
 
 const authValue = {
   accessToken: 'token',
@@ -61,6 +61,12 @@ describe('NoClubAccessPage', () => {
     ).toHaveLength(2)
 
     await user.click(screen.getByRole('button', { name: 'تسجيل الخروج' }))
+
+    expect(screen.getByRole('dialog', { name: 'تسجيل الخروج؟' }))
+      .toBeInTheDocument()
+    await user.click(
+      screen.getAllByRole('button', { name: 'تسجيل الخروج' }).at(-1)!,
+    )
 
     expect(logout).toHaveBeenCalledTimes(1)
   })

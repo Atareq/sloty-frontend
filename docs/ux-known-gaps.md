@@ -23,6 +23,17 @@ Presentation-only limitations. Do not invent backend behavior to close these.
 
 - HOLD automatic cancellation still depends on `python manage.py expire_hold_bookings` being scheduled. Booking details show remaining time only (`متبقي 37 دقيقة`) and must not promise auto-cancel until ops confirms that command in the target environment.
 
+## PWA / OFFLINE FOUNDATION
+
+- The current PWA makes the static application shell installable and launchable after an initial successful online load. Schedule, recent Booking History, and recent Transactions can render previously synchronized scoped data without internet, but this is not offline authentication.
+- The Schedule adapter fills a bounded 31-day cache and SchedulePage renders it cache-first. Booking History now has a bounded previous-seven-calendar-day read-only cache with local name/phone search and safe filters. Transactions now have a bounded previous-seven-calendar-day read-only cache with local payment-reference search, cached-field filters, local sort, and lazy read-only details. BookingIntent now preserves a one-time customer request offline, but it still requires authoritative Schedule recheck and manual final booking after reconnect.
+- BookingIntent does not reserve a slot offline. Connectivity flapping, final-race conflicts, and alternative-slot completion still need real device/backend QA before release.
+- BookingIntent `BOOKED` and `DISMISSED` rows are hidden from the active queue but retained in scoped local storage until explicit logout/user cleanup. A time-based purge or request-history surface needs a separate product/security decision.
+- Booking History offline notes search is intentionally incomplete unless authoritative details were previously opened online; the complete offline searchable fields are customer name and phone.
+- Transaction offline customer-name/phone search is intentionally unavailable with the current contract because Transaction rows do not include complete customer context and the frontend does not N+1 fetch linked Bookings.
+- There is intentionally no Service Worker runtime cache for business API responses.
+- Real Chrome/Android installation, standalone launch, offline navigation, and iPhone Add-to-Home-Screen behavior still require device/browser QA for each deployment origin.
+
 ## PRODUCT DECISION
 
 - Employee/admin account phone fields may still say `رقم الهاتف`; ordinary customer booking UX uses `رقم الموبايل`.

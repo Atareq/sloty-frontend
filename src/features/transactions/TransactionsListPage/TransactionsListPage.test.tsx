@@ -3,18 +3,34 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
 import { useAuth } from '../../../core/auth/useAuth'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
+import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import { listCourts } from '../../courts/courtsApi'
-import { cancelTransaction, listTransactions } from '../transactionsApi'
+import { cancelTransaction, getTransaction, listTransactions } from '../transactionsApi'
 import { TransactionsListPage } from './TransactionsListPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
   useAuth: vi.fn(),
 }))
 
+vi.mock('../../../offline/sync/offlineSyncContext', () => ({
+  useOfflineSync: vi.fn(),
+}))
+
+vi.mock('../../../offline/repositories/offlineRepositories', () => ({
+  offlineRepositories: {
+    getSyncMetadata: vi.fn(),
+    readCachedTransactions: vi.fn(),
+    readTransactionDetail: vi.fn(),
+    saveTransactionDetail: vi.fn(),
+  },
+}))
+
 vi.mock('../transactionsApi', () => ({
   cancelTransaction: vi.fn(),
+  getTransaction: vi.fn(),
   listTransactions: vi.fn(),
 }))
 
@@ -27,7 +43,10 @@ vi.mock('../../clubUsers/clubUsersApi', () => ({
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedUseOfflineSync = vi.mocked(useOfflineSync)
+const mockedOfflineRepositories = vi.mocked(offlineRepositories)
 const mockedCancelTransaction = vi.mocked(cancelTransaction)
+const mockedGetTransaction = vi.mocked(getTransaction)
 const mockedListTransactions = vi.mocked(listTransactions)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedListClubUsers = vi.mocked(listClubUsers)
@@ -53,11 +72,56 @@ function renderTransactionsPage(initialEntry = '/transactions') {
   )
 }
 
+function mockOfflineConnectivity(): void {
+  mockedUseOfflineSync.mockReturnValue({
+    connectivity: {
+      backendReachability: 'unreachable',
+      browserNetwork: 'offline',
+      eventVersion: 1,
+      lastBrowserEvent: 'offline',
+      lastConnectivityChangeAt: '2026-07-20T10:00:00.000Z',
+    },
+    requestSync: vi.fn(),
+    sync: {
+      activeDataset: null,
+      activeScopeKey: 'user:1:club:nasr-club',
+      backendReachability: 'unreachable',
+      lastRunCompletedAt: null,
+      lastRunResult: null,
+      lastRunStartedAt: null,
+      status: 'idle',
+    },
+  })
+}
+
 describe('TransactionsListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-07-20T10:00:00Z'))
+    mockedUseOfflineSync.mockReturnValue({
+      connectivity: {
+        backendReachability: 'reachable',
+        browserNetwork: 'likely_online',
+        eventVersion: 0,
+        lastBrowserEvent: null,
+        lastConnectivityChangeAt: '2026-07-20T10:00:00.000Z',
+      },
+      requestSync: vi.fn(),
+      sync: {
+        activeDataset: null,
+        activeScopeKey: null,
+        backendReachability: 'reachable',
+        lastRunCompletedAt: null,
+        lastRunResult: null,
+        lastRunStartedAt: null,
+        status: 'idle',
+      },
+    })
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue(undefined)
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValue([])
+    mockedOfflineRepositories.readTransactionDetail.mockResolvedValue(undefined)
+    mockedOfflineRepositories.saveTransactionDetail.mockResolvedValue(undefined)
     mockedListCourts.mockResolvedValue({
       count: 2,
       next: null,
@@ -362,6 +426,330 @@ describe('TransactionsListPage', () => {
       },
     )
     expect(await screen.findByText('تم إلغاء العملية')).toBeInTheDocument()
+  })
+
+  it('renders the scoped cached transaction snapshot offline without calling the server', async () => {
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValueOnce({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValueOnce([
+      {
+        id: 50,
+        booking: 10,
+        amount: '175.00',
+        payment_method: 'BANK_TRANSFER',
+        payment_reference: 'BANK-50',
+        created: '2026-07-20T08:00:00Z',
+        booking_start_time: '2026-07-20T10:00:00Z',
+        booking_end_time: '2026-07-20T11:00:00Z',
+        court: 3,
+        court_name: 'ملعب 1',
+        created_by: 15,
+        created_by_username: 'collector',
+        is_cancelled: false,
+        is_settled: false,
+      },
+    ])
+
+    renderTransactionsPage()
+
+    expect(await screen.findByText(/175\.00 ج\.م/)).toBeInTheDocument()
+    expect(screen.getByText('بدون إنترنت', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText('BANK-50')).toBeInTheDocument()
+    expect(mockedListTransactions).not.toHaveBeenCalled()
+    expect(mockedListCourts).not.toHaveBeenCalled()
+    expect(mockedListClubUsers).not.toHaveBeenCalled()
+  })
+
+  it('shows an internet-required state offline when no transaction cache exists', async () => {
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValueOnce(undefined)
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValueOnce([])
+
+    renderTransactionsPage()
+
+    expect(
+      await screen.findByText('سجل المعاملات محتاج إنترنت أول مرة علشان يتعرض.'),
+    ).toBeInTheDocument()
+    expect(mockedListTransactions).not.toHaveBeenCalled()
+  })
+
+  it('searches cached payment references locally without server requests', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValue([
+      {
+        id: 51,
+        amount: '100.00',
+        payment_method: 'BANK_TRANSFER',
+        payment_reference: 'BANK-51',
+        created: '2026-07-20T08:00:00Z',
+        is_cancelled: false,
+        is_settled: false,
+      },
+      {
+        id: 52,
+        amount: '200.00',
+        payment_method: 'DIGITAL_WALLET',
+        payment_reference: 'WALLET-52',
+        created: '2026-07-19T08:00:00Z',
+        is_cancelled: false,
+        is_settled: false,
+      },
+    ])
+
+    renderTransactionsPage()
+
+    expect(await screen.findByText('BANK-51')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('بحث في المعاملات المحفوظة'), 'wallet')
+    vi.advanceTimersByTime(150)
+
+    await waitFor(() => {
+      expect(screen.queryByText('BANK-51')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('WALLET-52')).toBeInTheDocument()
+    expect(mockedListTransactions).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'مسح البحث' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('BANK-51')).toBeInTheDocument()
+    })
+  })
+
+  it('applies safe cached-field filters and distinguishes outside-cache dates offline', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValue([
+      {
+        id: 61,
+        amount: '100.00',
+        payment_method: 'CASH',
+        created: '2026-07-20T08:00:00Z',
+        is_cancelled: false,
+        is_settled: false,
+      },
+      {
+        id: 62,
+        amount: '200.00',
+        payment_method: 'DIGITAL_WALLET',
+        payment_reference: 'WALLET-62',
+        created: '2026-07-20T09:00:00Z',
+        is_cancelled: true,
+        is_settled: true,
+      },
+    ])
+
+    renderTransactionsPage()
+
+    expect(await screen.findByText(/100\.00 ج\.م/)).toBeInTheDocument()
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الدفع'),
+      'محفظة رقمية',
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
+    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/100\.00 ج\.م/)).not.toBeInTheDocument()
+    })
+    expect(screen.getByText(/200\.00 ج\.م/)).toBeInTheDocument()
+    expect(mockedListTransactions).not.toHaveBeenCalled()
+  })
+
+  it('shows internet-required copy for dates outside the seven-day transaction cache', async () => {
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValueOnce({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValueOnce([
+      {
+        id: 70,
+        amount: '100.00',
+        payment_method: 'CASH',
+        created: '2026-07-20T08:00:00Z',
+        is_cancelled: false,
+        is_settled: false,
+      },
+    ])
+
+    renderTransactionsPage('/transactions?date_from=2026-07-01&date_to=2026-07-02')
+
+    expect(
+      await screen.findByText('البيانات للفترة دي محتاجة إنترنت علشان تتعرض.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/100\.00 ج\.م/)).not.toBeInTheDocument()
+    expect(mockedListTransactions).not.toHaveBeenCalled()
+  })
+
+  it('sorts the complete cached transaction dataset locally offline', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValue([
+      {
+        id: 81,
+        amount: '100.00',
+        payment_method: 'CASH',
+        created: '2026-07-20T08:00:00Z',
+        is_cancelled: false,
+        is_settled: false,
+      },
+      {
+        id: 82,
+        amount: '200.00',
+        payment_method: 'CASH',
+        created: '2026-07-19T08:00:00Z',
+        is_cancelled: false,
+        is_settled: false,
+      },
+    ])
+
+    renderTransactionsPage()
+
+    expect(await screen.findByText(/100\.00 ج\.م/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '↑ الأقدم' }))
+
+    await waitFor(() => {
+      const amounts = screen
+        .getAllByText(/\d+\.00 ج\.م/)
+        .map((node) => node.textContent)
+      expect(amounts[0]).toContain('200.00')
+      expect(amounts[1]).toContain('100.00')
+    })
+    expect(mockedListTransactions).not.toHaveBeenCalled()
+  })
+
+  it('opens cached transaction details offline without detail GET or cancel POST', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValue([
+      {
+        id: 91,
+        amount: '150.00',
+        payment_method: 'BANK_TRANSFER',
+        payment_reference: 'BANK-91',
+        created: '2026-07-20T08:00:00Z',
+        is_cancelled: false,
+        is_settled: false,
+      },
+    ])
+    mockedOfflineRepositories.readTransactionDetail.mockResolvedValueOnce({
+      id: 91,
+      amount: '150.00',
+      payment_method: 'BANK_TRANSFER',
+      payment_reference: 'BANK-91',
+      notes: 'ملاحظة محفوظة',
+      created: '2026-07-20T08:00:00Z',
+      is_cancelled: false,
+      is_settled: false,
+    })
+
+    renderTransactionsPage()
+
+    await user.click((await screen.findAllByRole('button', { name: 'عرض التفاصيل' }))[0])
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('ملاحظة محفوظة')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'إلغاء التحصيل' }))
+      .not.toBeInTheDocument()
+    expect(mockedGetTransaction).not.toHaveBeenCalled()
+    expect(mockedCancelTransaction).not.toHaveBeenCalled()
+  })
+
+  it('persists successful online transaction detail reads into the scoped cache', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockedListTransactions.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 101,
+          amount: '250.00',
+          payment_method: 'DIGITAL_WALLET',
+          payment_reference: 'WALLET-101',
+          created: '2026-07-20T08:00:00Z',
+          is_cancelled: false,
+          is_settled: false,
+        },
+      ]),
+    )
+    mockedGetTransaction.mockResolvedValueOnce({
+      id: 101,
+      amount: '250.00',
+      payment_method: 'DIGITAL_WALLET',
+      payment_reference: 'WALLET-101',
+      notes: 'تفاصيل من الخادم',
+      created: '2026-07-20T08:00:00Z',
+      is_cancelled: false,
+      is_settled: false,
+    })
+
+    renderTransactionsPage()
+
+    await user.click((await screen.findAllByRole('button', { name: 'عرض التفاصيل' }))[0])
+
+    expect(mockedGetTransaction).toHaveBeenCalledWith('nasr-club', 101)
+    expect(
+      await screen.findByText('تفاصيل من الخادم'),
+    ).toBeInTheDocument()
+    expect(mockedOfflineRepositories.saveTransactionDetail)
+      .toHaveBeenCalledWith(
+        { userId: 1, clubSlug: 'nasr-club' },
+        expect.objectContaining({ id: 101 }),
+        expect.any(String),
+      )
   })
 
   it('respects summary redirect filters without adding default dates', async () => {

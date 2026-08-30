@@ -121,6 +121,44 @@ describe('AddBookingSheet', () => {
       .toBeDisabled()
   })
 
+  it('switches to local request copy and disables recurrence offline', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddBookingSheet
+        canStartRecurring
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        offlineIntentMode
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    expect(screen.getByText(/هنحفظ طلب العميل فقط/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
+      .toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
+    ).toBeDisabled()
+
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'أحمد علي',
+      customer_phone: '+201012345678',
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
   it('submits recurrence through one checkbox and one confirmation action', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue(undefined)

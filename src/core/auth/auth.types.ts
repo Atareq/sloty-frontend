@@ -104,7 +104,7 @@ export interface AuthContextValue {
   isTokenExpired: boolean
   sessionError: string | null
   login: (accessToken: string, refreshToken?: string) => AuthRole | null
-  logout: () => void
+  logout: () => Promise<void>
   selectClub: (slug: string) => void
   clearSelectedClub: () => void
   refreshCurrentUser: () => Promise<void>

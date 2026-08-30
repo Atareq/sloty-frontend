@@ -113,3 +113,30 @@ Transaction settlement chips/filters:
 - `تم استلامها`
 
 Do not use ordinary user-facing `مراجعة العهدة`, `استلام العهدة`, `غير مسوى`, or `عهد الموظفين`.
+
+Offline BookingIntent:
+
+- Save CTA: `احفظ طلب الحجز`
+- Saving: `جاري حفظ الطلب...`
+- Save success: `تم حفظ طلب الحجز`
+- Pending: `بانتظار التأكيد`
+- Ready: `المعاد متاح` / `المعاد لسه متاح`
+- Conflict: `المعاد مبقاش متاح`
+- Expired: `انتهى الطلب`
+- Dismissed: `تم تجاهل الطلب`
+- Book now: `احجز الآن`
+- Alternative: `اختار معاد تاني`
+- Offline recurrence explanation: `الحجز الأسبوعي يحتاج اتصال بالإنترنت علشان نتأكد من التكرار والتعارضات.`
+
+Do not use Booking success copy such as `تم الحجز` for offline save. It is only allowed after the existing Backend Booking API succeeds.
+
+Offline Transactions:
+
+- Freshness/context: `بدون إنترنت · آخر تحديث 6:42 م`
+- Boundary: `سجل المعاملات المعروض محدود بآخر ٧ أيام محفوظة على الجهاز.`
+- Outside cache: `البيانات للفترة دي محتاجة إنترنت علشان تتعرض.`
+- Offline search limitation: `البحث دون إنترنت يشمل مرجع الدفع فقط.`
+- Read-only detail: `تفاصيل العملية للقراءة فقط، وأي إجراء مالي يحتاج اتصال.`
+- Action requirement: `يحتاج اتصال بالإنترنت`
+
+Do not label offline finance as a separate `المعاملات الأوفلاين` product area, and do not promise offline payment, refund, cancellation, or settlement creation.

@@ -79,8 +79,18 @@ export function listBookingsForCourtDay(
 export function listBookingSlots(
   clubSlug: string,
   params: BookingSlotsParams,
+  options: { signal?: AbortSignal } = {},
 ): Promise<BookingSlotsResponse> {
-  return apiRequest<BookingSlotsResponse>(buildBookingSlotsPath(clubSlug, params))
+  const path = buildBookingSlotsPath(clubSlug, params)
+
+  if (!options.signal) {
+    return apiRequest<BookingSlotsResponse>(path)
+  }
+
+  return apiRequest<BookingSlotsResponse>(
+    path,
+    { signal: options.signal },
+  )
 }
 
 /**

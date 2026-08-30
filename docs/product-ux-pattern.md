@@ -45,6 +45,49 @@ Practical presentation baseline for the Sloty frontend.
 - Filter sheets should expose apply/reset actions, not a redundant Close when AppSheet already dismisses.
 - Success feedback uses `AppSuccessNotice` (~3s). Errors requiring attention stay local.
 
+## PWA foundation
+
+- Installation is a lightweight global surface; never place PWA promotion inside Schedule slots, Booking cards, or Transaction rows.
+- Chromium uses the real browser install prompt. iOS Safari receives concise Add-to-Home-Screen guidance. Already-installed and unsupported environments stay quiet.
+- Current install copy says Sloty opens faster from the Home Screen and may reference saved customer requests only as BookingIntent requests that still need confirmation. It must not promise offline booking creation, automatic booking, payments, cancellations, or settlements.
+- App updates are always user-confirmed. Keep a waiting update pending while a modal task, sheet, drawer, or known full-page editor may contain unsaved work; do not auto-refresh operational screens.
+- The Service Worker owns static application files and the update lifecycle, not authenticated business data. Structured Schedule/Booking/Transaction snapshots belong to the versioned IndexedDB layer with explicit user + Club ownership and Court-specific Schedule reads.
+- Explicit logout uses the shared `AppSheet` confirmation and explains that cached on-device operational data will be removed and the next login requires connectivity. Cleanup completes before the auth session is released.
+- Offline synchronization is infrastructure-owned, not page-owned. The authenticated shell mounts one coordinator that gives Schedule first priority, then Bookings and Transactions, while coalescing startup/reconnect/resume/manual triggers.
+- Connectivity copy must stay honest: browser online is only a hint. Schedule freshness copy says data may have changed; BookingIntent copy says the request is saved locally and waiting for confirmation. It must not imply the frontend recalculates availability or confirms a Booking offline.
+
+## Offline Schedule
+
+- Schedule renders cache-first for today + the next 30 Egypt-local calendar days after successful synchronization. It stores backend-generated slot snapshots only; the frontend never generates availability, prices, working hours, or recurrence.
+- The three visible date states are distinct: cached slots, cached synchronized empty day, and no cached data. No cached data uses internet-required copy, not "no slots".
+- Staff sees only the assigned Court cache. Manager/Owner selected-Court cache renders first; other authorized Courts sync in the background without interrupting the current Court.
+- Offline Schedule can save a one-time customer BookingIntent from a cached FREE slot. The correct success is `تم حفظ طلب الحجز`, not Booking confirmation. Payment, cancellation, completion, no-show, editing, rescheduling, recurrence stopping, and new recurring booking creation still require internet.
+
+## Offline BookingIntent
+
+- BookingIntent is receptionist recovery for a customer request during connectivity loss. It is not a Booking, hold, or reservation.
+- The existing booking sheet is reused. Offline/backend-unreachable mode changes the primary action to `احفظ طلب الحجز`, keeps name/phone/notes validation, and disables the weekly recurrence option.
+- Saved requests start as `بانتظار التأكيد`. Reconnect must refresh/persist authoritative Schedule data first, then classify requests as `المعاد متاح`, `المعاد مبقاش متاح`, or `انتهى الطلب`.
+- `المعاد متاح` still requires the employee to press `احجز الآن`. Only the existing Backend Booking API success may show Booking success copy.
+- Conflict recovery should preserve customer name, phone, and notes, and offer alternatives only from freshly synchronized backend FREE slots. Do not generate slots or calculate recurrence/price locally.
+
+## Offline Booking History
+
+- Booking History is server-authoritative online: server search, filters, pagination, and ordering stay unchanged.
+- Offline/backend-unreachable Booking History uses only the complete previous-seven-calendar-day snapshot for the current user + selected Club. It must explain that cached data is limited.
+- Local offline search covers customer name and phone. Notes search is not promised because detail notes may exist only for Bookings whose authoritative details were opened online.
+- Local filters may use cached authoritative fields only: Court, status, date/date range inside the cache window, and remaining-money presence. Do not recreate Backend `needs_action`, `upcoming`, overdue, ended, HOLD-expiry, recurrence, pricing, cancellation, or refund classifications in the frontend.
+- Cached Booking details are read-only. Action CTAs that mutate Booking/payment state are hidden or disabled with online-required copy, and no mutation is queued.
+
+## Offline Transactions
+
+- Transactions are server-authoritative online: current server filters and pagination stay unchanged, and unsupported server search/order controls are not added.
+- Offline/backend-unreachable Transactions use only the complete previous-seven-calendar-day snapshot for the current user + selected Club. It must explain that cached data is limited.
+- Local offline search covers payment reference only with the current contract. Transaction rows do not include complete customer name/phone, so the frontend does not promise customer search and does not fetch one linked Booking per Transaction row.
+- Local filters may use cached authoritative fields only: date/date range inside the cache window, Court where role allows, collector where data exists, payment method, cancellation state, and settlement state. Do not calculate custody totals, settlement eligibility, refunds, or financial permissions locally.
+- Local sorting is allowed only offline because it operates on the complete bounded cache. Online paginated results remain backend ordered.
+- Cached Transaction details are read-only. Payment creation, cancellation, refunds, settlement creation/approval/receive, and all financial writes require internet and are never queued.
+
 ## Responsive rules
 
 - Mobile-first, RTL-first, Arabic-first.

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Sloty">
+  <rect width="64" height="64" fill="#0B6B3A" />
+  <path
+    d="M18 23.5C18 18.8 21.8 15 26.5 15h11C42.2 15 46 18.8 46 23.5S42.2 32 37.5 32h-11C21.8 32 18 35.8 18 40.5S21.8 49 26.5 49H46"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="7"
+  />
+  <path
+    d="M23 32h18"
+    stroke="#ECFDF5"
+    stroke-linecap="round"
+    stroke-width="4"
+  />
+</svg>

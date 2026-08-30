@@ -39,8 +39,15 @@ function buildBookingsListPath(
 export function listBookings(
   clubSlug: string,
   params: BookingsQueryParams = {},
+  options: { signal?: AbortSignal } = {},
 ): Promise<PaginatedResponse<Booking>> {
-  return apiRequest<PaginatedResponse<Booking>>(
-    buildBookingsListPath(clubSlug, params),
-  )
+  const path = buildBookingsListPath(clubSlug, params)
+
+  if (!options.signal) {
+    return apiRequest<PaginatedResponse<Booking>>(path)
+  }
+
+  return apiRequest<PaginatedResponse<Booking>>(path, {
+    signal: options.signal,
+  })
 }

@@ -68,6 +68,92 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Refactor existing product flows in place. Do not introduce parallel `V2`, `New`, or wizard variants for Schedule, Dashboard, Bookings, booking cards, or recurring booking flows.
 - `NewBookingFAB` is the canonical floating booking action; do not create another floating booking primitive.
 
+## PWA Foundation Rules
+
+- PWA infrastructure lives under `src/pwa` and extends the existing App, Router, AuthProvider, and AppShell. Do not create a parallel offline router, auth provider, shell, Schedule, or business page.
+- `vite-plugin-pwa` uses `generateSW` with prompt-based registration. The manifest starts at `/` so `AuthLandingRedirect` preserves unauthenticated, Platform Admin, multi-club, no-club, and operational-user routing.
+- The Service Worker precaches the compiled application shell, manifest icons, favicon, and approved static UI images only. Do not add `runtimeCaching` for API, auth, `/me`, bookings, slots, transactions, settlements, or users.
+- Task 1 keeps the application shell available after a successful online load. Schedule, recent Booking History, and recent Transactions read resilience now comes from the scoped IndexedDB layer, not Service Worker API caching. BookingIntent is the only approved offline operational write and remains a local customer request, not a Backend Booking.
+- Chromium install UX uses the captured `beforeinstallprompt` event, iOS Safari uses concise Add-to-Home-Screen instructions, unsupported browsers show no broken install action, and standalone mode hides install promotion.
+- Install copy may mention faster Home Screen access and saved customer requests only where the Task-7 BookingIntent flow is explicitly explained. Do not promise offline booking creation, payments, cancellations, transactions, or automatic confirmation.
+- Application updates are prompt-based (`تحديث الآن` / `لاحقًا`) and never auto-reload on discovery. AppShell suppresses PWA notices while any modal task, AppSheet, or drawer is active and on full-page editor routes that do not expose shared dirty state; the pending prompt may appear after the task is closed or the route changes.
+
+## Offline Storage Foundation Rules
+
+- Structured local business storage lives under `src/offline` in the versioned Dexie database `sloty_local_db`; the Service Worker remains responsible only for the static application shell.
+- Every sensitive IndexedDB row must carry the canonical user + Club scope from `createOfflineScopeKey()`. Do not manually build scope strings, expose unscoped operational reads, or combine Platform Admin data into an all-Clubs namespace.
+- Schedule snapshots use scope + Court + date uniqueness. Schedule and BookingIntent repository reads require an explicit Court; Staff must never receive a read-every-Court shortcut.
+- Keep Backend Booking, BookingSlot, and Transaction objects as authoritative snapshots. Do not introduce parallel offline domain models or calculate slot state, prices, status, permission, or settlement facts locally.
+- `sync_metadata` keeps independent Schedule, Bookings, and Transactions timestamps. Update a timestamp only inside the same successful transaction that replaces the corresponding complete snapshot; a failed replacement must preserve the last good rows and timestamp.
+- `offline_context` is the last successful `/me` + selected-membership cache-ownership hint only. It stores no password, PIN, JWT, refresh credential, or frontend-calculated permission and must never authenticate, authorize, or route a user.
+- Explicit logout must await pending context writes, clear every sensitive operational scope for the current user, and only then clear the auth/session and selected Club. Session expiry is not explicit logout and must not automatically delete the scoped cache.
+- IndexedDB failure handling must remain non-fatal and log only generic messages without customer, money, transaction, token, or credential contents. Scope isolation remains mandatory even when cleanup fails.
+- Schedule, recent Booking History, and recent Transactions are wired to the scoped cache as read-only offline surfaces. BookingIntent is the sole local offline write: it stores a customer request for later authoritative recheck and manual booking.
+
+## Offline Synchronization Rules
+
+- Operational synchronization is owned once by `OfflineSyncProvider` under authenticated `AppShell`. Do not add business-data `online`, `offline`, or `visibilitychange` synchronization listeners inside Schedule, Bookings, Transactions, or other pages.
+- Synchronization context must come from current `useAuth()` state after user, selected Club, selected membership, role, and scope key are resolved. Never sync with missing `userId` or `clubSlug`, and never create an all-platform Platform Admin offline scope.
+- `navigator.onLine` is only a browser hint. A successful Backend dataset refresh is the evidence for Backend reachability; failed requests may mark Backend unreachable without logging users out or deleting cache.
+- Dataset priority is fixed: run Schedule first, then recheck BookingIntents from successfully refreshed Schedule rows, then run Bookings and Transactions after Schedule settles. Schedule failure does not delete old Schedule data and does not classify BookingIntents from stale rows.
+- Full sync runs and dataset sync tasks are single-flight by `scope_key` and `scope_key + dataset`. Startup, online, resume, retry, and manual triggers for the same scope must coalesce while a run is active.
+- Scope changes cancel old owned sync work where possible. If stale work completes, it may only write its original scoped records and must not publish current visible sync status for the newly selected Club/user.
+- Retry is conservative: one delayed retry may follow a failed run, then the app waits for startup, online, resume, or manual triggers. Do not add polling, aggressive loops, Background Sync queues, or Service Worker API caching.
+- Sync task adapters must report success only after their network response is validated and the scoped IndexedDB replacement has committed. Do not update `sync_metadata` for no-op adapters or failed datasets.
+
+## Offline Schedule Cache Rules
+
+- Schedule sync stores the backend-generated slots window for today + the next 30 Egypt-local calendar days. Do not expand it into unlimited local history.
+- Schedule range sync uses `clubs/{club_slug}/bookings/slots/` with `court`, `date_from`, and `date_to`, partitions backend slots by authoritative `slot.date`, and writes one `schedule_days` row per date. Empty rows are valid synchronized day markers, not missing cache.
+- A full Court window replacement must be atomic for that Court and scope. A failed network request or IndexedDB transaction preserves the previous rows and does not advance `schedule_last_sync_at`.
+- Staff syncs only `selectedMembership.court`. Owner, Manager, and selected-Club Platform Admin sync only authorized active Courts from the current frontend/backend contract, with the currently viewed Court first and other Courts afterward. Never sync all Platform Admin Clubs.
+- SchedulePage is cache-first for dates inside the bounded window: read scoped `scope + Court + date`, render valid cache immediately, then request/observe the centralized coordinator. Do not attach page-owned `online`, `offline`, or `visibilitychange` sync listeners.
+- Schedule distinguishes three states: cached slots, cached synchronized empty day, and no local cache. Never present no local cache as "no slots".
+- Freshness copy is presentation context only. It may show last update and stale warnings; it must not become a backend/business rule.
+- Post-mutation Schedule refreshes must use authoritative backend day data and persist the affected cached day when it is inside the 31-day window. Do not locally mutate slot state after create, payment, cancel, complete, no-show, edit, reschedule, or recurrence actions.
+- Offline Schedule may save a one-time BookingIntent from an available cached FREE slot when offline/backend-unreachable. This saves only `تم حفظ طلب الحجز` / `بانتظار التأكيد`; it is not a Booking. Payment, cancellation, completion, no-show, edit, reschedule, recurrence stopping, and recurring Booking creation still require internet and must not queue writes.
+
+## Offline BookingIntent Rules
+
+- A BookingIntent is a local customer request, not a Backend Booking, reservation, hold, or idempotency record. Offline save success must say `تم حفظ طلب الحجز`, never `تم الحجز`.
+- Persisted BookingIntent states are exactly `PENDING_RECHECK`, `READY_TO_BOOK`, `CONFLICT`, `BOOKED`, `DISMISSED`, and `EXPIRED`; UI must render Arabic copy and never expose internal state names.
+- BookingIntent rows contain sensitive customer name, phone, and notes. Every read/write must stay scoped to user + Club + Court, Staff must use only `selectedMembership.court`, and selected-Club Platform Admins must never get a global all-Clubs intent queue.
+- Reconnect must not immediately classify or submit intents from the browser `online` event. The coordinator must refresh Schedule first, persist the relevant authoritative Court/date rows, then classify intents from those refreshed Backend slot snapshots.
+- Recheck uses stable slot identity: Court, date, start time, and end time. If the appointment time passed, classify `EXPIRED`; if the fresh exact slot is backend `FREE` and `is_available`, classify `READY_TO_BOOK`; otherwise classify `CONFLICT`. Do not calculate availability, price, recurrence, working hours, or conflicts locally.
+- `READY_TO_BOOK` is still not a reservation. The employee must manually press `احجز الآن`, which uses the existing `createBooking()` API and must not send `local_id`.
+- If final Booking creation succeeds, mark the intent `BOOKED` with the real Backend Booking ID, refresh Schedule, and then show Booking success copy. If Backend returns a structured slot-unavailable conflict, keep customer data and move the intent to `CONFLICT`.
+- Alternative slots may be ranked for presentation only from already refreshed Backend-authoritative FREE slots. Do not generate slots or infer availability.
+- Offline BookingIntent MVP is one-time only. Disable/hide new recurring booking creation offline; existing cached recurring reservations remain display-only.
+- `BOOKED` and `DISMISSED` intents must not appear in the active operational queue. Current retention is scoped local storage until explicit logout/user cleanup; do not add an unreviewed history surface or background purge without a product/security decision.
+- BookingIntent is the only offline operational write. No payment, refund, settlement, cancel, complete, no-show, reschedule, recurrence-stop, or automatic booking queue is allowed.
+
+## Offline Booking History Cache Rules
+
+- Booking sync stores the previous 7 Egypt-local calendar days, including today. It must not change online Booking History defaults or restrict online users to that range.
+- The canonical Booking cache is a background sync dataset, not the current filtered UI response. Search results and filtered server pages must never replace the complete seven-day snapshot.
+- Booking sync follows coordinator priority: Schedule first, then Bookings alongside later secondary datasets. Do not start a page-owned canonical Booking sync from `/bookings` mount, search, filter, or pagination changes.
+- If the Bookings list endpoint is paginated, fetch all pages for the seven-day unfiltered period before committing. Page or IndexedDB failure preserves the previous snapshot and does not advance `bookings_last_sync_at`.
+- Staff Booking sync uses only `selectedMembership.court` from verified auth context. Owner, Manager, and selected-Club Platform Admin use the backend's current selected-Club scope; never combine Clubs or manually expand Staff Court access locally.
+- Online `/bookings` remains server-backed for search, filters, ordering, and pagination. IndexedDB is used only for offline/backend-unreachable resilience.
+- Offline `/bookings` reads the scoped seven-day snapshot and applies only safe local filters over cached fields: customer name, phone, Court, date/date range inside the window, status, and positive remaining amount. Notes search is not promised unless every cached Booking includes notes.
+- Backend-derived operational filters such as `needs_action`, `overdue`, `ended`, `hold_expiring`, and `upcoming` must be disabled or treated as internet-required offline unless an authoritative cached field exists. Do not reconstruct those classifications in frontend code.
+- Cached Booking details are lazy: successful online `getBooking()` responses may be stored in `booking_details`, but the seven-day list sync must not N+1 fetch every detail by default.
+- Offline Booking History detail is read-only. Payment, cancel, complete, no-show, customer edit, reschedule, recurrence stop, expiry, and every other Booking mutation require internet and must not be queued.
+
+## Offline Transactions Cache Rules
+
+- Transaction sync stores the previous 7 Egypt-local calendar days, including today. It must not change online Transaction ledger defaults or restrict online users to that range.
+- The canonical Transaction cache is a background sync dataset, not the current filtered UI response. Filtered server pages must never replace the complete seven-day snapshot.
+- Transaction sync follows coordinator priority: Schedule first, then Bookings and Transactions in the secondary phase. Do not start a page-owned canonical Transaction sync from `/transactions` mount, filter, search, sort, or pagination changes.
+- If the Transactions list endpoint is paginated, fetch all pages for the seven-day unfiltered period before committing. Page or IndexedDB failure preserves the previous snapshot and does not advance `transactions_last_sync_at`.
+- Staff Transaction sync uses only `selectedMembership.court` from verified auth context and must not send `created_by=currentUser` as a frontend scoping hack. Owner, Manager, and selected-Club Platform Admin use the backend's selected-Club scope; never combine Clubs.
+- Online `/transactions` remains server-backed for filters and pagination, and it does not expose unsupported server search or ordering controls. IndexedDB is used only for offline/backend-unreachable resilience.
+- Offline `/transactions` reads the scoped seven-day snapshot and applies only safe local filters over cached fields: date/date range inside the window, Court where role allows, collector where data exists, payment method, cancellation state, and settlement state.
+- Offline Transaction search is limited to `payment_reference` with the current contract. Transaction rows do not include complete customer name/phone, so the frontend must not promise customer search or fetch linked Booking details per Transaction row.
+- Offline Transaction sorting is local only because it operates on the complete bounded cache. Online paginated results remain backend ordered.
+- Cached Transaction details are lazy: successful online `getTransaction()` responses may be stored in `transaction_details`, but the seven-day list sync must not N+1 fetch every detail by default.
+- Offline Transactions are strictly read-only. Payment recording, transaction cancellation, refunds, settlement creation/approval/receive, PATCH/DELETE financial changes, and every other money mutation require internet and must not be queued.
+
 ## Navigation Rules
 
 - Mobile navigation uses the shell `PageHeader`, burger drawer, Home affordance, and global floating `+ حجز جديد`; the mobile bottom navigation is removed. Desktop keeps its existing sidebar.

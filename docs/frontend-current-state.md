@@ -63,6 +63,9 @@ Source-of-truth order:
 - Sprint 6 settlement foundation with preview, create, history, and detail pages
 - Transaction cancel payment foundation
 - Basic transactions API/list foundation
+- Installable standalone PWA foundation with a generated manifest, static app-shell Service Worker, Chromium install prompt, iOS Add-to-Home-Screen instructions, and prompt-based updates
+- Connectivity and synchronization coordinator foundation with one authenticated lifecycle owner, browser online/offline hints, resume/manual/retry triggers, scope-safe single-flight runs, and dataset-level result isolation
+- Offline read-only Schedule, recent Booking History, and recent Transactions resilience through scoped IndexedDB snapshots
 
 See also:
 - `docs/product-ux-pattern.md`
@@ -148,6 +151,52 @@ See also:
 2. Active recurring reschedule, skip-week, and virtual-occurrence cancellation remain unsupported.
 3. Payment gateway, marketplace, and player app remain deferred.
 4. `/admin/settings` remains an intentional unfinished Platform Admin placeholder.
+5. Schedule, recent Booking History, and recent Transactions now have offline resilience for the selected operational scope. BookingIntent is the only offline operational write: it preserves a customer request locally, waits for Schedule recheck after reconnect, and requires manual final booking.
+
+## PWA Foundation
+
+- `vite-plugin-pwa` generates `manifest.webmanifest`, `sw.js`, and the Workbox runtime during production builds.
+- Manifest `start_url` is `/`, not `/schedule`, because `AuthLandingRedirect` is the current authority for unauthenticated users, Platform Admins, multi-club selection, no-club access, and normal club users.
+- The Service Worker precaches the compiled application shell, manifest icons, favicon, and existing static Sloty images. It has no business/API `runtimeCaching` policy and does not queue or replay writes.
+- Chromium installation is available only after `beforeinstallprompt`; installed/standalone mode hides promotion. iOS Safari receives Add-to-Home-Screen instructions instead of a fake install button.
+- Install copy is intentionally limited to faster Home Screen access and, where explicitly framed, saved customer requests that still need confirmation. It must not promise offline booking creation, automatic booking, payments, cancellations, or transactions.
+- New versions use a waiting-worker prompt. `تحديث الآن` explicitly applies the update; `لاحقًا` keeps the current application running for the session. PWA notices stay hidden while modal tasks, sheets/drawers, or known full-page editors may contain unsaved work.
+
+## Offline Storage Architecture
+
+- `src/offline` owns the Dexie-backed, explicitly versioned `sloty_local_db`; the Service Worker never stores or serves structured business datasets.
+- Version 1 defines `sync_metadata`, `schedule_days`, `bookings`, `booking_details`, `transactions`, `transaction_details`, `booking_intents`, and `offline_context`. Future schema/index changes must increment the version and use an explicit Dexie migration when row reshaping is required.
+- Every sensitive row has one canonical `user + Club` scope key. Schedule snapshots are uniquely identified by scope + Court + date. Public Schedule and BookingIntent reads require a Court, and no operational repository offers an unscoped all-user/all-Club read.
+- Schedule day rows store backend-generated `BookingSlot` objects, optional backend message, and `synced_at`. A row with zero slots is a synchronized empty day. No local row means no cached data and must not be shown as "no slots".
+- Snapshot replacement deletes the previous scoped dataset/window and writes the completed replacement plus its dataset-specific sync timestamp in one transaction. A failed replacement leaves the previous snapshot and timestamp intact.
+- `offline_context` persists only the last successful `/me` + selected-membership identity needed for future cache selection: user/display identity, Platform Admin flag, selected Club, membership role/id, assigned Court, verification time, and schema version. It stores no credentials or calculated permissions and does not authenticate or change routing.
+- Explicit logout serializes behind any pending verified-context write, clears every operational scope for the current user, then clears the existing auth/session and selected-Club state. Session expiry keeps the scoped cache; all reads remain user/Club isolated if browser cleanup fails.
+- The BookingIntent table stores local customer requests only. It does not create Backend Bookings, holds, or reservations, and its `local_id` must never be sent to the Booking API.
+
+## Offline Synchronization Architecture
+
+- `src/offline/connectivity` centralizes browser `online` / `offline` hints and keeps Backend reachability separate. `navigator.onLine` is not treated as proof that the Sloty Backend is reachable.
+- `src/offline/sync` owns synchronization contracts, freshness thresholds, lifecycle triggers, and the single-flight coordinator. It is mounted once through `OfflineSyncProvider` inside authenticated `AppShell`.
+- Operational sync waits for current auth state to resolve a user, selected Club, selected membership, role, and canonical scope key. Platform Admins without a selected Club membership do not sync an all-platform namespace. Staff context carries only the assigned Court returned by `/me`.
+- Dataset priority is Schedule first. After successful Schedule rows are persisted, BookingIntent recheck classifies only the relevant Court/date intents from those fresh rows. Bookings and Transactions may then run concurrently. If Schedule fails for a Court, old Schedule cache survives and that Court's intents stay pending instead of being classified from stale data.
+- Startup, browser online, visible-resume, manual, and one bounded retry trigger all go through the same coordinator. Same-scope duplicate triggers coalesce while a full run is active, and each `scope_key + dataset` has at most one active dataset task.
+- The Schedule adapter fetches today + the next 30 Egypt-local calendar days through the backend slots range contract, partitions slots by authoritative `slot.date`, and atomically replaces each Court window. Staff syncs only the assigned Court. Owner, Manager, and selected-Club Platform Admin sync authorized active Courts, with the currently viewed Court first.
+- The Booking adapter runs after Schedule settles. It synchronizes the previous 7 Egypt-local calendar days for the current `user + Club` scope by fetching every paginated Booking list page before one atomic snapshot replacement. Staff uses only the assigned Court already returned by `/me`; Owner, Manager, and selected-Club Platform Admin rely on the backend's selected-Club scope. `bookings_last_sync_at` advances only after successful commit.
+- The Transaction adapter runs in the same secondary phase as Bookings. It synchronizes the previous 7 Egypt-local calendar days for the current `user + Club` scope by fetching every paginated Transaction list page before one atomic snapshot replacement. Staff uses the assigned Court from `/me` and does not send `created_by=currentUser`; Owner, Manager, and selected-Club Platform Admin rely on the backend's selected-Club scope. `transactions_last_sync_at` advances only after successful commit.
+- SchedulePage reads scoped cache first for dates inside the 31-day window. Valid cached data remains visible while an online refresh is running or failing, and freshness copy is only presentation context. Dates outside the window require internet when no valid row is available.
+- Booking History remains server-backed online for search, filters, ordering, and pagination. Offline/backend-unreachable mode reads the scoped seven-day snapshot, searches cached customer name/phone locally, supports safe cached-field filters, distinguishes empty results from outside-window requests, and shows cached Booking details read-only. Notes appear only when an authoritative detail response was previously cached.
+- Transactions remain server-backed online for their current filters and pagination. The current backend list contract has no server search or ordering query, so online `/transactions` does not expose those controls. Offline/backend-unreachable mode reads the scoped seven-day snapshot, searches cached payment references locally, supports safe cached-field filters, sorts the complete bounded dataset locally, distinguishes empty results from outside-window requests, and shows cached Transaction details read-only.
+- Schedule, Booking History, and Transactions offline data remains read-mostly. The only offline write is saving a one-time BookingIntent customer request from the existing booking sheet. Payment, transaction cancellation, refunds, settlement actions, booking cancel/complete/no-show/customer edit/reschedule/recurrence-stop, recurring booking creation, automatic booking submission, and every other mutation require internet and are not queued.
+
+## Offline BookingIntent reconnect flow
+
+- Offline/backend-unreachable FREE Schedule slots open the existing booking sheet with `احفظ طلب الحجز`. The sheet reuses the same customer name, phone, notes, validation, and dirty-form protection, but disables new weekly recurrence.
+- A saved request starts as `PENDING_RECHECK` and shows `تم حفظ طلب الحجز` / `بانتظار التأكيد`. It must never show Booking success copy because no Backend Booking exists.
+- Persisted states are `PENDING_RECHECK`, `READY_TO_BOOK`, `CONFLICT`, `BOOKED`, `DISMISSED`, and `EXPIRED`; UI copy is Arabic and state names are not shown to users.
+- Reconnect order is fixed: the sync coordinator refreshes/persists Schedule first, then rechecks intents for the successfully refreshed Courts, then continues secondary Booking/Transaction sync. Raw browser online events do not book or classify intents directly.
+- Recheck uses Court, date, start, and end as slot identity. Fresh backend `FREE` + `is_available` becomes `READY_TO_BOOK`; a fresh occupied/missing slot becomes `CONFLICT`; passed appointment time becomes `EXPIRED`.
+- `READY_TO_BOOK` still is not a reservation. `احجز الآن` manually calls the existing `createBooking()` API using customer data from the intent and current slot timing from the latest authoritative Schedule snapshot. `local_id` is not sent.
+- Backend final-race conflicts keep the customer data and move the intent to `CONFLICT`. Alternative slots are ranked only from fresh backend FREE slots; the frontend does not generate availability, price, or recurrence.
 
 ## Settlements
 
@@ -198,6 +247,9 @@ See also:
 - Cancelled transactions remain visible in the transaction list and are marked as cancelled.
 - The list prioritizes signed amount, collection/refund type, payment method, human booking time, Court, collector, and created time from the existing response. IDs remain fallback context only.
 - Settlement and cancellation Boolean filters stay as checkbox pairs; neither/both means all and omits the corresponding URL/API parameter.
+- Offline Transactions use the complete previous-seven-calendar-day cache only when offline/backend-unreachable. Local search is payment-reference only because list rows do not contain complete customer name/phone and the frontend does not fetch Booking details per Transaction row. Local sort applies only to the complete cached dataset; online paginated results stay backend ordered.
+- Successful online `getTransaction()` detail reads may populate `transaction_details` lazily. The canonical Transaction sync does not prefetch one detail per row.
+- Offline Transaction cards/details are read-only. Cancellation, refunds, payment recording, settlement creation/approval/receive, and all other financial writes require internet.
 
 ## Booking History
 

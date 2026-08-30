@@ -1,0 +1,137 @@
+import 'fake-indexeddb/auto'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { slotyLocalDatabase } from '../../offline/db/SlotyLocalDatabase'
+import { offlineRepositories } from '../../offline/repositories/offlineRepositories'
+import type { Booking } from '../../features/bookings/bookings.types'
+import { AuthProvider } from './AuthProvider'
+import { fetchCurrentUserProfile } from './authApi'
+import { clearAuthTokens, getAccessToken } from './authStorage'
+import { createDevAccessToken } from './devAuth'
+import {
+  clearSelectedClubSlug,
+  getSelectedClubSlug,
+} from './selectedClubStorage'
+import { useAuth } from './useAuth'
+
+vi.mock('./authApi', () => ({
+  fetchCurrentUserProfile: vi.fn(),
+}))
+
+const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
+const scope = { userId: 1, clubSlug: 'demo-football-club' }
+const booking: Booking = {
+  id: 1,
+  court: 3,
+  customer_name: 'عميل محلي',
+  customer_phone: '+201000000000',
+  start_time: '2026-08-30T18:00:00+03:00',
+  end_time: '2026-08-30T19:00:00+03:00',
+  status: 'CONFIRMED',
+  is_recurring: false,
+  recurrence_status: null,
+  previous_recurring_booking_id: null,
+  next_recurring_booking_id: null,
+}
+
+const profile = {
+  id: 1,
+  username: 'staff-user',
+  email: 'staff@example.com',
+  first_name: 'أحمد',
+  last_name: 'علي',
+  phone_number: null,
+  is_active: true,
+  is_platform_admin: false,
+  account_created_by: null,
+  requires_club_selection: false,
+  memberships: [
+    {
+      id: 10,
+      role: 'STAFF' as const,
+      club: {
+        id: 1,
+        slug: 'demo-football-club',
+        name: 'Demo Football Club',
+        is_active: true,
+      },
+      court: { id: 3, name: 'Court 1' },
+    },
+  ],
+}
+
+function LogoutHarness() {
+  const { currentUser, login, logout } = useAuth()
+
+  return (
+    <div>
+      <p>{currentUser?.username ?? 'logged-out'}</p>
+      <button
+        onClick={() => login(createDevAccessToken('STAFF'), 'refresh-token')}
+        type="button"
+      >
+        login
+      </button>
+      <button
+        onClick={() => {
+          void logout()
+        }}
+        type="button"
+      >
+        logout
+      </button>
+    </div>
+  )
+}
+
+describe('AuthProvider explicit logout IndexedDB integration', () => {
+  beforeEach(async () => {
+    clearAuthTokens()
+    clearSelectedClubSlug()
+    vi.clearAllMocks()
+    slotyLocalDatabase.close()
+    await slotyLocalDatabase.delete()
+    await slotyLocalDatabase.open()
+  })
+
+  afterEach(async () => {
+    slotyLocalDatabase.close()
+    await slotyLocalDatabase.delete()
+  })
+
+  it('clears sensitive local rows before clearing auth and leaves no data for another user scope', async () => {
+    const user = userEvent.setup()
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(profile)
+    await offlineRepositories.replaceBookingsSnapshot(
+      scope,
+      [booking],
+      '2026-08-30T12:00:00.000Z',
+    )
+
+    render(
+      <AuthProvider>
+        <LogoutHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'login' }))
+    expect(await screen.findByText('staff-user')).toBeInTheDocument()
+    await waitFor(async () => {
+      expect(await offlineRepositories.readOfflineContext(scope)).toBeDefined()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'logout' }))
+
+    await waitFor(() => expect(getAccessToken()).toBeNull())
+    expect(getSelectedClubSlug()).toBeNull()
+    expect(await offlineRepositories.readCachedBookings(scope)).toEqual([])
+    expect(await offlineRepositories.readOfflineContext(scope)).toBeUndefined()
+    expect(
+      await offlineRepositories.readCachedBookings({
+        userId: 2,
+        clubSlug: 'demo-football-club',
+      }),
+    ).toEqual([])
+  })
+})

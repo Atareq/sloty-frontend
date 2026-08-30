@@ -7,6 +7,13 @@ import {
   type CurrentUserMembership,
 } from '../../core/auth/auth.types'
 import { useAuth } from '../../core/auth/useAuth'
+import { LogoutConfirmationSheet } from '../../features/auth/LogoutConfirmationSheet/LogoutConfirmationSheet'
+import { OfflineSyncProvider } from '../../offline/sync/OfflineSyncProvider'
+import { PwaExperience } from '../../pwa/PwaExperience'
+import {
+  isPwaPromptBlockedRoute,
+  useHasActiveModalTask,
+} from '../../pwa/pwaReloadSafety'
 import {
   useAppOverlayRegistration,
   useHasActiveAppSheet,
@@ -105,8 +112,12 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isLogoutConfirmationOpen, setIsLogoutConfirmationOpen] =
+    useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
   const hasActiveAppSheet = useHasActiveAppSheet()
+  const hasActiveModalTask = useHasActiveModalTask()
   const pageHeaderMeta = getPageHeaderMeta(
     location.pathname,
     role,
@@ -155,7 +166,14 @@ export function AppShell() {
     canCreateBooking &&
     !shouldUseDesktopNav &&
     !isMenuOpen &&
+    !isLogoutConfirmationOpen &&
     !hasActiveAppSheet
+  const shouldBlockPwaPrompts =
+    isMenuOpen ||
+    isLogoutConfirmationOpen ||
+    hasActiveAppSheet ||
+    hasActiveModalTask ||
+    isPwaPromptBlockedRoute(location.pathname)
   const isHomeRoute = location.pathname === appRoutes.home
   const shouldShowHomeButton =
     !isHomeRoute &&
@@ -182,9 +200,14 @@ export function AppShell() {
     setIsMenuOpen(true)
   }
 
-  function handleLogout(): void {
+  function handleLogoutRequest(): void {
     setIsMenuOpen(false)
-    logout()
+    setIsLogoutConfirmationOpen(true)
+  }
+
+  async function handleLogoutConfirm(): Promise<void> {
+    setIsLoggingOut(true)
+    await logout()
     navigate('/login')
   }
 
@@ -295,7 +318,7 @@ export function AppShell() {
             </button>
             <button
               className="mt-2 min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
-              onClick={handleLogout}
+              onClick={handleLogoutRequest}
               type="button"
             >
               تسجيل الخروج
@@ -338,9 +361,11 @@ export function AppShell() {
                 onDismiss={clearFlashMessage}
               />
             ) : null}
-            <AppViewModeContext.Provider value={viewMode}>
-              <Outlet />
-            </AppViewModeContext.Provider>
+            <OfflineSyncProvider>
+              <AppViewModeContext.Provider value={viewMode}>
+                <Outlet />
+              </AppViewModeContext.Provider>
+            </OfflineSyncProvider>
           </div>
         </main>
       </div>
@@ -435,7 +460,7 @@ export function AppShell() {
                 </button>
                 <button
                   className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
-                  onClick={handleLogout}
+                  onClick={handleLogoutRequest}
                   type="button"
                 >
                   تسجيل الخروج
@@ -454,6 +479,17 @@ export function AppShell() {
           }}
         />
       ) : null}
+
+      <PwaExperience isInteractionBlocked={shouldBlockPwaPrompts} />
+
+      <LogoutConfirmationSheet
+        isOpen={isLogoutConfirmationOpen}
+        isSubmitting={isLoggingOut}
+        onCancel={() => setIsLogoutConfirmationOpen(false)}
+        onConfirm={() => {
+          void handleLogoutConfirm()
+        }}
+      />
     </div>
   )
 }
