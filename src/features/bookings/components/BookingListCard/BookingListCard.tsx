@@ -1,6 +1,10 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import { StatusChip } from '../../../../shared/components/StatusChip/StatusChip'
-import { formatBookingDateTimeRangeWithWeekday } from '../../bookingDisplay.helpers'
+import {
+  formatBookingDateTimeRangeWithWeekday,
+  getBookingCourtLabel,
+  getBookingNotes,
+} from '../../bookingDisplay.helpers'
 import type { Booking } from '../../bookings.types'
 
 interface BookingListCardProps {
@@ -12,6 +16,7 @@ interface BookingListCardProps {
 export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
   const isClickable = Boolean(onSelect)
   const isRecurring = booking.is_recurring
+  const notes = getBookingNotes(booking)
 
   const content = (
     <AppCard className="h-full space-y-3">
@@ -47,6 +52,20 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
           booking.end_time,
         )}
       </p>
+      <p className="text-sm font-semibold text-[var(--sloty-text-muted)]">
+        {getBookingCourtLabel(booking)}
+      </p>
+
+      {notes ? (
+        <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+          <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+            ملاحظة
+          </p>
+          <p className="sloty-booking-card-note mt-1 text-sm font-semibold leading-6 text-[var(--sloty-text-primary)]">
+            {notes}
+          </p>
+        </div>
+      ) : null}
     </AppCard>
   )
 

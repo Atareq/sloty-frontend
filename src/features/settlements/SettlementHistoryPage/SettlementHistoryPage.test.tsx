@@ -2,9 +2,13 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
-import { getDashboardSummary } from '../../dashboard/dashboardApi'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
-import { getSettlementPreview, listSettlements } from '../settlementsApi'
+import { listCourts } from '../../courts/courtsApi'
+import {
+  getCurrentCustodySummary,
+  getSettlementPreview,
+  listSettlements,
+} from '../settlementsApi'
 import { SettlementHistoryPage } from './SettlementHistoryPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -15,19 +19,21 @@ vi.mock('../../clubUsers/clubUsersApi', () => ({
   listClubUsers: vi.fn(),
 }))
 
-vi.mock('../../dashboard/dashboardApi', () => ({
-  getDashboardSummary: vi.fn(),
+vi.mock('../../courts/courtsApi', () => ({
+  listCourts: vi.fn(),
 }))
 
 vi.mock('../settlementsApi', () => ({
+  getCurrentCustodySummary: vi.fn(),
   getSettlementPreview: vi.fn(),
   listSettlements: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
-const mockedGetDashboardSummary = vi.mocked(getDashboardSummary)
+const mockedGetCurrentCustodySummary = vi.mocked(getCurrentCustodySummary)
 const mockedGetSettlementPreview = vi.mocked(getSettlementPreview)
 const mockedListClubUsers = vi.mocked(listClubUsers)
+const mockedListCourts = vi.mocked(listCourts)
 const mockedListSettlements = vi.mocked(listSettlements)
 
 function mockAuth(options: {
@@ -88,41 +94,14 @@ describe('SettlementHistoryPage', () => {
     vi.clearAllMocks()
     mockAuth()
     mockedListClubUsers.mockResolvedValue([])
-    mockedGetDashboardSummary.mockResolvedValue({
-      context: {
-        club_id: 1,
-        club_name: 'نادي النصر',
-        date_from: '2026-07-19',
-        date_to: '2026-07-19',
-      },
-      needs_action_breakdown: {
-        expiring_hold_count: 0,
-        hold_waiting_payment_count: 0,
-        overdue_confirmed_count: 0,
-        remaining_after_slot_end_count: 0,
-      },
-      payment_method_totals: {},
-      staff_unsettled_money: [],
-      summary: {
-        cancelled_bookings: 0,
-        completed_bookings: 0,
-        confirmed_bookings: 0,
-        expired_bookings: 0,
-        hold_bookings: 0,
-        needs_action_count: 0,
-        no_show_bookings: 0,
-        settled_transaction_amount: '0.00',
-        settled_transaction_count: 0,
-        staff_with_unsettled_transactions_count: 0,
-        total_booking_value: '0.00',
-        total_bookings: 0,
-        total_paid_amount: '0.00',
-        total_remaining_amount: null,
-        transaction_count: 0,
-        transaction_total: '0.00',
-        unsettled_transaction_total_amount: '0.00',
-        unsettled_transaction_count: 0,
-      },
+    mockedListCourts.mockResolvedValue({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+    mockedGetCurrentCustodySummary.mockResolvedValue({
+      results: [],
     })
     mockedGetSettlementPreview.mockResolvedValue({
       club: 1,
@@ -163,9 +142,10 @@ describe('SettlementHistoryPage', () => {
     expect(screen.queryByRole('link', { name: 'عرض التحصيلات المفتوحة' }))
       .not.toBeInTheDocument()
     await waitFor(() => {
-      expect(mockedGetDashboardSummary).toHaveBeenCalledWith('nasr-club', {
-        settlement_status: 'unsettled',
-      })
+      expect(mockedGetCurrentCustodySummary).toHaveBeenCalledWith(
+        'nasr-club',
+        {},
+      )
     })
   })
 
@@ -178,10 +158,12 @@ describe('SettlementHistoryPage', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('مفيش مبالغ معاك دلوقتي.'))
-      .toBeInTheDocument()
+    expect(
+      await screen.findByText('لا توجد مبالغ مستحقة للتسليم حاليًا'),
+    ).toBeInTheDocument()
     expect(screen.queryByText('المبالغ مع الموظفين')).not.toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
+    expect(mockedGetCurrentCustodySummary).not.toHaveBeenCalled()
     expect(mockedListSettlements).not.toHaveBeenCalled()
   })
 
@@ -197,6 +179,8 @@ describe('SettlementHistoryPage', () => {
     expect(
       await screen.findByText('اختر ناديًا أولًا لعرض المبالغ.'),
     ).toBeInTheDocument()
+    expect(mockedGetCurrentCustodySummary).not.toHaveBeenCalled()
+    expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
     expect(mockedListSettlements).not.toHaveBeenCalled()
   })
 })

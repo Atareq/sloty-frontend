@@ -177,7 +177,9 @@ describe('SettlementDetailPage', () => {
     expect(mockedMarkSettlementSettled).toHaveBeenCalledTimes(1)
   })
 
-  it('does not let the collector mark their own settlement as settled', async () => {
+  it('does not hardcode a self-settlement denial on persisted settlement detail', async () => {
+    const user = userEvent.setup()
+
     mockedGetSettlement.mockResolvedValueOnce({
       id: 9,
       collected_by: 1,
@@ -190,9 +192,11 @@ describe('SettlementDetailPage', () => {
     renderPage()
 
     expect((await screen.findAllByText('Owner User')).length).toBeGreaterThan(0)
-    expect(
-      screen.queryByRole('button', { name: 'تأكيد استلام المبلغ' }),
-    ).not.toBeInTheDocument()
-    expect(mockedMarkSettlementSettled).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'تأكيد استلام المبلغ' }))
+    await user.click(screen.getAllByRole('button', {
+      name: 'تأكيد استلام المبلغ',
+    })[1])
+
+    expect(mockedMarkSettlementSettled).toHaveBeenCalledWith('nasr-club', '9')
   })
 })

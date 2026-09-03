@@ -22,9 +22,39 @@ can manually press `احجز الآن`.
 Booking History stays server-backed online. Its offline/backend-unreachable mode
 reads the scoped previous-seven-day snapshot from `src/offline`, applies only
 safe local filters/search, and opens `BookingActionSheet` read-only.
+Booking cards render backend list `notes` directly when present and never fetch
+Booking Detail per row for notes. Full Booking notes remain in
+`BookingActionSheet`.
 
 Transactions stay server-backed online for the existing filters and pagination.
 Their offline/backend-unreachable mode reads the scoped previous-seven-day
 snapshot from `src/offline`, applies only safe local filters/payment-reference
 search/sort, and opens read-only transaction details. Financial writes remain
-online-only and must not be queued.
+online-only and must not be queued. Transaction notes are shown only in the
+detail sheet when present, not on Transaction list cards.
+
+Settlements own Backend-authoritative current custody. Staff/restricted Manager
+custody uses the self-scoped settlement preview; Owner/authorized Manager
+all-employee custody uses the grouped `unsettled-summary` endpoint. Dashboard
+period analytics may use dates, but custody components must display Backend
+`net_amount`, `transaction_count`, and `totals_by_payment_method` directly
+without Transaction-history reduction or payment/refund arithmetic.
+
+Offline Current Custody uses the scoped `current_custody_snapshots` table. A
+successful Backend preview/summary response may be cached; a later failed
+request may render that exact snapshot with freshness copy. Do not reconstruct
+custody from cached Transactions, and do not treat no cached snapshot as zero.
+
+Settlement preview is a fresh Backend snapshot, not a frozen grouped-summary
+copy. Settlement creation posts only `{ collected_by, court?, notes? }`; the
+Backend rechecks the candidate transactions and either closes them or returns a
+structured stale/empty code. After payment, refund-producing cancellation,
+transaction cancellation, settlement creation, or settlement status changes,
+mounted finance surfaces should rerun their authoritative loaders through the
+current-financial-state signal instead of subtracting amounts or marking rows
+settled locally.
+
+Audit Log is read-only business history. List cards use the Audit list response
+for concise summaries and never enrich rows with current entity requests.
+Opening one card may load one Audit detail response into an `AppSheet`; that
+detail also renders only Audit response fields and safe before/after changes.

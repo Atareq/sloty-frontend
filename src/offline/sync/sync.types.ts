@@ -4,7 +4,11 @@ import type {
 } from '../../core/auth/auth.types'
 import type { OfflineScope } from '../offline.types'
 
-export type SyncDataset = 'schedule' | 'bookings' | 'transactions'
+export type SyncDataset =
+  | 'schedule'
+  | 'bookings'
+  | 'transactions'
+  | 'current_custody'
 
 export type SyncTrigger = 'startup' | 'online' | 'resume' | 'manual' | 'retry'
 

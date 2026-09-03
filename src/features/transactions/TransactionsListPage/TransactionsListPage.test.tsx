@@ -253,7 +253,7 @@ describe('TransactionsListPage', () => {
 
     expect(await screen.findByText(/150\.00 ج\.م/)).toBeInTheDocument()
     expect(screen.getByText('تحصيل')).toBeInTheDocument()
-    expect(screen.getByText(/محفظة رقمية/)).toBeInTheDocument()
+    expect(screen.getByText(/محفظة إلكترونية/)).toBeInTheDocument()
     expect(screen.getByText('ملعب النجوم')).toBeInTheDocument()
     expect(screen.getByText(/حصّلها: collector/)).toBeInTheDocument()
     expect(screen.queryByText('#10')).not.toBeInTheDocument()
@@ -572,7 +572,7 @@ describe('TransactionsListPage', () => {
     await chooseAppSelectOption(
       user,
       screen.getByLabelText('طريقة الدفع'),
-      'محفظة رقمية',
+      'محفظة إلكترونية',
     )
     await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
@@ -750,6 +750,82 @@ describe('TransactionsListPage', () => {
         expect.objectContaining({ id: 101 }),
         expect.any(String),
       )
+  })
+
+  it('shows full transaction notes in detail', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockedListTransactions.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 102,
+          amount: '250.00',
+          payment_method: 'DIGITAL_WALLET',
+          payment_reference: 'WALLET-102',
+          created: '2026-07-20T08:00:00Z',
+          is_cancelled: false,
+          is_settled: false,
+        },
+      ]),
+    )
+    mockedGetTransaction.mockResolvedValueOnce({
+      id: 102,
+      amount: '250.00',
+      payment_method: 'DIGITAL_WALLET',
+      payment_reference: 'WALLET-102',
+      notes: 'التحويل تم من رقم مختلف.\nراجع صورة الإيصال.',
+      created: '2026-07-20T08:00:00Z',
+      is_cancelled: false,
+      is_settled: false,
+    })
+
+    renderTransactionsPage()
+
+    await user.click((await screen.findAllByRole('button', { name: 'عرض التفاصيل' }))[0])
+
+    const note = 'التحويل تم من رقم مختلف.\nراجع صورة الإيصال.'
+
+    expect(screen.getByText('ملاحظات')).toBeInTheDocument()
+    expect(await screen.findByText((_, element) => element?.textContent === note)).toHaveClass(
+      'whitespace-pre-wrap',
+      'break-words',
+    )
+
+  })
+
+  it('hides transaction notes section when detail notes are blank', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockedListTransactions.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 103,
+          amount: '150.00',
+          payment_method: 'CASH',
+          created: '2026-07-20T09:00:00Z',
+          is_cancelled: false,
+          is_settled: false,
+        },
+      ]),
+    )
+    mockedGetTransaction.mockResolvedValueOnce({
+      id: 103,
+      amount: '150.00',
+      payment_method: 'CASH',
+      notes: '   \n\t',
+      created: '2026-07-20T09:00:00Z',
+      is_cancelled: false,
+      is_settled: false,
+    })
+
+    renderTransactionsPage()
+
+    await user.click((await screen.findAllByRole('button', { name: 'عرض التفاصيل' }))[0])
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByText('ملاحظات')).not.toBeInTheDocument()
   })
 
   it('respects summary redirect filters without adding default dates', async () => {

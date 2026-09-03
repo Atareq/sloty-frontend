@@ -29,8 +29,14 @@ describe('apiEndpoints', () => {
     expect(apiEndpoints.clubs.users.list('nasr-club')).toBe(
       'clubs/nasr-club/users/',
     )
+    expect(apiEndpoints.clubs.auditLogs.detail('nasr-club', 52)).toBe(
+      'clubs/nasr-club/audit-logs/52/',
+    )
     expect(apiEndpoints.clubs.settlements.markSettled('nasr-club', 9)).toBe(
       'clubs/nasr-club/settlements/9/mark-settled/',
+    )
+    expect(apiEndpoints.clubs.settlements.unsettledSummary('nasr-club')).toBe(
+      'clubs/nasr-club/settlements/unsettled-summary/',
     )
     expect(apiEndpoints.clubs.reports.courtUsage('nasr-club')).toBe(
       'clubs/nasr-club/reports/court-usage/',

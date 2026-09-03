@@ -1,9 +1,13 @@
 import type { CurrentUserMembership } from '../core/auth/auth.types'
 import type { Booking } from '../features/bookings/bookings.types'
 import type { BookingSlot } from '../features/schedule/scheduleApi.types'
+import type {
+  CurrentCustodySummaryResponse,
+  SettlementPreview,
+} from '../features/settlements/settlements.types'
 import type { Transaction } from '../features/transactions/transactions.types'
 
-export const OFFLINE_SCHEMA_VERSION = 1
+export const OFFLINE_SCHEMA_VERSION = 2
 
 export interface OfflineScope {
   userId: number
@@ -20,6 +24,7 @@ export interface SyncMetadataRecord extends ScopedOfflineRecord {
   schedule_last_sync_at?: string
   bookings_last_sync_at?: string
   transactions_last_sync_at?: string
+  current_custody_last_sync_at?: string
   schema_version: number
   updated_at: string
 }
@@ -63,6 +68,28 @@ export interface TransactionDetailRecord extends ScopedOfflineRecord {
   transaction_id: number
   transaction: Transaction
   cached_at: string
+}
+
+export type CurrentCustodySnapshotKind = 'preview' | 'grouped_summary'
+
+export type CurrentCustodySnapshotPayload =
+  | SettlementPreview
+  | CurrentCustodySummaryResponse
+
+/**
+ * Last successful Backend current-custody response for one explicit view scope.
+ *
+ * `collector_scope` and `court_scope` distinguish all-employees, self/current
+ * collector, selected employee, all-courts, and a specific Court.
+ */
+export interface CurrentCustodySnapshotRecord extends ScopedOfflineRecord {
+  snapshot_kind: CurrentCustodySnapshotKind
+  collector_scope: string
+  collector_id: number | null
+  court_scope: string
+  court_id: number | null
+  payload: CurrentCustodySnapshotPayload
+  synced_at: string
 }
 
 export const BOOKING_INTENT_STATUSES = [

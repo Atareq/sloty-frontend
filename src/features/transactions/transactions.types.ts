@@ -6,7 +6,7 @@ export type PaymentMethod =
 
 export const paymentMethodLabels: Record<PaymentMethod, string> = {
   CASH: 'نقدي',
-  DIGITAL_WALLET: 'محفظة رقمية',
+  DIGITAL_WALLET: 'محفظة إلكترونية',
   BANK_TRANSFER: 'تحويل بنكي',
   OTHER: 'أخرى',
 }

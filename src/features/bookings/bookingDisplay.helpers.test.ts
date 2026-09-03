@@ -3,7 +3,9 @@ import {
   canBookingEditCustomer,
   canBookingReschedule,
   formatHoldExpiryMessage,
+  getBookingNotes,
 } from './bookingDisplay.helpers'
+import type { BookingListItem } from '../schedule/scheduleApi.types'
 
 describe('formatHoldExpiryMessage', () => {
   const now = new Date('2026-08-25T12:00:00Z')
@@ -79,4 +81,29 @@ describe('booking edit and reschedule eligibility', () => {
       ).toBe(false)
     },
   )
+})
+
+describe('getBookingNotes', () => {
+  const booking = {
+    id: 1,
+    court: 1,
+    start_time: '2026-07-21T18:00:00Z',
+    end_time: '2026-07-21T19:00:00Z',
+    status: 'CONFIRMED',
+    is_recurring: false,
+    recurrence_status: null,
+    previous_recurring_booking_id: null,
+    next_recurring_booking_id: null,
+  } satisfies BookingListItem
+
+  it('treats null, empty, and whitespace-only notes as absent', () => {
+    expect(getBookingNotes({ ...booking, notes: null })).toBeNull()
+    expect(getBookingNotes({ ...booking, notes: '' })).toBeNull()
+    expect(getBookingNotes({ ...booking, notes: '   \n\t ' })).toBeNull()
+  })
+
+  it('returns original meaningful note text for presentation', () => {
+    expect(getBookingNotes({ ...booking, notes: '  جهز الكورة\nبدري  ' }))
+      .toBe('  جهز الكورة\nبدري  ')
+  })
 })

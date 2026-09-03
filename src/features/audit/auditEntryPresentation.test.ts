@@ -51,6 +51,11 @@ describe('getAuditEntryPresentation', () => {
         { label: 'القيمة', value: '300.00 جنيه' },
       ]),
     )
+    expect(presentation.summaryDetails).toEqual([
+      { label: 'العميل', value: 'أحمد' },
+      { label: 'الموعد', value: expect.stringContaining('8:00 م') },
+      { label: 'الملعب', value: 'ملعب 1' },
+    ])
     expect(presentation.changes).toEqual(
       expect.arrayContaining([
         { label: 'اسم العميل', before: 'أحمد', after: 'محمد' },
@@ -78,6 +83,10 @@ describe('getAuditEntryPresentation', () => {
     )
 
     expect(presentation.title).toBe('تسجيل استرداد للعميل')
+    expect(presentation.summaryDetails).toEqual([
+      { label: 'العميل', value: 'أحمد' },
+      { label: 'المبلغ', value: '-250.00 جنيه · نقدي' },
+    ])
     expect(presentation.details).toEqual(
       expect.arrayContaining([
         { label: 'نوع المعاملة', value: 'استرداد' },
@@ -114,5 +123,55 @@ describe('getAuditEntryPresentation', () => {
         },
       ]),
     )
+  })
+
+  it('does not turn actor or court numeric IDs into primary Audit labels', () => {
+    const presentation = getAuditEntryPresentation(
+      entry({
+        actor: 16,
+        court: 7,
+        metadata: {},
+      }),
+    )
+
+    expect(presentation.actorLabel).toBeUndefined()
+    expect(presentation.courtLabel).toBeUndefined()
+  })
+
+  it('uses backend summary fields when the list row omits full metadata', () => {
+    const presentation = getAuditEntryPresentation(
+      entry({
+        action: 'SETTLEMENT_MARKED_SETTLED',
+        actor_name: 'أحمد محمود',
+        actor_name_source: 'EVENT_SNAPSHOT',
+        summary: {
+          collected_by_name: 'محمد أحمد',
+          total_amount: '1250.00',
+          transaction_count: 12,
+          settled_by_name: 'أحمد محمود',
+        },
+      }),
+    )
+
+    expect(presentation.actorLabel).toBe('أحمد محمود')
+    expect(presentation.summaryDetails).toEqual([
+      { label: 'الموظف', value: 'محمد أحمد' },
+      { label: 'المبلغ', value: '1,250.00 جنيه' },
+      { label: 'عدد المعاملات', value: '12' },
+    ])
+  })
+
+  it('suppresses backend current-relation fallback names as historical truth', () => {
+    const presentation = getAuditEntryPresentation(
+      entry({
+        actor_name: 'اسم حالي',
+        actor_name_source: 'CURRENT_RELATION_FALLBACK',
+        court_name: 'ملعب حالي',
+        court_name_source: 'CURRENT_RELATION_FALLBACK',
+      }),
+    )
+
+    expect(presentation.actorLabel).toBeUndefined()
+    expect(presentation.courtLabel).toBeUndefined()
   })
 })

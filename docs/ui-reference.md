@@ -63,6 +63,7 @@ Current Transactions offline UX:
 - Schedule's direct task hierarchy is the authorized Court selector when applicable, `اختار اليوم` with the canonical date navigator, then `اختار المعاد` and the Court board. It must not render another header/hero, page title, Club/date identity, or employee identity below the shell `PageHeader`.
 - Explicit date selection loads the corresponding slots and then smoothly scrolls once to `اختار المعاد`; initial load and Court changes do not auto-scroll. Loading feedback stays inside the slot workspace.
 - Schedule cards are scan controls, not detail cards: show only start time and human status, plus `↻` for an existing recurring booking or a FREE slot with backend `can_start_recurring: true`. Never show customer, phone, notes, price, or payment amounts on the card.
+- Schedule period sections provide the time-of-day visual grouping. `مواعيد الصباح` uses a light warm cream/daylight container and header, while `مواعيد المساء` uses a noticeably deeper calm blue-gray/night-like container and header. The same slot status must look like the same status in both sections; do not create Morning-FREE or Evening-HOLD variants.
 - Booking creation keeps one optional `ثبّت نفس الموعد كل أسبوع` checkbox and one `تأكيد الحجز` action, sending the choice directly as `is_recurring`. A backend-ineligible free slot disables the checkbox and shows a human conflict reason/date from `recurring_blocked_reason` and `first_recurring_conflict_start`; do not calculate conflicts or expose an alternate-start, booking-type, availability-preview, or recurring-wizard flow.
 - `RECURRING_RESERVED` is a distinct backend Schedule state. Its card uses the ordinary `محجوز` label plus a subtle top-right `↻`. It opens `VirtualRecurringSlotDetailsSheet` using the selected future slot date/time and `recurring_context`; never open the anchor Booking as the selected occurrence, and never infer the state from other fields.
 - Successful creation closes the Add Booking sheet, refreshes slots without changing Court/date, and shows the same short success feedback for normal and recurring Bookings. It does not auto-open the returned HOLD Booking.
@@ -674,7 +675,7 @@ One clear button
 انتظار الدفع
 
 العميل: أحمد محمد
-الموبايل: 010xxxxxxxx
+الموبايل: 01X XXX XXXX
 ينتهي خلال: 10 ساعات
 المتبقي: 300 جنيه
 
@@ -816,8 +817,13 @@ Information order:
 2. Weekday/date, time range, and smaller Court context.
 3. One human Egyptian-Arabic state sentence.
 4. Backend total, paid, and remaining values, including explicit zero values.
-5. At most one visible primary action, except ended fully-paid confirmed bookings which show both `إكمال` and `عدم حضور`.
-6. Valid secondary actions under `••• خيارات أخرى`.
+5. Full meaningful Notes under `ملاحظات`; hide this section when notes are empty.
+6. At most one visible primary action, except ended fully-paid confirmed bookings which show both `إكمال` and `عدم حضور`.
+7. Valid secondary actions under `••• خيارات أخرى`.
+
+Booking History cards may show backend list `notes` directly after the primary
+customer/time/Court/status context. Use `ملاحظة`, secondary styling, and a
+rough two-line clamp. Never fetch Booking Detail per card for notes.
 
 State-driven primary actions:
 
@@ -946,7 +952,7 @@ Primary hierarchy for the retained Dashboard/follow-up page:
 
 The current aggregate response does not identify upcoming bookings, nearest HOLD expiry, next booking, or individual action records. Omit those blocks until the backend supplies authoritative values. Never relabel all bookings as upcoming, calculate a HOLD deadline from Court policy, download full history to derive Home, or construct fake booking details.
 
-Staff remains fixed to today and the assigned Court, sees no Court/period selectors, and can never settle their own custody. Owner and Manager settlement actions use centralized permissions. A rolling seven-day range is labeled `آخر 7 أيام`, not `هذا الأسبوع`, and period metrics use neutral wording.
+Staff remains fixed to today and the assigned Court, sees no Court/period selectors, and sees own custody as read-only. Settlement receive actions follow the Backend `can_approve` field, with Owner and Manager management actions still using centralized permissions. A rolling seven-day range is labeled `آخر 7 أيام`, not `هذا الأسبوع`, and period metrics use neutral wording.
 
 When booking-level Home records become available, their state sentences and primary CTA labels must come from the same canonical booking-action presentation helper used by `BookingActionSheet`; Home must not duplicate lifecycle mutations.
 
@@ -1047,6 +1053,11 @@ Use validation messages under fields.
 Use proper keyboard types:
 phone keypad for phone
 numeric keypad for amount
+On touch/coarse-pointer devices, editable controls must remain at least 16px
+even when wider breakpoints activate; desktop fine-pointer layouts may keep
+compact typography. Keep pinch zoom enabled and never use viewport restrictions
+to prevent focus zoom.
+Customer phone placeholder: `01X XXX XXXX` as muted example text, not a value.
 Avoid long forms on staff screens.
 Field Order for Add Booking
 1. Customer name
@@ -1267,7 +1278,7 @@ Users list
 Global bookings view
 Priority 4 — Later
 Advanced reports
-Audit log UI
+Audit log advanced analytics
 Charts
 Player app UI
 Public court pages
@@ -1279,6 +1290,10 @@ Core Components
 AppButton
 AppInput
 AppSelect
+Audit log UI:
+- Use concise tappable cards for the Activity list: action title, subject/key value, actor when available, and event time.
+- Put full activity context, safe before/after changes, and optional legacy metadata in an `AppSheet` loaded by one Audit detail request.
+- Do not show raw JSON or make numeric IDs primary card content when Backend snapshot names/context exist.
 AppModal
 AppCard
 StatusChip
@@ -1438,7 +1453,7 @@ Payment Labels
 المبلغ
 طريقة الدفع
 نقدي
-محفظة رقمية
+محفظة إلكترونية
 تحويل بنكي
 أخرى
 رقم العملية

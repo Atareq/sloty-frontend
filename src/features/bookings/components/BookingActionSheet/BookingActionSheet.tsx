@@ -294,7 +294,7 @@ export function BookingActionSheet({
                 <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
                   {bookingActionCopy.notes}
                 </p>
-                <p className="mt-1 text-sm font-bold text-[var(--sloty-text-primary)]">
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm font-bold text-[var(--sloty-text-primary)]">
                   {notes}
                 </p>
               </div>

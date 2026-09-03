@@ -25,13 +25,14 @@ const countries = getCountries()
  *
  * Egypt is the default country, so local numbers such as 01012345678 are
  * parsed by the phone library and returned as +201012345678.
+ * The placeholder intentionally uses `X` so it reads as an example, not data.
  */
 export function SlotyPhoneNumberInput({
   value,
   onChange,
   defaultCountry = 'EG',
   disabled = false,
-  placeholder = '01012345678',
+  placeholder = '01X XXX XXXX',
   error = false,
   ariaLabel = 'رقم الموبايل',
 }: SlotyPhoneNumberInputProps) {

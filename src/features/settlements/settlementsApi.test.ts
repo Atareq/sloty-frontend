@@ -3,11 +3,13 @@ import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   createSettlement,
+  getCurrentCustodySummary,
   getSettlementPreview,
   getSettlement,
   markSettlementSettled,
   listSettlements,
 } from './settlementsApi'
+import type { CurrentCustodySummaryQueryParams } from './settlements.types'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -15,7 +17,40 @@ vi.mock('../../core/api/apiClient', () => ({
 
 const mockedApiRequest = vi.mocked(apiRequest)
 
+function expectCurrentCustodyParams(
+  params: CurrentCustodySummaryQueryParams,
+): CurrentCustodySummaryQueryParams {
+  return params
+}
+
 describe('settlementsApi', () => {
+  it('keeps current-custody params narrower than analytical dashboard filters', () => {
+    expect(expectCurrentCustodyParams({ court: 3 })).toEqual({ court: 3 })
+
+    // @ts-expect-error Current custody must not accept analytical date filters.
+    expectCurrentCustodyParams({ date_from: '2026-07-15' })
+  })
+
+  it('gets grouped current custody without analytical date filters', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ results: [] })
+
+    await getCurrentCustodySummary('nasr-club', { court: 3 })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.settlements.unsettledSummary('nasr-club')}?court=3`,
+    )
+  })
+
+  it('uses all-courts custody scope when no court is supplied', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ results: [] })
+
+    await getCurrentCustodySummary('nasr-club')
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.settlements.unsettledSummary('nasr-club'),
+    )
+  })
+
   it('gets a settlement preview from the preview endpoint', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       transaction_count: 0,

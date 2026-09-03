@@ -103,6 +103,14 @@ export const financeCopy = {
   paymentReference: 'مرجع الدفع',
   noAmountWithYou: 'مفيش مبالغ معاك دلوقتي.',
   noAmountNeedingHandover: 'مفيش مبلغ معاك محتاج يتسلّم دلوقتي.',
+  settlementPreviewEmpty: 'مفيش مبلغ حالي للموظف دلوقتي.',
+  currentCustody: 'العهدة الحالية',
+  currentEmployeeMoney: 'المبالغ الموجودة مع الموظفين حاليًا',
+  currentCustodyEmpty: 'لا توجد مبالغ مستحقة للتسليم حاليًا',
+  currentCustodyZero: 'صافي المبلغ المستحق حاليًا: 0 ج.م',
+  currentCustodyPositive: (amountLabel: string) =>
+    `المبلغ المستحق للتسليم: ${amountLabel}`,
+  settlementPreviewStale: 'المبلغ اتغير. جبنا آخر حالة من السيرفر.',
   selfPreviewDenied:
     'المبلغ ده خاص بتحصيلاتك، ولازم يستلمه شخص عنده صلاحية الاستلام.',
 } as const

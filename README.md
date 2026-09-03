@@ -64,13 +64,15 @@ After `npm run build`, inspect `dist/manifest.webmanifest`, `dist/sw.js`, the em
 
 ## Offline storage foundation
 
-Dexie owns the versioned `sloty_local_db` IndexedDB database. Its eight stores prepare scoped snapshots for Schedule, Bookings, Booking details, Transactions, Transaction details, Booking Intents, independent sync metadata, and the minimal last Backend-verified operational context. Every sensitive row belongs to a deterministic `user + Club` scope; Schedule and BookingIntent reads also require a Court.
+Dexie owns the versioned `sloty_local_db` IndexedDB database. Its stores prepare scoped snapshots for Schedule, Bookings, Booking details, Transactions, Transaction details, Current Custody, Booking Intents, independent sync metadata, and the minimal last Backend-verified operational context. Every sensitive row belongs to a deterministic `user + Club` scope; Schedule and BookingIntent reads also require a Court.
 
 Schedule now reads its scoped Court/date cache first for the bounded window of today + the next 30 Egypt-local days. Cached rows store backend-generated slot objects plus an optional backend message and `synced_at`; an empty cached row is a valid synchronized day, not missing data.
 
 Booking History has read-only offline resilience for the previous 7 Egypt-local calendar days. The canonical cache is populated by background sync from the complete unfiltered paginated period; current online search/filter/page results never replace it. Offline search is local over cached customer name and phone, safe filters use cached fields only, and Booking details can use lazily cached authoritative `getBooking()` responses when available.
 
 Transactions have read-only offline resilience for the previous 7 Egypt-local calendar days. The canonical cache is populated by background sync from the complete unfiltered paginated period; current online filtered pages never replace it. Online `/transactions` remains backend-backed for the existing filters and pagination. Offline mode searches cached payment references locally, filters/sorts only the bounded cached dataset, opens cached details read-only, and never queues or sends money mutations.
+
+Current Custody has read-only offline resilience from the last successful Backend custody response. Staff/restricted views store settlement preview snapshots; Owner/authorized Manager views store the grouped `unsettled-summary` response in one snapshot. Offline finance UI displays the cached `net_amount`, `transaction_count`, and payment-method breakdown exactly as returned by the Backend, never by reducing the seven-day Transaction cache.
 
 BookingIntent is the only offline operational write. From a cached FREE Schedule slot, the existing booking sheet switches to `احفظ طلب الحجز`, stores the customer request locally as `PENDING_RECHECK`, and never calls the Booking API or shows Booking success while offline. After reconnect, Schedule sync runs first; intents are classified from the freshly persisted backend slot snapshots as `READY_TO_BOOK`, `CONFLICT`, or `EXPIRED`. Final booking remains manual through the existing `createBooking()` API, and conflict/alternative-slot recovery preserves the customer data.
 
@@ -82,13 +84,15 @@ Full snapshot replacement and its dataset timestamp commit atomically. Explicit 
 
 Task 3 adds a lightweight connectivity and synchronization coordinator under `src/offline`. The authenticated shell mounts one `OfflineSyncProvider`; pages must not independently attach business-data online/offline/resume listeners.
 
-Synchronization priority is fixed: Schedule first, BookingIntent recheck from successfully refreshed Schedule rows second, then Bookings and Transactions together after Schedule settles. Startup, reconnect, resume, retry, and manual triggers coalesce through single-flight guards for the same `scope_key` and dataset. `navigator.onLine` is treated only as a browser hint; Backend reachability comes from real dataset request results.
+Synchronization priority is fixed: Schedule first, BookingIntent recheck from successfully refreshed Schedule rows second, then Bookings and Transactions together after Schedule settles, then Current Custody. Startup, reconnect, resume, retry, and manual triggers coalesce through single-flight guards for the same `scope_key` and dataset. `navigator.onLine` is treated only as a browser hint; Backend reachability comes from real dataset request results.
 
 The Schedule adapter performs authoritative range sync using the backend slots endpoint with `date_from`/`date_to`, partitions slots by backend `slot.date`, and atomically replaces each Court's 31-day window. Staff syncs only the assigned Court; Owner/Manager/selected-Club Platform Admin sync authorized active Courts with the currently viewed Court first.
 
 The Booking adapter runs only after Schedule settles. It fetches the complete previous-seven-calendar-day Booking period page by page, then atomically replaces the scoped Booking snapshot and advances `bookings_last_sync_at` only after commit.
 
 The Transaction adapter runs in the same secondary phase as Bookings. It fetches the complete previous-seven-calendar-day Transaction period page by page, then atomically replaces the scoped Transaction snapshot and advances `transactions_last_sync_at` only after commit. Staff synchronization uses the assigned Court from `/me` and does not add a frontend-created `created_by` scope. Financial writes, refunds, transaction cancellation, and settlement actions remain online-only.
+
+The Current Custody adapter runs after the read-only operational datasets and persists one Backend current-custody snapshot for the active scope. A failed fetch or failed IndexedDB write preserves the last successful custody snapshot and timestamp; no offline code reconstructs custody from cached Transaction rows.
 
 ## Notes
 

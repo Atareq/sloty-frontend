@@ -185,7 +185,7 @@ describe('CompleteBookingConfirmSheet', () => {
     await chooseAppSelectOption(
       user,
       await screen.findByLabelText('طريقة الدفع'),
-      'محفظة رقمية',
+      'محفظة إلكترونية',
     )
     expect(screen.getByRole('button', { name: 'إكمال واستمرار أسبوعيًا' }))
       .toBeDisabled()

@@ -5,8 +5,12 @@ import {
   getApiErrorMessage,
   isApiClientError,
 } from '../../../core/api/apiError.helpers'
-import { canManageSettlements } from '../../../core/auth/auth.types'
+import {
+  canViewOwnSettlements,
+} from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
+import type { OfflineScope } from '../../../offline/offline.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
@@ -14,21 +18,20 @@ import { financeCopy } from '../../../shared/copy/appCopy'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { ConfirmSettlementDialog } from '../components/ConfirmSettlementDialog/ConfirmSettlementDialog'
 import { SettlementPreviewContent } from '../components/SettlementPreviewContent/SettlementPreviewContent'
+import {
+  notifyCurrentFinancialStateChanged,
+} from '../currentFinancialStateInvalidation'
 import { createSettlement, getSettlementPreview } from '../settlementsApi'
 import type {
   SettlementPreview,
   SettlementPreviewQueryParams,
 } from '../settlements.types'
 
-function parsePreviewQuery(search: string): SettlementPreviewQueryParams | null {
+function parsePreviewQuery(search: string): SettlementPreviewQueryParams {
   const query = toQueryObject(search)
 
-  if (!query.collected_by) {
-    return null
-  }
-
   return {
-    collected_by: query.collected_by,
+    ...(query.collected_by ? { collected_by: query.collected_by } : {}),
     ...(query.court ? { court: query.court } : {}),
     ...(query.page ? { page: query.page } : {}),
   }
@@ -40,10 +43,23 @@ const emptySettlementCodes = new Set([
   'TRANSACTION_SETTLED_LOCKED',
 ])
 
+const staleSettlementCodes = new Set([
+  ...emptySettlementCodes,
+  'SETTLEMENT_CONFLICT',
+  'SETTLEMENT_ALREADY_SETTLED',
+  'SETTLEMENT_INVALID_STATUS',
+])
+
 function isEmptySettlementError(error: unknown): boolean {
   const code = getApiErrorCode(error)
 
   return Boolean(code && emptySettlementCodes.has(code))
+}
+
+function isStaleSettlementError(error: unknown): boolean {
+  const code = getApiErrorCode(error)
+
+  return Boolean(code && staleSettlementCodes.has(code))
 }
 
 function parseIntegerParam(value: number | string | undefined): number | null {
@@ -66,7 +82,7 @@ function EmptyPreviewState({ message, onRefresh }: EmptyPreviewStateProps) {
     <AppCard className="space-y-3">
       <div>
         <p className="text-sm font-black text-[var(--sloty-text-primary)]">
-          {message ?? 'مفيش مبلغ حالي للموظف دلوقتي.'}
+          {message ?? financeCopy.settlementPreviewEmpty}
         </p>
         <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
           كل المبالغ الحالية اتسلّمت، أو مفيش عمليات مسجلة بعد.
@@ -93,9 +109,14 @@ function EmptyPreviewState({ message, onRefresh }: EmptyPreviewStateProps) {
 export function SettlementPreviewPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { refreshCurrentUser, role, selectedClubSlug, selectedMembership } =
-    useAuth()
-  const canSettle = canManageSettlements(selectedMembership, role)
+  const {
+    currentUser,
+    refreshCurrentUser,
+    role,
+    selectedClubSlug,
+    selectedMembership,
+  } = useAuth()
+  const canViewOwn = canViewOwnSettlements(selectedMembership, role)
   const queryParams = useMemo(
     () => parsePreviewQuery(location.search),
     [location.search],
@@ -111,14 +132,17 @@ export function SettlementPreviewPage() {
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const hasTransactions = Boolean(preview && preview.transaction_count > 0)
-  const canApprovePreview = Boolean(
-    canSettle &&
-      preview?.can_approve &&
-      hasTransactions,
+  const canApprovePreview = Boolean(preview?.can_approve && hasTransactions)
+  const offlineScope: OfflineScope | null = useMemo(
+    () =>
+      currentUser?.id && selectedClubSlug
+        ? { userId: currentUser.id, clubSlug: selectedClubSlug }
+        : null,
+    [currentUser, selectedClubSlug],
   )
 
   const loadPreview = useCallback(async (): Promise<void> => {
-    if (!selectedClubSlug || !canSettle || !queryParams) {
+    if (!selectedClubSlug || !canViewOwn) {
       setPreview(null)
       setError(null)
       setIsEmptyPreview(false)
@@ -142,19 +166,36 @@ export function SettlementPreviewPage() {
 
       setPreview(nextPreview)
       setIsEmptyPreview(nextPreview.transaction_count <= 0)
+
+      if (offlineScope) {
+        try {
+          await offlineRepositories.replaceCurrentCustodySnapshot(
+            offlineScope,
+            {
+              kind: 'preview',
+              collectorId: queryParams.collected_by ?? null,
+              courtId: queryParams.court ?? null,
+              payload: nextPreview,
+            },
+            new Date().toISOString(),
+          )
+        } catch {
+          // Non-fatal: the live Backend preview remains authoritative.
+        }
+      }
     } catch (error) {
       setPreview(null)
 
       if (isEmptySettlementError(error)) {
         setIsEmptyPreview(true)
-        setEmptyMessage('مفيش مبلغ حالي للموظف دلوقتي.')
+        setEmptyMessage(financeCopy.settlementPreviewEmpty)
       } else {
         setError(getApiErrorMessage(error, 'تعذر تحميل تفاصيل المبلغ'))
       }
     } finally {
       setIsLoading(false)
     }
-  }, [canSettle, queryParams, selectedClubSlug])
+  }, [canViewOwn, offlineScope, queryParams, selectedClubSlug])
 
   useEffect(() => {
     let isActive = true
@@ -173,11 +214,13 @@ export function SettlementPreviewPage() {
   }, [loadPreview])
 
   async function handleConfirmSettlement(): Promise<void> {
-    if (!selectedClubSlug || !queryParams || !preview || !canApprovePreview) {
+    if (!selectedClubSlug || !preview || !canApprovePreview) {
       return
     }
 
-    const collectedBy = parseIntegerParam(queryParams.collected_by)
+    const collectedBy = parseIntegerParam(
+      queryParams.collected_by ?? preview.collected_by,
+    )
     const court = parseIntegerParam(queryParams.court)
 
     if (collectedBy === null) {
@@ -199,6 +242,10 @@ export function SettlementPreviewPage() {
 
       setIsConfirmOpen(false)
       setSuccessMessage(flashMessage)
+      notifyCurrentFinancialStateChanged({
+        clubSlug: selectedClubSlug,
+        reason: 'settlement-create',
+      })
 
       if (settlement.id) {
         navigate(`/settlements/${settlement.id}`, {
@@ -210,11 +257,19 @@ export function SettlementPreviewPage() {
         })
       }
     } catch (error) {
-      if (isEmptySettlementError(error)) {
+      if (isStaleSettlementError(error)) {
         setIsConfirmOpen(false)
         setPreview(null)
-        setIsEmptyPreview(true)
-        setEmptyMessage('مفيش مبلغ حالي للموظف دلوقتي.')
+        setIsEmptyPreview(isEmptySettlementError(error))
+        setEmptyMessage(
+          isEmptySettlementError(error)
+            ? financeCopy.settlementPreviewEmpty
+            : financeCopy.settlementPreviewStale,
+        )
+        notifyCurrentFinancialStateChanged({
+          clubSlug: selectedClubSlug,
+          reason: 'settlement-stale',
+        })
         await loadPreview()
       } else {
         setConfirmError(
@@ -246,26 +301,15 @@ export function SettlementPreviewPage() {
         </AppCard>
       ) : null}
 
-      {selectedClubSlug && !canSettle ? (
+      {selectedClubSlug && !canViewOwn ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-danger)]">
-            ليس لديك صلاحية استلام المبالغ.
+            ليس لديك صلاحية عرض المبالغ.
           </p>
         </AppCard>
       ) : null}
 
-      {selectedClubSlug && canSettle && !queryParams ? (
-        <AppCard className="space-y-3">
-          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            اختر الموظف المحصل لمراجعة المبلغ.
-          </p>
-          <Link to="/settlements">
-            <AppButton variant="secondary">العودة إلى إدارة الأموال</AppButton>
-          </Link>
-        </AppCard>
-      ) : null}
-
-      {selectedClubSlug && canSettle && queryParams && isLoading ? (
+      {selectedClubSlug && canViewOwn && isLoading ? (
         <AppCard>
           <div className="space-y-3">
             <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
@@ -277,15 +321,14 @@ export function SettlementPreviewPage() {
         </AppCard>
       ) : null}
 
-      {selectedClubSlug && canSettle && queryParams && !isLoading && error ? (
+      {selectedClubSlug && canViewOwn && !isLoading && error ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-danger)]">{error}</p>
         </AppCard>
       ) : null}
 
       {selectedClubSlug
-      && canSettle
-      && queryParams
+      && canViewOwn
       && !isLoading
       && !error
       && isEmptyPreview ? (
@@ -293,8 +336,7 @@ export function SettlementPreviewPage() {
       ) : null}
 
       {selectedClubSlug
-      && canSettle
-      && queryParams
+      && canViewOwn
       && !isLoading
       && !error
       && preview

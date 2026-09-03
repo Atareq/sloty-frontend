@@ -7,6 +7,8 @@ import type {
   BookingCacheRecord,
   BookingIntentStatus,
   BookingIntentRecord,
+  CurrentCustodySnapshotKind,
+  CurrentCustodySnapshotPayload,
   OfflineContextInput,
   OfflineContextRecord,
   OfflineScope,
@@ -85,10 +87,69 @@ export type BookingIntentUpdate = Partial<
   >
 >
 
+export interface CurrentCustodySnapshotInput {
+  kind: CurrentCustodySnapshotKind
+  collectorId?: number | string | null
+  courtId?: number | string | null
+  payload: CurrentCustodySnapshotPayload
+}
+
+export type OfflineSyncDataset =
+  | 'schedule'
+  | 'bookings'
+  | 'transactions'
+  | 'current_custody'
+
+function getCurrentCustodyCourtScope(
+  courtId?: number | string | null,
+): string {
+  if (courtId === undefined || courtId === null || courtId === '') {
+    return 'all'
+  }
+
+  return `court:${courtId}`
+}
+
+function getCurrentCustodyCollectorScope(
+  collectorId?: number | string | null,
+): string {
+  if (collectorId === undefined || collectorId === null || collectorId === '') {
+    return 'self'
+  }
+
+  return `collector:${collectorId}`
+}
+
+function normalizeCourtId(courtId?: number | string | null): number | null {
+  if (courtId === undefined || courtId === null || courtId === '') {
+    return null
+  }
+
+  const numericCourtId = Number(courtId)
+
+  return Number.isSafeInteger(numericCourtId) ? numericCourtId : null
+}
+
+function normalizeCollectorId(
+  collectorId?: number | string | null,
+): number | null {
+  if (
+    collectorId === undefined ||
+    collectorId === null ||
+    collectorId === ''
+  ) {
+    return null
+  }
+
+  const numericCollectorId = Number(collectorId)
+
+  return Number.isSafeInteger(numericCollectorId) ? numericCollectorId : null
+}
+
 async function writeSyncMetadata(
   db: SlotyLocalDatabase,
   scope: OfflineScope,
-  dataset: 'schedule' | 'bookings' | 'transactions',
+  dataset: OfflineSyncDataset,
   syncedAt: string,
 ): Promise<void> {
   const identity = getScopedRecordIdentity(scope)
@@ -308,6 +369,69 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       ])
 
       return row?.transaction
+    },
+
+    async replaceCurrentCustodySnapshot(
+      scope: OfflineScope,
+      snapshot: CurrentCustodySnapshotInput,
+      syncedAt: string,
+    ): Promise<void> {
+      const identity = getScopedRecordIdentity(scope)
+      const record = {
+        ...identity,
+        snapshot_kind: snapshot.kind,
+        collector_scope:
+          snapshot.kind === 'grouped_summary'
+            ? 'all'
+            : getCurrentCustodyCollectorScope(snapshot.collectorId),
+        collector_id: normalizeCollectorId(snapshot.collectorId),
+        court_scope: getCurrentCustodyCourtScope(snapshot.courtId),
+        court_id: normalizeCourtId(snapshot.courtId),
+        payload: snapshot.payload,
+        synced_at: syncedAt,
+      }
+
+      await db.transaction(
+        'rw',
+        db.current_custody_snapshots,
+        db.sync_metadata,
+        async () => {
+          await db.current_custody_snapshots.put(record)
+          await writeSyncMetadata(db, scope, 'current_custody', syncedAt)
+        },
+      )
+    },
+
+    readCurrentCustodySnapshot(
+      scope: OfflineScope,
+      kind: CurrentCustodySnapshotKind,
+      collectorId?: number | string | null,
+      courtId?: number | string | null,
+    ) {
+      return db.current_custody_snapshots.get([
+        createOfflineScopeKey(scope),
+        kind,
+        kind === 'grouped_summary'
+          ? 'all'
+          : getCurrentCustodyCollectorScope(collectorId),
+        getCurrentCustodyCourtScope(courtId),
+      ])
+    },
+
+    async deleteCurrentCustodySnapshot(
+      scope: OfflineScope,
+      kind: CurrentCustodySnapshotKind,
+      collectorId?: number | string | null,
+      courtId?: number | string | null,
+    ): Promise<void> {
+      await db.current_custody_snapshots.delete([
+        createOfflineScopeKey(scope),
+        kind,
+        kind === 'grouped_summary'
+          ? 'all'
+          : getCurrentCustodyCollectorScope(collectorId),
+        getCurrentCustodyCourtScope(courtId),
+      ])
     },
 
     async saveBookingIntent(

@@ -1,7 +1,7 @@
 import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import type { AuditLogEntry, AuditQueryParams } from './audit.types'
+import type { AuditLogDetail, AuditLogEntry, AuditQueryParams } from './audit.types'
 
 function buildQueryString(params?: AuditQueryParams): string {
   const searchParams = new URLSearchParams()
@@ -40,5 +40,18 @@ export function listAuditLogs(
 ): Promise<PaginatedResponse<AuditLogEntry>> {
   return apiRequest<PaginatedResponse<AuditLogEntry>>(
     `${apiEndpoints.clubs.auditLogs.list(clubSlug)}${buildQueryString(params)}`,
+  )
+}
+
+/**
+ * Loads one authoritative audit event detail after the user deliberately opens
+ * an activity card. The list never prefetches these details per row.
+ */
+export function getAuditLog(
+  clubSlug: string,
+  id: number | string,
+): Promise<AuditLogDetail> {
+  return apiRequest<AuditLogDetail>(
+    apiEndpoints.clubs.auditLogs.detail(clubSlug, id),
   )
 }

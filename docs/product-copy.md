@@ -22,6 +22,8 @@ Booking:
 - `حجز أسبوعي` = recurring state/context
 - `إيقاف الحجز الأسبوعي` = stop future recurrence; current Booking stays
 - `إلغاء الحجز` = destructive current-Booking action
+- Booking card note label: `ملاحظة`
+- Booking/Transaction detail note label: `ملاحظات`
 
 ## Navigation
 
@@ -35,6 +37,7 @@ Booking:
 | Staff / restricted Manager custody | عهدتي |
 | Owner/Manager advanced ledger | سجل المعاملات المالية |
 | Money section on the hub | المبالغ مع الموظفين |
+| Current employee custody section | المبالغ الموجودة مع الموظفين حاليًا |
 | Reports | التقارير |
 | Audit | سجل النشاط |
 | Settings | الإعدادات |
@@ -43,6 +46,13 @@ Do not use `لوحة التحكم` as the Home label.
 Do not use `عهد الموظفين`, `التحصيلات`, `تحصيلاتي`, or `مبالغ الموظفين` as ordinary Burger destinations.
 Do not use `التقارير الاستهلاكية للملاعب` as the Reports nav label.
 Do not alternate Audit with `سجل النشاطات`, `Audit Logs`, or `سجل التدقيق` in ordinary product UI.
+
+Audit interaction copy:
+
+- Activity detail sheet title: `تفاصيل النشاط`
+- Detail loading: `جاري تحميل تفاصيل النشاط...`
+- Detail failure: `تعذر تحميل تفاصيل النشاط`
+- Detail retry: `حاول مرة تانية`
 
 ## Booking statuses
 
@@ -76,6 +86,7 @@ Do not use `لم يحضر` or `منتهي` for those exact Booking statuses.
 
 - `اسم العميل`
 - `رقم الموبايل`
+- Customer phone placeholder: `01X XXX XXXX` as muted example text, never as a default value
 - History search: `اسم العميل أو رقم الموبايل` (server name/phone only; notes search is a Backend gap)
 
 Keep API fields `customer_phone` and `phone_number`. Employee/admin account phone labels may stay more formal.
@@ -86,26 +97,34 @@ Staff:
 
 - `معاملاتي المالية`
 - `عهدتي`
-- Empty: `مفيش مبالغ معاك دلوقتي.`
+- Current section: `العهدة الحالية`
 
 Management hub:
 
 - Nav/page: `إدارة الأموال`
-- Section: `المبالغ مع الموظفين`
-- Current: `مبالغ محتاجة استلام`
+- Page heading: `المبالغ مع الموظفين`
+- Current section: `المبالغ الموجودة مع الموظفين حاليًا`
 - Historical: `تم استلامها سابقًا`
 - Checkbox: `مراجعة المبالغ المستلمة سابقًا`
 - Filter default: `كل الموظفين`
+- Court default: `كل الملاعب`
 - Live collector/history filters; do not require `عرض النتائج`
-- Current card: `معاه دلوقتي` / `استلام المبلغ`
+- Current card action: `استلام المبلغ`
 - Historical card: `عرض التفاصيل`
 - Linked rows: `عرض المعاملات المرتبطة` / `إخفاء المعاملات`
 - Secondary ledger link: `عرض سجل المعاملات المالية`
+
+Current custody states:
+
+- `لا توجد مبالغ مستحقة للتسليم حاليًا`
+- `صافي المبلغ المستحق حاليًا: 0 ج.م`
+- `المبلغ المستحق للتسليم: X ج.م`
 
 Confirmation:
 
 - `تأكيد استلام المبلغ`
 - `تم استلام المبلغ بنجاح`
+- Stale/candidate changed: `المبلغ اتغير. جبنا آخر حالة من السيرفر.`
 
 Transaction settlement chips/filters:
 

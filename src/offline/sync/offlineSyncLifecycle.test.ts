@@ -63,7 +63,22 @@ const context: OperationalSyncContext = {
 function createCoordinatorWithTasks(
   tasks: DatasetSyncTask[],
 ): OfflineSyncCoordinator {
-  return new OfflineSyncCoordinator({ tasks })
+  const includesCurrentCustody = tasks.some(
+    (task) => task.dataset === 'current_custody',
+  )
+
+  return new OfflineSyncCoordinator({
+    tasks: includesCurrentCustody
+      ? tasks
+      : [
+          ...tasks,
+          createTask('current_custody', async () => ({
+            dataset: 'current_custody',
+            status: 'skipped',
+            reason: 'not_relevant_to_lifecycle_test',
+          })),
+        ],
+  })
 }
 
 function setVisibilityState(value: DocumentVisibilityState): void {

@@ -47,6 +47,7 @@ import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
+import { notifyCurrentFinancialStateChanged } from '../../settlements/currentFinancialStateInvalidation'
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import { cancelTransaction, getTransaction, listTransactions } from '../transactionsApi'
@@ -460,7 +461,7 @@ function TransactionDetailSheet({
             <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
               ملاحظات
             </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-[var(--sloty-text-primary)]">
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold text-[var(--sloty-text-primary)]">
               {transaction.notes}
             </p>
           </div>
@@ -1172,6 +1173,10 @@ export function TransactionsListPage() {
       await cancelTransaction(selectedClubSlug, cancelTarget.id, values)
       setCancelTarget(null)
       setSuccessMessage('تم إلغاء العملية')
+      notifyCurrentFinancialStateChanged({
+        clubSlug: selectedClubSlug,
+        reason: 'transaction-cancellation',
+      })
       await reloadTransactions()
     } catch (error) {
       setCancelError(

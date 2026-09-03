@@ -9,6 +9,15 @@ export type SettlementPaymentMethod = PaymentMethod
 /** Settlement rows use the same backend payment-method contract as transactions. */
 export const settlementPaymentMethodLabels = paymentMethodLabels
 
+/** Shared Backend fields that describe one collector's current custody. */
+export interface CurrentCustodyRecord {
+  collected_by: number
+  collected_by_name: string
+  transaction_count: number
+  net_amount: string
+  totals_by_payment_method: Partial<Record<SettlementPaymentMethod, string>>
+}
+
 export interface SettlementPreviewTransaction {
   id: number
   booking?: number | null
@@ -21,10 +30,8 @@ export interface SettlementPreviewTransaction {
   created?: string
 }
 
-export interface SettlementPreview {
+export interface SettlementPreview extends CurrentCustodyRecord {
   club: number
-  collected_by: number
-  collected_by_name: string
   court?: number | null
   court_name?: string | null
   is_self_preview: boolean
@@ -32,12 +39,9 @@ export interface SettlementPreview {
   approval_required: boolean
   period_start: string
   period_end: string
-  transaction_count: number
   total_amount: string
   booking_payments: string
   booking_refunds: string
-  net_amount: string
-  totals_by_payment_method: Partial<Record<SettlementPaymentMethod, string>>
   transactions: SettlementPreviewTransaction[]
 }
 
@@ -45,6 +49,25 @@ export interface SettlementPreviewQueryParams {
   collected_by?: number | string
   court?: number | string
   page?: number | string
+}
+
+export interface CurrentCustodySummaryRow extends CurrentCustodyRecord {
+  period_start: string
+  period_end: string
+  total_amount: string
+  booking_payments: string
+  booking_refunds: string
+  is_self: boolean
+  can_approve: boolean
+}
+
+export interface CurrentCustodySummaryResponse {
+  results: CurrentCustodySummaryRow[]
+}
+
+export interface CurrentCustodySummaryQueryParams {
+  collected_by?: number | string
+  court?: number | string
 }
 
 export interface CreateSettlementPayload {

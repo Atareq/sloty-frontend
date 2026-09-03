@@ -48,7 +48,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Payment details, expired records, and lifecycle controls do not belong on Booking Board slot buttons.
 - Booking Board slot buttons must remain compact and show only the start time, human status, and an optional trusted recurring indicator in the top-right. Canonical product labels override backend `slot.label` for known statuses: CONFIRMED → `العربون مدفوع`, COMPLETED → `تم اللعب`.
 - Non-full-page temporary UI uses the shared `AppSheet` where applicable and closes through its neutral X, backdrop, Escape, or browser/Android Back. Feature code must intercept close requests when genuine unsaved input would be lost; `AppSheet` stays domain-agnostic.
-- Mobile text-entry controls should use a 16px-equivalent size such as `text-base sm:text-sm` to avoid iOS input zoom. Never disable browser zoom globally.
+- Mobile/touch text-entry controls must remain at least 16px even when tablet/wider breakpoints activate. Use the global touch/coarse-pointer form rule for editable `input`, `textarea`, and `select` controls; fine-pointer desktop may keep compact typography. Never disable browser zoom globally.
+- Customer phone fields use the canonical label `رقم الموبايل` and muted placeholder `01X XXX XXXX`; the placeholder must never be set as a value or replaced with a realistic full phone number.
 - Temporary success feedback uses shared `AppSuccessNotice` (~3 seconds). Errors requiring attention must not auto-dismiss.
 
 ## Architecture Rules
@@ -84,18 +85,18 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Every sensitive IndexedDB row must carry the canonical user + Club scope from `createOfflineScopeKey()`. Do not manually build scope strings, expose unscoped operational reads, or combine Platform Admin data into an all-Clubs namespace.
 - Schedule snapshots use scope + Court + date uniqueness. Schedule and BookingIntent repository reads require an explicit Court; Staff must never receive a read-every-Court shortcut.
 - Keep Backend Booking, BookingSlot, and Transaction objects as authoritative snapshots. Do not introduce parallel offline domain models or calculate slot state, prices, status, permission, or settlement facts locally.
-- `sync_metadata` keeps independent Schedule, Bookings, and Transactions timestamps. Update a timestamp only inside the same successful transaction that replaces the corresponding complete snapshot; a failed replacement must preserve the last good rows and timestamp.
+- `sync_metadata` keeps independent Schedule, Bookings, Transactions, and Current Custody timestamps. Update a timestamp only inside the same successful transaction that replaces the corresponding complete snapshot; a failed replacement must preserve the last good rows and timestamp.
 - `offline_context` is the last successful `/me` + selected-membership cache-ownership hint only. It stores no password, PIN, JWT, refresh credential, or frontend-calculated permission and must never authenticate, authorize, or route a user.
 - Explicit logout must await pending context writes, clear every sensitive operational scope for the current user, and only then clear the auth/session and selected Club. Session expiry is not explicit logout and must not automatically delete the scoped cache.
 - IndexedDB failure handling must remain non-fatal and log only generic messages without customer, money, transaction, token, or credential contents. Scope isolation remains mandatory even when cleanup fails.
-- Schedule, recent Booking History, and recent Transactions are wired to the scoped cache as read-only offline surfaces. BookingIntent is the sole local offline write: it stores a customer request for later authoritative recheck and manual booking.
+- Schedule, recent Booking History, recent Transactions, and Current Custody are wired to the scoped cache as read-only offline surfaces. BookingIntent is the sole local offline write: it stores a customer request for later authoritative recheck and manual booking.
 
 ## Offline Synchronization Rules
 
 - Operational synchronization is owned once by `OfflineSyncProvider` under authenticated `AppShell`. Do not add business-data `online`, `offline`, or `visibilitychange` synchronization listeners inside Schedule, Bookings, Transactions, or other pages.
 - Synchronization context must come from current `useAuth()` state after user, selected Club, selected membership, role, and scope key are resolved. Never sync with missing `userId` or `clubSlug`, and never create an all-platform Platform Admin offline scope.
 - `navigator.onLine` is only a browser hint. A successful Backend dataset refresh is the evidence for Backend reachability; failed requests may mark Backend unreachable without logging users out or deleting cache.
-- Dataset priority is fixed: run Schedule first, then recheck BookingIntents from successfully refreshed Schedule rows, then run Bookings and Transactions after Schedule settles. Schedule failure does not delete old Schedule data and does not classify BookingIntents from stale rows.
+- Dataset priority is fixed: run Schedule first, then recheck BookingIntents from successfully refreshed Schedule rows, then run Bookings and Transactions after Schedule settles, then refresh Current Custody. Schedule failure does not delete old Schedule data and does not classify BookingIntents from stale rows.
 - Full sync runs and dataset sync tasks are single-flight by `scope_key` and `scope_key + dataset`. Startup, online, resume, retry, and manual triggers for the same scope must coalesce while a run is active.
 - Scope changes cancel old owned sync work where possible. If stale work completes, it may only write its original scoped records and must not publish current visible sync status for the newly selected Club/user.
 - Retry is conservative: one delayed retry may follow a failed run, then the app waits for startup, online, resume, or manual triggers. Do not add polling, aggressive loops, Background Sync queues, or Service Worker API caching.
@@ -153,6 +154,16 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Offline Transaction sorting is local only because it operates on the complete bounded cache. Online paginated results remain backend ordered.
 - Cached Transaction details are lazy: successful online `getTransaction()` responses may be stored in `transaction_details`, but the seven-day list sync must not N+1 fetch every detail by default.
 - Offline Transactions are strictly read-only. Payment recording, transaction cancellation, refunds, settlement creation/approval/receive, PATCH/DELETE financial changes, and every other money mutation require internet and must not be queued.
+
+## Offline Current Custody Snapshot Rules
+
+- Current Custody offline display is the last successful Backend current-custody response stored in IndexedDB, not a calculation from cached Transactions.
+- The `current_custody_snapshots` store is scoped by canonical user + Club, snapshot kind, collector scope, and Court scope. All-courts (`all`) and one Court (`court:{id}`) are different cache keys.
+- Staff/restricted-user custody stores the Backend settlement preview response. Owner/authorized Manager custody stores the grouped `unsettled-summary` response in one snapshot; do not fetch one preview per employee.
+- The sync coordinator refreshes Current Custody after Schedule, BookingIntent recheck, Bookings, and Transactions. Pages may persist successful online custody reads and may read the cached snapshot after a request failure, but must not attach page-level reconnect listeners.
+- If no cached custody snapshot exists while offline/backend-unreachable, show internet-required/error copy, not a zero custody state.
+- `NO_UNSETTLED_TRANSACTIONS` is an authoritative online empty state. Clear the matching stale local custody snapshot instead of fabricating a zero-valued snapshot.
+- Negative and zero-net custody values are displayed exactly from the Backend snapshot fields. Do not use `Math.abs`, clamp negatives, hide rows, or recompute signed net from PAYMENT/REFUND rows.
 
 ## Navigation Rules
 
@@ -241,6 +252,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Schedule Board uses `clubs/{club_slug}/bookings/slots/` with `court` and `date` for the selected daily board.
 - Schedule Board must use `slot.is_available` for clickability, `slot.slot_status` for styling/business state, and `slot.label` for localized display when available.
 - `FREE` is response-only slot status and must not be added to actual `Booking.Status`; `CANCELLED` and `EXPIRED` release slots and should not be shown as blocking board states.
+- Schedule Morning/Evening presentation is container-owned: `مواعيد الصباح` uses a warm, light cream/daylight surface, while `مواعيد المساء` uses a deeper calm blue-gray/night surface. Do not recolor slots by period; FREE, HOLD, CONFIRMED, COMPLETED, NO_SHOW, and RECURRING_RESERVED keep their existing status semantics in both containers.
 - Refetch backend booking slots after booking creation, payment recording, cancellation, completion, no-show, hold release, or any action that changes slot/payment state.
 - Backend still uses working hours to generate slots; do not remove working-hours settings pages.
 - Booking Board must not show payment or lifecycle details.
@@ -302,8 +314,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Active filter chips must remain URL-driven and removable.
 - Active filter chips are one accessible button per chip; clicking anywhere on the chip removes only that filter while preserving other active filters, and buttons must not be nested.
 - Court filters must display court names instead of raw IDs while still sending numeric court IDs to the backend.
-- Bookings List cards are compact clickable review entries showing only customer name, phone, human appointment, human status, and an optional recurring marker. They open the shared `BookingActionSheet`; do not put IDs, Court, money, creation timestamps, notes, transaction detail, or a separate edit flow on history cards.
+- Bookings List cards are compact clickable review entries showing customer name, phone, human appointment, Court, human status, optional recurring marker, and optional backend-provided `notes`. Notes render only when meaningful, use the compact label `ملاحظة`, stay visually secondary, and are clamped to roughly two lines.
+- Booking List notes must come directly from the Backend list `booking.notes` field. Never fetch Booking Detail per list row, join cached detail notes, or create a second notes store to render list cards.
 - `BookingActionSheet` is the one canonical details presentation for Schedule occupied slots, Schedule closing rows, and Bookings List cards, including HOLD. The entry page must not choose the primary action; booking state and current implemented capabilities do.
+- Booking details show full meaningful notes under `ملاحظات` with natural wrapping/newlines; blank/null/whitespace notes hide the whole Notes section.
 - Booking details put customer/phone and appointment identity first, followed by a human Egyptian-Arabic state, financial summary, and at most one visible primary action. HOLD uses `سجّل العربون وأكّد الحجز`; a known positive remaining balance uses `حصّل X ج.م`; an ended fully-paid confirmed booking visibly exposes both `إكمال` and `عدم حضور`.
 - Valid secondary booking actions live under `••• خيارات أخرى` in order: `تعديل بيانات الحجز`, then `تغيير الموعد` when allowed, then a separator, then danger `إلغاء الحجز` last. Active recurrence shows inline `إيقاف الحجز الأسبوعي` (outline, not danger) and must not duplicate that action under `•••`. Confirmation explains that the current Booking remains unchanged. Do not show backend-roadmap copy, a separate recurring domain, or unsupported single-occurrence cancellation from booking details.
 - `تعديل بيانات الحجز` is a secondary action for HOLD and CONFIRMED. It PATCHes only `customer_name`, `customer_phone`, and `notes`. The PATCH response is partial; refetch Booking detail afterwards and never replace the canonical Booking with it.
@@ -313,14 +327,16 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Booking Board remains availability-focused; Bookings List is for reviewing and filtering existing bookings.
 - Completed bookings are locked/read-only. Completed bookings with remaining amount are financial warnings, not normal daily actions.
 - The frontend must not calculate `needs_action`; backend summary/list filters own that action classification.
-- Sprint 6 implements user-based settlement foundation: settlement pages use `selectedClubSlug`, owner can settle, manager can settle only when the active membership permissions allow it, and staff cannot settle.
+- Sprint 6 implements user-based settlement foundation: settlement pages use `selectedClubSlug`, Owner can settle, Manager can settle only when the active membership permissions allow it, and Staff/restricted Manager can view their own custody without mutation controls.
 - The new settlement flow selects a club user as `collected_by`; it must not use date-range settlement creation.
 - Club users load from `clubs/{club_slug}/users/` and may be filtered by `role`, `court`, `is_active`, and `search`.
-- Settlement preview uses `GET clubs/{club_slug}/settlements/preview/` with `collected_by` and optional `court`; do not use dry-run wording in the UI.
-- Settlement confirmation posts `{ collected_by, court?, notes? }` to `clubs/{club_slug}/settlements/`; do not send `dry_run`, `date_from`, `date_to`, `period_start`, or `period_end`.
+- Settlement preview uses `GET clubs/{club_slug}/settlements/preview/` with optional `collected_by` and optional `court`; omitting `collected_by` previews the signed-in user's own current custody through the backend contract. Do not use dry-run wording in the UI.
+- Settlement preview is a fresh Backend snapshot for confirmation, not frozen truth copied from the grouped summary, Transaction list, or any frontend-calculated candidate set. Create may legitimately settle a different current candidate set or reject with a structured conflict if backend truth changed.
+- Settlement confirmation posts `{ collected_by, court?, notes? }` to `clubs/{club_slug}/settlements/`; do not send frontend-computed totals, preview transaction IDs, `dry_run`, `date_from`, `date_to`, `period_start`, `period_end`, payment-method filters, or `created_by`.
 - Settlement approval UI follows backend `can_approve`, not `!is_self_preview`. Self-preview with `can_approve` may show `استلام المبلغ`; denied self-preview uses `financeCopy.selfPreviewDenied`.
 - Settlement confirmation must use a modal with clear money-safe wording. Empty/concurrency settlement results are friendly empty states, not scary errors.
-- After settlement success, redirect to detail when an ID is returned or to the settlements page otherwise, and rely on remount/refetch for fresh data.
+- After settlement success or any payment/refund/transaction-cancellation mutation success, refetch authoritative current financial surfaces through existing loaders. Never subtract a preview amount, zero an employee card, remove preview transactions, or mark rows settled locally.
+- Stale settlement/create conflicts must branch on backend error codes such as `SETTLEMENT_CONFLICT`, `NO_UNSETTLED_TRANSACTIONS`, `SETTLEMENT_ALREADY_SETTLED`, `SETTLEMENT_INVALID_STATUS`, or `TRANSACTION_SETTLED_LOCKED`; do not parse message text.
 - The settlement UI uses money-management language: the review action is `استلام المبلغ`, the final action is `تأكيد استلام المبلغ`, and success is `تم استلام المبلغ بنجاح` only when the backend has actually closed the settlement.
 - `period_start` and `period_end` are backend-generated settlement coverage fields and are display-only in the frontend.
 - Backend remains the authority for settlement permissions; settled transactions are locked/read-only and the frontend must not offer raw transaction editing.
@@ -337,6 +353,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Staff Transactions must ignore URL `court`/`created_by` overrides, send the assigned Court only, and hide the collector selector. Owner/Manager may use named Court and collector filters.
 - Transaction and settlement surfaces share the canonical payment-method labels and money formatter. Prefer historical names returned by finance responses and use calm unavailable/former-user copy instead of exposing raw user, Court, Booking, or Transaction IDs.
 - Frontend transaction lists must not calculate settlement totals; backend Summary endpoints own financial totals.
+- Transaction details show full meaningful transaction notes under `ملاحظات` with natural wrapping/newlines; blank/null/whitespace notes hide the whole Notes section. Do not add notes to Transaction list cards unless Product explicitly requests it.
 - Sprint 7 implements backend-calculated dashboard, reports, and audit logs; these pages use `selectedClubSlug` from `useAuth()`.
 - Dashboard and report financial metrics must come from backend summary/report endpoints. Do not fake numbers or manually count cancelled transactions in totals; cancelled transactions remain visible while backend summaries decide accounting.
 - `/schedule` is the visible operational Home labeled `الرئيسية`. After login, Home navigation, and `NewBookingFAB`, land on Schedule. Do not create a second Home page.
@@ -344,27 +361,35 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `DashboardPage` stays in the repository as follow-up analytics, not as the normal user Home.
 - Dashboard must not relabel `total_bookings` as upcoming bookings. Upcoming count, nearest HOLD expiry, next booking, and booking-level action cards render only when authoritative backend fields exist; never derive them from full booking history or Court hold policy.
 - Dashboard action labels must reuse `getBookingActionPresentation()` when booking-level records become available. Aggregate-only action data links to filtered Bookings instead of duplicating booking lifecycle mutations or fabricating `BookingActionSheet` data.
-- Staff Dashboard is always today-focused and assigned-Court scoped, shows read-only `عهدتي`, and never exposes a settlement mutation. Employee custody actions use `canManageSettlements()` for Owner/authorized Manager only.
+- Staff Dashboard is always today-focused and assigned-Court scoped for period activity, shows read-only `عهدتي` from the Backend current-custody contract, and never exposes a settlement mutation. Employee custody actions use `canManageSettlements()` for Owner/authorized Manager only.
 - Rolling `today - 6 days` Dashboard ranges are labeled `آخر 7 أيام`, and period-dependent labels stay neutral (`الحجوزات`, `التحصيل`) rather than falsely saying `اليوم`. Analytics and status breakdowns remain below operational sections.
 - Dashboard Summary supports optional court scope; all-courts is the default and must omit `court`, while a selected court sends `court={id}`.
 - Dashboard court option loading failures must show a local warning and must not block loading the main Summary data.
+- Dashboard current custody must load independently from period analytics. Changing Today/Yesterday/`آخر 7 أيام` may refetch Dashboard Summary, but it must not refetch or redefine current custody unless the custody scope itself changes.
 - Dashboard KPI links should preserve the selected court only for supported targets such as Bookings and Transactions.
 - Every important Summary card should link to filtered Bookings, Transactions, or Settlement review pages using `buildPathWithQuery`.
-- The frontend must not calculate unsettled money or `needs_action_count`; backend Summary owns those counts and money values.
-- Unsettled transactions are live open money. Do not use pending settlement drafts as the dashboard money source.
+- The frontend must not calculate current custody, unsettled money, financial dashboard totals, payment/refund net, or `needs_action_count`. Backend Summary owns period analytics, and Backend settlement current-custody endpoints own custody.
+- Current Custody means the current unsettled financial state at this point in time. It must not inherit Dashboard dates, historical settlement ranges, transaction-list pages, or payment-method filters.
+- Current Custody uses Backend `net_amount`, `transaction_count`, and `totals_by_payment_method` directly. The frontend may select the display state from those fields, but must not reduce transactions, use `Math.abs`, clamp negatives, or rebuild the signed net from PAYMENT/REFUND rows.
+- Owner/authorized Manager all-employee current money uses one grouped `GET clubs/{club_slug}/settlements/unsettled-summary/` request. Do not load employees and then issue N preview/transaction requests to calculate custody.
+- Current custody Court scope defaults to all accessible Courts by omitting `court`. Send `court={id}` only after an explicit user selection, and never initialize custody to `courts[0]` or a `firstCourt` fallback.
+- Current custody display states are fixed: `transaction_count == 0` uses `لا توجد مبالغ مستحقة للتسليم حاليًا`; `transaction_count > 0 && net_amount == 0` uses `صافي المبلغ المستحق حاليًا: 0 ج.م`; positive net uses `المبلغ المستحق للتسليم: X ج.م`.
+- Negative current custody has no finalized product copy. Preserve and display the signed Backend value without positive wording, empty-state normalization, or hiding the employee; report `PRODUCT/BACKEND CLARIFICATION PENDING` until a newer decision exists.
+- Unsettled transactions are live open money. Do not use pending settlement drafts as any current-custody money source.
 - Settlement preview is read-only review, and settlement confirmation closes transactions; do not build pending settlement draft UI.
-- Settlement preview route is `/settlements/preview?collected_by=...` and uses `GET clubs/{club_slug}/settlements/preview/`.
+- Settlement preview route is `/settlements/preview?collected_by=...` for another collector or `/settlements/preview` for the signed-in user's own backend-scoped preview.
 - Settlement preview is a read-only review of unsettled transactions; empty preview is an empty state, not a scary error.
 - Settlement preview UI must not use `dry_run` wording or lead with backend technical phrases. Use `الموظف المحصل`, `استلام المبلغ`, and `المعاملات المرتبطة`.
-- `/settlements` is product-labeled `عهدتي` for Staff/restricted Managers and `إدارة الأموال` for Owner/authorized Managers. The in-page section title is `المبالغ مع الموظفين`. `/settlements/preview` remains the selected collector review page.
-- Settlement hub shows actual settlement records and safe shortcuts to Summary/Transactions for reviewing live unsettled money.
-- Live unsettled money comes from Summary/Transactions, not pending settlement drafts; do not build pending settlement draft UI or use `dry_run` wording in settlement UI.
+- `/settlements` is product-labeled `عهدتي` for Staff/restricted Managers and `إدارة الأموال` for Owner/authorized Managers. The management page heading may say `المبالغ مع الموظفين`; the current-custody section says `المبالغ الموجودة مع الموظفين حاليًا`. `/settlements/preview` remains the selected collector review page.
+- Settlement hub shows current custody from Preview/self-preview or grouped current-custody summary, plus historical SETTLED records only when requested.
+- Live unsettled money comes from the current-custody contract, not pending settlement drafts, Dashboard period activity, or transaction-page local calculations; do not build pending settlement draft UI or use `dry_run` wording in settlement UI.
 - Settlement visibility and settlement management are separate capabilities. Staff and restricted Managers may view their own current settlement preview, while Owner and Managers with `can_manage_settlements` keep management mode.
 - Own settlement preview uses `GET clubs/{club_slug}/settlements/preview/` without `collected_by`; do not create separate Staff/Manager/Owner settlement pages.
 - Staff and restricted Managers can view their own settlement preview, history, and detail through backend self-scoped settlement authorization, but cannot create settlements, mark settlements settled, or manage another user's settlement.
 - Owner can settle and manager can settle only when `can_manage_settlements` allows it.
 - Settlement approval UI follows backend `can_approve`. Do not deny the action from `is_self_preview` alone. If `can_approve === true`, show `استلام المبلغ` even on self-preview (Owner self-settlement). If `can_approve === false` on self-preview, show `financeCopy.selfPreviewDenied`. Backend remains the authorization authority.
 - Treat `NO_UNSETTLED_TRANSACTIONS` as a friendly custody empty state. After a settlement mutation 403, refresh `/me` once and never retry the mutation automatically.
+- `SETTLEMENT_CONFLICT` and equivalent stale/candidate-changed settlement errors refresh the latest Preview/current custody instead of attempting frontend transaction-set reconciliation.
 - Settlement management navigation and actions must use the centralized settlement permission helper; refresh `/me` after 403 settlement mutations and do not retry automatically.
 - Completed bookings with remaining money are future financial warnings, not normal needs-action.
 - Do not show fake zeroes while Summary data is loading.
@@ -380,7 +405,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Do not create separate visual primitives such as `FeatureSelect`, `CourtSelect`, `PaymentSelect`, `FilterSelect`, or `AdminSelect`.
 - AppSelect must stay RTL-first, mobile touch-friendly, keyboard-accessible, and use Sloty surface/border/green/soft-mint styling with Lucide ChevronDown and Check icons.
 - Audit log action filters and displays must use Arabic business labels instead of raw enum values.
-- Audit log rich presentation must stay centralized in the audit presentation helper, use only list-response data, treat rich fields as optional, and never fetch related Booking/User/Court/Transaction/Settlement/Recurring details per row.
+- Audit Log is business history, not a database inspector. List cards must stay summary-first: readable action, primary subject, one or two important business fields, actor when available, and event time.
+- Audit log rich presentation must stay centralized in the audit presentation helper, use only list/detail response data, treat rich fields as optional, and never fetch related Booking/User/Court/Transaction/Settlement/Recurring details per row.
+- Opening one Audit card may issue one `GET clubs/{club_slug}/audit-logs/{id}/` detail request. The detail response must render in `AppSheet` and must not fan out to current entity lookups.
+- Audit presentation must prefer event-time Backend snapshot fields such as `actor_name`, `court_name`, `customer_name`, employee names, amounts, and timestamps. Do not reconstruct historical rows from current entities or make numeric IDs primary card content.
 - Audit log before/after changes must render only known safe business fields; do not expose sensitive/internal fields such as passwords, tokens, auth payloads, secrets, or serializer/debug data.
 - Unknown audit actions should prefer backend `action_label`, then a humanized action code, then the raw code; do not show a generic unknown-event label when the backend supplied a code.
 - Deep-linked ID/enum query params should remain supported with graceful fallback labels such as `مستخدم #id` or the unknown action value.

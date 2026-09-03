@@ -370,6 +370,11 @@ function mockScheduleApiData(): void {
           status: 'skipped' as const,
           reason: 'not_implemented_until_later_task',
         },
+        current_custody: {
+          dataset: 'current_custody' as const,
+          status: 'skipped' as const,
+          reason: 'not_implemented_until_later_task',
+        },
       },
       startedAt: '2026-07-20T02:00:00.000Z',
       completedAt: '2026-07-20T02:00:00.000Z',
@@ -993,17 +998,96 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    const amSection = await screen.findByText('مواعيد الصباح')
-    const pmSection = screen.getByText('مواعيد المساء')
+    await screen.findByText('مواعيد الصباح')
+    expect(screen.getByText('مواعيد المساء')).toBeInTheDocument()
     expect(screen.queryByText(/الفترة الصباحية/)).not.toBeInTheDocument()
     expect(screen.queryByText(/الفترة المسائية/)).not.toBeInTheDocument()
     expect(screen.queryByText('مواعيد ص')).not.toBeInTheDocument()
     expect(screen.queryByText('مواعيد م')).not.toBeInTheDocument()
 
-    expect(within(amSection.closest('div')?.parentElement as HTMLElement)
+    expect(within(screen.getByTestId('schedule-period-am'))
       .getByRole('button', { name: '9:00 ص متاح' })).toBeInTheDocument()
-    expect(within(pmSection.closest('div')?.parentElement as HTMLElement)
+    expect(within(screen.getByTestId('schedule-period-pm'))
       .getByRole('button', { name: '12:00 م عدم حضور' })).toBeInTheDocument()
+  })
+
+  it('uses distinct period container treatments without changing period labels', async () => {
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const morningPeriod = await screen.findByTestId('schedule-period-am')
+    const eveningPeriod = screen.getByTestId('schedule-period-pm')
+
+    expect(morningPeriod).toHaveClass('bg-[#FFF7DF]/92', 'border-amber-100/90')
+    expect(eveningPeriod).toHaveClass('bg-slate-900/72', 'border-slate-500/70')
+    expect(morningPeriod).not.toHaveClass('bg-slate-900/72')
+    expect(eveningPeriod).not.toHaveClass('bg-[#FFF7DF]/92')
+    expect(within(morningPeriod).getByText('مواعيد الصباح')).toBeInTheDocument()
+    expect(within(eveningPeriod).getByText('مواعيد المساء')).toBeInTheDocument()
+  })
+
+  it('keeps identical slot statuses styled the same across morning and evening periods', async () => {
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+        makeSlot({
+          start_time: '18:00',
+          end_time: '19:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+        makeSlot({
+          start_time: '10:00',
+          end_time: '11:00',
+          slot_status: 'HOLD',
+          is_available: false,
+          label: 'بانتظار العربون',
+        }),
+        makeSlot({
+          start_time: '19:00',
+          end_time: '20:00',
+          slot_status: 'HOLD',
+          is_available: false,
+          label: 'بانتظار العربون',
+        }),
+      ]),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const morningPeriod = await screen.findByTestId('schedule-period-am')
+    const eveningPeriod = screen.getByTestId('schedule-period-pm')
+    const morningFree = within(morningPeriod).getByRole('button', {
+      name: '9:00 ص متاح',
+    })
+    const eveningFree = within(eveningPeriod).getByRole('button', {
+      name: '6:00 م متاح',
+    })
+    const morningHold = within(morningPeriod).getByRole('button', {
+      name: '10:00 ص بانتظار العربون',
+    })
+    const eveningHold = within(eveningPeriod).getByRole('button', {
+      name: '7:00 م بانتظار العربون',
+    })
+
+    expect(morningFree).toHaveClass('border-[#22C55E]', 'bg-white')
+    expect(eveningFree).toHaveClass('border-[#22C55E]', 'bg-white')
+    expect(morningHold).toHaveClass('border-amber-400', 'bg-amber-100')
+    expect(eveningHold).toHaveClass('border-amber-400', 'bg-amber-100')
   })
 
   it('keeps the closing section from backend slot booking summaries and excludes FREE', async () => {

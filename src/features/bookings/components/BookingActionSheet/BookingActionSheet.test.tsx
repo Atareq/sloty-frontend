@@ -331,10 +331,30 @@ describe('BookingActionSheet', () => {
 
     expect(screen.getByText('ملاحظات')).toBeInTheDocument()
     expect(screen.getByText('يحب الإنارة')).toBeInTheDocument()
+    expect(screen.getByText('يحب الإنارة')).not.toHaveClass(
+      'sloty-booking-card-note',
+    )
+  })
+
+  it('preserves full multiline notes in details without list clamping', () => {
+    const note = 'العميل طلب تجهيز الملعب بدري.\nومحتاج الكورة تكون جاهزة.'
+
+    renderSheet({
+      ...baseBooking,
+      notes: note,
+    } as BookingListItem)
+
+    const noteElement = screen.getByText((_, element) => element?.textContent === note)
+
+    expect(noteElement).toHaveClass('whitespace-pre-wrap')
+    expect(noteElement).not.toHaveClass('sloty-booking-card-note')
   })
 
   it('hides notes when the booking has no note text', () => {
-    renderSheet(baseBooking)
+    renderSheet({
+      ...baseBooking,
+      notes: '   \n\t ',
+    } as BookingListItem)
 
     expect(screen.queryByText('ملاحظات')).not.toBeInTheDocument()
     expect(screen.queryByText('لا توجد ملاحظات')).not.toBeInTheDocument()

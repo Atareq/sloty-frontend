@@ -44,6 +44,8 @@ export interface DashboardSummaryResponse {
     total_remaining_amount: string | null
 
     transaction_count: number | null
+    booking_payment_total: string | null
+    booking_refund_total: string | null
     transaction_total: string | null
 
     unsettled_transaction_count: number | null
@@ -68,20 +70,11 @@ export interface DashboardSummaryResponse {
       PaymentMethod,
       {
         amount: string
+        refund: string
         count: number
       }
     >
   >
-
-  staff_unsettled_money: Array<{
-    collected_by: number
-    collected_by_name: string
-    court?: number | null
-    court_name?: string | null
-    total_unsettled_amount: string
-    unsettled_transaction_count: number
-    totals_by_payment_method: Partial<Record<PaymentMethod, string>>
-  }>
 }
 
 export type DashboardResponse = DashboardSummaryResponse

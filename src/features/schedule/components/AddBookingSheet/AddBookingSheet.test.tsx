@@ -35,6 +35,26 @@ describe('AddBookingSheet', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  it('shows the customer phone placeholder as an example, not a value', () => {
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    const phoneInput = screen.getByLabelText('رقم الموبايل')
+
+    expect(phoneInput).toHaveAttribute('placeholder', '01X XXX XXXX')
+    expect(phoneInput).toHaveValue('')
+  })
+
   it('omits recurrence controls when backend eligibility does not apply', () => {
     render(
       <AddBookingSheet
@@ -72,6 +92,9 @@ describe('AddBookingSheet', () => {
       />,
     )
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
     await user.type(screen.getByLabelText('اسم العميل'), '  أحمد علي  ')
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))

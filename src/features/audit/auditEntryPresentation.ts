@@ -30,6 +30,7 @@ export interface AuditEntryPresentation {
   actorLabel?: string
   courtLabel?: string
   createdLabel?: string
+  summaryDetails: AuditPresentationDetail[]
   details: AuditPresentationDetail[]
   changes: AuditPresentationChange[]
 }
@@ -110,7 +111,10 @@ const fieldPresenters: Record<
 }
 
 function getEntryMetadata(entry: AuditLogEntry): Record<string, unknown> {
-  return entry.metadata ?? {}
+  return {
+    ...(entry.metadata ?? {}),
+    ...(entry.summary ?? {}),
+  }
 }
 
 function isSensitiveKey(key: string): boolean {
@@ -332,6 +336,10 @@ function getAuditChanges(entry: AuditLogEntry): AuditPresentationChange[] {
 }
 
 function getActorLabel(entry: AuditLogEntry): string | undefined {
+  if (entry.actor_name_source === 'CURRENT_RELATION_FALLBACK') {
+    return undefined
+  }
+
   const actorName = entry.actor_name?.trim()
 
   if (actorName) {
@@ -342,21 +350,21 @@ function getActorLabel(entry: AuditLogEntry): string | undefined {
     return entry.actor.name
   }
 
-  if (typeof entry.actor === 'number') {
-    return `مستخدم #${entry.actor}`
-  }
-
   return undefined
 }
 
 function getCourtLabel(entry: AuditLogEntry): string | undefined {
+  if (entry.court_name_source === 'CURRENT_RELATION_FALLBACK') {
+    return undefined
+  }
+
   const courtName = entry.court_name?.trim()
 
   if (courtName) {
     return courtName
   }
 
-  return typeof entry.court === 'number' ? `ملعب #${entry.court}` : undefined
+  return undefined
 }
 
 function getBaseTitle(entry: AuditLogEntry): string {
@@ -411,6 +419,7 @@ function addTransactionDetails(
   addDetail(details, 'طريقة الدفع', formatPaymentMethod(metadata.payment_method))
   addDetail(details, 'مرجع الدفع', formatText(metadata.payment_reference))
   addDetail(details, 'العميل', formatText(metadata.customer_name))
+  addDetail(details, 'الموظف', formatText(metadata.collector_name))
   addDetail(details, 'الملعب', formatText(metadata.court_name))
 
   ;[
@@ -419,6 +428,7 @@ function addTransactionDetails(
     'payment_method',
     'payment_reference',
     'customer_name',
+    'collector_name',
     'court_name',
   ].forEach((key) => usedKeys.add(key))
 
@@ -514,6 +524,105 @@ function getSpecializedDescription(
   return getDescription(entry)
 }
 
+function getDetailValue(
+  details: AuditPresentationDetail[],
+  label: string,
+): string | null {
+  return details.find((detail) => detail.label === label)?.value ?? null
+}
+
+function addSummaryDetail(
+  details: AuditPresentationDetail[],
+  label: string,
+  value: string | null | undefined,
+): void {
+  if (value && !details.some((detail) => detail.label === label)) {
+    details.push({ label, value })
+  }
+}
+
+function getBookingSummaryDetails(
+  details: AuditPresentationDetail[],
+): AuditPresentationDetail[] {
+  const summary: AuditPresentationDetail[] = []
+
+  addSummaryDetail(summary, 'العميل', getDetailValue(details, 'العميل'))
+  addSummaryDetail(summary, 'الموعد', getDetailValue(details, 'موعد الحجز'))
+  addSummaryDetail(summary, 'الملعب', getDetailValue(details, 'الملعب'))
+
+  return summary
+}
+
+function getTransactionSummaryDetails(
+  details: AuditPresentationDetail[],
+): AuditPresentationDetail[] {
+  const summary: AuditPresentationDetail[] = []
+  const amount = getDetailValue(details, 'القيمة')
+  const paymentMethod = getDetailValue(details, 'طريقة الدفع')
+
+  addSummaryDetail(summary, 'العميل', getDetailValue(details, 'العميل'))
+  addSummaryDetail(
+    summary,
+    'المبلغ',
+    [amount, paymentMethod].filter(Boolean).join(' · ') || null,
+  )
+  addSummaryDetail(summary, 'الموظف', getDetailValue(details, 'الموظف'))
+  addSummaryDetail(summary, 'الملعب', getDetailValue(details, 'الملعب'))
+
+  return summary
+}
+
+function getSettlementSummaryDetails(
+  details: AuditPresentationDetail[],
+): AuditPresentationDetail[] {
+  const summary: AuditPresentationDetail[] = []
+
+  addSummaryDetail(summary, 'الموظف', getDetailValue(details, 'الموظف'))
+  addSummaryDetail(summary, 'المبلغ', getDetailValue(details, 'صافي التسوية'))
+  addSummaryDetail(
+    summary,
+    'عدد المعاملات',
+    getDetailValue(details, 'عدد المعاملات'),
+  )
+
+  return summary
+}
+
+function getRecurringSummaryDetails(
+  details: AuditPresentationDetail[],
+): AuditPresentationDetail[] {
+  const summary: AuditPresentationDetail[] = []
+
+  addSummaryDetail(summary, 'العميل', getDetailValue(details, 'العميل'))
+  addSummaryDetail(summary, 'وقت الحجز', getDetailValue(details, 'وقت الحجز'))
+  addSummaryDetail(summary, 'الملعب', getDetailValue(details, 'الملعب'))
+
+  return summary
+}
+
+function getSummaryDetails(
+  entry: AuditLogEntry,
+  details: AuditPresentationDetail[],
+): AuditPresentationDetail[] {
+  if (entry.action.startsWith('BOOKING_')) {
+    return getBookingSummaryDetails(details)
+  }
+
+  if (entry.action.startsWith('TRANSACTION_')) {
+    return getTransactionSummaryDetails(details)
+  }
+
+  if (entry.action.startsWith('SETTLEMENT_')) {
+    return getSettlementSummaryDetails(details)
+  }
+
+  if (entry.action.startsWith('RECURRING_')) {
+    return getRecurringSummaryDetails(details)
+  }
+
+  return details.slice(0, 2)
+}
+
 /**
  * Centralizes audit-row interpretation so the list never fetches N+1 details.
  *
@@ -544,14 +653,17 @@ export function getAuditEntryPresentation(
   }
 
   details.push(...getGenericDetails(metadata, usedKeys))
+  const title = getSpecializedTitle(entry, metadata)
+  const baseTitle = getBaseTitle(entry)
 
   return {
-    title: getSpecializedTitle(entry, metadata),
+    title,
     description: getSpecializedDescription(entry, metadata),
-    badgeLabel: getBaseTitle(entry),
+    badgeLabel: title !== baseTitle ? baseTitle : undefined,
     actorLabel: getActorLabel(entry),
     courtLabel: getCourtLabel(entry),
     createdLabel: formatDateTime(entry.created) ?? undefined,
+    summaryDetails: getSummaryDetails(entry, details),
     details,
     changes: getAuditChanges(entry),
   }

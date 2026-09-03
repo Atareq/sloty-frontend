@@ -37,11 +37,14 @@ describe('BookingListCard', () => {
     expect(screen.getByText('العربون مدفوع')).toBeInTheDocument()
     expect(screen.getByText(/الثلاثاء/)).toBeInTheDocument()
     expect(screen.queryByText('#41')).not.toBeInTheDocument()
-    expect(screen.queryByText('ملعب #3')).not.toBeInTheDocument()
+    expect(screen.getByText('ملعب #3')).toBeInTheDocument()
     expect(screen.queryByText('300.00')).not.toBeInTheDocument()
     expect(screen.queryByText('100.00')).not.toBeInTheDocument()
     expect(screen.queryByText('200.00')).not.toBeInTheDocument()
-    expect(screen.queryByText('ملاحظة داخلية')).not.toBeInTheDocument()
+    expect(screen.getByText('ملاحظة')).toBeInTheDocument()
+    expect(screen.getByText('ملاحظة داخلية')).toHaveClass(
+      'sloty-booking-card-note',
+    )
     expect(screen.queryByText('2026-07-21T18:10:00Z')).not.toBeInTheDocument()
 
     await user.click(
@@ -111,5 +114,56 @@ describe('BookingListCard', () => {
 
     expect(screen.getByText('انتهت المهلة')).toBeInTheDocument()
     expect(screen.queryByText('منتهي')).not.toBeInTheDocument()
+  })
+
+  it('hides the notes block when notes are blank', () => {
+    const { rerender } = render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          notes: null,
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('ملاحظة')).not.toBeInTheDocument()
+
+    rerender(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          notes: '',
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('ملاحظة')).not.toBeInTheDocument()
+
+    rerender(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          notes: '   \n\t  ',
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('ملاحظة')).not.toBeInTheDocument()
+  })
+
+  it('keeps long list notes compact with a two-line clamp class', () => {
+    render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          notes:
+            'العميل هييجي قبل المعاد بعشر دقايق ومحتاج الكورة تكون جاهزة وعايز يعرف لو ينفع يبدأ قبل المعاد لو الملعب فاضي.',
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/العميل هييجي قبل المعاد/)).toHaveClass(
+      'sloty-booking-card-note',
+    )
   })
 })

@@ -7,6 +7,8 @@ import {
 } from '../../shared/utils/buildPathWithQuery'
 import type {
   CreateSettlementPayload,
+  CurrentCustodySummaryQueryParams,
+  CurrentCustodySummaryResponse,
   Settlement,
   SettlementPreview,
   SettlementPreviewQueryParams,
@@ -37,6 +39,35 @@ function buildQueryString(params?: SettlementQueryParams): string {
   return queryString ? `?${queryString}` : ''
 }
 
+function buildCurrentCustodySummaryPath(
+  clubSlug: string,
+  params: CurrentCustodySummaryQueryParams = {},
+): string {
+  return buildPathWithQuery(
+    apiEndpoints.clubs.settlements.unsettledSummary(clubSlug),
+    {
+      collected_by: params.collected_by,
+      court: params.court,
+    },
+  )
+}
+
+/**
+ * Loads the Backend-authoritative current custody grouped by collector.
+ * Analytical dates and payment-method filters are intentionally unsupported.
+ */
+export function getCurrentCustodySummary(
+  clubSlug: string,
+  params: CurrentCustodySummaryQueryParams = {},
+  options: { signal?: AbortSignal } = {},
+): Promise<CurrentCustodySummaryResponse> {
+  const path = buildCurrentCustodySummaryPath(clubSlug, params)
+
+  return options.signal
+    ? apiRequest<CurrentCustodySummaryResponse>(path, { signal: options.signal })
+    : apiRequest<CurrentCustodySummaryResponse>(path)
+}
+
 function buildPreviewPath(
   clubSlug: string,
   params: SettlementPreviewQueryParams,
@@ -59,8 +90,13 @@ function buildPreviewPath(
 export function getSettlementPreview(
   clubSlug: string,
   params: SettlementPreviewQueryParams,
+  options: { signal?: AbortSignal } = {},
 ): Promise<SettlementPreview> {
-  return apiRequest<SettlementPreview>(buildPreviewPath(clubSlug, params))
+  const path = buildPreviewPath(clubSlug, params)
+
+  return options.signal
+    ? apiRequest<SettlementPreview>(path, { signal: options.signal })
+    : apiRequest<SettlementPreview>(path)
 }
 
 /**

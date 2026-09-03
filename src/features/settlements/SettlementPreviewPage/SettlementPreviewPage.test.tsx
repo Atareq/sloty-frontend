@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
 import { createSettlement, getSettlementPreview } from '../settlementsApi'
 import { SettlementPreviewPage } from './SettlementPreviewPage'
 
@@ -16,9 +17,16 @@ vi.mock('../settlementsApi', () => ({
   getSettlementPreview: vi.fn(),
 }))
 
+vi.mock('../../../offline/repositories/offlineRepositories', () => ({
+  offlineRepositories: {
+    replaceCurrentCustodySnapshot: vi.fn(),
+  },
+}))
+
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedCreateSettlement = vi.mocked(createSettlement)
 const mockedGetSettlementPreview = vi.mocked(getSettlementPreview)
+const mockedOfflineRepositories = vi.mocked(offlineRepositories)
 const refreshCurrentUser = vi.fn()
 
 function mockAuth(
@@ -28,7 +36,21 @@ function mockAuth(
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
-    currentUser: null,
+    currentUser: selectedClubSlug
+      ? {
+          id: 1,
+          username: 'owner',
+          email: '',
+          first_name: 'محمد',
+          last_name: 'أحمد',
+          phone_number: null,
+          is_active: true,
+          is_platform_admin: false,
+          account_created_by: null,
+          requires_club_selection: false,
+          memberships: [],
+        }
+      : null,
     selectedClubSlug,
     selectedMembership: selectedClubSlug
       ? {
@@ -128,25 +150,43 @@ describe('SettlementPreviewPage', () => {
       total_amount: '700.00',
       transaction_count: 2,
     })
+    mockedOfflineRepositories.replaceCurrentCustodySnapshot.mockResolvedValue(
+      undefined,
+    )
   })
 
-  it('shows missing collected_by instruction state', async () => {
+  it('loads Backend own-preview when collected_by is omitted', async () => {
     renderPage('/settlements/preview')
 
-    expect(
-      await screen.findByText('اختر الموظف المحصل لمراجعة المبلغ.'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('العودة إلى إدارة الأموال').closest('a')).toHaveAttribute(
-      'href',
-      '/settlements',
-    )
-    expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
+    expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
+    expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
+  })
+
+  it('persists a successful Backend preview as the current-custody snapshot', async () => {
+    renderPage('/settlements/preview?collected_by=15&court=3')
+
+    expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
+    expect(mockedOfflineRepositories.replaceCurrentCustodySnapshot)
+      .toHaveBeenCalledWith(
+        { userId: 1, clubSlug: 'nasr-club' },
+        {
+          kind: 'preview',
+          collectorId: '15',
+          courtId: '3',
+          payload: expect.objectContaining({
+            collected_by: 15,
+            net_amount: '700.00',
+            transaction_count: 2,
+          }),
+        },
+        expect.any(String),
+      )
   })
 
   it('shows no selected club message', async () => {
     mockAuth('OWNER', null)
 
-    renderPage()
+    renderPage('/settlements/preview')
 
     expect(
       await screen.findByText('اختر ناديًا أولًا لمراجعة المبلغ'),
@@ -154,15 +194,41 @@ describe('SettlementPreviewPage', () => {
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
 
-  it('blocks users without settlement permission', async () => {
+  it('allows Staff own-preview visibility but follows backend can_approve', async () => {
     mockAuth('STAFF')
+    mockedGetSettlementPreview.mockResolvedValueOnce({
+      club: 1,
+      collected_by: 1,
+      collected_by_name: 'أحمد الموظف',
+      is_self_preview: true,
+      can_approve: false,
+      approval_required: true,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
+      transaction_count: 1,
+      total_amount: '500.00',
+      booking_payments: '500.00',
+      booking_refunds: '0.00',
+      net_amount: '500.00',
+      totals_by_payment_method: { CASH: '500.00' },
+      transactions: [
+        {
+          id: 11,
+          amount: '500.00',
+          payment_method: 'CASH',
+        },
+      ],
+    })
 
-    renderPage()
+    renderPage('/settlements/preview')
 
     expect(
-      await screen.findByText('ليس لديك صلاحية استلام المبالغ.'),
+      await screen.findByText(
+        'المبلغ ده خاص بتحصيلاتك، ولازم يستلمه شخص عنده صلاحية الاستلام.',
+      ),
     ).toBeInTheDocument()
-    expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
+    expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
+    expect(mockedCreateSettlement).not.toHaveBeenCalled()
   })
 
   it('loads preview from URL params and renders review sections', async () => {
@@ -175,11 +241,13 @@ describe('SettlementPreviewPage', () => {
     })
     expect(screen.getAllByText('أحمد المحصل')).not.toHaveLength(0)
     expect(screen.getByText('2')).toBeInTheDocument()
-    expect(screen.getByText('700.00 جنيه')).toBeInTheDocument()
+    expect(
+      screen.getByText('المبلغ المستحق للتسليم: 700.00 ج.م'),
+    ).toBeInTheDocument()
     expect(screen.getByText('تفصيل طرق الدفع')).toBeInTheDocument()
     expect(screen.getAllByText('500.00 جنيه')).not.toHaveLength(0)
     expect(screen.getAllByText('نقدي')).not.toHaveLength(0)
-    expect(screen.getAllByText('محفظة رقمية')).not.toHaveLength(0)
+    expect(screen.getAllByText('محفظة إلكترونية')).not.toHaveLength(0)
     expect(screen.getByText('المعاملات المرتبطة')).toBeInTheDocument()
     expect(screen.queryByText('حجز #123')).not.toBeInTheDocument()
     expect(screen.getAllByText('مرجع الدفع')).not.toHaveLength(0)
@@ -213,6 +281,84 @@ describe('SettlementPreviewPage', () => {
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'تأكيد استلام المبلغ' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps zero-net preview visible when backend still returns transactions', async () => {
+    mockedGetSettlementPreview.mockResolvedValueOnce({
+      club: 1,
+      collected_by: 15,
+      collected_by_name: 'أحمد المحصل',
+      is_self_preview: false,
+      can_approve: true,
+      approval_required: false,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
+      transaction_count: 2,
+      total_amount: '0.00',
+      booking_payments: '500.00',
+      booking_refunds: '-500.00',
+      net_amount: '0.00',
+      totals_by_payment_method: { CASH: '0.00' },
+      transactions: [
+        {
+          id: 11,
+          amount: '500.00',
+          payment_method: 'CASH',
+        },
+        {
+          id: 12,
+          amount: '-500.00',
+          payment_method: 'CASH',
+        },
+      ],
+    })
+
+    renderPage()
+
+    expect(
+      await screen.findByText('صافي المبلغ المستحق حاليًا: 0 ج.م'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'تأكيد استلام المبلغ' }))
+      .toBeInTheDocument()
+    expect(
+      screen.queryByText('لا توجد مبالغ مستحقة للتسليم حاليًا'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('preserves negative preview values without positive wording', async () => {
+    mockedGetSettlementPreview.mockResolvedValueOnce({
+      club: 1,
+      collected_by: 15,
+      collected_by_name: 'أحمد المحصل',
+      is_self_preview: false,
+      can_approve: false,
+      approval_required: true,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
+      transaction_count: 1,
+      total_amount: '-200.00',
+      booking_payments: '0.00',
+      booking_refunds: '-200.00',
+      net_amount: '-200.00',
+      totals_by_payment_method: { CASH: '-200.00' },
+      transactions: [
+        {
+          id: 11,
+          amount: '-200.00',
+          payment_method: 'CASH',
+        },
+      ],
+    })
+
+    renderPage()
+
+    expect(await screen.findByText('-200.00 ج.م')).toHaveAttribute(
+      'data-custody-state',
+      'negative',
+    )
+    expect(
+      screen.queryByText('المبلغ المستحق للتسليم: 200.00 ج.م'),
     ).not.toBeInTheDocument()
   })
 
@@ -414,6 +560,93 @@ describe('SettlementPreviewPage', () => {
     expect(mockedGetSettlementPreview).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByText('Already settled')).not.toBeInTheDocument()
+  })
+
+  it('refetches and displays newer preview truth after a candidate-change create conflict', async () => {
+    const user = userEvent.setup()
+
+    mockedCreateSettlement.mockRejectedValueOnce(
+      new ApiClientError('Candidate changed', 409, {
+        code: 'SETTLEMENT_CONFLICT',
+      }),
+    )
+    mockedGetSettlementPreview
+      .mockResolvedValueOnce({
+        club: 1,
+        collected_by: 15,
+        collected_by_name: 'أحمد المحصل',
+        is_self_preview: false,
+        can_approve: true,
+        approval_required: false,
+        period_start: '2026-07-21T10:00:00Z',
+        period_end: '2026-07-21T11:00:00Z',
+        transaction_count: 3,
+        total_amount: '1250.00',
+        booking_payments: '1400.00',
+        booking_refunds: '-150.00',
+        net_amount: '1250.00',
+        totals_by_payment_method: {
+          CASH: '400.00',
+          DIGITAL_WALLET: '300.00',
+          BANK_TRANSFER: '550.00',
+        },
+        transactions: [
+          {
+            id: 11,
+            amount: '1250.00',
+            payment_method: 'CASH',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        club: 1,
+        collected_by: 15,
+        collected_by_name: 'أحمد المحصل',
+        is_self_preview: false,
+        can_approve: true,
+        approval_required: false,
+        period_start: '2026-07-21T10:00:00Z',
+        period_end: '2026-07-21T11:01:00Z',
+        transaction_count: 4,
+        total_amount: '1450.00',
+        booking_payments: '1600.00',
+        booking_refunds: '-150.00',
+        net_amount: '1450.00',
+        totals_by_payment_method: {
+          CASH: '600.00',
+          DIGITAL_WALLET: '300.00',
+          BANK_TRANSFER: '550.00',
+        },
+        transactions: [
+          {
+            id: 11,
+            amount: '1250.00',
+            payment_method: 'CASH',
+          },
+          {
+            id: 12,
+            amount: '200.00',
+            payment_method: 'CASH',
+          },
+        ],
+      })
+
+    renderPage()
+
+    expect(
+      await screen.findByText('المبلغ المستحق للتسليم: 1,250.00 ج.م'),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'تأكيد استلام المبلغ' }))
+    await user.click(screen.getAllByRole('button', {
+      name: 'تأكيد استلام المبلغ',
+    })[1])
+
+    expect(
+      await screen.findByText('المبلغ المستحق للتسليم: 1,450.00 ج.م'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(mockedGetSettlementPreview).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('Candidate changed')).not.toBeInTheDocument()
   })
 
   it('shows 403 confirmation error, refreshes current user, and does not retry', async () => {

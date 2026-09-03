@@ -187,6 +187,11 @@ select {
   text-align: left;
 }
 
+.sloty-phone-input__number::placeholder {
+  color: var(--sloty-text-muted);
+  opacity: 0.75;
+}
+
 .sloty-mobile-safe-input {
   font-size: 1rem;
 }
@@ -199,6 +204,40 @@ select {
   .sloty-mobile-safe-input {
     font-size: 0.875rem;
   }
+}
+
+/**
+ * Touch focus safety:
+ * iOS Safari and other touch browsers may auto-zoom focused editable controls
+ * below 16px. Tailwind breakpoint utilities/classes can intentionally reduce
+ * form text to 14px for fine-pointer desktop, so this narrow touch override
+ * uses !important to win only for touch-capable input typography. It does not
+ * restrict pinch zoom or change the viewport.
+ */
+@media (any-pointer: coarse) {
+  input,
+  textarea,
+  select,
+  .sloty-mobile-safe-input,
+  .sloty-phone-input__number {
+    font-size: 1rem !important;
+  }
+}
+
+button,
+[role='button'],
+summary,
+label:has(input[type='checkbox']),
+label:has(input[type='radio']) {
+  touch-action: manipulation;
+}
+
+.sloty-booking-card-note {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .sloty-phone-input__country:has(> button:disabled),

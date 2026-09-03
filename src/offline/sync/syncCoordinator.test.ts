@@ -51,6 +51,12 @@ function createTask(
   return { dataset, run }
 }
 
+function createCurrentCustodyTask(
+  run: DatasetSyncTask['run'] = async () => createResult('current_custody'),
+): DatasetSyncTask {
+  return createTask('current_custody', run)
+}
+
 const membership: CurrentUserMembership = {
   id: 10,
   role: 'STAFF',
@@ -104,6 +110,10 @@ describe('OfflineSyncCoordinator', () => {
           calls.push('transactions:start')
           return createResult('transactions')
         }),
+        createCurrentCustodyTask(async () => {
+          calls.push('current_custody:start')
+          return createResult('current_custody')
+        }),
       ],
     })
 
@@ -123,6 +133,7 @@ describe('OfflineSyncCoordinator', () => {
       'schedule:end',
       'bookings:start',
       'transactions:start',
+      'current_custody:start',
     ])
     expect(result.status).toBe('success')
   })
@@ -150,6 +161,10 @@ describe('OfflineSyncCoordinator', () => {
           calls.push('transactions')
           return createResult('transactions')
         }),
+        createCurrentCustodyTask(async () => {
+          calls.push('current_custody')
+          return createResult('current_custody')
+        }),
       ],
     })
 
@@ -163,6 +178,7 @@ describe('OfflineSyncCoordinator', () => {
       'intent-recheck',
       'bookings',
       'transactions',
+      'current_custody',
     ])
     expect(intentRecheck).toHaveBeenCalledWith(
       contextA,
@@ -184,6 +200,7 @@ describe('OfflineSyncCoordinator', () => {
         }),
         createTask('bookings', async () => createResult('bookings')),
         createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
       ],
     })
 
@@ -212,6 +229,10 @@ describe('OfflineSyncCoordinator', () => {
           calls.push('transactions')
           return createResult('transactions')
         }),
+        createCurrentCustodyTask(async () => {
+          calls.push('current_custody')
+          return createResult('current_custody')
+        }),
       ],
     })
 
@@ -220,7 +241,12 @@ describe('OfflineSyncCoordinator', () => {
       trigger: 'online',
     })
 
-    expect(calls).toEqual(['schedule', 'bookings', 'transactions'])
+    expect(calls).toEqual([
+      'schedule',
+      'bookings',
+      'transactions',
+      'current_custody',
+    ])
     expect(result.status).toBe('partial_failure')
     expect(result.datasets.schedule.status).toBe('success')
     expect(result.datasets.bookings.status).toBe('failed')
@@ -243,6 +269,10 @@ describe('OfflineSyncCoordinator', () => {
           calls.push('transactions')
           return createResult('transactions')
         }),
+        createCurrentCustodyTask(async () => {
+          calls.push('current_custody')
+          return createResult('current_custody')
+        }),
       ],
     })
 
@@ -251,7 +281,12 @@ describe('OfflineSyncCoordinator', () => {
       trigger: 'resume',
     })
 
-    expect(calls).toEqual(['schedule', 'bookings', 'transactions'])
+    expect(calls).toEqual([
+      'schedule',
+      'bookings',
+      'transactions',
+      'current_custody',
+    ])
     expect(result.status).toBe('partial_failure')
     expect(result.datasets.schedule.status).toBe('failed')
     expect(result.datasets.bookings.status).toBe('success')
@@ -263,11 +298,13 @@ describe('OfflineSyncCoordinator', () => {
     const scheduleRun = vi.fn(async () => scheduleGate.promise)
     const bookingsRun = vi.fn(async () => createResult('bookings'))
     const transactionsRun = vi.fn(async () => createResult('transactions'))
+    const currentCustodyRun = vi.fn(async () => createResult('current_custody'))
     const coordinator = new OfflineSyncCoordinator({
       tasks: [
         createTask('schedule', scheduleRun),
         createTask('bookings', bookingsRun),
         createTask('transactions', transactionsRun),
+        createTask('current_custody', currentCustodyRun),
       ],
     })
 
@@ -300,6 +337,7 @@ describe('OfflineSyncCoordinator', () => {
 
     expect(bookingsRun).toHaveBeenCalledTimes(1)
     expect(transactionsRun).toHaveBeenCalledTimes(1)
+    expect(currentCustodyRun).toHaveBeenCalledTimes(1)
   })
 
   it('allows a future legitimate trigger after the previous same-scope run finishes', async () => {
@@ -309,6 +347,7 @@ describe('OfflineSyncCoordinator', () => {
         createTask('schedule', scheduleRun),
         createTask('bookings', async () => createResult('bookings')),
         createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
       ],
     })
 
@@ -332,6 +371,7 @@ describe('OfflineSyncCoordinator', () => {
         }),
         createTask('bookings', async () => createResult('bookings')),
         createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
       ],
     })
 
@@ -456,6 +496,7 @@ describe('OfflineSyncCoordinator repository integration', () => {
           )
           return createResult('transactions')
         }),
+        createCurrentCustodyTask(),
       ],
     })
 

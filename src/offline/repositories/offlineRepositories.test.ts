@@ -107,6 +107,7 @@ describe('scoped offline repositories', () => {
         'booking_details',
         'transactions',
         'transaction_details',
+        'current_custody_snapshots',
         'booking_intents',
         'offline_context',
       ].sort(),
@@ -411,6 +412,153 @@ describe('scoped offline repositories', () => {
     expect(afterTransactions?.schedule_last_sync_at).toBe('2026-08-30T12:00:00.000Z')
     expect(afterTransactions?.transactions_last_sync_at)
       .toBe('2026-08-30T13:00:00.000Z')
+  })
+
+  it('stores current-custody snapshots by scope, collector, and Court without reading transactions', async () => {
+    const groupedPayload = {
+      results: [
+        {
+          collected_by: 15,
+          collected_by_name: 'محمد علي',
+          transaction_count: 3,
+          net_amount: '1250.00',
+          totals_by_payment_method: {
+            CASH: '500.00',
+            DIGITAL_WALLET: '750.00',
+          },
+          period_start: '2026-07-01T10:00:00+03:00',
+          period_end: '2026-09-03T10:00:00+03:00',
+          total_amount: '1400.00',
+          booking_payments: '1400.00',
+          booking_refunds: '-150.00',
+          is_self: false,
+          can_approve: true,
+        },
+      ],
+    }
+    const courtPayload = {
+      results: [
+        {
+          ...groupedPayload.results[0],
+          net_amount: '900.00',
+        },
+      ],
+    }
+
+    await repositories.replaceTransactionsSnapshot(
+      userOneClubA,
+      [createTransaction(1)],
+      '2026-08-30T11:00:00.000Z',
+    )
+    await repositories.replaceCurrentCustodySnapshot(
+      userOneClubA,
+      {
+        kind: 'grouped_summary',
+        collectorId: null,
+        courtId: null,
+        payload: groupedPayload,
+      },
+      '2026-08-30T12:00:00.000Z',
+    )
+    await repositories.replaceCurrentCustodySnapshot(
+      userOneClubA,
+      {
+        kind: 'grouped_summary',
+        collectorId: null,
+        courtId: 7,
+        payload: courtPayload,
+      },
+      '2026-08-30T12:05:00.000Z',
+    )
+
+    expect(
+      (await repositories.readCurrentCustodySnapshot(
+        userOneClubA,
+        'grouped_summary',
+        null,
+        null,
+      ))?.payload,
+    ).toEqual(groupedPayload)
+    expect(
+      (await repositories.readCurrentCustodySnapshot(
+        userOneClubA,
+        'grouped_summary',
+        null,
+        7,
+      ))?.payload,
+    ).toEqual(courtPayload)
+    expect(
+      await repositories.readCurrentCustodySnapshot(
+        userOneClubB,
+        'grouped_summary',
+        null,
+        null,
+      ),
+    ).toBeUndefined()
+    expect((await repositories.readCachedTransactions(userOneClubA))).toHaveLength(1)
+  })
+
+  it('preserves the previous current-custody snapshot and timestamp when replacement fails', async () => {
+    const firstPayload = { results: [] }
+    const nextPayload = {
+      results: [
+        {
+          collected_by: 15,
+          collected_by_name: 'محمد علي',
+          transaction_count: 4,
+          net_amount: '1450.00',
+          totals_by_payment_method: {},
+          period_start: '2026-07-01T10:00:00+03:00',
+          period_end: '2026-09-03T10:00:00+03:00',
+          total_amount: '1450.00',
+          booking_payments: '1450.00',
+          booking_refunds: '0.00',
+          is_self: false,
+          can_approve: true,
+        },
+      ],
+    }
+
+    await repositories.replaceCurrentCustodySnapshot(
+      userOneClubA,
+      {
+        kind: 'grouped_summary',
+        collectorId: null,
+        courtId: null,
+        payload: firstPayload,
+      },
+      '2026-08-30T12:00:00.000Z',
+    )
+    const put = vi
+      .spyOn(db.current_custody_snapshots, 'put')
+      .mockRejectedValueOnce(new Error('simulated custody write failure'))
+
+    await expect(
+      repositories.replaceCurrentCustodySnapshot(
+        userOneClubA,
+        {
+          kind: 'grouped_summary',
+          collectorId: null,
+          courtId: null,
+          payload: nextPayload,
+        },
+        '2026-08-30T13:00:00.000Z',
+      ),
+    ).rejects.toThrow('simulated custody write failure')
+
+    expect(
+      (await repositories.readCurrentCustodySnapshot(
+        userOneClubA,
+        'grouped_summary',
+        null,
+        null,
+      ))?.payload,
+    ).toEqual(firstPayload)
+    expect(
+      (await repositories.getSyncMetadata(userOneClubA))
+        ?.current_custody_last_sync_at,
+    ).toBe('2026-08-30T12:00:00.000Z')
+    put.mockRestore()
   })
 
   it('stores separate scoped detail records without prefetching list rows', async () => {

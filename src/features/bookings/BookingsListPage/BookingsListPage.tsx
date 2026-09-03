@@ -93,6 +93,7 @@ import {
   type RecordPaymentSheetValues,
 } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 import { createTransaction } from '../../transactions/transactionsApi'
+import { notifyCurrentFinancialStateChanged } from '../../settlements/currentFinancialStateInvalidation'
 
 const BOOKING_CANCELLATION_TIME_PASSED = 'BOOKING_CANCELLATION_TIME_PASSED'
 const FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT = 'FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT'
@@ -943,6 +944,10 @@ export function BookingsListPage() {
           ? 'تم تسجيل العربون وتأكيد الحجز بنجاح'
           : 'تم تسجيل التحصيل بنجاح',
       )
+      notifyCurrentFinancialStateChanged({
+        clubSlug: selectedClubSlug,
+        reason: 'booking-payment',
+      })
       await reloadBookings()
     } catch (error) {
       const errorCode = getApiErrorCode(error)
@@ -1007,6 +1012,10 @@ export function BookingsListPage() {
       setCancellationPreview(null)
       setSelectedBooking(null)
       setSuccessMessage('تم إلغاء الحجز بنجاح')
+      notifyCurrentFinancialStateChanged({
+        clubSlug: selectedClubSlug,
+        reason: 'booking-cancellation',
+      })
       await reloadBookings()
     } catch (error) {
       if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {

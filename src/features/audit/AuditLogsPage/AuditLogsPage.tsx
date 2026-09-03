@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
@@ -9,13 +9,14 @@ import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
-import { listAuditLogs } from '../auditApi'
+import { getAuditLog, listAuditLogs } from '../auditApi'
 import type { AuditLogEntry, AuditQueryParams } from '../audit.types'
 import {
   auditActionOptions,
   getAuditActionLabel,
 } from '../auditActionLabels'
 import { AuditLogList } from '../components/AuditLogList/AuditLogList'
+import { AuditDetailSheet } from '../components/AuditDetailSheet/AuditDetailSheet'
 
 interface FilterState {
   date_from: string
@@ -99,6 +100,11 @@ export function AuditLogsPage() {
   const [entries, setEntries] = useState<AuditLogEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null)
+  const [detailEntry, setDetailEntry] = useState<AuditLogEntry | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const detailRequestGeneration = useRef(0)
   const canViewAuditLogs = role === 'OWNER'
 
   useEffect(() => {
@@ -195,6 +201,47 @@ export function AuditLogsPage() {
     navigate({
       pathname: location.pathname,
       search: getAuditSearch(buildParams(filters)),
+    })
+  }
+
+  function closeDetailSheet(): void {
+    detailRequestGeneration.current += 1
+    setSelectedEntry(null)
+    setDetailEntry(null)
+    setDetailError(null)
+    setIsDetailLoading(false)
+  }
+
+  function loadAuditDetail(entry: AuditLogEntry): void {
+    if (!selectedClubSlug) {
+      return
+    }
+
+    const requestId = detailRequestGeneration.current + 1
+    detailRequestGeneration.current = requestId
+    setSelectedEntry(entry)
+    setDetailEntry(null)
+    setDetailError(null)
+    setIsDetailLoading(true)
+
+    void Promise.resolve().then(async () => {
+      try {
+        const detail = await getAuditLog(selectedClubSlug, entry.id)
+
+        if (detailRequestGeneration.current === requestId) {
+          setDetailEntry(detail)
+        }
+      } catch (error) {
+        if (detailRequestGeneration.current === requestId) {
+          setDetailError(
+            getApiErrorMessage(error, 'تعذر تحميل تفاصيل النشاط'),
+          )
+        }
+      } finally {
+        if (detailRequestGeneration.current === requestId) {
+          setIsDetailLoading(false)
+        }
+      }
     })
   }
 
@@ -308,7 +355,19 @@ export function AuditLogsPage() {
             </AppCard>
           ) : null}
 
-          {!isLoading && !error ? <AuditLogList entries={entries} /> : null}
+          {!isLoading && !error ? (
+            <AuditLogList entries={entries} onOpenEntry={loadAuditDetail} />
+          ) : null}
+
+          {selectedEntry ? (
+            <AuditDetailSheet
+              entry={detailEntry ?? selectedEntry}
+              error={detailError}
+              isLoading={isDetailLoading}
+              onClose={closeDetailSheet}
+              onRetry={() => loadAuditDetail(selectedEntry)}
+            />
+          ) : null}
         </>
       ) : null}
     </div>

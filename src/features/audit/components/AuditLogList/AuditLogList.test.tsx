@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import type { AuditLogEntry } from '../../audit.types'
 import {
   getAuditActionLabel,
@@ -25,7 +26,11 @@ function entry(overrides: Partial<AuditLogEntry>): AuditLogEntry {
 }
 
 function renderList(entries: AuditLogEntry[]) {
-  render(<AuditLogList entries={entries} />)
+  const onOpenEntry = vi.fn()
+
+  render(<AuditLogList entries={entries} onOpenEntry={onOpenEntry} />)
+
+  return { onOpenEntry }
 }
 
 function getCardByText(text: string): HTMLElement {
@@ -73,7 +78,7 @@ describe('AuditLogList', () => {
       }),
     ])
 
-    expect(screen.getAllByText('تم إلغاء دفعة')).toHaveLength(2)
+    expect(screen.getByText('تم إلغاء دفعة')).toBeInTheDocument()
     expect(screen.queryByText('TRANSACTION_CANCELLED')).not.toBeInTheDocument()
   })
 
@@ -137,13 +142,14 @@ describe('AuditLogList', () => {
       }),
     ])
 
-    expect(screen.getAllByText('تعديل حجز')).toHaveLength(2)
-    expect(screen.getAllByText('Unknown Action')).toHaveLength(2)
+    expect(screen.getByText('تعديل حجز')).toBeInTheDocument()
+    expect(screen.getByText('Unknown Action')).toBeInTheDocument()
   })
 
-  it('filters metadata to safe useful primitive chips', () => {
+  it('renders only concise summary fields on the card', () => {
     renderList([
       entry({
+        action: 'TRANSACTION_CREATED',
         metadata: {
           booking_id: 12,
           customer_name: 'أحمد علي',
@@ -159,16 +165,12 @@ describe('AuditLogList', () => {
       }),
     ])
 
-    expect(screen.getByText('الحجز')).toBeInTheDocument()
-    expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.getByText('العميل')).toBeInTheDocument()
     expect(screen.getByText('أحمد علي')).toBeInTheDocument()
-    expect(screen.getByText('طريقة الدفع')).toBeInTheDocument()
-    expect(screen.getByText('نقدي')).toBeInTheDocument()
     expect(screen.getByText('المبلغ')).toBeInTheDocument()
-    expect(screen.getByText('250.00 جنيه')).toBeInTheDocument()
-    expect(screen.getByText('التسوية')).toBeInTheDocument()
-    expect(screen.getByText('9')).toBeInTheDocument()
+    expect(screen.getByText('250.00 جنيه · نقدي')).toBeInTheDocument()
+    expect(screen.queryByText('الحجز')).not.toBeInTheDocument()
+    expect(screen.queryByText('التسوية')).not.toBeInTheDocument()
     expect(screen.queryByText('ignored_null')).not.toBeInTheDocument()
     expect(screen.queryByText('internal_key')).not.toBeInTheDocument()
     expect(screen.queryByText('do-not-render')).not.toBeInTheDocument()
@@ -187,8 +189,8 @@ describe('AuditLogList', () => {
     const card = getCardByText('تم تأكيد التسوية')
 
     expect(card).toHaveClass('border-r-green-500')
-    expect(screen.getByText('التسوية')).toBeInTheDocument()
-    expect(screen.getByText('9')).toBeInTheDocument()
+    expect(screen.queryByText('التسوية')).not.toBeInTheDocument()
+    expect(screen.queryByText('9')).not.toBeInTheDocument()
   })
 
   it('uses action code for visuals regardless of Arabic or English labels', () => {
@@ -219,6 +221,38 @@ describe('AuditLogList', () => {
     const time = screen.getByText(/٢٠٢٦|2026/).closest('time')
 
     expect(time).toHaveAttribute('dateTime', '2026-07-19T10:30:00Z')
+  })
+
+  it('opens an activity through keyboard-accessible button semantics', async () => {
+    const user = userEvent.setup()
+    const auditEntry = entry({
+      id: 52,
+      action_label: 'تم إلغاء الحجز',
+    })
+    const { onOpenEntry } = renderList([auditEntry])
+
+    const button = screen.getByRole('button', {
+      name: /عرض تفاصيل النشاط: تم إلغاء الحجز/,
+    })
+
+    await user.click(button)
+
+    expect(onOpenEntry).toHaveBeenCalledWith(auditEntry)
+  })
+
+  it('does not expose actor or court numeric IDs as primary audit card fallback', () => {
+    renderList([
+      entry({
+        actor: 16,
+        court: 7,
+        actor_name: null,
+        court_name: null,
+        metadata: {},
+      }),
+    ])
+
+    expect(screen.queryByText('مستخدم #16')).not.toBeInTheDocument()
+    expect(screen.queryByText('ملعب #7')).not.toBeInTheDocument()
   })
 
   it('uses decorative icon circles with semantic classes', () => {

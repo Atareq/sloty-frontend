@@ -22,6 +22,7 @@ import {
   getSettlement,
   markSettlementSettled,
 } from '../settlementsApi'
+import { notifyCurrentFinancialStateChanged } from '../currentFinancialStateInvalidation'
 import {
   formatSettlementActor,
   getSettlementCollectorName,
@@ -43,7 +44,6 @@ function getTransactions(settlement: Settlement) {
 export function SettlementDetailPage() {
   const { settlementId } = useParams()
   const {
-    currentUser,
     refreshCurrentUser,
     role,
     selectedClubSlug,
@@ -59,10 +59,7 @@ export function SettlementDetailPage() {
   const canViewOwn = canViewOwnSettlements(selectedMembership, role)
   const canMarkSettled = Boolean(
     canSettle &&
-      settlement?.status === 'PENDING' &&
-      currentUser?.id &&
-      settlement.collected_by &&
-      currentUser.id !== settlement.collected_by,
+      settlement?.status === 'PENDING',
   )
 
   useEffect(() => {
@@ -137,6 +134,10 @@ export function SettlementDetailPage() {
       setSettlement(response)
       setIsConfirmOpen(false)
       setMessage('تم استلام المبلغ بنجاح')
+      notifyCurrentFinancialStateChanged({
+        clubSlug: selectedClubSlug,
+        reason: 'settlement-status',
+      })
     } catch (error) {
       const errorCode = getApiErrorCode(error)
 

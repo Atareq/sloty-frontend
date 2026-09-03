@@ -67,7 +67,7 @@ describe('RecordPaymentSheet', () => {
     await chooseAppSelectOption(
       user,
       screen.getByLabelText('طريقة الدفع'),
-      'محفظة رقمية',
+      'محفظة إلكترونية',
     )
     await user.type(screen.getByLabelText('مرجع الدفع'), ' REF-123 ')
     await user.type(screen.getByLabelText('ملاحظات'), ' دفعة مقدمة ')
@@ -175,7 +175,7 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
-    await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'محفظة رقمية')
+    await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'محفظة إلكترونية')
 
     expect(screen.getByText('المبلغ أكبر من المتبقي')).toBeInTheDocument()
     expect(screen.getByText('مرجع الدفع مطلوب')).toBeInTheDocument()

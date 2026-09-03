@@ -36,6 +36,8 @@ describe('EditBookingDetailsSheet', () => {
 
     expect(screen.queryByText('الملعب')).not.toBeInTheDocument()
     expect(screen.queryByText('السعر')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('رقم الموبايل'))
+      .toHaveAttribute('placeholder', '01X XXX XXXX')
 
     const nameInput = screen.getByLabelText('اسم العميل')
     await user.clear(nameInput)

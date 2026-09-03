@@ -6,7 +6,7 @@ here.
 
 - Every sensitive row carries a deterministic `user + Club` scope. Schedule
   reads additionally require an explicit Court and date.
-- The initial schema is version 1. Future table/index changes must increment the
+- The current schema is version 2. Future table/index changes must increment the
   Dexie version and add an explicit migration when stored data needs reshaping.
 - Snapshot replacement deletes and writes inside one Dexie transaction. A
   failed write therefore preserves the previous completed snapshot.
@@ -24,9 +24,10 @@ here.
   auth session is released. Session expiry does not delete useful local cache.
 - Synchronization is coordinated by `src/offline/sync`. Schedule always runs
   first, BookingIntent recheck runs from the successfully refreshed Schedule
-  rows, then Bookings and Transactions run after Schedule settles. Duplicate
-  startup, online, resume, retry, and manual triggers for the same scope
-  coalesce while work is active.
+  rows, then Bookings and Transactions run after Schedule settles, then Current
+  Custody runs from the Backend custody read model. Duplicate startup, online,
+  resume, retry, and manual triggers for the same scope coalesce while work is
+  active.
 - Booking synchronization stores the previous 7 Egypt-local calendar days for
   the current `user + Club` scope. It fetches every paginated server page before
   one atomic `bookings` replacement and updates `bookings_last_sync_at` only
@@ -53,6 +54,18 @@ here.
 - Offline Transaction data is read-only. Payment creation, cancellation,
   refunds, settlements, and every financial mutation require internet and are
   not queued.
+- Current Custody snapshots are read-only Backend responses. Staff/restricted
+  views store settlement preview payloads; Owner/authorized Manager views store
+  one grouped `unsettled-summary` payload. The cache key includes user + Club,
+  snapshot kind, collector scope, and Court scope, so all-courts and one-Court
+  custody do not overwrite each other.
+- Offline Current Custody renders cached Backend `net_amount`,
+  `transaction_count`, and payment-method breakdowns exactly. It never reads the
+  seven-day Transaction cache to reconstruct current money, because older
+  unsettled payments can be outside that cache. A failed snapshot write keeps
+  the previous successful custody snapshot and `current_custody_last_sync_at`.
+- No cached custody snapshot means internet-required/error copy. It must not be
+  displayed as zero custody.
 - BookingIntents are the sole offline operational write. They store a local
   customer request for a one-time slot and start as `PENDING_RECHECK`. They are
   not Backend Bookings, holds, reservations, or automatic retries.
@@ -76,6 +89,6 @@ here.
 - Future synchronization must keep bounded windows (Schedule 31 days, Bookings
   7 days, Transactions 7 days) rather than assuming unlimited device storage.
 
-Schedule, recent Booking History, and recent Transactions use these repositories
-for read-only offline rendering. BookingIntent is the only offline write; all
-money and Booking lifecycle mutations remain online-only.
+Schedule, recent Booking History, recent Transactions, and Current Custody use
+these repositories for read-only offline rendering. BookingIntent is the only
+offline write; all money and Booking lifecycle mutations remain online-only.

@@ -1,5 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
-import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { getCurrentCustodyPresentation } from '../../currentCustodyPresentation'
 import type { SettlementPreview } from '../../settlements.types'
 
 interface SettlementPreviewSummaryProps {
@@ -11,6 +11,11 @@ export function SettlementPreviewSummary({
   mode = 'management',
   preview,
 }: SettlementPreviewSummaryProps) {
+  const custody = getCurrentCustodyPresentation({
+    netAmount: preview.net_amount,
+    transactionCount: preview.transaction_count,
+  })
+
   return (
     <AppCard className="space-y-4">
       <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
@@ -38,10 +43,13 @@ export function SettlementPreviewSummary({
 
         <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3">
           <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
-            {mode === 'staff' ? 'معاك دلوقتي' : 'إجمالي المبلغ'}
+            {mode === 'staff' ? 'معاك دلوقتي' : 'العهدة الحالية'}
           </dt>
-          <dd className="mt-1 font-black text-[var(--sloty-primary-dark)]">
-            {formatMoneyAmount(preview.total_amount)}
+          <dd
+            className="mt-1 font-black text-[var(--sloty-primary-dark)]"
+            data-custody-state={custody.state}
+          >
+            {custody.copy ?? custody.amountLabel}
           </dd>
         </div>
 

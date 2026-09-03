@@ -1,11 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
-import { listAuditLogs } from '../auditApi'
+import { getAuditLog, listAuditLogs } from '../auditApi'
 import { AuditLogsPage } from './AuditLogsPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -13,6 +13,7 @@ vi.mock('../../../core/auth/useAuth', () => ({
 }))
 
 vi.mock('../auditApi', () => ({
+  getAuditLog: vi.fn(),
   listAuditLogs: vi.fn(),
 }))
 
@@ -21,8 +22,23 @@ vi.mock('../../clubUsers/clubUsersApi', () => ({
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedGetAuditLog = vi.mocked(getAuditLog)
 const mockedListAuditLogs = vi.mocked(listAuditLogs)
 const mockedListClubUsers = vi.mocked(listClubUsers)
+
+interface Deferred<TValue> {
+  promise: Promise<TValue>
+  resolve: (value: TValue | PromiseLike<TValue>) => void
+}
+
+function createDeferred<TValue>(): Deferred<TValue> {
+  let resolve!: Deferred<TValue>['resolve']
+  const promise = new Promise<TValue>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+
+  return { promise, resolve }
+}
 
 function LocationProbe() {
   const location = useLocation()
@@ -99,6 +115,16 @@ describe('AuditLogsPage', () => {
         },
       ],
     })
+    mockedGetAuditLog.mockResolvedValue({
+      id: 1,
+      action: 'TRANSACTION_CANCELLED',
+      action_label: 'تم إلغاء دفعة',
+      actor_name: 'Owner Mahmoud',
+      message: 'تم إلغاء الدفع',
+      metadata: {
+        reason: 'Wrong amount entered',
+      },
+    })
     mockedListClubUsers.mockResolvedValue({
       count: 2,
       next: null,
@@ -151,13 +177,14 @@ describe('AuditLogsPage', () => {
   it('renders audit log cards with clean metadata', async () => {
     renderAuditLogsPage()
 
-    expect(await screen.findAllByText('تم إلغاء دفعة')).toHaveLength(2)
+    expect(await screen.findByText('تم إلغاء دفعة')).toBeInTheDocument()
     expect(screen.queryByText('TRANSACTION_CANCELLED')).not.toBeInTheDocument()
     expect(screen.getByText('تم إلغاء الدفع')).toBeInTheDocument()
     expect(screen.getByText('Owner Mahmoud')).toBeInTheDocument()
-    expect(screen.getByText('السبب')).toBeInTheDocument()
-    expect(screen.getByText('Wrong amount entered')).toBeInTheDocument()
+    expect(screen.queryByText('السبب')).not.toBeInTheDocument()
+    expect(screen.queryByText('Wrong amount entered')).not.toBeInTheDocument()
     expect(mockedListAuditLogs).toHaveBeenCalledWith('nasr-club', {})
+    expect(mockedGetAuditLog).not.toHaveBeenCalled()
   })
 
   it('uses named audit filter labels and hides manual ID wording', async () => {
@@ -259,7 +286,122 @@ describe('AuditLogsPage', () => {
 
     expect(await screen.findByText('تعذر تحميل خيارات الفلاتر'))
       .toBeInTheDocument()
-    expect(await screen.findAllByText('تم إلغاء دفعة')).toHaveLength(2)
+    expect(await screen.findByText('تم إلغاء دفعة')).toBeInTheDocument()
     expect(mockedListAuditLogs).toHaveBeenCalledWith('nasr-club', {})
+  })
+
+  it('opens one audit detail request from a deliberate card click', async () => {
+    const user = userEvent.setup()
+
+    renderAuditLogsPage()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: /عرض تفاصيل النشاط: تم إلغاء دفعة/,
+      }),
+    )
+
+    expect(mockedGetAuditLog).toHaveBeenCalledTimes(1)
+    expect(mockedGetAuditLog).toHaveBeenCalledWith('nasr-club', 1)
+    expect(await screen.findByRole('dialog', { name: 'تفاصيل النشاط' }))
+      .toBeInTheDocument()
+    expect(await screen.findByText('Wrong amount entered')).toBeInTheDocument()
+    expect(screen.getByText('السبب')).toBeInTheDocument()
+  })
+
+  it('keeps the activity list usable when detail loading fails and supports retry', async () => {
+    const user = userEvent.setup()
+    mockedGetAuditLog
+      .mockRejectedValueOnce(new Error('detail failed'))
+      .mockResolvedValueOnce({
+        id: 1,
+        action: 'TRANSACTION_CANCELLED',
+        action_label: 'تم إلغاء دفعة',
+        metadata: { reason: 'تم التصحيح' },
+      })
+
+    renderAuditLogsPage()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: /عرض تفاصيل النشاط: تم إلغاء دفعة/,
+      }),
+    )
+
+    expect(await screen.findByText('تعذر تحميل تفاصيل النشاط'))
+      .toBeInTheDocument()
+    expect(screen.getAllByText('تم إلغاء الدفع').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'حاول مرة تانية' }))
+
+    expect(mockedGetAuditLog).toHaveBeenCalledTimes(2)
+    expect(await screen.findByText('تم التصحيح')).toBeInTheDocument()
+  })
+
+  it('ignores stale detail responses after rapidly selecting another card', async () => {
+    const user = userEvent.setup()
+    const firstDetail = createDeferred<Awaited<ReturnType<typeof getAuditLog>>>()
+    const secondDetail = createDeferred<Awaited<ReturnType<typeof getAuditLog>>>()
+    mockedListAuditLogs.mockResolvedValueOnce({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: 1,
+          action: 'BOOKING_CANCELLED',
+          action_label: 'تم إلغاء الحجز',
+          metadata: { customer_name: 'عميل أ' },
+        },
+        {
+          id: 2,
+          action: 'SETTLEMENT_MARKED_SETTLED',
+          action_label: 'تم استلام المبلغ',
+          metadata: {
+            collected_by_name: 'محمد',
+            total_amount: '1250.00',
+          },
+        },
+      ],
+    })
+    mockedGetAuditLog
+      .mockReturnValueOnce(firstDetail.promise)
+      .mockReturnValueOnce(secondDetail.promise)
+
+    renderAuditLogsPage()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: /عرض تفاصيل النشاط: تم إلغاء الحجز/,
+      }),
+    )
+    await user.click(
+      await screen.findByRole('button', {
+        name: /عرض تفاصيل النشاط: تم استلام المبلغ/,
+      }),
+    )
+
+    secondDetail.resolve({
+      id: 2,
+      action: 'SETTLEMENT_MARKED_SETTLED',
+      action_label: 'تم استلام المبلغ',
+      metadata: {
+        collected_by_name: 'محمد',
+        total_amount: '1250.00',
+      },
+    })
+    expect(await screen.findByText('محمد')).toBeInTheDocument()
+
+    firstDetail.resolve({
+      id: 1,
+      action: 'BOOKING_CANCELLED',
+      action_label: 'تم إلغاء الحجز',
+      metadata: { customer_name: 'عميل أ' },
+    })
+
+    const dialog = screen.getByRole('dialog', { name: 'تفاصيل النشاط' })
+
+    expect(dialog).toHaveTextContent('تم استلام المبلغ')
+    expect(within(dialog).queryByText('عميل أ')).not.toBeInTheDocument()
   })
 })

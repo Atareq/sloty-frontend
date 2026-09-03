@@ -1,18 +1,12 @@
 import { Link } from 'react-router'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { paymentMethodLabels } from '../../../transactions/transactions.types'
 import type {
   DashboardSummaryResponse,
   PaymentMethod,
 } from '../../dashboard.types'
 import { buildSummaryLink } from '../../summaryLinks'
-
-const paymentMethodLabels: Record<PaymentMethod, string> = {
-  BANK_TRANSFER: 'تحويل بنكي',
-  CASH: 'كاش',
-  DIGITAL_WALLET: 'محفظة إلكترونية',
-  OTHER: 'أخرى',
-}
 
 const paymentMethods: PaymentMethod[] = [
   'CASH',
@@ -29,13 +23,13 @@ export function MoneySummarySection({ summary }: MoneySummarySectionProps) {
   return (
     <section className="space-y-3">
       <h2 className="text-base font-black text-[var(--sloty-text-primary)]">
-        أين المال؟
+        النشاط المالي خلال الفترة
       </h2>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <AppCard className="space-y-3 lg:col-span-2">
           <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
-            التحصيل حسب طريقة الدفع
+            صافي الحركة خلال الفترة حسب طريقة الدفع
           </h3>
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -60,7 +54,10 @@ export function MoneySummarySection({ summary }: MoneySummarySectionProps) {
                     </span>
                   </div>
                   <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
-                    {total?.count ?? 0} دفعات
+                    {total?.count ?? 0} معاملات
+                    {total?.refund && Number(total.refund) !== 0
+                      ? ` · مرتجعات ${formatMoneyAmount(total.refund)}`
+                      : ''}
                   </p>
                 </Link>
               )
@@ -70,36 +67,34 @@ export function MoneySummarySection({ summary }: MoneySummarySectionProps) {
 
         <AppCard className="space-y-3">
           <h3 className="text-sm font-black text-[var(--sloty-text-primary)]">
-            ملخص مالي سريع
+            ملخص نشاط الفترة
           </h3>
 
           <dl className="space-y-2 text-sm">
             <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
               <dt className="font-bold text-[var(--sloty-text-muted)]">
-                تحصيل الفترة
+                التحصيلات خلال الفترة
+              </dt>
+              <dd className="font-black text-[var(--sloty-text-primary)]">
+                {formatMoneyAmount(summary.summary.booking_payment_total)}
+              </dd>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+              <dt className="font-bold text-[var(--sloty-text-muted)]">
+                المرتجعات خلال الفترة
+              </dt>
+              <dd className="font-black text-[var(--sloty-text-primary)]">
+                {formatMoneyAmount(summary.summary.booking_refund_total)}
+              </dd>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
+              <dt className="font-bold text-[var(--sloty-text-muted)]">
+                صافي الحركة المالية خلال الفترة
               </dt>
               <dd className="font-black text-[var(--sloty-text-primary)]">
                 {formatMoneyAmount(summary.summary.transaction_total)}
-              </dd>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-              <dt className="font-bold text-[var(--sloty-text-muted)]">
-                المتبقي
-              </dt>
-              <dd className="font-black text-[var(--sloty-text-primary)]">
-                {formatMoneyAmount(summary.summary.total_remaining_amount)}
-              </dd>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-              <dt className="font-bold text-[var(--sloty-text-muted)]">
-                مبالغ محتاجة استلام
-              </dt>
-              <dd className="font-black text-[var(--sloty-text-primary)]">
-                {formatMoneyAmount(
-                  summary.summary.unsettled_transaction_total_amount,
-                )}
               </dd>
             </div>
           </dl>

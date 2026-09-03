@@ -20,8 +20,9 @@ const productErrorMessages: Readonly<Record<string, string>> = {
   NEXT_RECURRING_SLOT_UNAVAILABLE:
     'الموعد الأسبوع القادم مش متاح. تقدر تكمل الحجز وتوقف التكرار.',
   SELF_SETTLEMENT_APPROVAL_FORBIDDEN: 'مينفعش تسوي عهدتك بنفسك.',
-    NO_UNSETTLED_TRANSACTIONS:
+  NO_UNSETTLED_TRANSACTIONS:
     'مفيش مبلغ للموظف ده دلوقتي.',
+  SETTLEMENT_CONFLICT: 'المبلغ اتغير. راجع آخر حالة وحاول مرة تانية.',
 }
 
 function isSafeMessage(message: string | undefined): message is string {

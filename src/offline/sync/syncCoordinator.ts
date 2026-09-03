@@ -1,6 +1,7 @@
 import { browserConnectivity } from '../connectivity/browserConnectivity'
 import { createBookingSyncTask } from '../bookings/bookingSyncTask'
 import { recheckBookingIntentsForScheduleCourts } from '../bookings/bookingIntentRecheck'
+import { createCurrentCustodySyncTask } from '../finance/currentCustodySyncTask'
 import { createScheduleSyncTask } from '../schedule/scheduleSyncTask'
 import { createTransactionSyncTask } from '../transactions/transactionSyncTask'
 import type {
@@ -20,7 +21,12 @@ type IntentRecheckRunner = (
   scheduleResult: DatasetSyncTaskResult,
 ) => Promise<void>
 
-const syncDatasets: SyncDataset[] = ['schedule', 'bookings', 'transactions']
+const syncDatasets: SyncDataset[] = [
+  'schedule',
+  'bookings',
+  'transactions',
+  'current_custody',
+]
 
 function createSkippedResult(
   dataset: SyncDataset,
@@ -121,7 +127,7 @@ interface FullRunEntry {
  * Owns dataset synchronization priority and duplicate-trigger protection.
  *
  * This is intentionally not a general HTTP request de-duper. It only
- * coordinates Sloty's three known offline datasets.
+ * coordinates Sloty's known offline datasets.
  */
 export class OfflineSyncCoordinator {
   private readonly tasks: Record<SyncDataset, DatasetSyncTask>
@@ -286,7 +292,18 @@ export class OfflineSyncCoordinator {
         startedAt,
       ),
     ])
-    const datasets = createResultMap([scheduleResult, ...secondaryResults])
+    const currentCustodyResult = await this.runDataset(
+      this.tasks.current_custody,
+      context,
+      trigger,
+      controller.signal,
+      startedAt,
+    )
+    const datasets = createResultMap([
+      scheduleResult,
+      ...secondaryResults,
+      currentCustodyResult,
+    ])
     const completedAt = this.getNow().toISOString()
     const result: OperationalSyncRunResult = {
       scopeKey: context.scopeKey,
@@ -463,6 +480,9 @@ export const offlineSyncCoordinator = new OfflineSyncCoordinator({
       logger: createDefaultSyncLogger(),
     }),
     createTransactionSyncTask({
+      logger: createDefaultSyncLogger(),
+    }),
+    createCurrentCustodySyncTask({
       logger: createDefaultSyncLogger(),
     }),
   ],

@@ -28,6 +28,14 @@ Practical presentation baseline for the Sloty frontend.
 
 - Staff ledger and custody stay separate destinations.
 - Owner/Manager money work happens on `/settlements` as `إدارة الأموال`. `/transactions` remains routable as an advanced ledger.
+- Period activity answers “what happened during this date range?” and may use Dashboard/Transactions date filters.
+- Current custody answers “who has club money right now?” and must come from Backend current-custody endpoints, not date-filtered Dashboard analytics or local Transaction reduction.
+- Owner/authorized Manager current money defaults to `كل الملاعب` by omitting `court`; selecting a Court intentionally narrows the Backend custody request.
+- Zero-net current custody with transactions remains visible. Negative current custody keeps the signed Backend value and waits for Product/Backend copy clarification.
+- Offline Current Custody shows only the last successful Backend custody snapshot for the same user + Club + employee/Court scope. If that snapshot is absent, show internet-required copy rather than calculating from cached Transactions or showing a fake zero.
+- Settlement preview asks the Backend for a fresh current-custody snapshot before confirmation. It is not copied from the grouped employee card and is not reconstructed from Transaction history.
+- Settlement create asks the Backend to commit using current truth. The frontend accepts a newer success response or a structured stale/candidate-changed error, then refetches authoritative data instead of reconciling transaction sets locally.
+- Successful payment, refund/cancellation, transaction cancellation, and settlement mutations should trigger the relevant current financial loaders again. Never subtract a preview amount from current custody or locally mark candidate rows settled.
 - Do not fabricate all-employee linked transactions, transaction search, or settlement→ledger filters when the Backend cannot provide the complete relation.
 
 ## Booking-centric recurrence
@@ -39,11 +47,30 @@ Practical presentation baseline for the Sloty frontend.
 - Customer edit and reschedule are separate secondary sheets, not one combined editor.
 - Recurring continuation preview comes from `GET recurrence-next/`, not from Booking list/detail.
 
+## Operational notes
+
+- Booking List cards may show backend-provided `booking.notes` directly when meaningful. Notes appear after customer/time/Court/status context, use the compact label `ملاحظة`, stay secondary, and are clamped to about two visible lines.
+- Never fetch Booking Detail for every Booking List row to render notes. Full notes belong in the existing Booking details sheet.
+- Booking details and Transaction details show full meaningful notes under `ملاحظات` and hide the whole Notes section when notes are null, empty, or whitespace-only.
+- Transaction list cards do not show notes in this scope.
+
+## Schedule period tone
+
+- Morning and Evening are visual grouping context, not business status. `مواعيد الصباح` should read as warm, light, cream/daylight, while `مواعيد المساء` should read as deeper, calm, blue-gray/night-like.
+- Apply the distinction to the period container/header surface. Do not recolor individual slot buttons by period.
+- Slot statuses stay semantically consistent in both periods: FREE remains free, HOLD remains amber/deposit-pending, CONFIRMED/RECURRING_RESERVED remain reserved, and completed/no-show/unavailable states keep their existing tones.
+
 ## Canonical sheets
 
 - Temporary tasks use `AppSheet` dismissal: X, backdrop, Escape, browser/Android Back.
 - Filter sheets should expose apply/reset actions, not a redundant Close when AppSheet already dismisses.
 - Success feedback uses `AppSuccessNotice` (~3s). Errors requiring attention stay local.
+
+## Touch-safe forms
+
+- Touch/coarse-pointer editable controls must keep at least 16px text even when tablet or wider breakpoints activate. Fine-pointer desktop layouts may retain compact form typography.
+- Do not solve touch focus zoom by disabling user zoom. Keep pinch zoom available and avoid viewport restrictions such as `user-scalable=no` or `maximum-scale=1`.
+- Customer phone placeholders use the canonical example `01X XXX XXXX`, visually muted from entered values and never set as a default value.
 
 ## PWA foundation
 
@@ -53,7 +80,7 @@ Practical presentation baseline for the Sloty frontend.
 - App updates are always user-confirmed. Keep a waiting update pending while a modal task, sheet, drawer, or known full-page editor may contain unsaved work; do not auto-refresh operational screens.
 - The Service Worker owns static application files and the update lifecycle, not authenticated business data. Structured Schedule/Booking/Transaction snapshots belong to the versioned IndexedDB layer with explicit user + Club ownership and Court-specific Schedule reads.
 - Explicit logout uses the shared `AppSheet` confirmation and explains that cached on-device operational data will be removed and the next login requires connectivity. Cleanup completes before the auth session is released.
-- Offline synchronization is infrastructure-owned, not page-owned. The authenticated shell mounts one coordinator that gives Schedule first priority, then Bookings and Transactions, while coalescing startup/reconnect/resume/manual triggers.
+- Offline synchronization is infrastructure-owned, not page-owned. The authenticated shell mounts one coordinator that gives Schedule first priority, then Bookings and Transactions, then Current Custody, while coalescing startup/reconnect/resume/manual triggers.
 - Connectivity copy must stay honest: browser online is only a hint. Schedule freshness copy says data may have changed; BookingIntent copy says the request is saved locally and waiting for confirmation. It must not imply the frontend recalculates availability or confirms a Booking offline.
 
 ## Offline Schedule
@@ -93,3 +120,4 @@ Practical presentation baseline for the Sloty frontend.
 - Mobile-first, RTL-first, Arabic-first.
 - Do not ship desktop as a centered phone mockup.
 - Bottom navigation is removed; hamburger + Home + FAB cover mobile navigation.
+- Activity Log is business history. The list is summary-first and uses Backend Audit snapshots; tapping a card opens one authoritative detail sheet. Do not turn cards into raw metadata dumps or reconstruct historical names from current entities.

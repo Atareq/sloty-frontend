@@ -68,6 +68,23 @@ Read-only sheets close directly.
 FilterSheet is an AppSheet. Expected actions: `تطبيق الفلاتر` and `إعادة ضبط`.
 Do not add a redundant bottom `إغلاق`; the sheet X already dismisses.
 
+## Touch form controls
+
+- Editable `input`, `textarea`, and `select` controls stay 16px or larger on touch-capable devices, including tablet widths, landscape, and installed PWA mode.
+- The rule is capability-based, not width-only. Fine-pointer desktop fields may keep compact typography.
+- Pinch zoom remains enabled; do not add viewport restrictions or JavaScript zoom workarounds.
+- Customer phone fields show `رقم الموبايل` as the label and `01X XXX XXXX` as a muted placeholder/example.
+
+## Finance filters
+
+- Dashboard date shortcuts change period activity only; they must not be passed into current-custody requests.
+- Current custody Court filters default to `كل الملاعب` and omit `court`. Choosing a Court sends the selected Court ID; returning to `كل الملاعب` removes it.
+- Staff custody stays backend-scoped to the assigned Court and does not expose all-Courts controls.
+- Owner/authorized Manager all-employee custody loads through one grouped request, not per-employee preview or Transaction-history requests.
+- Opening a specific employee for settlement review makes one lazy Preview request for the active Club/Court scope. Do not prefetch Preview for every employee in the grouped money screen.
+- Settlement Preview and Create are separate backend truth checks. If Create reports a structured stale/candidate-changed result, close the confirmation state, refetch Preview/current custody, and show the latest backend values without local diffing.
+- Financial mutation success should notify current financial surfaces to run their existing authoritative loaders again. The UI must not patch custody with arithmetic such as subtracting the preview amount.
+
 ## Success notice
 
 `AppSuccessNotice` owns temporary success presentation, placement, accessibility, and ~3s auto-dismiss.
@@ -97,15 +114,17 @@ Do not route important errors through this primitive.
 - `OfflineSyncProvider` is the one authenticated lifecycle owner for operational synchronization.
 - Pages must not attach their own business-data `online`, `offline`, or `visibilitychange` sync listeners.
 - Startup, reconnect, resume, retry, and manual refresh requests coalesce through the same coordinator instead of issuing duplicate same-scope dataset runs.
-- Schedule always receives first network priority. BookingIntent recheck runs only after relevant Schedule rows are successfully persisted. Bookings and Transactions run after Schedule settles and fail independently.
+- Schedule always receives first network priority. BookingIntent recheck runs only after relevant Schedule rows are successfully persisted. Bookings and Transactions run after Schedule settles and fail independently. Current Custody runs after those read-only datasets and fails independently.
 - Browser online/offline state is a hint. Backend reachability is based on real dataset request outcomes.
 - Schedule synchronization fetches today + next 30 days from the backend slots range endpoint and replaces each Court window atomically. Selected Manager/Owner Court runs before other authorized Courts.
 - Booking synchronization fetches the complete previous 7 Egypt-local calendar days from the server Booking list, following pagination to `next = null` before one atomic scoped replacement.
 - Transaction synchronization fetches the complete previous 7 Egypt-local calendar days from the server Transaction list, following pagination to `next = null` before one atomic scoped replacement. It runs only in the secondary phase with Bookings.
+- Current Custody synchronization fetches the Backend current-custody read model for the current role/scope and stores that response as one authoritative snapshot. It never reduces cached Transaction rows.
 - SchedulePage may read cache, request manual sync, and observe coordinator completion. It must not attach its own global online/offline/resume listeners.
 - BookingIntent review is owned by the Schedule/coordinator flow, not by a separate page or browser online listener.
 - Booking History must not own canonical sync. Online search/filter/pagination remains server-backed; offline/backend-unreachable mode reads the scoped seven-day snapshot locally.
 - Transactions must not own canonical sync. Online filters/pagination remain server-backed; offline/backend-unreachable mode reads the scoped seven-day snapshot locally.
+- Current Custody surfaces must not own reconnect listeners. Online fetches may update the scoped custody snapshot, and failed fetches may read that snapshot. No snapshot means internet-required/error copy, not financial zero.
 
 ## Offline Schedule interactions
 
@@ -114,6 +133,7 @@ Do not route important errors through this primitive.
 - With no cached day while offline/unreachable, show internet-required copy and a `حاول مرة تانية` action wired through the coordinator/manual refresh path.
 - Dates outside the 31-day Schedule window require internet; do not silently grow unlimited local Schedule history.
 - Offline/backend-unreachable FREE slots may save a one-time BookingIntent through the existing booking sheet. Other business actions remain online-only: payment, cancel, complete, no-show, edit, reschedule, stop recurrence, and recurring booking creation show `يحتاج اتصال بالإنترنت` or disabled online-required copy and do not queue writes.
+- Cached and fresh Schedule rows share the same board presentation: Morning uses the warm light period container, Evening uses the deeper blue-gray period container, and slot buttons keep their status-owned styling in both contexts.
 
 ## Offline BookingIntent interactions
 
@@ -134,6 +154,15 @@ Do not route important errors through this primitive.
 - A date outside the seven-day cache window shows internet-required copy, not an authoritative empty result.
 - Booking cards open the canonical `BookingActionSheet` in read-only mode. Use cached detail if it was fetched online before; otherwise show the safe list fields and hide missing optional sections.
 - Booking mutations from History remain online-only. Payment, cancel, complete, no-show, customer edit, reschedule, and recurrence stop must not POST/PATCH while offline and must not be queued.
+
+## Operational notes
+
+- Booking List notes render only from backend list `booking.notes`; do not issue per-card Booking Detail requests or enrich from detail cache.
+- Card notes use `ملاحظة`, stay secondary, and are clamped to roughly two lines. Opening Booking details shows full meaningful notes with wrapping/newlines.
+- Transaction details show full meaningful notes with wrapping/newlines. Empty notes hide the section, and Transaction list cards remain note-free.
+- Activity Log uses a summary-first pattern: list cards answer what happened, who/what it affected, the key business value, actor, and time. Full metadata and before/after changes live in the detail sheet.
+- Opening one Activity card issues one Audit detail request and keeps the list mounted. Rapid card switching ignores stale detail responses, and detail errors stay inside the sheet with retry.
+- Activity history uses event-time Audit snapshot fields only. Do not fetch current User, Court, Booking, Transaction, Settlement, or Recurring records to rewrite old history.
 
 ## Offline Transaction interactions
 

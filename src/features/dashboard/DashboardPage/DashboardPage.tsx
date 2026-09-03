@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
-import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
+import {
+  getApiErrorCode,
+  getApiErrorMessage,
+} from '../../../core/api/apiError.helpers'
 import {
   canChooseOperationalCourt,
   canManageSettlements,
   getAssignedOperationalCourtId,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
+import type { OfflineScope } from '../../../offline/offline.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import {
   addDays,
+  formatArabicDateTime,
   formatArabicDateWithWeekday,
   formatDateInputValue,
 } from '../../../shared/utils/date'
@@ -23,10 +29,16 @@ import {
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
+import {
+  getCurrentCustodySummary,
+  getSettlementPreview,
+} from '../../settlements/settlementsApi'
+import { subscribeCurrentFinancialStateChanged } from '../../settlements/currentFinancialStateInvalidation'
+import type { CurrentCustodyRecord } from '../../settlements/settlements.types'
 import { BookingStatusBreakdown } from '../components/BookingStatusBreakdown/BookingStatusBreakdown'
 import { MoneySummarySection } from '../components/MoneySummarySection/MoneySummarySection'
 import { NeedsActionSection } from '../components/NeedsActionSection/NeedsActionSection'
-import { StaffUnsettledMoneySection } from '../components/StaffUnsettledMoneySection/StaffUnsettledMoneySection'
+import { CurrentCustodySection } from '../../settlements/components/CurrentCustodySection/CurrentCustodySection'
 import { SummaryActionCard } from '../components/SummaryActionCard/SummaryActionCard'
 import { getDashboardSummary } from '../dashboardApi'
 import type {
@@ -159,6 +171,16 @@ export function DashboardPage() {
   const [courts, setCourts] = useState<Court[]>([])
   const [isCourtsLoading, setIsCourtsLoading] = useState(false)
   const [courtOptionsError, setCourtOptionsError] = useState<string | null>(null)
+  const [custodyRecords, setCustodyRecords] = useState<CurrentCustodyRecord[]>(
+    [],
+  )
+  const [isCustodyLoading, setIsCustodyLoading] = useState(false)
+  const [custodyError, setCustodyError] = useState<string | null>(null)
+  const [custodySnapshotSyncedAt, setCustodySnapshotSyncedAt] = useState<
+    string | null
+  >(null)
+  const [currentFinancialRefreshToken, setCurrentFinancialRefreshToken] =
+    useState(0)
   const isStaff = role === 'STAFF' || selectedMembership?.role === 'STAFF'
   const assignedCourtId = getAssignedOperationalCourtId(
     role,
@@ -211,6 +233,18 @@ export function DashboardPage() {
   )
   const canManageStaffMoney = canManageSettlements(selectedMembership, role)
   const isTodaySummary = activeShortcut === 'today'
+  const offlineScope: OfflineScope | null = useMemo(
+    () =>
+      currentUser?.id && selectedClubSlug
+        ? { userId: currentUser.id, clubSlug: selectedClubSlug }
+        : null,
+    [currentUser, selectedClubSlug],
+  )
+  const custodySnapshotLabel = custodySnapshotSyncedAt
+    ? `بيانات محفوظة من آخر تحديث ناجح: ${
+        formatArabicDateTime(custodySnapshotSyncedAt) ?? custodySnapshotSyncedAt
+      }`
+    : null
 
   function updateDashboardQuery(nextValues: {
     shortcut?: DateShortcut
@@ -273,6 +307,173 @@ export function DashboardPage() {
       isActive = false
     }
   }, [activeQuery, selectedClubSlug])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadCurrentCustody(): Promise<void> {
+      if (
+        !selectedClubSlug ||
+        (!isStaff && !canManageStaffMoney)
+      ) {
+        setCustodyRecords([])
+        setCustodyError(null)
+        setIsCustodyLoading(false)
+        return
+      }
+
+      setIsCustodyLoading(true)
+      setCustodyError(null)
+      setCustodySnapshotSyncedAt(null)
+
+      try {
+        const court = getCourtQueryValue(selectedCourt)
+
+        if (isStaff) {
+          const staffPreview = await getSettlementPreview(selectedClubSlug, {
+            ...(court !== undefined ? { court } : {}),
+          })
+          const records = [staffPreview]
+
+          if (isActive) {
+            setCustodyRecords(records)
+          }
+
+          if (offlineScope) {
+            const syncedAt = new Date().toISOString()
+
+            try {
+              await offlineRepositories.replaceCurrentCustodySnapshot(
+                offlineScope,
+                {
+                  kind: 'preview',
+                  collectorId: null,
+                  courtId: court ?? null,
+                  payload: staffPreview,
+                },
+                syncedAt,
+              )
+            } catch {
+              // Non-fatal: the live Backend response is already rendered.
+            }
+          }
+        } else {
+          const summary = await getCurrentCustodySummary(selectedClubSlug, {
+            ...(court !== undefined ? { court } : {}),
+          })
+          const records = summary.results
+
+          if (isActive) {
+            setCustodyRecords(records)
+          }
+
+          if (offlineScope) {
+            const syncedAt = new Date().toISOString()
+
+            try {
+              await offlineRepositories.replaceCurrentCustodySnapshot(
+                offlineScope,
+                {
+                  kind: 'grouped_summary',
+                  collectorId: null,
+                  courtId: court ?? null,
+                  payload: summary,
+                },
+                syncedAt,
+              )
+            } catch {
+              // Non-fatal: the live Backend response is already rendered.
+            }
+          }
+        }
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        if (getApiErrorCode(error) === 'NO_UNSETTLED_TRANSACTIONS') {
+          if (offlineScope) {
+            try {
+              await offlineRepositories.deleteCurrentCustodySnapshot(
+                offlineScope,
+                isStaff ? 'preview' : 'grouped_summary',
+                null,
+                getCourtQueryValue(selectedCourt) ?? null,
+              )
+            } catch {
+              // Non-fatal: stale local cleanup must not block the empty state.
+            }
+          }
+          setCustodyRecords([])
+        } else {
+          const court = getCourtQueryValue(selectedCourt)
+          const snapshot = offlineScope
+            ? await offlineRepositories
+                .readCurrentCustodySnapshot(
+                  offlineScope,
+                  isStaff ? 'preview' : 'grouped_summary',
+                  null,
+                  court ?? null,
+                )
+                .catch(() => undefined)
+            : undefined
+
+          if (!isActive) {
+            return
+          }
+
+          if (snapshot) {
+            setCustodyRecords(
+              snapshot.snapshot_kind === 'grouped_summary' &&
+                'results' in snapshot.payload
+                ? snapshot.payload.results
+                : 'results' in snapshot.payload
+                  ? []
+                  : [snapshot.payload],
+            )
+            setCustodySnapshotSyncedAt(snapshot.synced_at)
+          } else {
+            setCustodyRecords([])
+            setCustodyError(
+              getApiErrorMessage(error, 'تعذر تحميل العهدة الحالية.'),
+            )
+          }
+        }
+      } finally {
+        if (isActive) {
+          setIsCustodyLoading(false)
+        }
+      }
+    }
+
+    void loadCurrentCustody()
+
+    return () => {
+      isActive = false
+    }
+  }, [
+    canManageStaffMoney,
+    currentFinancialRefreshToken,
+    currentUser?.id,
+    isStaff,
+    offlineScope,
+    selectedClubSlug,
+    selectedCourt,
+  ])
+
+  useEffect(() => {
+    if (!selectedClubSlug) {
+      return undefined
+    }
+
+    return subscribeCurrentFinancialStateChanged((event) => {
+      if (event.clubSlug && event.clubSlug !== selectedClubSlug) {
+        return
+      }
+
+      setCurrentFinancialRefreshToken((current) => current + 1)
+    })
+  }, [selectedClubSlug])
 
   useEffect(() => {
     let isActive = true
@@ -416,6 +617,17 @@ export function DashboardPage() {
         </AppCard>
       ) : null}
 
+      {isStaff || canManageStaffMoney ? (
+        <CurrentCustodySection
+          court={getCourtQueryValue(selectedCourt)}
+          error={custodyError}
+          isLoading={isCustodyLoading}
+          mode={isStaff ? 'staff' : 'management'}
+          records={custodyRecords}
+          snapshotLabel={custodySnapshotLabel}
+        />
+      ) : null}
+
       {!isLoading && scopedSummary ? (
         <>
           <section className="space-y-3">
@@ -471,13 +683,6 @@ export function DashboardPage() {
           </section>
 
           <NeedsActionSection summary={scopedSummary} />
-
-          {isStaff || canManageStaffMoney ? (
-            <StaffUnsettledMoneySection
-              mode={isStaff ? 'staff' : 'management'}
-              summary={scopedSummary}
-            />
-          ) : null}
 
           <section className="space-y-5 border-t border-[var(--sloty-border)] pt-5">
             <div>

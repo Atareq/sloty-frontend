@@ -311,6 +311,46 @@ describe('BookingsListPage', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders Booking list notes directly without fetching detail per card', async () => {
+    mockedListBookings.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 10,
+          court: 3,
+          customer_name: 'أحمد علي',
+          customer_phone: '+201011111111',
+          notes: 'العميل هييجي قبل المعاد بعشر دقايق',
+          start_time: '2026-07-21T18:00:00+03:00',
+          end_time: '2026-07-21T19:00:00+03:00',
+          status: 'CONFIRMED',
+        },
+        {
+          id: 11,
+          court: 4,
+          customer_name: 'منى حسن',
+          customer_phone: '+201022222222',
+          notes: 'محتاجة الكورة تكون جاهزة',
+          start_time: '2026-07-21T19:00:00+03:00',
+          end_time: '2026-07-21T20:00:00+03:00',
+          status: 'HOLD',
+        },
+      ]),
+    )
+
+    renderBookingsPage()
+
+    expect(
+      await screen.findByText('العميل هييجي قبل المعاد بعشر دقايق'),
+    ).toHaveClass('sloty-booking-card-note')
+    expect(screen.getByText('محتاجة الكورة تكون جاهزة')).toHaveClass(
+      'sloty-booking-card-note',
+    )
+    expect(screen.getAllByText('ملاحظة')).toHaveLength(2)
+    expect(mockedListBookings).toHaveBeenCalledTimes(1)
+    expect(mockedGetBooking).not.toHaveBeenCalled()
+    expect(mockedOfflineRepositories.readBookingDetail).not.toHaveBeenCalled()
+  })
+
   it('renders cached Booking History offline without calling the server', async () => {
     mockOfflineMode()
     mockedOfflineRepositories.getSyncMetadata.mockResolvedValueOnce({

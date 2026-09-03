@@ -8,35 +8,56 @@ import {
 import {
   canManageSettlements,
   canViewOwnSettlements,
+  getAssignedOperationalCourtId,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
+import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
+import type { OfflineScope } from '../../../offline/offline.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { financeCopy, navigationCopy } from '../../../shared/copy/appCopy'
-import { formatArabicPeriodRange } from '../../../shared/utils/date'
+import {
+  formatArabicDateTime,
+  formatArabicPeriodRange,
+} from '../../../shared/utils/date'
 import { formatMoneyAmount } from '../../../shared/utils/money'
 import {
   buildPathWithQuery,
   type QueryParamValue,
 } from '../../../shared/utils/buildPathWithQuery'
-import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
+import {
+  getClubUserDisplayName,
+  getCourtDisplayName,
+} from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
-import { getDashboardSummary } from '../../dashboard/dashboardApi'
-import type { DashboardSummaryResponse } from '../../dashboard/dashboard.types'
-import { getSettlementPreview, listSettlements } from '../settlementsApi'
+import { listCourts } from '../../courts/courtsApi'
+import type { Court } from '../../courts/courts.types'
+import {
+  getCurrentCustodySummary,
+  getSettlementPreview,
+  listSettlements,
+} from '../settlementsApi'
+import { subscribeCurrentFinancialStateChanged } from '../currentFinancialStateInvalidation'
 import { getSettlementCollectorName } from '../settlementDisplay.helpers'
 import {
   settlementPaymentMethodLabels,
+  type CurrentCustodySummaryRow,
   type Settlement,
   type SettlementPreview,
   type SettlementPreviewTransaction,
 } from '../settlements.types'
+import {
+  CurrentCustodyPaymentBreakdown,
+  CurrentCustodySection,
+  CurrentCustodyValue,
+} from '../components/CurrentCustodySection/CurrentCustodySection'
 
 interface HubQueryState {
   collected_by: string
+  court: string
   history: boolean
 }
 
@@ -45,6 +66,7 @@ function parseHubQuery(search: string): HubQueryState {
 
   return {
     collected_by: query.collected_by ?? '',
+    court: query.court ?? '',
     history: query.history === 'true',
   }
 }
@@ -52,6 +74,7 @@ function parseHubQuery(search: string): HubQueryState {
 function getHubSearch(state: HubQueryState): string {
   return buildPathWithQuery('', {
     collected_by: state.collected_by || undefined,
+    court: state.court || undefined,
     history: state.history ? 'true' : undefined,
   } as Record<string, QueryParamValue>)
 }
@@ -139,7 +162,7 @@ function LinkedTransactions({
 /**
  * Owner/Manager money management and Staff own-custody hub.
  *
- * All-employee current amounts reuse Dashboard `staff_unsettled_money`.
+ * All-employee current amounts use the grouped Backend custody read model.
  * A selected employee uses settlement preview. Historical rows are SETTLED
  * settlements only. The page does not N+1 preview every employee.
  */
@@ -150,11 +173,16 @@ export function SettlementsHubPage() {
   const canSettle = canManageSettlements(selectedMembership, role)
   const canViewOwn = canViewOwnSettlements(selectedMembership, role)
   const isOwnMode = canViewOwn && !canSettle
+  const assignedCourtId = getAssignedOperationalCourtId(
+    role,
+    selectedMembership,
+  )
   const query = useMemo(
     () => parseHubQuery(location.search),
     [location.search],
   )
   const [users, setUsers] = useState<ClubUser[]>([])
+  const [courts, setCourts] = useState<Court[]>([])
   const [isLoadingFilters, setIsLoadingFilters] = useState(false)
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(
     null,
@@ -163,11 +191,8 @@ export function SettlementsHubPage() {
     null,
   )
   const [currentEmployees, setCurrentEmployees] = useState<
-    DashboardSummaryResponse['staff_unsettled_money']
+    CurrentCustodySummaryRow[]
   >([])
-  const [staffUnsettledTotalCount, setStaffUnsettledTotalCount] = useState<
-    number | null
-  >(null)
   const [historicalSettlements, setHistoricalSettlements] = useState<
     Settlement[]
   >([])
@@ -176,12 +201,37 @@ export function SettlementsHubPage() {
   const [currentError, setCurrentError] = useState<string | null>(null)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [isCurrentEmpty, setIsCurrentEmpty] = useState(false)
+  const [currentSnapshotSyncedAt, setCurrentSnapshotSyncedAt] = useState<
+    string | null
+  >(null)
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [currentFinancialRefreshToken, setCurrentFinancialRefreshToken] =
+    useState(0)
   const hasAccess = Boolean(selectedClubSlug && canViewOwn)
   const reviewableUsers = useMemo(
     () => users.filter((user) => user.id !== currentUser?.id),
     [currentUser?.id, users],
   )
+  const selectedCourt = courts.find(
+    (court) => String(court.id) === query.court,
+  )
+  const selectedCourtLabel = query.court
+    ? selectedCourt
+      ? getCourtDisplayName(selectedCourt)
+      : `ملعب #${query.court}`
+    : 'كل الملاعب'
+  const offlineScope: OfflineScope | null = useMemo(
+    () =>
+      currentUser?.id && selectedClubSlug
+        ? { userId: currentUser.id, clubSlug: selectedClubSlug }
+        : null,
+    [currentUser, selectedClubSlug],
+  )
+  const currentSnapshotLabel = currentSnapshotSyncedAt
+    ? `بيانات محفوظة من آخر تحديث ناجح: ${
+        formatArabicDateTime(currentSnapshotSyncedAt) ?? currentSnapshotSyncedAt
+      }`
+    : null
 
   useEffect(() => {
     let isActive = true
@@ -224,6 +274,36 @@ export function SettlementsHubPage() {
   useEffect(() => {
     let isActive = true
 
+    async function loadCourts(): Promise<void> {
+      if (!hasAccess || !selectedClubSlug || !canSettle) {
+        setCourts([])
+        return
+      }
+
+      try {
+        const response = await listCourts(selectedClubSlug)
+
+        if (isActive) {
+          setCourts(response.results)
+        }
+      } catch {
+        if (isActive) {
+          setCourts([])
+          setFilterOptionsError('تعذر تحميل بعض خيارات التصفية')
+        }
+      }
+    }
+
+    void loadCourts()
+
+    return () => {
+      isActive = false
+    }
+  }, [canSettle, hasAccess, selectedClubSlug])
+
+  useEffect(() => {
+    let isActive = true
+
     async function loadCurrentMoney(): Promise<void> {
       if (!selectedClubSlug || (!canSettle && !isOwnMode)) {
         setCurrentPreview(null)
@@ -237,12 +317,24 @@ export function SettlementsHubPage() {
       setIsCurrentEmpty(false)
       setCurrentPreview(null)
       setCurrentEmployees([])
+      setCurrentSnapshotSyncedAt(null)
 
       try {
         if (isOwnMode || query.collected_by) {
+          const previewCollectorId = isOwnMode ? null : query.collected_by
+          const previewCourtId = isOwnMode
+            ? assignedCourtId
+            : query.court || null
           const preview = await getSettlementPreview(
             selectedClubSlug,
-            isOwnMode ? {} : { collected_by: query.collected_by },
+            {
+              ...(isOwnMode
+                ? assignedCourtId
+                  ? { court: assignedCourtId }
+                  : {}
+                : { collected_by: query.collected_by }),
+              ...(!isOwnMode && query.court ? { court: query.court } : {}),
+            },
           )
 
           if (!isActive) {
@@ -251,20 +343,56 @@ export function SettlementsHubPage() {
 
           setCurrentPreview(preview)
           setIsCurrentEmpty(preview.transaction_count <= 0)
+
+          if (offlineScope) {
+            const syncedAt = new Date().toISOString()
+
+            try {
+              await offlineRepositories.replaceCurrentCustodySnapshot(
+                offlineScope,
+                {
+                  kind: 'preview',
+                  collectorId: previewCollectorId,
+                  courtId: previewCourtId,
+                  payload: preview,
+                },
+                syncedAt,
+              )
+            } catch {
+              // Non-fatal: online Backend data is already rendered.
+            }
+          }
         } else {
-          const summary = await getDashboardSummary(selectedClubSlug, {
-            settlement_status: 'unsettled',
+          const summaryCourtId = query.court || null
+          const summary = await getCurrentCustodySummary(selectedClubSlug, {
+            ...(summaryCourtId ? { court: summaryCourtId } : {}),
           })
 
           if (!isActive) {
             return
           }
 
-          setCurrentEmployees(summary.staff_unsettled_money)
-          setStaffUnsettledTotalCount(
-            summary.summary.staff_with_unsettled_transactions_count,
-          )
-          setIsCurrentEmpty(summary.staff_unsettled_money.length === 0)
+          setCurrentEmployees(summary.results)
+          setIsCurrentEmpty(summary.results.length === 0)
+
+          if (offlineScope) {
+            const syncedAt = new Date().toISOString()
+
+            try {
+              await offlineRepositories.replaceCurrentCustodySnapshot(
+                offlineScope,
+                {
+                  kind: 'grouped_summary',
+                  collectorId: null,
+                  courtId: summaryCourtId,
+                  payload: summary,
+                },
+                syncedAt,
+              )
+            } catch {
+              // Non-fatal: online Backend data is already rendered.
+            }
+          }
         }
       } catch (error) {
         if (!isActive) {
@@ -272,11 +400,63 @@ export function SettlementsHubPage() {
         }
 
         if (getApiErrorCode(error) === 'NO_UNSETTLED_TRANSACTIONS') {
+          if (offlineScope) {
+            try {
+              await offlineRepositories.deleteCurrentCustodySnapshot(
+                offlineScope,
+                isOwnMode || query.collected_by ? 'preview' : 'grouped_summary',
+                isOwnMode ? null : query.collected_by,
+                isOwnMode ? assignedCourtId : query.court || null,
+              )
+            } catch {
+              // Non-fatal: stale local cleanup must not block the empty state.
+            }
+          }
           setIsCurrentEmpty(true)
         } else {
-          setCurrentError(
-            getApiErrorMessage(error, 'تعذر تحميل المبالغ الحالية'),
-          )
+          const snapshot = offlineScope
+            ? await offlineRepositories
+                .readCurrentCustodySnapshot(
+                  offlineScope,
+                  isOwnMode || query.collected_by
+                    ? 'preview'
+                    : 'grouped_summary',
+                  isOwnMode ? null : query.collected_by,
+                  isOwnMode ? assignedCourtId : query.court || null,
+                )
+                .catch(() => undefined)
+            : undefined
+
+          if (!isActive) {
+            return
+          }
+
+          if (snapshot) {
+            if (snapshot.snapshot_kind === 'grouped_summary') {
+              setCurrentEmployees(
+                'results' in snapshot.payload ? snapshot.payload.results : [],
+              )
+              setIsCurrentEmpty(
+                'results' in snapshot.payload
+                  ? snapshot.payload.results.length === 0
+                  : true,
+              )
+            } else {
+              setCurrentPreview(
+                'results' in snapshot.payload ? null : snapshot.payload,
+              )
+              setIsCurrentEmpty(
+                'results' in snapshot.payload
+                  ? true
+                  : snapshot.payload.transaction_count <= 0,
+              )
+            }
+            setCurrentSnapshotSyncedAt(snapshot.synced_at)
+          } else {
+            setCurrentError(
+              getApiErrorMessage(error, 'تعذر تحميل المبالغ الحالية'),
+            )
+          }
         }
       } finally {
         if (isActive) {
@@ -290,7 +470,17 @@ export function SettlementsHubPage() {
     return () => {
       isActive = false
     }
-  }, [canSettle, isOwnMode, query.collected_by, selectedClubSlug])
+  }, [
+    assignedCourtId,
+    canSettle,
+    currentFinancialRefreshToken,
+    currentUser?.id,
+    isOwnMode,
+    offlineScope,
+    query.collected_by,
+    query.court,
+    selectedClubSlug,
+  ])
 
   useEffect(() => {
     let isActive = true
@@ -309,6 +499,7 @@ export function SettlementsHubPage() {
       try {
         const response = await listSettlements(selectedClubSlug, {
           status: 'SETTLED',
+          ...(query.court ? { court: query.court } : {}),
           ...(isOwnMode || !query.collected_by
             ? {}
             : { collected_by: query.collected_by }),
@@ -336,7 +527,29 @@ export function SettlementsHubPage() {
     return () => {
       isActive = false
     }
-  }, [canSettle, isOwnMode, query.collected_by, query.history, selectedClubSlug])
+  }, [
+    canSettle,
+    currentFinancialRefreshToken,
+    isOwnMode,
+    query.collected_by,
+    query.court,
+    query.history,
+    selectedClubSlug,
+  ])
+
+  useEffect(() => {
+    if (!selectedClubSlug || !canViewOwn) {
+      return undefined
+    }
+
+    return subscribeCurrentFinancialStateChanged((event) => {
+      if (event.clubSlug && event.clubSlug !== selectedClubSlug) {
+        return
+      }
+
+      setCurrentFinancialRefreshToken((current) => current + 1)
+    })
+  }, [canViewOwn, selectedClubSlug])
 
   const userFilterOptions = [
     { value: '', label: financeCopy.allEmployees },
@@ -347,6 +560,16 @@ export function SettlementsHubPage() {
     ...(query.collected_by &&
     !reviewableUsers.some((user) => String(user.id) === query.collected_by)
       ? [{ value: query.collected_by, label: 'موظف محدد' }]
+      : []),
+  ]
+  const courtFilterOptions = [
+    { value: '', label: 'كل الملاعب' },
+    ...courts.map((court) => ({
+      value: String(court.id),
+      label: getCourtDisplayName(court),
+    })),
+    ...(query.court && !selectedCourt
+      ? [{ value: query.court, label: selectedCourtLabel }]
       : []),
   ]
 
@@ -384,6 +607,7 @@ export function SettlementsHubPage() {
           </div>
 
           <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <AppSelect
                 disabled={isLoadingFilters}
                 label={financeCopy.collector}
@@ -393,6 +617,7 @@ export function SettlementsHubPage() {
                       pathname: location.pathname,
                       search: getHubSearch({
                         collected_by: value,
+                        court: query.court,
                         history: query.history,
                       }),
                     },
@@ -402,27 +627,47 @@ export function SettlementsHubPage() {
                 options={userFilterOptions}
                 value={query.collected_by}
               />
-              <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-[var(--sloty-text-primary)]">
-                <input
-                  checked={query.history}
-                  className="h-5 w-5 rounded border-[var(--sloty-border)] text-[var(--sloty-primary)]"
-                  onChange={(event) =>
-                    navigate(
-                      {
-                        pathname: location.pathname,
-                        search: getHubSearch({
-                          collected_by: query.collected_by,
-                          history: event.target.checked,
-                        }),
-                      },
-                      { replace: false },
-                    )
-                  }
-                  type="checkbox"
-                />
-                {financeCopy.reviewPreviouslyReceived}
-              </label>
+              <AppSelect
+                label="نطاق الملعب"
+                onChange={(value) => {
+                  navigate(
+                    {
+                      pathname: location.pathname,
+                      search: getHubSearch({
+                        collected_by: query.collected_by,
+                        court: value,
+                        history: query.history,
+                      }),
+                    },
+                    { replace: false },
+                  )
+                }}
+                options={courtFilterOptions}
+                value={query.court}
+              />
             </div>
+            <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-[var(--sloty-text-primary)]">
+              <input
+                checked={query.history}
+                className="h-5 w-5 rounded border-[var(--sloty-border)] text-[var(--sloty-primary)]"
+                onChange={(event) =>
+                  navigate(
+                    {
+                      pathname: location.pathname,
+                      search: getHubSearch({
+                        collected_by: query.collected_by,
+                        court: query.court,
+                        history: event.target.checked,
+                      }),
+                    },
+                    { replace: false },
+                  )
+                }
+                type="checkbox"
+              />
+              {financeCopy.reviewPreviouslyReceived}
+            </label>
+          </div>
 
           <Link
             className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--sloty-primary-dark)]"
@@ -449,6 +694,7 @@ export function SettlementsHubPage() {
                 pathname: location.pathname,
                 search: getHubSearch({
                   collected_by: '',
+                  court: '',
                   history: event.target.checked,
                 }),
               })
@@ -461,8 +707,20 @@ export function SettlementsHubPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-bold text-[var(--sloty-text-primary)]">
-          {financeCopy.amountsNeedingReceipt}
+          {isOwnMode
+            ? financeCopy.currentCustody
+            : financeCopy.currentEmployeeMoney}
         </h2>
+        {canSettle ? (
+          <p className="text-sm font-semibold text-[var(--sloty-text-muted)]">
+            نطاق العهدة: {selectedCourtLabel}
+          </p>
+        ) : null}
+        {currentSnapshotLabel ? (
+          <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+            {currentSnapshotLabel}
+          </p>
+        ) : null}
 
         {isCurrentLoading ? (
           <AppCard>
@@ -483,9 +741,7 @@ export function SettlementsHubPage() {
         {!isCurrentLoading && !currentError && isCurrentEmpty ? (
           <AppCard>
             <p className="text-sm font-medium text-[var(--sloty-text-primary)]">
-              {isOwnMode
-                ? financeCopy.noAmountWithYou
-                : 'مفيش مبالغ محتاجة استلام دلوقتي.'}
+              {financeCopy.currentCustodyEmpty}
             </p>
           </AppCard>
         ) : null}
@@ -505,27 +761,19 @@ export function SettlementsHubPage() {
               ) : null}
             </div>
             <div>
-              <p className="text-xs font-medium text-[var(--sloty-text-muted)]">
-                {isOwnMode ? 'معاك دلوقتي' : financeCopy.withEmployeeNow}
-              </p>
-              <p className="mt-1 text-2xl font-bold text-[var(--sloty-primary-dark)]">
-                {formatMoneyAmount(currentPreview.total_amount, {
-                  suffix: 'ج.م',
-                })}
-              </p>
+              <CurrentCustodyValue record={currentPreview} />
               <p className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]">
-                من {currentPreview.transaction_count} عملية
+                {currentPreview.transaction_count} معاملات
               </p>
             </div>
-            <PeriodBlock
-              end={currentPreview.period_end}
-              start={currentPreview.period_start}
+            <CurrentCustodyPaymentBreakdown
+              totals={currentPreview.totals_by_payment_method}
             />
             {canSettle && currentPreview.can_approve ? (
               <Link
                 to={buildPathWithQuery('/settlements/preview', {
                   collected_by: currentPreview.collected_by,
-                  court: currentPreview.court,
+                  court: query.court || currentPreview.court,
                 })}
               >
                 <AppButton fullWidth type="button">
@@ -552,55 +800,13 @@ export function SettlementsHubPage() {
           </AppCard>
         ) : null}
 
-        {!isCurrentLoading && currentEmployees.length > 0 ? (
-          <>
-            {staffUnsettledTotalCount &&
-            currentEmployees.length < staffUnsettledTotalCount ? (
-              <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
-                يعرض {currentEmployees.length} من أصل {staffUnsettledTotalCount}{' '}
-                موظف معهم مبالغ دلوقتي
-              </p>
-            ) : null}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {currentEmployees.map((staff) => (
-                <AppCard className="space-y-4" key={staff.collected_by}>
-                  <div>
-                    <p className="text-lg font-bold text-[var(--sloty-text-primary)]">
-                      {staff.collected_by_name}
-                    </p>
-                    {staff.court_name ? (
-                      <p className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]">
-                        {staff.court_name}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-[var(--sloty-text-muted)]">
-                      {financeCopy.withEmployeeNow}
-                    </p>
-                    <p className="mt-1 text-2xl font-bold text-[var(--sloty-primary-dark)]">
-                      {formatMoneyAmount(staff.total_unsettled_amount, {
-                        suffix: 'ج.م',
-                      })}
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]">
-                      من {staff.unsettled_transaction_count} عملية
-                    </p>
-                  </div>
-                  <Link
-                    to={buildPathWithQuery('/settlements/preview', {
-                      collected_by: staff.collected_by,
-                      court: staff.court,
-                    })}
-                  >
-                    <AppButton fullWidth type="button">
-                      {financeCopy.receiveAmount}
-                    </AppButton>
-                  </Link>
-                </AppCard>
-              ))}
-            </div>
-          </>
+        {!isCurrentLoading && !currentError && currentEmployees.length > 0 ? (
+          <CurrentCustodySection
+            court={query.court || undefined}
+            mode="management"
+            records={currentEmployees}
+            showTitle={false}
+          />
         ) : null}
       </section>
 

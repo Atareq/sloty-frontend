@@ -46,6 +46,7 @@ import { EditBookingDetailsSheet } from '../../bookings/components/EditBookingDe
 import { RescheduleBookingSheet } from '../../bookings/components/RescheduleBookingSheet/RescheduleBookingSheet'
 import { hasActiveRecurrence, shouldRefreshRecurrencePreview } from '../../bookings/bookingRecurrence.helpers'
 import { createTransaction } from '../../transactions/transactionsApi'
+import { notifyCurrentFinancialStateChanged } from '../../settlements/currentFinancialStateInvalidation'
 import {
   RecordPaymentSheet,
   type RecordPaymentSheetValues,
@@ -138,6 +139,23 @@ const statusLegend = [
     className: 'border-rose-300 bg-rose-100',
   },
 ]
+
+const schedulePeriodStyles = {
+  am: {
+    section:
+      'border-amber-100/90 bg-[#FFF7DF]/92 shadow-amber-950/10 ring-1 ring-white/75',
+    header:
+      'border-amber-200/80 bg-white/70 text-amber-950 shadow-amber-950/5',
+    kicker: 'text-amber-700',
+  },
+  pm: {
+    section:
+      'border-slate-500/70 bg-slate-900/72 shadow-slate-950/30 ring-1 ring-white/10',
+    header:
+      'border-slate-500/60 bg-slate-950/45 text-white shadow-slate-950/20',
+    kicker: 'text-slate-200',
+  },
+} as const
 
 const bookingConflictCodes = new Set([
   'BOOKING_SLOT_UNAVAILABLE',
@@ -1318,6 +1336,10 @@ export function SchedulePage() {
       setCancellationPreview(null)
       setSelectedActionBooking(null)
       setSelectedSlot(null)
+      notifyCurrentFinancialStateChanged({
+        clubSlug: selectedClubSlug,
+        reason: 'booking-cancellation',
+      })
       await reloadScheduleSlots()
     } catch (error) {
       if (getApiErrorCode(error) === BOOKING_CANCELLATION_TIME_PASSED) {
@@ -1695,6 +1717,10 @@ export function SchedulePage() {
           ? 'تم تسجيل العربون وتأكيد الحجز بنجاح'
           : 'تم تسجيل التحصيل بنجاح',
       )
+      notifyCurrentFinancialStateChanged({
+        clubSlug: selectedClubSlug,
+        reason: 'booking-payment',
+      })
       await reloadScheduleSlots()
     } catch (error) {
       const errorCode = getApiErrorCode(error)
@@ -1965,11 +1991,30 @@ export function SchedulePage() {
 
               {shouldShowBoardSlots ? (
                 <>
-                  <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-white/10 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
+                  <div
+                    className={[
+                      'flex min-h-0 flex-col justify-between rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] sm:p-3 md:p-4',
+                      schedulePeriodStyles.am.section,
+                    ].join(' ')}
+                    data-testid="schedule-period-am"
+                  >
                     <div>
-                      <h3 className="text-lg font-bold text-white">
-                        مواعيد الصباح
-                      </h3>
+                      <div
+                        className={[
+                          'mb-3 rounded-2xl border px-3 py-2 shadow-sm',
+                          schedulePeriodStyles.am.header,
+                        ].join(' ')}
+                      >
+                        <p
+                          className={[
+                            'text-xs font-black',
+                            schedulePeriodStyles.am.kicker,
+                          ].join(' ')}
+                        >
+                          فترة نهارية
+                        </p>
+                        <h3 className="text-lg font-black">مواعيد الصباح</h3>
+                      </div>
                     </div>
                     <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                       {amSlots.map((booking) => (
@@ -1982,11 +2027,30 @@ export function SchedulePage() {
                     </div>
                   </div>
 
-                  <div className="flex min-h-0 flex-col justify-between rounded-3xl border border-white/20 bg-slate-950/20 p-2 backdrop-blur-[1px] sm:p-3 md:p-4">
+                  <div
+                    className={[
+                      'flex min-h-0 flex-col justify-between rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] sm:p-3 md:p-4',
+                      schedulePeriodStyles.pm.section,
+                    ].join(' ')}
+                    data-testid="schedule-period-pm"
+                  >
                     <div>
-                      <h3 className="text-lg font-bold text-white">
-                        مواعيد المساء
-                      </h3>
+                      <div
+                        className={[
+                          'mb-3 rounded-2xl border px-3 py-2 shadow-sm',
+                          schedulePeriodStyles.pm.header,
+                        ].join(' ')}
+                      >
+                        <p
+                          className={[
+                            'text-xs font-black',
+                            schedulePeriodStyles.pm.kicker,
+                          ].join(' ')}
+                        >
+                          فترة مسائية
+                        </p>
+                        <h3 className="text-lg font-black">مواعيد المساء</h3>
+                      </div>
                     </div>
                     <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                       {pmSlots.map((booking) => (
