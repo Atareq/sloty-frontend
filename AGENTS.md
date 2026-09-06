@@ -75,6 +75,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `vite-plugin-pwa` uses `generateSW` with prompt-based registration. The manifest starts at `/` so `AuthLandingRedirect` preserves unauthenticated, Platform Admin, multi-club, no-club, and operational-user routing.
 - The Service Worker precaches the compiled application shell, manifest icons, favicon, and approved static UI images only. Do not add `runtimeCaching` for API, auth, `/me`, bookings, slots, transactions, settlements, or users.
 - Task 1 keeps the application shell available after a successful online load. Schedule, recent Booking History, and recent Transactions read resilience now comes from the scoped IndexedDB layer, not Service Worker API caching. BookingIntent is the only approved offline operational write and remains a local customer request, not a Backend Booking.
+- PWA startup may request persistent browser storage with `navigator.storage.persisted()` / `persist()` once as a best-effort durability improvement. Unsupported APIs, denied persistence, and thrown storage errors must not block login, offline mode, or normal app use.
 - Chromium install UX uses the captured `beforeinstallprompt` event, iOS Safari uses concise Add-to-Home-Screen instructions, unsupported browsers show no broken install action, and standalone mode hides install promotion.
 - Install copy may mention faster Home Screen access and saved customer requests only where the Task-7 BookingIntent flow is explicitly explained. Do not promise offline booking creation, payments, cancellations, transactions, or automatic confirmation.
 - Application updates are prompt-based (`تحديث الآن` / `لاحقًا`) and never auto-reload on discovery. AppShell suppresses PWA notices while any modal task, AppSheet, or drawer is active and on full-page editor routes that do not expose shared dirty state; the pending prompt may appear after the task is closed or the route changes.
@@ -86,17 +87,28 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Schedule snapshots use scope + Court + date uniqueness. Schedule and BookingIntent repository reads require an explicit Court; Staff must never receive a read-every-Court shortcut.
 - Keep Backend Booking, BookingSlot, and Transaction objects as authoritative snapshots. Do not introduce parallel offline domain models or calculate slot state, prices, status, permission, or settlement facts locally.
 - `sync_metadata` keeps independent Schedule, Bookings, Transactions, and Current Custody timestamps. Update a timestamp only inside the same successful transaction that replaces the corresponding complete snapshot; a failed replacement must preserve the last good rows and timestamp.
+- `sync_metadata.operational_last_sync_at` is the device-local user + Club freshness marker. It advances only after a complete successful operational sync cycle; dataset timestamps remain independent and must not be confused with Backend `ClubMembership.last_sync_at`.
 - `offline_context` is the last successful `/me` + selected-membership cache-ownership hint only. It stores no password, PIN, JWT, refresh credential, or frontend-calculated permission and must never authenticate, authorize, or route a user.
 - Explicit logout must await pending context writes, clear every sensitive operational scope for the current user, and only then clear the auth/session and selected Club. Session expiry is not explicit logout and must not automatically delete the scoped cache.
 - IndexedDB failure handling must remain non-fatal and log only generic messages without customer, money, transaction, token, or credential contents. Scope isolation remains mandatory even when cleanup fails.
+- Critical local BookingIntent writes must commit before success UX appears. If saving fails, keep the form/customer data where practical, show a clear error, and never delete/recreate IndexedDB as routine runtime recovery.
 - Schedule, recent Booking History, recent Transactions, and Current Custody are wired to the scoped cache as read-only offline surfaces. BookingIntent is the sole local offline write: it stores a customer request for later authoritative recheck and manual booking.
+
+## Offline Freshness Rules
+
+- Freshness policy is centralized under `src/offline/freshness`; do not scatter raw 12-hour/72-hour checks through pages.
+- Freshness is scoped by canonical user + Club. One user's or Club's freshness must never authorize another scope.
+- Under 12 hours: cached reads and new/edit/dismiss local BookingIntent operations remain normal.
+- From 12 through exactly 72 hours: show stale-data warning copy in offline-like operational use, but keep cached reads and new/edit/dismiss local BookingIntent operations available.
+- More than 72 hours: preserve cache and existing BookingIntents; disable only new local offline BookingIntent creation until a successful online operational sync refreshes the timestamp.
+- The 72-hour rule must never block normal online Backend Booking creation and must never expire/delete requests because the appointment time passed.
 
 ## Offline Synchronization Rules
 
 - Operational synchronization is owned once by `OfflineSyncProvider` under authenticated `AppShell`. Do not add business-data `online`, `offline`, or `visibilitychange` synchronization listeners inside Schedule, Bookings, Transactions, or other pages.
 - Synchronization context must come from current `useAuth()` state after user, selected Club, selected membership, role, and scope key are resolved. Never sync with missing `userId` or `clubSlug`, and never create an all-platform Platform Admin offline scope.
 - `navigator.onLine` is only a browser hint. A successful Backend dataset refresh is the evidence for Backend reachability; failed requests may mark Backend unreachable without logging users out or deleting cache.
-- Dataset priority is fixed: run Schedule first, then recheck BookingIntents from successfully refreshed Schedule rows, then run Bookings and Transactions after Schedule settles, then refresh Current Custody. Schedule failure does not delete old Schedule data and does not classify BookingIntents from stale rows.
+- Dataset priority is fixed by business order: process eligible Booking Requests first because they can create new Backend truth, then refresh Schedule, then Bookings and Transactions, then Current Custody. Legacy BookingIntent recheck is transitional only and must not expire or mutate canonical `PENDING_SYNC` Booking Requests.
 - Full sync runs and dataset sync tasks are single-flight by `scope_key` and `scope_key + dataset`. Startup, online, resume, retry, and manual triggers for the same scope must coalesce while a run is active.
 - Scope changes cancel old owned sync work where possible. If stale work completes, it may only write its original scoped records and must not publish current visible sync status for the newly selected Club/user.
 - Retry is conservative: one delayed retry may follow a failed run, then the app waits for startup, online, resume, or manual triggers. Do not add polling, aggressive loops, Background Sync queues, or Service Worker API caching.
@@ -112,27 +124,39 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Schedule distinguishes three states: cached slots, cached synchronized empty day, and no local cache. Never present no local cache as "no slots".
 - Freshness copy is presentation context only. It may show last update and stale warnings; it must not become a backend/business rule.
 - Post-mutation Schedule refreshes must use authoritative backend day data and persist the affected cached day when it is inside the 31-day window. Do not locally mutate slot state after create, payment, cancel, complete, no-show, edit, reschedule, or recurrence actions.
-- Offline Schedule may save a one-time BookingIntent from an available cached FREE slot when offline/backend-unreachable. This saves only `تم حفظ طلب الحجز` / `بانتظار التأكيد`; it is not a Booking. Payment, cancellation, completion, no-show, edit, reschedule, recurrence stopping, and recurring Booking creation still require internet and must not queue writes.
+- Offline Schedule may save a Booking Request from an available cached FREE slot when offline/backend-unreachable. This saves only `تم حفظ طلب الحجز` / `بانتظار التأكيد`; it is not a Booking. Offline weekly intent may be captured only when the cached Backend slot has `can_start_recurring === true`. Payment, cancellation, completion, no-show, Booking edit/reschedule, recurrence stopping, and final Booking creation still require internet and must not be queued.
 
-## Offline BookingIntent Rules
+## Offline Booking Request Rules
 
-- A BookingIntent is a local customer request, not a Backend Booking, reservation, hold, or idempotency record. Offline save success must say `تم حفظ طلب الحجز`, never `تم الحجز`.
-- Persisted BookingIntent states are exactly `PENDING_RECHECK`, `READY_TO_BOOK`, `CONFLICT`, `BOOKED`, `DISMISSED`, and `EXPIRED`; UI must render Arabic copy and never expose internal state names.
-- BookingIntent rows contain sensitive customer name, phone, and notes. Every read/write must stay scoped to user + Club + Court, Staff must use only `selectedMembership.court`, and selected-Club Platform Admins must never get a global all-Clubs intent queue.
-- Reconnect must not immediately classify or submit intents from the browser `online` event. The coordinator must refresh Schedule first, persist the relevant authoritative Court/date rows, then classify intents from those refreshed Backend slot snapshots.
-- Recheck uses stable slot identity: Court, date, start time, and end time. If the appointment time passed, classify `EXPIRED`; if the fresh exact slot is backend `FREE` and `is_available`, classify `READY_TO_BOOK`; otherwise classify `CONFLICT`. Do not calculate availability, price, recurrence, working hours, or conflicts locally.
-- `READY_TO_BOOK` is still not a reservation. The employee must manually press `احجز الآن`, which uses the existing `createBooking()` API and must not send `local_id`.
-- If final Booking creation succeeds, mark the intent `BOOKED` with the real Backend Booking ID, refresh Schedule, and then show Booking success copy. If Backend returns a structured slot-unavailable conflict, keep customer data and move the intent to `CONFLICT`.
-- Alternative slots may be ranked for presentation only from already refreshed Backend-authoritative FREE slots. Do not generate slots or infer availability.
-- Offline BookingIntent MVP is one-time only. Disable/hide new recurring booking creation offline; existing cached recurring reservations remain display-only.
-- `BOOKED` and `DISMISSED` intents must not appear in the active operational queue. Current retention is scoped local storage until explicit logout/user cleanup; do not add an unreviewed history surface or background purge without a product/security decision.
-- BookingIntent is the only offline operational write. No payment, refund, settlement, cancel, complete, no-show, reschedule, recurrence-stop, or automatic booking queue is allowed.
+- A Booking Request is local customer intent, not a Backend Booking, reservation, hold, confirmation, or proof of availability. Offline save success must say `تم حفظ طلب الحجز`, never `تم الحجز`.
+- The canonical persisted model is `BookingRequestRecord`; `BookingIntentRecord` is a transitional alias only. The existing physical IndexedDB store remains `booking_intents` for non-destructive migration safety.
+- Persisted Booking Request states are exactly `PENDING_SYNC`, `SYNCING`, `BOOKED`, `NEEDS_REVIEW`, `DISMISSED`, and `EXPIRED`; UI must render Arabic copy and never expose internal state names.
+- Review reasons are exactly `SLOT_UNAVAILABLE`, `INVALID_CUSTOMER_DATA`, and `RECURRING_UNAVAILABLE`. Do not add `PAST_APPOINTMENT`.
+- `local_id` is local UI/IndexedDB identity only. `client_request_id` is the stable Backend idempotency identity and must survive retries, app/PWA restarts, response loss, session expiry, re-authentication, and migration.
+- `requested_recurring` means the customer requested weekly recurrence. It is not Backend eligibility, a generated occurrence plan, or confirmed recurrence. Do not infer it from `original_slot_snapshot.can_start_recurring`.
+- Offline recurrence controls must preserve Backend tri-state meaning: `can_start_recurring=true` enables `ثبّت نفس الموعد كل أسبوع`; `false` disables it with Backend conflict context when available; `null` disables it and explains fresh Backend information is required.
+- Booking Request rows contain sensitive customer name, phone, and notes. Every read/write must stay scoped to user + Club + Court, Staff must use only `selectedMembership.court`, and selected-Club Platform Admins must never get a global all-Clubs queue.
+- Legacy v2 rows migrate in place: `PENDING_RECHECK` and `READY_TO_BOOK` become `PENDING_SYNC`; `CONFLICT` becomes `NEEDS_REVIEW / SLOT_UNAVAILABLE`; legacy time-based `EXPIRED` becomes `PENDING_SYNC`; `BOOKED` and `DISMISSED` remain terminal.
+- `EXPIRED` is retained only for migration/backward compatibility or a future approved lifecycle reason. Appointment time passing must not transition a request to `EXPIRED`.
+- `PENDING_SYNC` renders as waiting for confirmation. `SYNCING` renders as `جاري التأكيد...` and must not expose edit, alternative-slot, one-time conversion, or dismissal actions.
+- `NEEDS_REVIEW` actions are reason-specific: `SLOT_UNAVAILABLE` can choose another slot or dismiss, `INVALID_CUSTOMER_DATA` can edit customer fields or dismiss, and `RECURRING_UNAVAILABLE` can convert locally to one-time, choose another slot, or dismiss.
+- Customer-data editing changes only name, phone, and notes, then resets to `PENDING_SYNC` and clears `review_reason`. It must preserve `local_id`, `client_request_id`, requested slot fields, and `requested_recurring`.
+- Alternative slots may be ranked for presentation only from already refreshed Backend-authoritative FREE slots. Do not generate slots or infer availability. Selecting an alternative updates requested slot fields and `original_slot_snapshot`; if a recurring request selects a slot whose `can_start_recurring` is not true, keep the request under `NEEDS_REVIEW / RECURRING_UNAVAILABLE` until the user explicitly converts to one-time or chooses another slot.
+- Automatic Booking Request synchronization is owned by `src/offline/bookings/bookingRequestSync.ts` and invoked through `OfflineSyncCoordinator`; do not add page-level online listeners or a generic mutation queue.
+- Sync eligibility is `PENDING_SYNC` plus stale `SYNCING` only, scoped to current user + Club + authorized Courts. Do not auto-submit `BOOKED`, `DISMISSED`, `NEEDS_REVIEW`, or `EXPIRED`, and do not block past requested times.
+- Before the Booking POST, persist `SYNCING` and `last_attempt_at`. Stale `SYNCING` recovery uses the same `client_request_id`; never regenerate it after network failure, timeout, response loss, app restart, auth recovery, or retry.
+- Booking Request sync sends only customer intent fields to the existing Booking create API: Court, customer name, phone, requested start/end, optional notes, `is_recurring` from `requested_recurring`, and `client_request_id`. Never send local state, cached price, slot snapshots, or generated recurrence data.
+- Treat both first-create 201 and idempotent replay 200 as Booking success: mark `BOOKED` and persist `resolved_booking_id`.
+- Technical failures return to `PENDING_SYNC`; business mappings must use stable codes/field errors only. `BOOKING_SLOT_UNAVAILABLE`, `RECURRING_UNAVAILABLE`, and customer field `VALIDATION_ERROR` map to the approved review reasons. `BOOKING_CLIENT_REQUEST_MISMATCH` must stop automatic retry without generating a new ID and remains a Product/Engineering copy follow-up.
+- `SESSION_EXPIRED`, `TOKEN_NOT_VALID`, `USER_INACTIVE`, `USER_DELETED`, and `CLUB_ACCESS_REVOKED` must go through the centralized account-state helper; the request-sync engine must not implement its own destructive cleanup.
+- `BOOKED` and `DISMISSED` requests must not appear in the active operational queue. Current retention is scoped local storage until explicit logout/user cleanup; do not add an unreviewed history surface or automatic purge without a product/security decision.
+- Booking Request is the only offline operational write. No payment, refund, settlement, cancel, complete, no-show, reschedule, recurrence-stop, or other operational mutation queue is allowed.
 
 ## Offline Booking History Cache Rules
 
 - Booking sync stores the previous 7 Egypt-local calendar days, including today. It must not change online Booking History defaults or restrict online users to that range.
 - The canonical Booking cache is a background sync dataset, not the current filtered UI response. Search results and filtered server pages must never replace the complete seven-day snapshot.
-- Booking sync follows coordinator priority: Schedule first, then Bookings alongside later secondary datasets. Do not start a page-owned canonical Booking sync from `/bookings` mount, search, filter, or pagination changes.
+- Booking sync follows coordinator priority after Booking Requests and Schedule refresh, alongside Transactions in the secondary dataset phase. Do not start a page-owned canonical Booking sync from `/bookings` mount, search, filter, or pagination changes.
 - If the Bookings list endpoint is paginated, fetch all pages for the seven-day unfiltered period before committing. Page or IndexedDB failure preserves the previous snapshot and does not advance `bookings_last_sync_at`.
 - Staff Booking sync uses only `selectedMembership.court` from verified auth context. Owner, Manager, and selected-Club Platform Admin use the backend's current selected-Club scope; never combine Clubs or manually expand Staff Court access locally.
 - Online `/bookings` remains server-backed for search, filters, ordering, and pagination. IndexedDB is used only for offline/backend-unreachable resilience.
@@ -145,7 +169,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 
 - Transaction sync stores the previous 7 Egypt-local calendar days, including today. It must not change online Transaction ledger defaults or restrict online users to that range.
 - The canonical Transaction cache is a background sync dataset, not the current filtered UI response. Filtered server pages must never replace the complete seven-day snapshot.
-- Transaction sync follows coordinator priority: Schedule first, then Bookings and Transactions in the secondary phase. Do not start a page-owned canonical Transaction sync from `/transactions` mount, filter, search, sort, or pagination changes.
+- Transaction sync follows coordinator priority after Booking Requests and Schedule refresh, alongside Bookings in the secondary dataset phase. Do not start a page-owned canonical Transaction sync from `/transactions` mount, filter, search, sort, or pagination changes.
 - If the Transactions list endpoint is paginated, fetch all pages for the seven-day unfiltered period before committing. Page or IndexedDB failure preserves the previous snapshot and does not advance `transactions_last_sync_at`.
 - Staff Transaction sync uses only `selectedMembership.court` from verified auth context and must not send `created_by=currentUser` as a frontend scoping hack. Owner, Manager, and selected-Club Platform Admin use the backend's selected-Club scope; never combine Clubs.
 - Online `/transactions` remains server-backed for filters and pagination, and it does not expose unsupported server search or ordering controls. IndexedDB is used only for offline/backend-unreachable resilience.
@@ -160,7 +184,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Current Custody offline display is the last successful Backend current-custody response stored in IndexedDB, not a calculation from cached Transactions.
 - The `current_custody_snapshots` store is scoped by canonical user + Club, snapshot kind, collector scope, and Court scope. All-courts (`all`) and one Court (`court:{id}`) are different cache keys.
 - Staff/restricted-user custody stores the Backend settlement preview response. Owner/authorized Manager custody stores the grouped `unsettled-summary` response in one snapshot; do not fetch one preview per employee.
-- The sync coordinator refreshes Current Custody after Schedule, BookingIntent recheck, Bookings, and Transactions. Pages may persist successful online custody reads and may read the cached snapshot after a request failure, but must not attach page-level reconnect listeners.
+- The sync coordinator refreshes Current Custody after Booking Requests, Schedule, Bookings, and Transactions. Pages may persist successful online custody reads and may read the cached snapshot after a request failure, but must not attach page-level reconnect listeners.
 - If no cached custody snapshot exists while offline/backend-unreachable, show internet-required/error copy, not a zero custody state.
 - `NO_UNSETTLED_TRANSACTIONS` is an authoritative online empty state. Clear the matching stale local custody snapshot instead of fabricating a zero-valued snapshot.
 - Negative and zero-net custody values are displayed exactly from the Backend snapshot fields. Do not use `Math.abs`, clamp negatives, hide rows, or recompute signed net from PAYMENT/REFUND rows.

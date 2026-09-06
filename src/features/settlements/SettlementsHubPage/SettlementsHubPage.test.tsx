@@ -36,6 +36,7 @@ vi.mock('../settlementsApi', () => ({
 vi.mock('../../../offline/repositories/offlineRepositories', () => ({
   offlineRepositories: {
     deleteCurrentCustodySnapshot: vi.fn(),
+    readCachedTransactions: vi.fn(),
     readCurrentCustodySnapshot: vi.fn(),
     replaceCurrentCustodySnapshot: vi.fn(),
   },
@@ -303,6 +304,56 @@ describe('SettlementsHubPage', () => {
       .not.toBeInTheDocument()
     expect(screen.getByText(/بيانات محفوظة من آخر تحديث ناجح/))
       .toBeInTheDocument()
+  })
+
+  it('uses the offline Backend custody snapshot instead of the seven-day Transaction cache', async () => {
+    mockAuth('MANAGER', true)
+    mockedGetCurrentCustodySummary.mockRejectedValueOnce(
+      new Error('network failed'),
+    )
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValueOnce([
+      {
+        id: 21,
+        booking: 1,
+        amount: '900.00',
+        payment_method: 'CASH',
+        transaction_type: 'PAYMENT',
+        created: '2026-09-03T08:00:00+03:00',
+        is_cancelled: false,
+        is_settled: false,
+      },
+      {
+        id: 22,
+        booking: 1,
+        amount: '-150.00',
+        payment_method: 'CASH',
+        transaction_type: 'REFUND',
+        created: '2026-09-03T09:00:00+03:00',
+        is_cancelled: false,
+        is_settled: false,
+      },
+    ])
+    mockedOfflineRepositories.readCurrentCustodySnapshot.mockResolvedValueOnce({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      snapshot_kind: 'grouped_summary',
+      collector_scope: 'all',
+      collector_id: null,
+      court_scope: 'all',
+      court_id: null,
+      payload: currentCustodySummary,
+      synced_at: '2026-09-03T08:00:00.000Z',
+    })
+
+    renderHub()
+
+    expect(
+      await screen.findByText('المبلغ المستحق للتسليم: 1,250.00 ج.م'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('750.00 ج.م')).not.toBeInTheDocument()
+    expect(mockedOfflineRepositories.readCachedTransactions)
+      .not.toHaveBeenCalled()
   })
 
   it('renders cached selected-collector preview when that preview request fails', async () => {

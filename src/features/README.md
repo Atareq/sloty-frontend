@@ -12,12 +12,12 @@ online/offline or visibility changes. Authenticated operational sync is owned by
 
 Canonical Booking details live in `bookings/components/BookingActionSheet`. Customer edit lives in `EditBookingDetailsSheet`. Non-recurring reschedule lives in `RescheduleBookingSheet`. Virtual `RECURRING_RESERVED` details live in `schedule/components/VirtualRecurringSlotDetailsSheet` because that slot is not a Booking.
 
-Schedule owns the BookingIntent UX entry point because it starts from a cached
-FREE slot and reuses the existing `AddBookingSheet`. Offline/backend-unreachable
-submit saves a local one-time request as `PENDING_RECHECK`, never calls
-`createBooking()`, and never shows Booking success copy. Reconnect classification
-uses the offline coordinator's successful Schedule refresh before the employee
-can manually press `احجز الآن`.
+Schedule owns the current Booking Request entry point because it starts from a
+cached FREE slot and reuses the existing `AddBookingSheet`.
+Offline/backend-unreachable submit saves a local one-time request as
+`PENDING_SYNC`, never calls `createBooking()`, and never shows Booking success
+copy. Task 4 intentionally does not auto-submit or add final Needs Review UX;
+Task 6 owns authenticated submission.
 
 Booking History stays server-backed online. Its offline/backend-unreachable mode
 reads the scoped previous-seven-day snapshot from `src/offline`, applies only

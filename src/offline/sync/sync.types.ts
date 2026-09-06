@@ -2,7 +2,11 @@ import type {
   AuthRole,
   CurrentUserMembership,
 } from '../../core/auth/auth.types'
+import type {
+  BookingRequestQueueResult,
+} from '../bookings/bookingRequestSync'
 import type { OfflineScope } from '../offline.types'
+import type { OfflineFreshnessState } from '../freshness/offlineFreshness'
 
 export type SyncDataset =
   | 'schedule'
@@ -73,6 +77,7 @@ export interface OperationalSyncRunResult {
   trigger: SyncTrigger
   status: SyncResultStatus | 'partial_failure'
   datasets: Record<SyncDataset, DatasetSyncTaskResult>
+  bookingRequests?: BookingRequestQueueResult
   startedAt: string
   completedAt: string
 }
@@ -85,4 +90,8 @@ export interface OfflineSyncSnapshot {
   lastRunCompletedAt: string | null
   lastRunResult: OperationalSyncRunResult | null
   backendReachability: BackendReachability
+}
+
+export interface OfflineSyncFreshnessSnapshot extends OfflineFreshnessState {
+  isLoading: boolean
 }

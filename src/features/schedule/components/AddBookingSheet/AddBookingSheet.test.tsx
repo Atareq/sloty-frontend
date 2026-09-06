@@ -144,7 +144,7 @@ describe('AddBookingSheet', () => {
       .toBeDisabled()
   })
 
-  it('switches to local request copy and disables recurrence offline', async () => {
+  it('switches to local request copy and preserves allowed recurrence offline', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue(undefined)
 
@@ -163,13 +163,22 @@ describe('AddBookingSheet', () => {
       />,
     )
 
-    expect(screen.getByText(/هنحفظ طلب العميل فقط/)).toBeInTheDocument()
+    expect(
+      screen.getByText('هنحاول نأكد الحجز تلقائيًا أول ما الإنترنت يرجع.'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
       .toBeInTheDocument()
+    const recurringCheckbox = screen.getByRole('checkbox', {
+      name: /ثبّت نفس الموعد كل أسبوع/,
+    })
+    expect(recurringCheckbox).not.toBeDisabled()
     expect(
-      screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
-    ).toBeDisabled()
+      screen.getByText(
+        'التثبيت الأسبوعي متاح طبقًا لآخر تحديث وسيتم التأكد منه عند رجوع الإنترنت.',
+      ),
+    ).toBeInTheDocument()
 
+    await user.click(recurringCheckbox)
     await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
@@ -177,9 +186,35 @@ describe('AddBookingSheet', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       customer_name: 'أحمد علي',
       customer_phone: '+201012345678',
-      is_recurring: false,
+      is_recurring: true,
       notes: undefined,
     })
+  })
+
+  it('disables offline recurrence when eligibility is unknown', () => {
+    render(
+      <AddBookingSheet
+        canStartRecurring={null}
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        offlineIntentMode
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    expect(
+      screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
+    ).toBeDisabled()
+    expect(
+      screen.getByText(
+        'التثبيت الأسبوعي يحتاج إنترنت أو تحديث حديث للمعاد قبل حفظ الطلب.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('submits recurrence through one checkbox and one confirmation action', async () => {

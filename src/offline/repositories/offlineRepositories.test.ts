@@ -1,17 +1,22 @@
 import 'fake-indexeddb/auto'
+import Dexie from 'dexie'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Booking } from '../../features/bookings/bookings.types'
 import type { BookingSlot } from '../../features/schedule/scheduleApi.types'
 import type { Transaction } from '../../features/transactions/transactions.types'
 import { clearAuthTokens, getAccessToken } from '../../core/auth/authStorage'
 import { SlotyLocalDatabase } from '../db/SlotyLocalDatabase'
+import { unresolvedBookingRequestStatuses } from '../bookings/bookingRequestPersistence'
 import {
-  BOOKING_INTENT_STATUSES,
+  BOOKING_REQUEST_STATUSES,
   OFFLINE_SCHEMA_VERSION,
   type OfflineScope,
 } from '../offline.types'
 import { createOfflineScopeKey } from '../scope/offlineScope'
-import { createOfflineRepositories } from './offlineRepositories'
+import {
+  createOfflineRepositories,
+  type BookingIntentInput,
+} from './offlineRepositories'
 
 const userOneClubA: OfflineScope = { userId: 1, clubSlug: 'club-a' }
 const userOneClubB: OfflineScope = { userId: 1, clubSlug: 'club-b' }
@@ -63,7 +68,11 @@ function createTransaction(id: number): Transaction {
   }
 }
 
-function createIntent(localId: string, courtId = 7) {
+function createIntent(
+  localId: string,
+  courtId = 7,
+  overrides: Partial<BookingIntentInput> = {},
+): BookingIntentInput {
   return {
     local_id: localId,
     court_id: courtId,
@@ -73,12 +82,94 @@ function createIntent(localId: string, courtId = 7) {
     customer_name: 'عميل محلي',
     customer_phone: '+201000000000',
     notes: 'ملاحظة',
+    requested_recurring: false,
     original_slot_snapshot: slot,
-    status: 'PENDING_RECHECK' as const,
+    status: 'PENDING_SYNC' as const,
     created_at: '2026-08-30T12:00:00.000Z',
-    last_checked_at: null,
     resolved_booking_id: null,
+    ...overrides,
   }
+}
+
+type LegacyBookingIntentStatus =
+  | 'PENDING_RECHECK'
+  | 'READY_TO_BOOK'
+  | 'CONFLICT'
+  | 'BOOKED'
+  | 'DISMISSED'
+  | 'EXPIRED'
+
+function createLegacyIntent(
+  localId: string,
+  status: LegacyBookingIntentStatus,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    scope_key: createOfflineScopeKey(userOneClubA),
+    user_id: userOneClubA.userId,
+    club_slug: userOneClubA.clubSlug,
+    local_id: localId,
+    court_id: 7,
+    requested_date: '2026-08-30',
+    requested_start: slot.start_time,
+    requested_end: slot.end_time,
+    customer_name: `عميل ${localId}`,
+    customer_phone: '+201000000000',
+    notes: null,
+    original_slot_snapshot: {
+      ...slot,
+      can_start_recurring: true,
+    },
+    status,
+    created_at: '2026-08-30T12:00:00.000Z',
+    last_checked_at: '2026-08-30T13:00:00.000Z',
+    resolved_booking_id: null,
+    ...overrides,
+  }
+}
+
+async function seedLegacyVersion2Database(
+  databaseName: string,
+  records: Array<Record<string, unknown>>,
+): Promise<void> {
+  const legacyDb = new Dexie(databaseName)
+
+  legacyDb.version(1).stores({
+    sync_metadata: '&scope_key, user_id, club_slug',
+    schedule_days:
+      '&[scope_key+court_id+date], scope_key, user_id, club_slug, [scope_key+court_id], [scope_key+date]',
+    bookings:
+      '&[scope_key+booking_id], scope_key, user_id, club_slug, [scope_key+start_time], [scope_key+status], [scope_key+court_id], [scope_key+customer_name], [scope_key+customer_phone]',
+    booking_details: '&[scope_key+booking_id], scope_key, user_id, club_slug',
+    transactions:
+      '&[scope_key+transaction_id], scope_key, user_id, club_slug, [scope_key+created_at], [scope_key+payment_method], [scope_key+cancellation_state], [scope_key+settlement_state], [scope_key+collector_id], [scope_key+court_id]',
+    transaction_details:
+      '&[scope_key+transaction_id], scope_key, user_id, club_slug',
+    booking_intents:
+      '&[scope_key+local_id], scope_key, user_id, club_slug, [scope_key+court_id], [scope_key+status], [scope_key+created_at]',
+    offline_context: '&scope_key, user_id, club_slug, last_verified_at',
+  })
+  legacyDb.version(2).stores({
+    sync_metadata: '&scope_key, user_id, club_slug',
+    schedule_days:
+      '&[scope_key+court_id+date], scope_key, user_id, club_slug, [scope_key+court_id], [scope_key+date]',
+    bookings:
+      '&[scope_key+booking_id], scope_key, user_id, club_slug, [scope_key+start_time], [scope_key+status], [scope_key+court_id], [scope_key+customer_name], [scope_key+customer_phone]',
+    booking_details: '&[scope_key+booking_id], scope_key, user_id, club_slug',
+    transactions:
+      '&[scope_key+transaction_id], scope_key, user_id, club_slug, [scope_key+created_at], [scope_key+payment_method], [scope_key+cancellation_state], [scope_key+settlement_state], [scope_key+collector_id], [scope_key+court_id]',
+    transaction_details:
+      '&[scope_key+transaction_id], scope_key, user_id, club_slug',
+    current_custody_snapshots:
+      '&[scope_key+snapshot_kind+collector_scope+court_scope], scope_key, user_id, club_slug, [scope_key+snapshot_kind], [scope_key+collector_scope], [scope_key+court_scope], synced_at',
+    booking_intents:
+      '&[scope_key+local_id], scope_key, user_id, club_slug, [scope_key+court_id], [scope_key+status], [scope_key+created_at]',
+    offline_context: '&scope_key, user_id, club_slug, last_verified_at',
+  })
+
+  await legacyDb.open()
+  await legacyDb.table('booking_intents').bulkPut(records)
+  legacyDb.close()
 }
 
 describe('scoped offline repositories', () => {
@@ -125,6 +216,35 @@ describe('scoped offline repositories', () => {
     expect(createOfflineScopeKey(userOneClubA)).not.toBe(
       createOfflineScopeKey(userTwoClubA),
     )
+  })
+
+  it('stores operational freshness per user and Club scope and survives repository recreation', async () => {
+    await repositories.markOperationalSyncComplete(
+      userOneClubA,
+      '2026-09-04T08:00:00.000Z',
+    )
+    await repositories.markOperationalSyncComplete(
+      userOneClubB,
+      '2026-09-04T06:00:00.000Z',
+    )
+    await repositories.markOperationalSyncComplete(
+      userTwoClubA,
+      '2026-09-04T03:00:00.000Z',
+    )
+
+    expect((await repositories.getSyncMetadata(userOneClubA))?.operational_last_sync_at)
+      .toBe('2026-09-04T08:00:00.000Z')
+    expect((await repositories.getSyncMetadata(userOneClubB))?.operational_last_sync_at)
+      .toBe('2026-09-04T06:00:00.000Z')
+    expect((await repositories.getSyncMetadata(userTwoClubA))?.operational_last_sync_at)
+      .toBe('2026-09-04T03:00:00.000Z')
+
+    db.close()
+    repositories = createOfflineRepositories(db)
+    await db.open()
+
+    expect((await repositories.getSyncMetadata(userOneClubA))?.operational_last_sync_at)
+      .toBe('2026-09-04T08:00:00.000Z')
   })
 
   it('saves and reads Schedule only for the exact scope, Court, and date', async () => {
@@ -292,11 +412,11 @@ describe('scoped offline repositories', () => {
     expect(await repositories.getBookingIntents(userOneClubB, 7)).toEqual([])
     expect(repositories.getBookingIntents.length).toBe(2)
     expect('getAllScheduleDays' in repositories).toBe(false)
-    expect(BOOKING_INTENT_STATUSES).toEqual([
-      'PENDING_RECHECK',
-      'READY_TO_BOOK',
-      'CONFLICT',
+    expect(BOOKING_REQUEST_STATUSES).toEqual([
+      'PENDING_SYNC',
+      'SYNCING',
       'BOOKED',
+      'NEEDS_REVIEW',
       'DISMISSED',
       'EXPIRED',
     ])
@@ -311,7 +431,7 @@ describe('scoped offline repositories', () => {
       'intent-1',
       'BOOKED',
       {
-        lastCheckedAt: '2026-08-30T13:00:00.000Z',
+        lastAttemptAt: '2026-08-30T13:00:00.000Z',
         resolvedBookingId: 55,
       },
     )
@@ -320,11 +440,11 @@ describe('scoped offline repositories', () => {
     expect(updatedIntent?.resolved_booking_id).toBe(55)
     expect(
       (await repositories.getBookingIntent(userOneClubA, 'intent-1'))
-        ?.last_checked_at,
+        ?.last_attempt_at,
     ).toBe('2026-08-30T13:00:00.000Z')
     expect(
       (await repositories.getBookingIntent(userTwoClubA, 'intent-1'))?.status,
-    ).toBe('PENDING_RECHECK')
+    ).toBe('PENDING_SYNC')
     expect(
       await repositories.updateBookingIntentStatus(
         userOneClubB,
@@ -332,6 +452,181 @@ describe('scoped offline repositories', () => {
         'DISMISSED',
       ),
     ).toBeUndefined()
+  })
+
+  it('selects only retryable Booking Requests for sync in deterministic requested-time order', async () => {
+    await repositories.saveBookingIntent(
+      userOneClubA,
+      createIntent('future', 7, {
+        requested_start: '2026-09-06T10:00:00',
+        requested_end: '2026-09-06T11:00:00',
+        status: 'PENDING_SYNC',
+      }),
+    )
+    await repositories.saveBookingIntent(
+      userOneClubA,
+      createIntent('historical', 7, {
+        requested_start: '2026-01-01T10:00:00',
+        requested_end: '2026-01-01T11:00:00',
+        status: 'PENDING_SYNC',
+      }),
+    )
+    await repositories.saveBookingIntent(
+      userOneClubA,
+      createIntent('syncing', 7, {
+        requested_start: '2026-01-02T10:00:00',
+        requested_end: '2026-01-02T11:00:00',
+        status: 'SYNCING',
+      }),
+    )
+    await repositories.saveBookingIntent(
+      userOneClubA,
+      createIntent('review', 7, { status: 'NEEDS_REVIEW' }),
+    )
+    await repositories.saveBookingIntent(
+      userOneClubA,
+      createIntent('dismissed', 7, { status: 'DISMISSED' }),
+    )
+    await repositories.saveBookingIntent(
+      userOneClubB,
+      createIntent('other-club', 7, { status: 'PENDING_SYNC' }),
+    )
+
+    const requests = await repositories.getBookingRequestsForSync(
+      userOneClubA,
+      [7],
+    )
+
+    expect(requests.map((request) => request.local_id)).toEqual([
+      'historical',
+      'syncing',
+      'future',
+    ])
+  })
+
+  it('migrates legacy BookingIntent rows to canonical Booking Request records without losing unresolved work', async () => {
+    const databaseName = `sloty-legacy-${crypto.randomUUID()}`
+    await seedLegacyVersion2Database(databaseName, [
+      createLegacyIntent('pending', 'PENDING_RECHECK'),
+      createLegacyIntent('ready', 'READY_TO_BOOK'),
+      createLegacyIntent('conflict', 'CONFLICT'),
+      createLegacyIntent('expired-time', 'EXPIRED'),
+      createLegacyIntent('booked', 'BOOKED', { resolved_booking_id: 55 }),
+      createLegacyIntent('dismissed', 'DISMISSED'),
+    ])
+
+    const migratedDb = new SlotyLocalDatabase(databaseName)
+    await migratedDb.open()
+    const migratedRepositories = createOfflineRepositories(migratedDb)
+    const migratedRequests =
+      await migratedRepositories.getBookingIntents(userOneClubA, 7)
+    const byLocalId = Object.fromEntries(
+      migratedRequests.map((request) => [request.local_id, request]),
+    )
+
+    expect(migratedDb.verno).toBe(OFFLINE_SCHEMA_VERSION)
+    expect(
+      migratedRequests.filter((request) =>
+        unresolvedBookingRequestStatuses.includes(request.status),
+      ),
+    ).toHaveLength(4)
+    expect(byLocalId.pending.status).toBe('PENDING_SYNC')
+    expect(byLocalId.ready.status).toBe('PENDING_SYNC')
+    expect(byLocalId.conflict.status).toBe('NEEDS_REVIEW')
+    expect(byLocalId.conflict.review_reason).toBe('SLOT_UNAVAILABLE')
+    expect(byLocalId['expired-time'].status).toBe('PENDING_SYNC')
+    expect(byLocalId.booked.status).toBe('BOOKED')
+    expect(byLocalId.booked.resolved_booking_id).toBe(55)
+    expect(byLocalId.dismissed.status).toBe('DISMISSED')
+    expect(migratedRequests.every((request) => request.client_request_id))
+      .toBe(true)
+    expect(new Set(migratedRequests.map((request) => request.client_request_id)).size)
+      .toBe(6)
+    expect(migratedRequests.every((request) => request.requested_recurring === false))
+      .toBe(true)
+    expect(byLocalId.pending.created_at).toBe('2026-08-30T12:00:00.000Z')
+    expect(byLocalId.pending.updated_at).toBe('2026-08-30T13:00:00.000Z')
+    expect(byLocalId.pending.last_attempt_at).toBeNull()
+    expect(byLocalId.pending.scope_key).toBe(createOfflineScopeKey(userOneClubA))
+    expect('last_checked_at' in byLocalId.pending).toBe(false)
+
+    migratedDb.close()
+    await migratedDb.delete()
+  })
+
+  it('preserves existing client_request_id and explicit requested_recurring through migration and reopen', async () => {
+    const databaseName = `sloty-legacy-${crypto.randomUUID()}`
+    await seedLegacyVersion2Database(databaseName, [
+      createLegacyIntent('existing-id', 'PENDING_RECHECK', {
+        client_request_id: 'existing-client-request-id',
+        requested_recurring: true,
+      }),
+    ])
+
+    const firstOpen = new SlotyLocalDatabase(databaseName)
+    await firstOpen.open()
+    const firstRecord = await createOfflineRepositories(firstOpen)
+      .getBookingIntent(userOneClubA, 'existing-id')
+    firstOpen.close()
+
+    const secondOpen = new SlotyLocalDatabase(databaseName)
+    await secondOpen.open()
+    const secondRecord = await createOfflineRepositories(secondOpen)
+      .getBookingIntent(userOneClubA, 'existing-id')
+
+    expect(firstRecord?.client_request_id).toBe('existing-client-request-id')
+    expect(secondRecord?.client_request_id).toBe('existing-client-request-id')
+    expect(secondRecord?.requested_recurring).toBe(true)
+
+    secondOpen.close()
+    await secondOpen.delete()
+  })
+
+  it('keeps partial Booking Request updates from changing idempotency, recurrence, or customer payload', async () => {
+    await repositories.saveBookingIntent(userOneClubA, {
+      ...createIntent('intent-stable'),
+      client_request_id: 'stable-client-request-id',
+      requested_recurring: true,
+    })
+
+    await repositories.updateBookingIntentStatus(
+      userOneClubA,
+      'intent-stable',
+      'NEEDS_REVIEW',
+      { reviewReason: 'SLOT_UNAVAILABLE' },
+    )
+
+    const updated = await repositories.getBookingIntent(
+      userOneClubA,
+      'intent-stable',
+    )
+    expect(updated?.client_request_id).toBe('stable-client-request-id')
+    expect(updated?.requested_recurring).toBe(true)
+    expect(updated?.customer_name).toBe('عميل محلي')
+    expect(updated?.original_slot_snapshot).toEqual(slot)
+    expect(updated?.review_reason).toBe('SLOT_UNAVAILABLE')
+  })
+
+  it('creates new offline requests as canonical Booking Request records and survives database reopen', async () => {
+    await repositories.saveBookingIntent(userOneClubA, createIntent('intent-new'))
+    const saved = await repositories.getBookingIntent(userOneClubA, 'intent-new')
+
+    expect(saved?.status).toBe('PENDING_SYNC')
+    expect(saved?.client_request_id).toMatch(/^booking-request-/)
+    expect(saved?.requested_recurring).toBe(false)
+    expect(saved?.review_reason).toBeNull()
+    expect(saved?.updated_at).toBe(saved?.created_at)
+    expect(saved?.last_attempt_at).toBeNull()
+
+    const stableClientRequestId = saved?.client_request_id
+    db.close()
+    repositories = createOfflineRepositories(db)
+    await db.open()
+
+    const reopened = await repositories.getBookingIntent(userOneClubA, 'intent-new')
+    expect(reopened?.local_id).toBe('intent-new')
+    expect(reopened?.client_request_id).toBe(stableClientRequestId)
+    expect(reopened?.customer_name).toBe('عميل محلي')
   })
 
   it('atomically replaces a complete Booking snapshot and preserves other scopes and datasets', async () => {
@@ -646,6 +941,59 @@ describe('scoped offline repositories', () => {
     expect(await repositories.readOfflineContext(userOneClubA)).toBeDefined()
     expect((await repositories.readOfflineContext(userOneClubB))?.membership_id)
       .toBe(11)
+  })
+
+  it('reads the latest verified context for a selected Club without crossing Club scope', async () => {
+    const membership = {
+      id: 10,
+      role: 'STAFF' as const,
+      club: { id: 1, slug: 'club-a', name: 'Club A', is_active: true },
+      court: { id: 7, name: 'ملعب 1' },
+    }
+    await repositories.saveOfflineContext({
+      scope: userOneClubA,
+      displayName: 'قديم',
+      isPlatformAdmin: false,
+      membership,
+      lastVerifiedAt: '2026-09-04T08:00:00.000Z',
+    })
+    await repositories.saveOfflineContext({
+      scope: userTwoClubA,
+      displayName: 'أحدث',
+      isPlatformAdmin: false,
+      membership: {
+        ...membership,
+        id: 20,
+      },
+      lastVerifiedAt: '2026-09-04T09:00:00.000Z',
+    })
+    await repositories.saveOfflineContext({
+      scope: userOneClubB,
+      displayName: 'نادي آخر',
+      isPlatformAdmin: false,
+      membership: {
+        ...membership,
+        id: 30,
+        club: { id: 2, slug: 'club-b', name: 'Club B', is_active: true },
+      },
+      lastVerifiedAt: '2026-09-04T10:00:00.000Z',
+    })
+
+    expect(
+      await repositories.readLatestOfflineContextForClub('club-a'),
+    ).toMatchObject({
+      user_id: 2,
+      club_slug: 'club-a',
+      display_name: 'أحدث',
+      membership_id: 20,
+    })
+    expect(
+      await repositories.readLatestOfflineContextForClub('club-b'),
+    ).toMatchObject({
+      user_id: 1,
+      club_slug: 'club-b',
+      membership_id: 30,
+    })
   })
 
   it('keeps Platform Admin operational context Club-scoped', async () => {

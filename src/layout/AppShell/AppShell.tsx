@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../../core/auth/useAuth'
 import { LogoutConfirmationSheet } from '../../features/auth/LogoutConfirmationSheet/LogoutConfirmationSheet'
 import { OfflineSyncProvider } from '../../offline/sync/OfflineSyncProvider'
+import { useOfflineSync } from '../../offline/sync/offlineSyncContext'
 import { PwaExperience } from '../../pwa/PwaExperience'
 import {
   isPwaPromptBlockedRoute,
@@ -88,6 +89,39 @@ function getStoredViewMode(): ViewMode {
   }
 
   return 'mobile'
+}
+
+function OfflineFreshnessNotice() {
+  const { connectivity, freshness } = useOfflineSync()
+  const isOfflineLike =
+    connectivity.browserNetwork === 'offline' ||
+    connectivity.backendReachability === 'unreachable'
+
+  if (
+    !isOfflineLike ||
+    freshness.isLoading ||
+    !freshness.warningText ||
+    freshness.level === 'fresh' ||
+    freshness.level === 'unknown'
+  ) {
+    return null
+  }
+
+  return (
+    <div
+      className={[
+        'mb-4 rounded-2xl border px-4 py-3 text-sm font-bold leading-6',
+        freshness.level === 'creation_restricted'
+          ? 'border-rose-200 bg-rose-50 text-rose-800'
+          : 'border-amber-200 bg-amber-50 text-amber-900',
+      ].join(' ')}
+      role="status"
+    >
+      {freshness.warningText.split('\n').map((line) => (
+        <p key={line}>{line}</p>
+      ))}
+    </div>
+  )
 }
 
 function getViewModeToggleLabel(currentViewMode: ViewMode): string {
@@ -362,6 +396,7 @@ export function AppShell() {
               />
             ) : null}
             <OfflineSyncProvider>
+              <OfflineFreshnessNotice />
               <AppViewModeContext.Provider value={viewMode}>
                 <Outlet />
               </AppViewModeContext.Provider>

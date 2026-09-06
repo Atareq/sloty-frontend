@@ -102,10 +102,12 @@ export function listBookingSlots(
 export function createBooking(
   clubSlug: string,
   payload: BookingCreatePayload,
+  options: { signal?: AbortSignal } = {},
 ): Promise<BookingListItem> {
   return apiRequest<BookingListItem>(apiEndpoints.clubs.bookings.list(clubSlug), {
     method: 'POST',
     body: payload,
+    ...(options.signal ? { signal: options.signal } : {}),
   })
 }
 

@@ -54,10 +54,14 @@ function intent(
     customer_name: 'أحمد علي',
     customer_phone: '+201012345678',
     notes: 'ملاحظة',
+    requested_recurring: false,
     original_slot_snapshot: originalSlot,
-    status: 'PENDING_RECHECK',
+    status: 'PENDING_SYNC',
+    review_reason: null,
     created_at: '2026-08-30T12:00:00.000Z',
-    last_checked_at: null,
+    updated_at: '2026-08-30T12:00:00.000Z',
+    client_request_id: 'client-request-1',
+    last_attempt_at: null,
     resolved_booking_id: null,
     ...overrides,
   }
@@ -81,16 +85,14 @@ function scheduleDay(
 
 describe('bookingIntentRecheck', () => {
   it('uses locked Arabic copy for persisted internal states', () => {
-    expect(getBookingIntentStatusLabel('PENDING_RECHECK')).toBe(
+    expect(getBookingIntentStatusLabel('PENDING_SYNC')).toBe(
       'بانتظار التأكيد',
     )
-    expect(getBookingIntentStatusLabel('READY_TO_BOOK')).toBe('المعاد متاح')
-    expect(getBookingIntentStatusLabel('CONFLICT')).toBe(
-      'المعاد مبقاش متاح',
-    )
+    expect(getBookingIntentStatusLabel('SYNCING')).toBe('جاري التأكيد...')
+    expect(getBookingIntentStatusLabel('NEEDS_REVIEW')).toBe('محتاج مراجعة')
     expect(getBookingIntentStatusLabel('BOOKED')).toBe('تم الحجز')
     expect(getBookingIntentStatusLabel('DISMISSED')).toBe('تم تجاهل الطلب')
-    expect(getBookingIntentStatusLabel('EXPIRED')).toBe('انتهى الطلب')
+    expect(getBookingIntentStatusLabel('EXPIRED')).toBe('محفوظ للتوافق')
   })
 
   it('finds a slot by Court/date/start/end rather than array index', () => {
@@ -104,17 +106,17 @@ describe('bookingIntentRecheck', () => {
     ).toBe(exactSlot)
   })
 
-  it('classifies fresh backend FREE slots as READY_TO_BOOK', () => {
+  it('keeps fresh backend FREE slots as pending sync without manual confirmation', () => {
     expect(
       classifyBookingIntentFromSchedule(
         intent(),
         scheduleDay(7, [slot('18:00')]),
         new Date('2026-08-30T12:00:00+03:00'),
       ),
-    ).toBe('READY_TO_BOOK')
+    ).toBe('PENDING_SYNC')
   })
 
-  it('classifies occupied or missing fresh slots as CONFLICT', () => {
+  it('classifies occupied or missing fresh slots as needs review', () => {
     expect(
       classifyBookingIntentFromSchedule(
         intent(),
@@ -126,7 +128,7 @@ describe('bookingIntentRecheck', () => {
         ]),
         new Date('2026-08-30T12:00:00+03:00'),
       ),
-    ).toBe('CONFLICT')
+    ).toBe('NEEDS_REVIEW')
 
     expect(
       classifyBookingIntentFromSchedule(
@@ -134,20 +136,20 @@ describe('bookingIntentRecheck', () => {
         scheduleDay(7, [slot('20:00')]),
         new Date('2026-08-30T12:00:00+03:00'),
       ),
-    ).toBe('CONFLICT')
+    ).toBe('NEEDS_REVIEW')
   })
 
-  it('classifies passed appointment times as EXPIRED using Egypt-local time', () => {
+  it('does not expire passed appointment times because historical requests are valid', () => {
     expect(
       classifyBookingIntentFromSchedule(
         intent(),
         scheduleDay(7, [slot('18:00')]),
         new Date('2026-08-30T19:01:00+03:00'),
       ),
-    ).toBe('EXPIRED')
+    ).toBe('PENDING_SYNC')
   })
 
-  it('updates only intents with a fresh relevant Schedule day', async () => {
+  it('keeps legacy recheck transitional and does not mutate canonical requests', async () => {
     const updateBookingIntent = vi.fn().mockResolvedValue(undefined)
     const repositories = {
       getBookingIntentsForCourts: vi.fn().mockResolvedValue([
@@ -155,7 +157,7 @@ describe('bookingIntentRecheck', () => {
         intent({
           local_id: 'intent-2',
           court_id: 8,
-          status: 'PENDING_RECHECK',
+          status: 'PENDING_SYNC',
         }),
         intent({
           local_id: 'intent-3',
@@ -176,19 +178,11 @@ describe('bookingIntentRecheck', () => {
     })
 
     expect(result).toEqual({
-      checkedCount: 1,
-      updatedCount: 1,
-      skippedCount: 1,
+      checkedCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
     })
-    expect(updateBookingIntent).toHaveBeenCalledWith(scope, 'intent-1', {
-      status: 'READY_TO_BOOK',
-      last_checked_at: '2026-08-30T09:00:00.000Z',
-    })
-    expect(updateBookingIntent).not.toHaveBeenCalledWith(
-      scope,
-      'intent-2',
-      expect.anything(),
-    )
+    expect(updateBookingIntent).not.toHaveBeenCalled()
   })
 
   it('ranks backend-provided FREE alternatives without generating slots', () => {

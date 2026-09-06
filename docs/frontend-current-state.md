@@ -193,17 +193,17 @@ See also:
 - Transactions remain server-backed online for their current filters and pagination. The current backend list contract has no server search or ordering query, so online `/transactions` does not expose those controls. Offline/backend-unreachable mode reads the scoped seven-day snapshot, searches cached payment references locally, supports safe cached-field filters, sorts the complete bounded dataset locally, distinguishes empty results from outside-window requests, and shows cached Transaction details read-only.
 - Current Custody remains server-backed online. After a current-custody request fails, Dashboard and Settlements may render the last successful scoped Backend custody snapshot with last-update context. If no snapshot exists, they show an internet-required/error state rather than a fake zero.
 - Booking details and Transaction details render full meaningful `notes` under `ملاحظات` with readable wrapping/newlines and hide the entire Notes block when notes are null, empty, or whitespace-only.
-- Schedule, Booking History, Transactions, and Current Custody offline data remains read-mostly. The only offline write is saving a one-time BookingIntent customer request from the existing booking sheet. Payment, transaction cancellation, refunds, settlement actions, booking cancel/complete/no-show/customer edit/reschedule/recurrence-stop, recurring booking creation, automatic booking submission, and every other mutation require internet and are not queued.
+- Schedule, Booking History, Transactions, and Current Custody offline data remains read-mostly. The only offline write is saving a Booking Request customer intent from the existing booking sheet. Payment, transaction cancellation, refunds, settlement actions, booking cancel/complete/no-show/customer edit/reschedule/recurrence-stop, automatic booking submission, and every other mutation require internet and are not queued.
 
-## Offline BookingIntent reconnect flow
+## Offline Booking Request reconnect flow
 
-- Offline/backend-unreachable FREE Schedule slots open the existing booking sheet with `احفظ طلب الحجز`. The sheet reuses the same customer name, phone, notes, validation, and dirty-form protection, but disables new weekly recurrence.
-- A saved request starts as `PENDING_RECHECK` and shows `تم حفظ طلب الحجز` / `بانتظار التأكيد`. It must never show Booking success copy because no Backend Booking exists.
-- Persisted states are `PENDING_RECHECK`, `READY_TO_BOOK`, `CONFLICT`, `BOOKED`, `DISMISSED`, and `EXPIRED`; UI copy is Arabic and state names are not shown to users.
-- Reconnect order is fixed: the sync coordinator refreshes/persists Schedule first, then rechecks intents for the successfully refreshed Courts, then continues secondary Booking/Transaction sync. Raw browser online events do not book or classify intents directly.
-- Recheck uses Court, date, start, and end as slot identity. Fresh backend `FREE` + `is_available` becomes `READY_TO_BOOK`; a fresh occupied/missing slot becomes `CONFLICT`; passed appointment time becomes `EXPIRED`.
-- `READY_TO_BOOK` still is not a reservation. `احجز الآن` manually calls the existing `createBooking()` API using customer data from the intent and current slot timing from the latest authoritative Schedule snapshot. `local_id` is not sent.
-- Backend final-race conflicts keep the customer data and move the intent to `CONFLICT`. Alternative slots are ranked only from fresh backend FREE slots; the frontend does not generate availability, price, or recurrence.
+- Offline/backend-unreachable FREE Schedule slots open the existing booking sheet with `احفظ طلب الحجز`. The sheet reuses the same customer name, phone, notes, validation, and dirty-form protection. Weekly recurrence can be requested only when the cached Backend slot reports `can_start_recurring === true`; `false` and `null` disable the checkbox.
+- A saved request starts as `PENDING_SYNC` and shows `تم حفظ طلب الحجز` / `بانتظار التأكيد`. It must never show Booking success copy because no Backend Booking exists.
+- Persisted states are `PENDING_SYNC`, `SYNCING`, `NEEDS_REVIEW`, `BOOKED`, `DISMISSED`, and compatibility-only `EXPIRED`; UI copy is Arabic and state names are not shown to users.
+- Reconnect order remains Schedule refresh first before future submission logic. Task 5 does not auto-submit, replay HTTP requests, classify from raw browser online events, or expose a manual `احجز الآن` request action.
+- Needs Review is reason-driven: `SLOT_UNAVAILABLE` offers another cached/backend FREE slot, `INVALID_CUSTOMER_DATA` offers editing name/phone/notes, and `RECURRING_UNAVAILABLE` offers local one-time conversion or another cached/backend FREE slot.
+- Editing customer data preserves `local_id`, `client_request_id`, requested slot fields, and `requested_recurring`, then resets the request to `PENDING_SYNC`.
+- Alternative slots are ranked only from already refreshed backend FREE slots. Selecting one updates requested slot fields and `original_slot_snapshot`; the frontend does not generate availability, price, or recurrence.
 
 ## Settlements
 

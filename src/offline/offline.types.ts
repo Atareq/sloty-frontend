@@ -7,7 +7,7 @@ import type {
 } from '../features/settlements/settlements.types'
 import type { Transaction } from '../features/transactions/transactions.types'
 
-export const OFFLINE_SCHEMA_VERSION = 2
+export const OFFLINE_SCHEMA_VERSION = 3
 
 export interface OfflineScope {
   userId: number
@@ -21,6 +21,7 @@ export interface ScopedOfflineRecord {
 }
 
 export interface SyncMetadataRecord extends ScopedOfflineRecord {
+  operational_last_sync_at?: string
   schedule_last_sync_at?: string
   bookings_last_sync_at?: string
   transactions_last_sync_at?: string
@@ -92,25 +93,36 @@ export interface CurrentCustodySnapshotRecord extends ScopedOfflineRecord {
   synced_at: string
 }
 
-export const BOOKING_INTENT_STATUSES = [
-  'PENDING_RECHECK',
-  'READY_TO_BOOK',
-  'CONFLICT',
+export const BOOKING_REQUEST_STATUSES = [
+  'PENDING_SYNC',
+  'SYNCING',
   'BOOKED',
+  'NEEDS_REVIEW',
   'DISMISSED',
   'EXPIRED',
 ] as const
 
-export type BookingIntentStatus = (typeof BOOKING_INTENT_STATUSES)[number]
+export type BookingRequestStatus = (typeof BOOKING_REQUEST_STATUSES)[number]
+
+export const BOOKING_REQUEST_REVIEW_REASONS = [
+  'SLOT_UNAVAILABLE',
+  'INVALID_CUSTOMER_DATA',
+  'RECURRING_UNAVAILABLE',
+] as const
+
+export type BookingRequestReviewReason =
+  (typeof BOOKING_REQUEST_REVIEW_REASONS)[number]
 
 /**
- * Local-only record for a future reconnect workflow.
+ * Local customer intent waiting for a future authenticated Backend submission.
  *
- * `local_id` is neither a Backend Booking ID nor an idempotency key and must
- * never be sent to the Booking API.
+ * `local_id` is local UI/IndexedDB identity. `client_request_id` is the stable
+ * Backend idempotency identity for this logical request and must survive
+ * app restarts, retries, response loss, and re-authentication.
  */
-export interface BookingIntentRecord extends ScopedOfflineRecord {
+export interface BookingRequestRecord extends ScopedOfflineRecord {
   local_id: string
+  client_request_id: string
   court_id: number
   requested_date: string
   requested_start: string
@@ -118,12 +130,19 @@ export interface BookingIntentRecord extends ScopedOfflineRecord {
   customer_name: string
   customer_phone: string
   notes: string | null
+  requested_recurring: boolean
   original_slot_snapshot: BookingSlot
-  status: BookingIntentStatus
+  status: BookingRequestStatus
+  review_reason: BookingRequestReviewReason | null
   created_at: string
-  last_checked_at: string | null
+  updated_at: string
+  last_attempt_at: string | null
   resolved_booking_id: number | null
 }
+
+export const BOOKING_INTENT_STATUSES = BOOKING_REQUEST_STATUSES
+export type BookingIntentStatus = BookingRequestStatus
+export type BookingIntentRecord = BookingRequestRecord
 
 export interface OfflineContextRecord extends ScopedOfflineRecord {
   display_name: string

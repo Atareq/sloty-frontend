@@ -6,6 +6,7 @@ import {
 import { PwaContext } from './pwaContext'
 import { usePwaInstall } from './pwaInstall'
 import { pwaRegistration } from './pwaRegistration'
+import { requestPersistentStorageOnce } from './storagePersistence'
 
 export interface PwaProviderProps {
   children: ReactNode
@@ -22,6 +23,7 @@ export function PwaProvider({ children }: PwaProviderProps) {
 
   useEffect(() => {
     pwaRegistration.start()
+    void requestPersistentStorageOnce()
   }, [])
 
   return (

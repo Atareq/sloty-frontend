@@ -192,6 +192,14 @@ function mockOfflineMode() {
       lastBrowserEvent: 'offline',
       lastConnectivityChangeAt: '2026-07-21T10:00:00.000Z',
     },
+    freshness: {
+      ageMs: 60 * 60 * 1000,
+      canCreateNewOfflineRequest: true,
+      isLoading: false,
+      lastSuccessfulOperationalSyncAt: '2026-07-21T09:00:00.000Z',
+      level: 'fresh',
+      warningText: null,
+    },
     requestSync: vi.fn(),
     sync: {
       status: 'idle',
@@ -264,6 +272,14 @@ describe('BookingsListPage', () => {
         eventVersion: 0,
         lastBrowserEvent: null,
         lastConnectivityChangeAt: null,
+      },
+      freshness: {
+        ageMs: 60 * 60 * 1000,
+        canCreateNewOfflineRequest: true,
+        isLoading: false,
+        lastSuccessfulOperationalSyncAt: '2026-07-21T09:00:00.000Z',
+        level: 'fresh',
+        warningText: null,
       },
       requestSync: vi.fn(),
       sync: {

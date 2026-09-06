@@ -32,12 +32,15 @@ Current Schedule date/control UX:
 - No-cache offline state uses `محتاج اتصال بالإنترنت أول مرة` with a retry action. Date outside the synchronized window uses internet-required copy. Cached empty days use the backend/fallback empty message and are not treated as no-cache.
 - Offline FREE Schedule slots open the existing booking sheet in request-save mode. The primary CTA is `احفظ طلب الحجز`, success is `تم حفظ طلب الحجز`, and status context is `بانتظار التأكيد`. All lifecycle/money/recurrence actions remain disabled or blocked with `يحتاج اتصال بالإنترنت`.
 
-Current BookingIntent review UX:
+Current Booking Request review UX:
 
 - Schedule/Operational Home shows active saved requests inline, not in a new navigation page.
-- Active states use user-facing Arabic copy: `بانتظار التأكيد`, `المعاد متاح`, `المعاد مبقاش متاح`, `تم الحجز`, `تم تجاهل الطلب`, `انتهى الطلب`.
-- `READY_TO_BOOK` shows `✓ المعاد لسه متاح` plus `احجز الآن` and `تجاهل الطلب`; `احجز الآن` is manual and online-only.
-- `CONFLICT` shows `المعاد مبقاش متاح.` plus `اختار معاد تاني` and `تجاهل الطلب`.
+- Active states use user-facing Arabic copy: `بانتظار التأكيد`, `جاري التأكيد...`, reason-specific Needs Review text, `تم الحجز`, `تم تجاهل الطلب`, and compatibility-only `محفوظ للتوافق`.
+- `PENDING_SYNC` shows clear saved-request copy and may allow customer-data editing or dismissal.
+- `SYNCING` is locked and must not expose edit, alternative-slot, one-time conversion, or dismissal actions.
+- `NEEDS_REVIEW / SLOT_UNAVAILABLE` shows `المعاد مبقاش متاح` plus `اختار معاد تاني` and `تجاهل الطلب`.
+- `NEEDS_REVIEW / INVALID_CUSTOMER_DATA` shows `بيانات العميل محتاجة تعديل` plus `تعديل البيانات` and `تجاهل الطلب`.
+- `NEEDS_REVIEW / RECURRING_UNAVAILABLE` shows `المعاد لسه متاح، لكن التثبيت الأسبوعي مبقاش متاح.` plus `احجز مرة واحدة`, `اختار معاد تاني`, and `تجاهل الطلب`.
 - Alternatives are shown as compact Court/time buttons from refreshed backend FREE slots only; do not present generated or calculated availability.
 
 Current Booking History offline UX:

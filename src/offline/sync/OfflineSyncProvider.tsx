@@ -2,11 +2,17 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import { useAuth } from '../../core/auth/useAuth'
 import { browserConnectivity } from '../connectivity/browserConnectivity'
+import {
+  classifyOfflineFreshness,
+  getOperationalFreshnessTimestamp,
+} from '../freshness/offlineFreshness'
+import { offlineRepositories } from '../repositories/offlineRepositories'
 import { createOperationalSyncContext } from './operationalSyncContext'
 import { OfflineSyncLifecycle } from './offlineSyncLifecycle'
 import {
@@ -17,6 +23,11 @@ import { offlineSyncCoordinator } from './syncCoordinator'
 
 export interface OfflineSyncProviderProps {
   children: ReactNode
+}
+
+const initialFreshness = {
+  ...classifyOfflineFreshness(null),
+  isLoading: false,
 }
 
 /**
@@ -30,6 +41,7 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
   )
   const contextRef = useRef(operationalContext)
   const lifecycleRef = useRef<OfflineSyncLifecycle | null>(null)
+  const [freshness, setFreshness] = useState(initialFreshness)
   const syncSnapshot = useSyncExternalStore(
     offlineSyncCoordinator.subscribe,
     offlineSyncCoordinator.getSnapshot,
@@ -47,6 +59,45 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
   }, [operationalContext])
 
   useEffect(() => {
+    let isCurrent = true
+
+    async function loadFreshness(): Promise<void> {
+      if (!operationalContext) {
+        setFreshness(initialFreshness)
+        return
+      }
+
+      setFreshness((current) => ({ ...current, isLoading: true }))
+
+      try {
+        const metadata = await offlineRepositories.getSyncMetadata(
+          operationalContext,
+        )
+        const nextFreshness = classifyOfflineFreshness(
+          getOperationalFreshnessTimestamp(metadata),
+        )
+
+        if (isCurrent) {
+          setFreshness({ ...nextFreshness, isLoading: false })
+        }
+      } catch {
+        if (isCurrent) {
+          setFreshness({
+            ...classifyOfflineFreshness(null),
+            isLoading: false,
+          })
+        }
+      }
+    }
+
+    void loadFreshness()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [operationalContext, syncSnapshot.lastRunCompletedAt])
+
+  useEffect(() => {
     const lifecycle = new OfflineSyncLifecycle({
       getContext: () => contextRef.current,
     })
@@ -62,6 +113,7 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
   const value = useMemo<OfflineSyncContextValue>(
     () => ({
       connectivity: connectivitySnapshot,
+      freshness,
       requestSync: () =>
         lifecycleRef.current?.requestManualSync() ??
         offlineSyncCoordinator.requestSync({
@@ -71,7 +123,7 @@ export function OfflineSyncProvider({ children }: OfflineSyncProviderProps) {
         }),
       sync: syncSnapshot,
     }),
-    [connectivitySnapshot, syncSnapshot],
+    [connectivitySnapshot, freshness, syncSnapshot],
   )
 
   return (

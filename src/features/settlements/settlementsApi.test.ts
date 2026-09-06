@@ -167,6 +167,36 @@ describe('settlementsApi', () => {
     )
   })
 
+  it('never sends frontend custody totals, candidate rows, or payment breakdown on create', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ id: 9 })
+
+    await createSettlement('nasr-club', {
+      collected_by: 5,
+      court: 3,
+      notes: 'تأكيد الوردية',
+    })
+
+    const [, options] = mockedApiRequest.mock.calls.at(-1) ?? []
+
+    expect(options).toEqual({
+      method: 'POST',
+      body: {
+        collected_by: 5,
+        court: 3,
+        notes: 'تأكيد الوردية',
+      },
+    })
+    expect(options?.body).not.toHaveProperty('transaction_ids')
+    expect(options?.body).not.toHaveProperty('transactions')
+    expect(options?.body).not.toHaveProperty('total_amount')
+    expect(options?.body).not.toHaveProperty('net_amount')
+    expect(options?.body).not.toHaveProperty('period_start')
+    expect(options?.body).not.toHaveProperty('period_end')
+    expect(options?.body).not.toHaveProperty('totals_by_payment_method')
+    expect(options?.body).not.toHaveProperty('booking_payments')
+    expect(options?.body).not.toHaveProperty('booking_refunds')
+  })
+
   it('lists settlements with supported collected_by/status/court filters', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,

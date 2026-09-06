@@ -504,17 +504,6 @@ export async function apiRequest<TResponse>(
       })
     }
 
-    if (
-      response.status === 401 &&
-      !options.skipAuthRefresh &&
-      !isAuthTokenPath(path)
-    ) {
-      failExpiredSession()
-      throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
-        code: 'UNAUTHORIZED',
-      })
-    }
-
     throw await createApiClientError(response)
   }
 

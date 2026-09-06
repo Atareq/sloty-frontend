@@ -1,8 +1,16 @@
 import { browserConnectivity } from '../connectivity/browserConnectivity'
 import { createBookingSyncTask } from '../bookings/bookingSyncTask'
 import { recheckBookingIntentsForScheduleCourts } from '../bookings/bookingIntentRecheck'
+import {
+  processPendingBookingRequests,
+  type BookingRequestQueueResult,
+} from '../bookings/bookingRequestSync'
 import { createCurrentCustodySyncTask } from '../finance/currentCustodySyncTask'
-import { createScheduleSyncTask } from '../schedule/scheduleSyncTask'
+import { offlineRepositories } from '../repositories/offlineRepositories'
+import {
+  createScheduleSyncTask,
+  getAuthorizedScheduleCourtIds,
+} from '../schedule/scheduleSyncTask'
 import { createTransactionSyncTask } from '../transactions/transactionSyncTask'
 import type {
   DatasetSyncTask,
@@ -19,6 +27,14 @@ type SyncLogger = (message: string) => void
 type IntentRecheckRunner = (
   context: OperationalSyncContext,
   scheduleResult: DatasetSyncTaskResult,
+) => Promise<void>
+type BookingRequestProcessor = (
+  context: OperationalSyncContext,
+  signal: AbortSignal,
+) => Promise<BookingRequestQueueResult>
+type OperationalFreshnessRecorder = (
+  context: OperationalSyncContext,
+  syncedAt: string,
 ) => Promise<void>
 
 const syncDatasets: SyncDataset[] = [
@@ -115,6 +131,8 @@ interface SyncCoordinatorOptions {
   tasks: DatasetSyncTask[]
   getNow?: () => Date
   recheckBookingIntents?: IntentRecheckRunner
+  processBookingRequests?: BookingRequestProcessor
+  recordOperationalSyncCompleted?: OperationalFreshnessRecorder
   logger?: SyncLogger
 }
 
@@ -133,6 +151,8 @@ export class OfflineSyncCoordinator {
   private readonly tasks: Record<SyncDataset, DatasetSyncTask>
   private readonly getNow: () => Date
   private readonly recheckBookingIntents: IntentRecheckRunner
+  private readonly processBookingRequests: BookingRequestProcessor
+  private readonly recordOperationalSyncCompleted: OperationalFreshnessRecorder
   private readonly logger?: SyncLogger
   private readonly fullRuns = new Map<string, FullRunEntry>()
   private readonly datasetRuns = new Map<string, Promise<DatasetSyncTaskResult>>()
@@ -163,6 +183,10 @@ export class OfflineSyncCoordinator {
     this.getNow = options.getNow ?? (() => new Date())
     this.recheckBookingIntents =
       options.recheckBookingIntents ?? defaultIntentRecheckRunner
+    this.processBookingRequests =
+      options.processBookingRequests ?? defaultBookingRequestProcessor
+    this.recordOperationalSyncCompleted =
+      options.recordOperationalSyncCompleted ?? defaultOperationalFreshnessRecorder
     this.logger = options.logger
   }
 
@@ -268,48 +292,90 @@ export class OfflineSyncCoordinator {
       lastRunStartedAt: startedAt,
     })
 
-    const scheduleResult = await this.runDataset(
-      this.tasks.schedule,
+    const bookingRequestsResult = await this.runBookingRequestsBeforeRefresh(
       context,
-      trigger,
       controller.signal,
-      startedAt,
     )
+    const shouldStopAfterBookingRequests = Boolean(
+      bookingRequestsResult?.stopped,
+    )
+    const scheduleResult = shouldStopAfterBookingRequests
+      ? createSkippedResult('schedule', 'booking_request_processing_stopped')
+      : await this.runDataset(
+          this.tasks.schedule,
+          context,
+          trigger,
+          controller.signal,
+          startedAt,
+        )
     await this.runIntentRecheckAfterSchedule(context, scheduleResult)
     const secondaryResults = await Promise.all([
-      this.runDataset(
-        this.tasks.bookings,
-        context,
-        trigger,
-        controller.signal,
-        startedAt,
-      ),
-      this.runDataset(
-        this.tasks.transactions,
-        context,
-        trigger,
-        controller.signal,
-        startedAt,
-      ),
+      shouldStopAfterBookingRequests
+        ? Promise.resolve(
+            createSkippedResult('bookings', 'booking_request_processing_stopped'),
+          )
+        : this.runDataset(
+            this.tasks.bookings,
+            context,
+            trigger,
+            controller.signal,
+            startedAt,
+          ),
+      shouldStopAfterBookingRequests
+        ? Promise.resolve(
+            createSkippedResult(
+              'transactions',
+              'booking_request_processing_stopped',
+            ),
+          )
+        : this.runDataset(
+            this.tasks.transactions,
+            context,
+            trigger,
+            controller.signal,
+            startedAt,
+          ),
     ])
-    const currentCustodyResult = await this.runDataset(
-      this.tasks.current_custody,
-      context,
-      trigger,
-      controller.signal,
-      startedAt,
-    )
+    const currentCustodyResult = shouldStopAfterBookingRequests
+      ? createSkippedResult(
+          'current_custody',
+          'booking_request_processing_stopped',
+        )
+      : await this.runDataset(
+          this.tasks.current_custody,
+          context,
+          trigger,
+          controller.signal,
+          startedAt,
+        )
     const datasets = createResultMap([
       scheduleResult,
       ...secondaryResults,
       currentCustodyResult,
     ])
+    const runStatus = shouldStopAfterBookingRequests
+      ? 'partial_failure'
+      : getRunStatus(datasets)
     const completedAt = this.getNow().toISOString()
+
+    if (runStatus === 'success') {
+      try {
+        await this.recordOperationalSyncCompleted(context, completedAt)
+      } catch {
+        this.logger?.(
+          `[sync] operational freshness write failed scope=${context.scopeKey}`,
+        )
+      }
+    }
+
     const result: OperationalSyncRunResult = {
       scopeKey: context.scopeKey,
       trigger,
-      status: getRunStatus(datasets),
+      status: runStatus,
       datasets,
+      ...(bookingRequestsResult
+        ? { bookingRequests: bookingRequestsResult }
+        : {}),
       startedAt,
       completedAt,
     }
@@ -411,6 +477,32 @@ export class OfflineSyncCoordinator {
     }
   }
 
+  private async runBookingRequestsBeforeRefresh(
+    context: OperationalSyncContext,
+    signal: AbortSignal,
+  ): Promise<BookingRequestQueueResult | null> {
+    try {
+      const result = await this.processBookingRequests(context, signal)
+
+      if (result.processed > 0 || result.stopped) {
+        this.logger?.(
+          `[sync] booking requests processed scope=${context.scopeKey} processed=${result.processed}`,
+        )
+      }
+
+      return result
+    } catch (error) {
+      if (signal.aborted || isAbortError(error)) {
+        throw error
+      }
+
+      this.logger?.(
+        `[sync] booking request processing failed scope=${context.scopeKey}`,
+      )
+      return null
+    }
+  }
+
   private updateSnapshot(nextSnapshot: Partial<OfflineSyncSnapshot>): void {
     this.snapshot = {
       ...this.snapshot,
@@ -449,6 +541,26 @@ async function defaultIntentRecheckRunner(
   await recheckBookingIntentsForScheduleCourts({
     courtIds: successfulCourtIds,
     scope: context,
+  })
+}
+
+async function defaultOperationalFreshnessRecorder(
+  context: OperationalSyncContext,
+  syncedAt: string,
+): Promise<void> {
+  await offlineRepositories.markOperationalSyncComplete(context, syncedAt)
+}
+
+async function defaultBookingRequestProcessor(
+  context: OperationalSyncContext,
+  signal: AbortSignal,
+): Promise<BookingRequestQueueResult> {
+  const authorizedCourtIds = await getAuthorizedScheduleCourtIds(context, signal)
+
+  return processPendingBookingRequests({
+    courtIds: authorizedCourtIds,
+    scope: context,
+    signal,
   })
 }
 

@@ -12,6 +12,7 @@ import { createDevAccessToken } from './devAuth'
 import {
   clearSelectedClubSlug,
   getSelectedClubSlug,
+  saveSelectedClubSlug,
 } from './selectedClubStorage'
 import { useAuth } from './useAuth'
 
@@ -85,6 +86,26 @@ function LogoutHarness() {
   )
 }
 
+function ColdStartHarness() {
+  const {
+    currentUser,
+    isAuthenticated,
+    role,
+    selectedClubSlug,
+    selectedMembership,
+  } = useAuth()
+
+  return (
+    <div>
+      <p>{isAuthenticated ? 'operational' : 'anonymous'}</p>
+      <p>{currentUser?.username ?? 'logged-out'}</p>
+      <p>{selectedClubSlug ?? 'no-club'}</p>
+      <p>{selectedMembership?.court?.name ?? 'no-court'}</p>
+      <p>{role ?? 'no-role'}</p>
+    </div>
+  )
+}
+
 describe('AuthProvider explicit logout IndexedDB integration', () => {
   beforeEach(async () => {
     clearAuthTokens()
@@ -133,5 +154,47 @@ describe('AuthProvider explicit logout IndexedDB integration', () => {
         clubSlug: 'demo-football-club',
       }),
     ).toEqual([])
+  })
+
+  it('cold-starts into scoped offline operational access only from a verified selected-Club context', async () => {
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    saveSelectedClubSlug('demo-football-club')
+    await offlineRepositories.saveOfflineContext({
+      scope,
+      displayName: 'أحمد علي',
+      isPlatformAdmin: false,
+      membership: profile.memberships[0],
+      lastVerifiedAt: '2026-09-04T10:00:00.000Z',
+    })
+
+    render(
+      <AuthProvider>
+        <ColdStartHarness />
+      </AuthProvider>,
+    )
+
+    expect(await screen.findByText('operational')).toBeInTheDocument()
+    expect(screen.getByText('أحمد علي')).toBeInTheDocument()
+    expect(screen.getByText('demo-football-club')).toBeInTheDocument()
+    expect(screen.getByText('Court 1')).toBeInTheDocument()
+    expect(screen.getByText('STAFF')).toBeInTheDocument()
+    expect(mockedFetchCurrentUserProfile).not.toHaveBeenCalled()
+    onLine.mockRestore()
+  })
+
+  it('keeps anonymous offline users out when no verified selected-Club context exists', async () => {
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    saveSelectedClubSlug('demo-football-club')
+
+    render(
+      <AuthProvider>
+        <ColdStartHarness />
+      </AuthProvider>,
+    )
+
+    expect(await screen.findByText('anonymous')).toBeInTheDocument()
+    expect(screen.getByText('logged-out')).toBeInTheDocument()
+    expect(mockedFetchCurrentUserProfile).not.toHaveBeenCalled()
+    onLine.mockRestore()
   })
 })

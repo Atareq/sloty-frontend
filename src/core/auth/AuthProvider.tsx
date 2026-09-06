@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  safelyClearScope,
   safelyClearUserOperationalData,
   safelyPersistOfflineContext,
+  safelyReadLatestOfflineContextForClub,
+  safelyReadOfflineContext,
 } from '../../offline/security/offlineStorageSafety'
+import type { OfflineContextRecord } from '../../offline/offline.types'
 import { getAuthenticatedUserDisplayName } from '../../shared/utils/displayNames'
-import { getApiErrorMessage } from '../api/apiError.helpers'
 import {
-  ApiClientError,
+  getApiErrorCode,
+  getApiErrorMessage,
+  isApiClientError,
+} from '../api/apiError.helpers'
+import {
   subscribeAccessToken,
   subscribeSessionExpired,
 } from '../api/apiClient'
+import { getAccountStateAction } from './accountState'
 import type {
   AuthClaims,
   AuthContextValue,
@@ -53,6 +61,51 @@ function hasHydratableSession(): boolean {
   return Boolean(getRefreshToken())
 }
 
+function hasBrowserOfflineHint(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+function createOfflineUserProfile(
+  context: OfflineContextRecord,
+): CurrentUserProfile {
+  return {
+    id: context.user_id,
+    username: context.display_name,
+    email: '',
+    first_name: context.display_name,
+    last_name: '',
+    phone_number: null,
+    is_active: true,
+    /*
+     * Offline operational hydration is Club-scoped. Even when the last
+     * verified user is also a Platform Admin, the offline profile must not
+     * recreate all-platform authority without a live `/me` verification.
+     */
+    is_platform_admin: false,
+    account_created_by: null,
+    requires_club_selection: false,
+    memberships: [
+      {
+        id: context.membership_id,
+        role: context.role,
+        club: {
+          id: 0,
+          slug: context.selected_club_slug,
+          name: context.selected_club_slug,
+          is_active: true,
+        },
+        court:
+          context.assigned_court_id === null
+            ? null
+            : {
+                id: context.assigned_court_id,
+                name: context.assigned_court_name ?? 'ملعب محدد',
+              },
+      },
+    ],
+  }
+}
+
 /**
  * Provides decoded JWT auth state to the frontend.
  *
@@ -74,11 +127,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     Boolean(getRefreshToken()),
   )
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [isOfflineOperational, setIsOfflineOperational] = useState(false)
   const claims = useMemo(() => getClaims(accessToken), [accessToken])
   const isTokenExpired = isJwtExpired(claims)
-  const isAuthenticated = Boolean(
+  const isOnlineAuthenticated = Boolean(
     accessToken && claims && (!isTokenExpired || hasRefreshToken),
   )
+  const isAuthenticated = isOnlineAuthenticated || isOfflineOperational
   const selectedMembership = useMemo(() => {
     if (!currentUser || !selectedClubSlug) {
       return null
@@ -106,8 +161,63 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setCurrentUser(null)
     setSelectedClubSlugState(null)
     setSessionError(null)
+    setIsOfflineOperational(false)
     setIsLoadingSession(false)
   }, [])
+
+  const clearAuthOnly = useCallback((): void => {
+    clearAuthTokens()
+    setAccessTokenState(null)
+    setHasRefreshToken(false)
+    setCurrentUser(null)
+    setSessionError(null)
+    setIsOfflineOperational(false)
+    setIsLoadingSession(false)
+  }, [])
+
+  const hydrateOfflineContext = useCallback(
+    (context: OfflineContextRecord): void => {
+      saveSelectedClubSlug(context.selected_club_slug)
+      setSelectedClubSlugState(context.selected_club_slug)
+      setCurrentUser(createOfflineUserProfile(context))
+      setSessionError(null)
+      setIsOfflineOperational(true)
+      setIsLoadingSession(false)
+    },
+    [],
+  )
+
+  const hydrateOfflineContextForScope = useCallback(
+    async (userId: number, clubSlug: string): Promise<boolean> => {
+      const context = await safelyReadOfflineContext({ userId, clubSlug })
+
+      if (!context) {
+        return false
+      }
+
+      hydrateOfflineContext(context)
+      return true
+    },
+    [hydrateOfflineContext],
+  )
+
+  const hydrateLatestOfflineContextForSelectedClub = useCallback(
+    async (clubSlug: string | null): Promise<boolean> => {
+      if (!clubSlug || !hasBrowserOfflineHint()) {
+        return false
+      }
+
+      const context = await safelyReadLatestOfflineContextForClub(clubSlug)
+
+      if (!context) {
+        return false
+      }
+
+      hydrateOfflineContext(context)
+      return true
+    },
+    [hydrateOfflineContext],
+  )
 
   const setTokens = useCallback((tokens: AuthTokens): void => {
     setAccessToken(tokens.accessToken)
@@ -115,6 +225,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setHasRefreshToken(Boolean(tokens.refreshToken))
     setCurrentUser(null)
     setSessionError(null)
+    setIsOfflineOperational(false)
     setIsLoadingSession(true)
     setAccessTokenState(tokens.accessToken)
   }, [])
@@ -127,12 +238,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const selectClub = useCallback((slug: string): void => {
     saveSelectedClubSlug(slug)
     setSelectedClubSlugState(slug)
+    setIsOfflineOperational(false)
   }, [])
 
   const refreshCurrentUser = useCallback(async (): Promise<void> => {
     if (!accessToken || !claims) {
-      if (!getRefreshToken()) {
-        clearSession()
+      if (
+        !getRefreshToken() &&
+        !(await hydrateLatestOfflineContextForSelectedClub(selectedClubSlug))
+      ) {
+        clearAuthOnly()
       }
       setIsLoadingSession(false)
       return
@@ -149,27 +264,79 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setCurrentUser(profile)
+      setIsOfflineOperational(false)
     } catch (error) {
       if (!getAccessToken()) {
         return
       }
 
       if (
-        error instanceof ApiClientError &&
-        (error.status === 401 || error.status === 403)
+        getApiErrorCode(error) === 'NETWORK_ERROR' &&
+        selectedClubSlug &&
+        (await hydrateOfflineContextForScope(claims.user_id, selectedClubSlug))
       ) {
+        return
+      }
+
+      const accountStateAction = getAccountStateAction(error)
+
+      if (accountStateAction.type === 'clear_user') {
+        await safelyClearUserOperationalData(claims.user_id)
         clearSession()
         return
       }
 
+      if (accountStateAction.type === 'clear_club') {
+        if (accountStateAction.clubSlug) {
+          await safelyClearScope({
+            userId: claims.user_id,
+            clubSlug: accountStateAction.clubSlug,
+          })
+        }
+
+        if (
+          accountStateAction.clubSlug &&
+          selectedClubSlug === accountStateAction.clubSlug
+        ) {
+          clearSelectedClub()
+        }
+
+        clearAuthOnly()
+        return
+      }
+
+      if (accountStateAction.type === 'auth_required') {
+        clearAuthOnly()
+        return
+      }
+
+      if (
+        isApiClientError(error) &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        clearAuthOnly()
+        return
+      }
+
       setCurrentUser(null)
+      setIsOfflineOperational(false)
       setSessionError(getApiErrorMessage(error, 'تعذر تحميل بيانات الحساب'))
     } finally {
-      if (getAccessToken()) {
+      if (getAccessToken() || isOfflineOperational) {
         setIsLoadingSession(false)
       }
     }
-  }, [accessToken, claims, clearSession])
+  }, [
+    accessToken,
+    claims,
+    clearAuthOnly,
+    clearSelectedClub,
+    clearSession,
+    hydrateLatestOfflineContextForSelectedClub,
+    hydrateOfflineContextForScope,
+    isOfflineOperational,
+    selectedClubSlug,
+  ])
 
   useEffect(() => {
     if (!currentUser || currentUser.is_platform_admin) {
@@ -207,7 +374,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [clearSelectedClub, currentUser, selectClub, selectedClubSlug])
 
   useEffect(() => {
-    if (!currentUser || !selectedMembership || !selectedClubSlug) {
+    if (
+      !currentUser ||
+      !selectedMembership ||
+      !selectedClubSlug ||
+      isOfflineOperational
+    ) {
       return
     }
 
@@ -229,7 +401,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await safelyPersistOfflineContext(contextInput)
       },
     )
-  }, [claims?.name, currentUser, selectedClubSlug, selectedMembership])
+  }, [
+    claims?.name,
+    currentUser,
+    isOfflineOperational,
+    selectedClubSlug,
+    selectedMembership,
+  ])
 
   useEffect(() => {
     return subscribeAccessToken((token) => {
@@ -239,27 +417,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     return subscribeSessionExpired(() => {
-      clearSession()
+      clearAuthOnly()
     })
-  }, [clearSession])
+  }, [clearAuthOnly])
 
   useEffect(() => {
     if (!accessToken) {
+      queueMicrotask(() => {
+        void hydrateLatestOfflineContextForSelectedClub(selectedClubSlug).then(
+          (hydrated) => {
+            if (!hydrated) {
+              setIsLoadingSession(false)
+            }
+          },
+        )
+      })
       return
     }
 
     if (!isAuthenticated) {
       queueMicrotask(() => {
-        clearSession()
+        clearAuthOnly()
         setIsLoadingSession(false)
       })
+      return
+    }
+
+    if (currentUser) {
       return
     }
 
     queueMicrotask(() => {
       void refreshCurrentUser()
     })
-  }, [accessToken, clearSession, isAuthenticated, refreshCurrentUser])
+  }, [
+    accessToken,
+    clearAuthOnly,
+    currentUser,
+    hydrateLatestOfflineContextForSelectedClub,
+    isAuthenticated,
+    refreshCurrentUser,
+    selectedClubSlug,
+  ])
 
   const login = useCallback(
     (nextAccessToken: string, nextRefreshToken?: string): AuthRole | null => {

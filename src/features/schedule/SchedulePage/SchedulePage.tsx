@@ -28,6 +28,10 @@ import {
   AddBookingSheet,
   type AddBookingSheetValues,
 } from '../components/AddBookingSheet/AddBookingSheet'
+import {
+  BookingRequestCustomerEditSheet,
+  type BookingRequestCustomerEditValues,
+} from '../components/BookingRequestCustomerEditSheet/BookingRequestCustomerEditSheet'
 import { BookingCard } from '../components/BookingCard/BookingCard'
 import {
   CancelBookingReasonSheet,
@@ -83,9 +87,14 @@ import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
 import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
+import {
+  OFFLINE_CREATION_RESTRICTED_TEXT,
+  canCreateOfflineRequest,
+} from '../../../offline/freshness/offlineFreshness'
 import { createOfflineScopeKey } from '../../../offline/scope/offlineScope'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
 import type {
+  BookingRequestReviewReason,
   BookingIntentRecord,
   ScheduleDayRecord,
 } from '../../../offline/offline.types'
@@ -96,8 +105,8 @@ import {
   getSlotWallTime,
   isAuthoritativeFreeSlot,
   rankBookingIntentAlternatives,
-  recheckBookingIntentsForScheduleCourts,
 } from '../../../offline/bookings/bookingIntentRecheck'
+import { bookingRequestEditLocks } from '../../../offline/bookings/bookingRequestEditLocks'
 import { setPreferredScheduleCourt } from '../../../offline/schedule/scheduleSyncPreference'
 import {
   getScheduleSyncWindow,
@@ -143,17 +152,21 @@ const statusLegend = [
 const schedulePeriodStyles = {
   am: {
     section:
-      'border-amber-100/90 bg-[#FFF7DF]/92 shadow-amber-950/10 ring-1 ring-white/75',
+      'border-amber-100/70 bg-white/[0.18] shadow-amber-950/10 ring-1 ring-white/65',
+    overlay:
+      'bg-[linear-gradient(135deg,rgba(255,249,232,0.26)_0%,rgba(255,243,196,0.13)_46%,rgba(253,244,215,0.07)_68%,transparent_100%)]',
     header:
-      'border-amber-200/80 bg-white/70 text-amber-950 shadow-amber-950/5',
+      'border-amber-100/80 bg-white/75 text-amber-950 shadow-amber-950/5',
     kicker: 'text-amber-700',
   },
   pm: {
     section:
-      'border-slate-500/70 bg-slate-900/72 shadow-slate-950/30 ring-1 ring-white/10',
+      'border-slate-300/35 bg-slate-900/54 shadow-slate-950/20 ring-1 ring-white/18',
+    overlay:
+      'bg-[linear-gradient(135deg,rgba(224,242,254,0.13)_0%,rgba(226,232,240,0.08)_44%,rgba(148,163,184,0.05)_70%,transparent_100%)]',
     header:
-      'border-slate-500/60 bg-slate-950/45 text-white shadow-slate-950/20',
-    kicker: 'text-slate-200',
+      'border-slate-300/30 bg-slate-950/30 text-white shadow-slate-950/15',
+    kicker: 'text-slate-100',
   },
 } as const
 
@@ -193,15 +206,50 @@ function getCourtMinimumDeposit(
 
 function getIntentStatusTone(status: BookingIntentRecord['status']): string {
   switch (status) {
-    case 'READY_TO_BOOK':
+    case 'SYNCING':
       return 'border-emerald-200 bg-emerald-50 text-emerald-900'
-    case 'CONFLICT':
+    case 'NEEDS_REVIEW':
       return 'border-rose-200 bg-rose-50 text-rose-900'
     case 'EXPIRED':
       return 'border-slate-200 bg-slate-50 text-slate-700'
-    case 'PENDING_RECHECK':
+    case 'PENDING_SYNC':
     default:
       return 'border-amber-200 bg-amber-50 text-amber-900'
+  }
+}
+
+function getBookingRequestReviewCopy(
+  reason: BookingRequestReviewReason | null,
+): string {
+  switch (reason) {
+    case 'SLOT_UNAVAILABLE':
+      return 'المعاد مبقاش متاح'
+    case 'INVALID_CUSTOMER_DATA':
+      return 'بيانات العميل محتاجة تعديل'
+    case 'RECURRING_UNAVAILABLE':
+      return 'المعاد لسه متاح، لكن التثبيت الأسبوعي مبقاش متاح.'
+    default:
+      return 'الطلب محفوظ ومحتاج مراجعة قبل التأكيد.'
+  }
+}
+
+function createSlotSnapshotFromAlternative(
+  slot: ScheduleDayRecord['slots'][number],
+): ScheduleDayRecord['slots'][number] {
+  return {
+    date: slot.date,
+    start_time: slot.start_time,
+    end_time: slot.end_time,
+    slot_status: slot.slot_status,
+    is_available: slot.is_available,
+    slot_price: slot.slot_price,
+    booking: slot.booking,
+    recurring_anchor_booking_id: slot.recurring_anchor_booking_id,
+    recurring_context: slot.recurring_context,
+    can_start_recurring: slot.can_start_recurring,
+    recurring_blocked_reason: slot.recurring_blocked_reason,
+    first_recurring_conflict_start: slot.first_recurring_conflict_start,
+    label: slot.label,
   }
 }
 
@@ -214,7 +262,12 @@ function getIntentStatusTone(status: BookingIntentRecord['status']): string {
  */
 export function SchedulePage() {
   const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
-  const { connectivity, requestSync, sync } = useOfflineSync()
+  const {
+    connectivity,
+    freshness: operationalFreshness,
+    requestSync,
+    sync,
+  } = useOfflineSync()
   const location = useLocation()
   const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState(formatDateInputValue(new Date()))
@@ -282,9 +335,9 @@ export function SchedulePage() {
   > | null>(null)
   const [bookingIntents, setBookingIntents] = useState<BookingIntentRecord[]>([])
   const [intentError, setIntentError] = useState<string | null>(null)
-  const [submittingIntentId, setSubmittingIntentId] = useState<string | null>(
-    null,
-  )
+  const [editingIntent, setEditingIntent] =
+    useState<BookingIntentRecord | null>(null)
+  const [isIntentEditSubmitting, setIsIntentEditSubmitting] = useState(false)
   const [alternativeIntentId, setAlternativeIntentId] = useState<string | null>(
     null,
   )
@@ -364,6 +417,19 @@ export function SchedulePage() {
   const offlineScopeKey = offlineScope
     ? createOfflineScopeKey(offlineScope)
     : null
+
+  useEffect(() => {
+    if (!editingIntent || !offlineScopeKey) {
+      return undefined
+    }
+
+    bookingRequestEditLocks.lock(offlineScopeKey, editingIntent.local_id)
+
+    return () => {
+      bookingRequestEditLocks.unlock(offlineScopeKey, editingIntent.local_id)
+    }
+  }, [editingIntent, offlineScopeKey])
+
   const amSlots = slots.filter((booking) => booking.period === 'am')
   const pmSlots = slots.filter((booking) => booking.period === 'pm')
   const summary = getSummary(slots)
@@ -461,9 +527,9 @@ export function SchedulePage() {
       .filter((intent) => ACTIVE_BOOKING_INTENT_STATUSES.includes(intent.status))
       .sort((firstIntent, secondIntent) => {
         const priority = {
-          CONFLICT: 0,
-          READY_TO_BOOK: 1,
-          PENDING_RECHECK: 2,
+          NEEDS_REVIEW: 0,
+          PENDING_SYNC: 1,
+          SYNCING: 2,
           EXPIRED: 3,
           BOOKED: 4,
           DISMISSED: 5,
@@ -504,20 +570,6 @@ export function SchedulePage() {
     )
 
     return days.filter((day): day is ScheduleDayRecord => Boolean(day))
-  }
-
-  async function refreshBookingIntentClassifications(
-    courtIds = authorizedIntentCourtIds,
-  ): Promise<void> {
-    if (!offlineScope || courtIds.length === 0) {
-      return
-    }
-
-    await recheckBookingIntentsForScheduleCourts({
-      courtIds,
-      scope: offlineScope,
-    })
-    await loadActiveBookingIntents()
   }
 
   async function loadAuthoritativeBookingDetail(
@@ -645,36 +697,6 @@ export function SchedulePage() {
       } else {
         setIsSlotsRefreshing(false)
       }
-    }
-  }
-
-  async function refreshIntentScheduleDay(
-    courtId: number,
-    date: string,
-  ): Promise<void> {
-    if (!selectedClubSlug || !offlineScope) {
-      return
-    }
-
-    const response = await listBookingSlots(selectedClubSlug, {
-      court: courtId,
-      date,
-    })
-
-    if (isDateInsideScheduleSyncWindow(date)) {
-      await offlineRepositories.replaceScheduleDay(
-        offlineScope,
-        courtId,
-        date,
-        response.slots,
-        new Date().toISOString(),
-        response.message ?? null,
-      )
-    }
-
-    if (selectedCourt?.id === courtId && selectedDate === date) {
-      applyScheduleResponse(response, 'backend', null)
-      setSettledSlotsDate(date)
     }
   }
 
@@ -1055,6 +1077,11 @@ export function SchedulePage() {
           return
         }
 
+        if (!canCreateOfflineRequest(operationalFreshness, isOfflineLike)) {
+          setCreateError(OFFLINE_CREATION_RESTRICTED_TEXT)
+          return
+        }
+
         await offlineRepositories.saveBookingIntent(offlineScope, {
           local_id: createLocalIntentId(),
           court_id: selectedCourt.id,
@@ -1064,6 +1091,7 @@ export function SchedulePage() {
           customer_name: values.customer_name,
           customer_phone: values.customer_phone,
           notes: values.notes ?? null,
+          requested_recurring: values.is_recurring,
           original_slot_snapshot: {
             date: selectedDate,
             start_time: startTime,
@@ -1082,9 +1110,8 @@ export function SchedulePage() {
               selectedSlot.firstRecurringConflictStart ?? null,
             label: selectedSlot.label ?? 'متاح',
           },
-          status: 'PENDING_RECHECK',
+          status: 'PENDING_SYNC',
           created_at: new Date().toISOString(),
-          last_checked_at: null,
           resolved_booking_id: null,
         })
 
@@ -1198,11 +1225,16 @@ export function SchedulePage() {
       },
       cachedDay,
     )
+    const isFreeSlot = latestSlot !== null && isAuthoritativeFreeSlot(latestSlot)
     const nextStatus =
-      latestSlot !== null && isAuthoritativeFreeSlot(latestSlot)
-        ? 'READY_TO_BOOK'
-        : 'CONFLICT'
-    const checkedAt = new Date().toISOString()
+      isFreeSlot && (!intent.requested_recurring || latestSlot.can_start_recurring === true)
+        ? 'PENDING_SYNC'
+        : 'NEEDS_REVIEW'
+    const nextReviewReason: BookingRequestReviewReason | null = !isFreeSlot
+      ? 'SLOT_UNAVAILABLE'
+      : intent.requested_recurring && latestSlot.can_start_recurring !== true
+        ? 'RECURRING_UNAVAILABLE'
+        : null
 
     await offlineRepositories.updateBookingIntent(offlineScope, intent.local_id, {
       court_id: alternative.courtId,
@@ -1212,107 +1244,65 @@ export function SchedulePage() {
         alternative.startTime,
       ),
       requested_end: formatBookingDateTime(alternative.date, alternative.endTime),
+      original_slot_snapshot: latestSlot
+        ? createSlotSnapshotFromAlternative(latestSlot)
+        : intent.original_slot_snapshot,
       status: nextStatus,
-      last_checked_at: checkedAt,
+      review_reason: nextReviewReason,
     })
     setAlternativeIntentId(null)
     setAlternativeSlots([])
     await loadActiveBookingIntents()
   }
 
-  async function handleBookIntent(intent: BookingIntentRecord): Promise<void> {
-    if (!selectedClubSlug || !offlineScope) {
+  async function handleEditBookingIntent(
+    values: BookingRequestCustomerEditValues,
+  ): Promise<void> {
+    if (!offlineScope || !editingIntent) {
       return
     }
 
-    if (!requireOnlineAction(setIntentError)) {
-      return
-    }
-
-    setSubmittingIntentId(intent.local_id)
+    setIsIntentEditSubmitting(true)
     setIntentError(null)
 
     try {
-      const cachedDay = await offlineRepositories.readScheduleDay(
+      await offlineRepositories.updateBookingIntent(
         offlineScope,
-        intent.court_id,
-        intent.requested_date,
-      )
-      const latestSlot = cachedDay
-        ? findExactBookingIntentSlot(intent, cachedDay)
-        : null
-
-      if (!cachedDay) {
-        setIntentError('لازم تحديث جدول المواعيد قبل الحجز.')
-        return
-      }
-
-      if (latestSlot === null || !isAuthoritativeFreeSlot(latestSlot)) {
-        await offlineRepositories.updateBookingIntentStatus(
-          offlineScope,
-          intent.local_id,
-          'CONFLICT',
-          { lastCheckedAt: new Date().toISOString() },
-        )
-        await loadActiveBookingIntents()
-        return
-      }
-
-      const booking = await createBooking(selectedClubSlug, {
-        court: intent.court_id,
-        customer_name: intent.customer_name,
-        customer_phone: intent.customer_phone,
-        start_time: formatBookingDateTime(
-          intent.requested_date,
-          getSlotWallTime(latestSlot.start_time),
-        ),
-        end_time: formatBookingDateTime(
-          intent.requested_date,
-          getSlotWallTime(latestSlot.end_time),
-        ),
-        is_recurring: false,
-        ...(intent.notes ? { notes: intent.notes } : {}),
-      })
-
-      await offlineRepositories.updateBookingIntentStatus(
-        offlineScope,
-        intent.local_id,
-        'BOOKED',
+        editingIntent.local_id,
         {
-          lastCheckedAt: new Date().toISOString(),
-          resolvedBookingId: booking.id,
+          customer_name: values.customer_name,
+          customer_phone: values.customer_phone,
+          notes: values.notes ?? null,
+          status: 'PENDING_SYNC',
+          review_reason: null,
         },
       )
-      setAlternativeIntentId(null)
-      setAlternativeSlots([])
-      await refreshIntentScheduleDay(intent.court_id, intent.requested_date)
-      await refreshBookingIntentClassifications([intent.court_id])
+      setEditingIntent(null)
       await loadActiveBookingIntents()
-      setSuccessMessage('✓ تم حجز الموعد بنجاح')
-    } catch (error) {
-      const errorCode = getApiErrorCode(error)
-
-      if (errorCode && bookingConflictCodes.has(errorCode)) {
-        await offlineRepositories.updateBookingIntentStatus(
-          offlineScope,
-          intent.local_id,
-          'CONFLICT',
-          { lastCheckedAt: new Date().toISOString() },
-        )
-        await refreshIntentScheduleDay(intent.court_id, intent.requested_date)
-        await loadActiveBookingIntents()
-        setIntentError('المعاد مبقاش متاح. اختار معاد تاني.')
-      } else {
-        setIntentError(
-          getApiErrorMessage(
-            error,
-            'تعذر إكمال الحجز الآن. الطلب محفوظ وتقدر تحاول تاني.',
-          ),
-        )
-      }
+      setSuccessMessage('✓ تم حفظ تعديل طلب الحجز')
+    } catch {
+      setIntentError('تعذر حفظ تعديل طلب الحجز.')
     } finally {
-      setSubmittingIntentId(null)
+      setIsIntentEditSubmitting(false)
     }
+  }
+
+  async function handleMakeBookingIntentOneTime(
+    intent: BookingIntentRecord,
+  ): Promise<void> {
+    if (!offlineScope) {
+      return
+    }
+
+    setIntentError(null)
+    await offlineRepositories.updateBookingIntent(offlineScope, intent.local_id, {
+      requested_recurring: false,
+      status: 'PENDING_SYNC',
+      review_reason: null,
+    })
+    setAlternativeIntentId(null)
+    setAlternativeSlots([])
+    await loadActiveBookingIntents()
   }
 
   async function handleCancelBooking(
@@ -1993,12 +1983,20 @@ export function SchedulePage() {
                 <>
                   <div
                     className={[
-                      'flex min-h-0 flex-col justify-between rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] sm:p-3 md:p-4',
+                      'relative flex min-h-0 flex-col justify-between overflow-hidden rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] sm:p-3 md:p-4',
                       schedulePeriodStyles.am.section,
                     ].join(' ')}
                     data-testid="schedule-period-am"
                   >
-                    <div>
+                    <div
+                      aria-hidden="true"
+                      className={[
+                        'pointer-events-none absolute inset-0',
+                        schedulePeriodStyles.am.overlay,
+                      ].join(' ')}
+                      data-testid="schedule-period-am-warmth"
+                    />
+                    <div className="relative z-10">
                       <div
                         className={[
                           'mb-3 rounded-2xl border px-3 py-2 shadow-sm',
@@ -2016,7 +2014,7 @@ export function SchedulePage() {
                         <h3 className="text-lg font-black">مواعيد الصباح</h3>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
+                    <div className="relative z-10 grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                       {amSlots.map((booking) => (
                         <BookingCard
                           booking={booking}
@@ -2029,12 +2027,20 @@ export function SchedulePage() {
 
                   <div
                     className={[
-                      'flex min-h-0 flex-col justify-between rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] sm:p-3 md:p-4',
+                      'relative flex min-h-0 flex-col justify-between overflow-hidden rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] sm:p-3 md:p-4',
                       schedulePeriodStyles.pm.section,
                     ].join(' ')}
                     data-testid="schedule-period-pm"
                   >
-                    <div>
+                    <div
+                      aria-hidden="true"
+                      className={[
+                        'pointer-events-none absolute inset-0',
+                        schedulePeriodStyles.pm.overlay,
+                      ].join(' ')}
+                      data-testid="schedule-period-pm-ambient-light"
+                    />
+                    <div className="relative z-10">
                       <div
                         className={[
                           'mb-3 rounded-2xl border px-3 py-2 shadow-sm',
@@ -2052,7 +2058,7 @@ export function SchedulePage() {
                         <h3 className="text-lg font-black">مواعيد المساء</h3>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
+                    <div className="relative z-10 grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                       {pmSlots.map((booking) => (
                         <BookingCard
                           booking={booking}
@@ -2106,8 +2112,8 @@ export function SchedulePage() {
                       : `${bookingIntents.length} طلبات حجز محتاجة مراجعة`}
                   </h2>
                   <p className="text-xs font-bold leading-5 text-amber-900">
-                    دي طلبات محفوظة على الجهاز. الحجز الحقيقي بيتم بس بعد رجوع
-                    الاتصال والضغط على احجز الآن.
+                    دي طلبات محفوظة على الجهاز. هنحاول نأكدها تلقائيًا أول ما
+                    الإنترنت يرجع.
                   </p>
                 </div>
                 {!isOfflineLike ? (
@@ -2128,11 +2134,15 @@ export function SchedulePage() {
               ) : null}
 
               {bookingIntents.map((intent) => {
-                const isSubmittingThisIntent =
-                  submittingIntentId === intent.local_id
-                const shouldShowBookNow = intent.status === 'READY_TO_BOOK'
+                const isSyncing = intent.status === 'SYNCING'
+                const canEditRequest = !isSyncing
                 const shouldShowAlternatives =
-                  intent.status === 'CONFLICT' || intent.status === 'EXPIRED'
+                  intent.status === 'NEEDS_REVIEW' &&
+                  (intent.review_reason === 'SLOT_UNAVAILABLE' ||
+                    intent.review_reason === 'RECURRING_UNAVAILABLE')
+                const shouldShowOneTimeAction =
+                  intent.status === 'NEEDS_REVIEW' &&
+                  intent.review_reason === 'RECURRING_UNAVAILABLE'
                 const appointmentLabel = formatArabicDateWithWeekday(
                   intent.requested_date,
                 )
@@ -2162,6 +2172,11 @@ export function SchedulePage() {
                         <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
                           {getCourtName(intent.court_id)}
                         </p>
+                        {intent.requested_recurring ? (
+                          <span className="inline-flex w-fit rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-black text-sky-900">
+                            ↻ تثبيت أسبوعي
+                          </span>
+                        ) : null}
                       </div>
                       <span
                         className={[
@@ -2173,38 +2188,50 @@ export function SchedulePage() {
                       </span>
                     </div>
 
-                    {intent.status === 'READY_TO_BOOK' ? (
+                    {intent.status === 'SYNCING' ? (
                       <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
-                        ✓ المعاد لسه متاح
+                        جاري التأكيد...
                       </p>
                     ) : null}
 
-                    {intent.status === 'CONFLICT' ? (
+                    {intent.status === 'NEEDS_REVIEW' ? (
                       <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-900">
-                        المعاد مبقاش متاح.
+                        {getBookingRequestReviewCopy(intent.review_reason)}
                       </p>
                     ) : null}
 
-                    {intent.status === 'PENDING_RECHECK' ? (
+                    {intent.status === 'PENDING_SYNC' ? (
                       <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
-                        بانتظار التأكيد بعد تحديث جدول المواعيد.
+                        الطلب محفوظ وبانتظار التأكيد عند رجوع الاتصال.
                       </p>
                     ) : null}
 
                     {intent.status === 'EXPIRED' ? (
                       <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
-                        انتهى الطلب لأن ميعاد اللعب عدى.
+                        الطلب محفوظ، وحالة انتهاء الطلب محفوظة للتوافق فقط.
                       </p>
                     ) : null}
 
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      {shouldShowBookNow ? (
+                      {canEditRequest &&
+                      (intent.status === 'PENDING_SYNC' ||
+                        intent.review_reason === 'INVALID_CUSTOMER_DATA') ? (
                         <AppButton
-                          disabled={isSubmittingThisIntent || isOfflineLike}
-                          onClick={() => void handleBookIntent(intent)}
+                          onClick={() => setEditingIntent(intent)}
+                          type="button"
+                          variant="secondary"
+                        >
+                          تعديل البيانات
+                        </AppButton>
+                      ) : null}
+                      {shouldShowOneTimeAction ? (
+                        <AppButton
+                          onClick={() =>
+                            void handleMakeBookingIntentOneTime(intent)
+                          }
                           type="button"
                         >
-                          {isSubmittingThisIntent ? 'جاري الحجز...' : 'احجز الآن'}
+                          احجز مرة واحدة
                         </AppButton>
                       ) : null}
                       {shouldShowAlternatives ? (
@@ -2216,13 +2243,17 @@ export function SchedulePage() {
                           اختار معاد تاني
                         </AppButton>
                       ) : null}
-                      <AppButton
-                        onClick={() => void handleDismissBookingIntent(intent.local_id)}
-                        type="button"
-                        variant="secondary"
-                      >
-                        تجاهل الطلب
-                      </AppButton>
+                      {!isSyncing ? (
+                        <AppButton
+                          onClick={() =>
+                            void handleDismissBookingIntent(intent.local_id)
+                          }
+                          type="button"
+                          variant="secondary"
+                        >
+                          تجاهل الطلب
+                        </AppButton>
+                      ) : null}
                     </div>
 
                     {alternativeIntentId === intent.local_id ? (
@@ -2305,6 +2336,15 @@ export function SchedulePage() {
           recurringBlockedReason={selectedSlot.recurringBlockedReason}
           startTime={selectedSlot.startTime}
           slotPrice={selectedSlot.slotPrice}
+        />
+      ) : null}
+
+      {editingIntent ? (
+        <BookingRequestCustomerEditSheet
+          isSubmitting={isIntentEditSubmitting}
+          onClose={() => setEditingIntent(null)}
+          onSubmit={handleEditBookingIntent}
+          request={editingIntent}
         />
       ) : null}
 

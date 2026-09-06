@@ -314,29 +314,40 @@ describe('apiRequest', () => {
     expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
   })
 
-  it('fails the session in Arabic when refresh is missing after 401', async () => {
+  it('preserves structured backend account-state errors when refresh is missing', async () => {
     mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
     mockedGetRefreshToken.mockReturnValue(null)
     mockFetch(
       Response.json(
-        { detail: 'Given token not valid for any token type' },
+        {
+          success: false,
+          code: 'TOKEN_NOT_VALID',
+          message: 'انتهت صلاحية الجلسة',
+        },
         { status: 401 },
       ),
     )
 
     await expect(apiRequest('/bookings')).rejects.toMatchObject({
       status: 401,
-      message: SESSION_EXPIRED_MESSAGE,
+      code: 'TOKEN_NOT_VALID',
+      message: 'انتهت صلاحية الجلسة',
     })
-    expect(mockedMarkSessionExpiredNotice).toHaveBeenCalledTimes(1)
+    expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
   })
 
-  it('notifies session listeners when a 401 cannot be refreshed', async () => {
+  it('notifies session listeners when a 401 refresh attempt cannot be refreshed', async () => {
     const onSessionExpired = vi.fn()
     const unsubscribe = subscribeSessionExpired(onSessionExpired)
     mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
-    mockedGetRefreshToken.mockReturnValue(null)
-    mockFetch(new Response('unauthorized', { status: 401 }))
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
+        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 })),
+    )
 
     await expect(apiRequest('/bookings')).rejects.toMatchObject({
       status: 401,

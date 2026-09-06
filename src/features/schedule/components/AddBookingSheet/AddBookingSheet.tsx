@@ -28,6 +28,7 @@ export interface AddBookingSheetProps {
   startTime: string
   endTime: string
   isSubmitting: boolean
+  initialValues?: AddBookingSheetValues
   offlineIntentMode?: boolean
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
@@ -35,6 +36,7 @@ export interface AddBookingSheetProps {
   canStartRecurring?: boolean | null
   recurringBlockedReason?: string | null
   firstRecurringConflictStart?: string | null
+  title?: string
   onClose: () => void
   onSubmit: (values: AddBookingSheetValues) => Promise<void>
 }
@@ -72,6 +74,7 @@ export function AddBookingSheet({
   error,
   fieldErrors = null,
   firstRecurringConflictStart = null,
+  initialValues = undefined,
   isSubmitting,
   offlineIntentMode = false,
   onClose,
@@ -79,11 +82,18 @@ export function AddBookingSheet({
   recurringBlockedReason = null,
   slotPrice = null,
   startTime,
+  title = 'حجز جديد',
 }: AddBookingSheetProps) {
-  const [isRecurring, setIsRecurring] = useState(false)
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState<Value | undefined>()
-  const [notes, setNotes] = useState('')
+  const [isRecurring, setIsRecurring] = useState(
+    initialValues?.is_recurring ?? false,
+  )
+  const [customerName, setCustomerName] = useState(
+    initialValues?.customer_name ?? '',
+  )
+  const [customerPhone, setCustomerPhone] = useState<Value | undefined>(
+    initialValues?.customer_phone,
+  )
+  const [notes, setNotes] = useState(initialValues?.notes ?? '')
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
   const nameFieldError = getFirstFieldErrorMessage(
@@ -93,8 +103,8 @@ export function AddBookingSheet({
   const phoneFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')
-  const isRecurringBlocked = canStartRecurring === false
-  const shouldShowRecurringControl = canStartRecurring !== null
+  const isRecurringBlocked = canStartRecurring !== true
+  const shouldShowRecurringControl = offlineIntentMode || canStartRecurring !== null
   const recurringBlockedMessage = getRecurringBlockedMessage(
     recurringBlockedReason,
     firstRecurringConflictStart,
@@ -142,7 +152,7 @@ export function AddBookingSheet({
     const values: AddBookingSheetValues = {
       customer_name: trimmedName,
       customer_phone: customerPhone,
-      is_recurring: offlineIntentMode ? false : isRecurring,
+      is_recurring: isRecurring,
       notes: trimmedNotes || undefined,
     }
 
@@ -155,7 +165,7 @@ export function AddBookingSheet({
         <form className="p-5 pt-14" onSubmit={handleSubmit}>
         <div className="space-y-1">
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            حجز جديد
+            {title}
           </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {courtName} - {dateLabel}
@@ -173,8 +183,7 @@ export function AddBookingSheet({
           ) : null}
           {offlineIntentMode ? (
             <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
-              بدون إنترنت: هنحفظ طلب العميل فقط. الحجز الحقيقي محتاج تأكيد بعد
-              رجوع الاتصال.
+              هنحاول نأكد الحجز تلقائيًا أول ما الإنترنت يرجع.
             </p>
           ) : null}
         </div>
@@ -219,7 +228,7 @@ export function AddBookingSheet({
               <input
                 checked={isRecurring}
                 className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--sloty-primary)]"
-                disabled={isSubmitting || isRecurringBlocked || offlineIntentMode}
+                disabled={isSubmitting || isRecurringBlocked}
                 onChange={(event) => {
                   setIsRecurring(event.target.checked)
                   setValidationError(null)
@@ -232,7 +241,11 @@ export function AddBookingSheet({
                 </span>
                 <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
                   {offlineIntentMode
-                    ? 'الحجز الأسبوعي يحتاج اتصال بالإنترنت علشان نتأكد من التكرار والتعارضات.'
+                    ? canStartRecurring === true
+                      ? 'التثبيت الأسبوعي متاح طبقًا لآخر تحديث وسيتم التأكد منه عند رجوع الإنترنت.'
+                      : canStartRecurring === false
+                        ? 'غير متاح تثبيت الموعد لهذا الحجز طبقًا لآخر تحديث.'
+                        : 'التثبيت الأسبوعي يحتاج إنترنت أو تحديث حديث للمعاد قبل حفظ الطلب.'
                     : isRecurringBlocked
                     ? 'غير متاح تثبيت الموعد لهذا الحجز.'
                     : 'هيتحجز نفس اليوم والساعة للعميل كل أسبوع.'}

@@ -90,13 +90,14 @@ Practical presentation baseline for the Sloty frontend.
 - Staff sees only the assigned Court cache. Manager/Owner selected-Court cache renders first; other authorized Courts sync in the background without interrupting the current Court.
 - Offline Schedule can save a one-time customer BookingIntent from a cached FREE slot. The correct success is `تم حفظ طلب الحجز`, not Booking confirmation. Payment, cancellation, completion, no-show, editing, rescheduling, recurrence stopping, and new recurring booking creation still require internet.
 
-## Offline BookingIntent
+## Offline Booking Request
 
-- BookingIntent is receptionist recovery for a customer request during connectivity loss. It is not a Booking, hold, or reservation.
-- The existing booking sheet is reused. Offline/backend-unreachable mode changes the primary action to `احفظ طلب الحجز`, keeps name/phone/notes validation, and disables the weekly recurrence option.
-- Saved requests start as `بانتظار التأكيد`. Reconnect must refresh/persist authoritative Schedule data first, then classify requests as `المعاد متاح`, `المعاد مبقاش متاح`, or `انتهى الطلب`.
-- `المعاد متاح` still requires the employee to press `احجز الآن`. Only the existing Backend Booking API success may show Booking success copy.
-- Conflict recovery should preserve customer name, phone, and notes, and offer alternatives only from freshly synchronized backend FREE slots. Do not generate slots or calculate recurrence/price locally.
+- Booking Request is receptionist recovery for a customer request during connectivity loss. It is not a Booking, hold, or reservation.
+- The existing booking sheet is reused. Offline/backend-unreachable mode changes the primary action to `احفظ طلب الحجز` and keeps name/phone/notes validation. Weekly recurrence intent is enabled only from cached Backend `can_start_recurring === true`.
+- Saved requests start as `بانتظار التأكيد`. Task 5 does not auto-submit, replay HTTP requests, or expose a manual request `احجز الآن` action.
+- `SYNCING` shows `جاري التأكيد...` and locks edit, alternative-slot, one-time conversion, and dismissal actions.
+- Needs Review recovery should preserve customer name, phone, notes, `local_id`, and `client_request_id`. `SLOT_UNAVAILABLE` offers alternatives, `INVALID_CUSTOMER_DATA` offers customer-data editing, and `RECURRING_UNAVAILABLE` offers one-time conversion or another slot.
+- Alternatives come only from refreshed/cached backend FREE slots. Do not generate slots or calculate recurrence/price locally, and do not silently downgrade a recurring request to one-time.
 
 ## Offline Booking History
 

@@ -90,6 +90,7 @@ export interface BookingCreatePayload {
   customer_phone: string
   start_time: string
   end_time: string
+  client_request_id?: string
   is_recurring?: boolean
   notes?: string
 }

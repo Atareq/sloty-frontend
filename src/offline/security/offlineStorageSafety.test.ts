@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { offlineRepositories } from '../repositories/offlineRepositories'
 import {
+  safelyClearScope,
   safelyClearUserOperationalData,
   safelyPersistOfflineContext,
+  safelyReadLatestOfflineContextForClub,
+  safelyReadOfflineContext,
 } from './offlineStorageSafety'
 
 describe('offline storage failure safety', () => {
@@ -49,6 +52,46 @@ describe('offline storage failure safety', () => {
     await expect(safelyClearUserOperationalData(1)).resolves.toBe(false)
     expect(consoleError).toHaveBeenCalledWith(
       'تعذر مسح التخزين المحلي الآمن بالكامل.',
+    )
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('secret')
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('حساس')
+  })
+
+  it('surfaces scoped cleanup failure safely without leaking scope contents', async () => {
+    vi.spyOn(offlineRepositories, 'clearScope').mockRejectedValueOnce(
+      new Error('club-a customer=حساس'),
+    )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(
+      safelyClearScope({ userId: 1, clubSlug: 'club-a' }),
+    ).resolves.toBe(false)
+    expect(consoleError).toHaveBeenCalledWith(
+      'تعذر مسح التخزين المحلي الآمن بالكامل.',
+    )
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('club-a')
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('حساس')
+  })
+
+  it('surfaces offline context read failures without leaking storage error contents', async () => {
+    vi.spyOn(offlineRepositories, 'readOfflineContext').mockRejectedValueOnce(
+      new Error('token=secret'),
+    )
+    vi.spyOn(
+      offlineRepositories,
+      'readLatestOfflineContextForClub',
+    ).mockRejectedValueOnce(new Error('customer=حساس'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(
+      safelyReadOfflineContext({ userId: 1, clubSlug: 'club-a' }),
+    ).resolves.toBeNull()
+    await expect(
+      safelyReadLatestOfflineContextForClub('club-a'),
+    ).resolves.toBeNull()
+
+    expect(consoleError).toHaveBeenCalledWith(
+      'تعذر قراءة التخزين المحلي الآمن.',
     )
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('secret')
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('حساس')

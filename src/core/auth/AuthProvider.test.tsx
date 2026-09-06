@@ -2,9 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  safelyClearScope,
   safelyClearUserOperationalData,
   safelyPersistOfflineContext,
+  safelyReadOfflineContext,
 } from '../../offline/security/offlineStorageSafety'
+import { ApiClientError } from '../api/apiClient'
 import { AuthProvider } from './AuthProvider'
 import { fetchCurrentUserProfile } from './authApi'
 import { clearAuthTokens, getAccessToken } from './authStorage'
@@ -22,15 +25,20 @@ vi.mock('./authApi', () => ({
 }))
 
 vi.mock('../../offline/security/offlineStorageSafety', () => ({
+  safelyClearScope: vi.fn(),
   safelyClearUserOperationalData: vi.fn(),
   safelyPersistOfflineContext: vi.fn(),
+  safelyReadOfflineContext: vi.fn(),
+  safelyReadLatestOfflineContextForClub: vi.fn(),
 }))
 
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
+const mockedClearScope = vi.mocked(safelyClearScope)
 const mockedClearUserOperationalData = vi.mocked(
   safelyClearUserOperationalData,
 )
 const mockedPersistOfflineContext = vi.mocked(safelyPersistOfflineContext)
+const mockedReadOfflineContext = vi.mocked(safelyReadOfflineContext)
 
 function AuthProviderHarness() {
   const {
@@ -78,8 +86,10 @@ describe('AuthProvider', () => {
     clearAuthTokens()
     clearSelectedClubSlug()
     vi.clearAllMocks()
+    mockedClearScope.mockResolvedValue(true)
     mockedClearUserOperationalData.mockResolvedValue(true)
     mockedPersistOfflineContext.mockResolvedValue(true)
+    mockedReadOfflineContext.mockResolvedValue(null)
   })
 
   const oneMembershipProfile = {
@@ -306,5 +316,124 @@ describe('AuthProvider', () => {
 
     await waitFor(() => expect(getSelectedClubSlug()).toBeNull())
     expect(screen.getByText('لا يوجد نادي محدد')).toBeInTheDocument()
+  })
+
+  it('hydrates the last verified scope when profile refresh cannot reach the backend', async () => {
+    const user = userEvent.setup()
+    saveSelectedClubSlug('demo-football-club')
+    mockedFetchCurrentUserProfile.mockRejectedValueOnce(
+      new ApiClientError('تعذر الاتصال بالخادم', 0, {
+        code: 'NETWORK_ERROR',
+      }),
+    )
+    mockedReadOfflineContext.mockResolvedValueOnce({
+      scope_key: 'user:1:club:demo-football-club',
+      user_id: 1,
+      club_slug: 'demo-football-club',
+      display_name: 'أحمد علي',
+      is_platform_admin: false,
+      selected_club_slug: 'demo-football-club',
+      membership_id: 10,
+      role: 'STAFF',
+      assigned_court_id: 3,
+      assigned_court_name: 'Court 1',
+      last_verified_at: '2026-09-04T10:00:00.000Z',
+      schema_version: 2,
+    })
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
+    expect(screen.getAllByText('demo-football-club')).toHaveLength(2)
+    expect(screen.getByText('STAFF')).toBeInTheDocument()
+    expect(mockedReadOfflineContext).toHaveBeenCalledWith({
+      userId: 1,
+      clubSlug: 'demo-football-club',
+    })
+    expect(mockedPersistOfflineContext).not.toHaveBeenCalled()
+  })
+
+  it('requires login without deleting local storage for session-only auth failures', async () => {
+    const user = userEvent.setup()
+    saveSelectedClubSlug('demo-football-club')
+    mockedFetchCurrentUserProfile.mockRejectedValueOnce(
+      new ApiClientError('انتهت الجلسة', 401, {
+        code: 'SESSION_EXPIRED',
+      }),
+    )
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    await waitFor(() => expect(getAccessToken()).toBeNull())
+    expect(getSelectedClubSlug()).toBe('demo-football-club')
+    expect(mockedClearUserOperationalData).not.toHaveBeenCalled()
+    expect(mockedClearScope).not.toHaveBeenCalled()
+    expect(screen.getByText('لا يوجد مستخدم')).toBeInTheDocument()
+  })
+
+  it('clears every owned local scope when the backend confirms the user is deleted', async () => {
+    const user = userEvent.setup()
+    saveSelectedClubSlug('demo-football-club')
+    mockedFetchCurrentUserProfile.mockRejectedValueOnce(
+      new ApiClientError('تم حذف الحساب', 403, {
+        code: 'USER_DELETED',
+      }),
+    )
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    await waitFor(() =>
+      expect(mockedClearUserOperationalData).toHaveBeenCalledWith(1),
+    )
+    expect(getAccessToken()).toBeNull()
+    expect(getSelectedClubSlug()).toBeNull()
+    expect(mockedClearScope).not.toHaveBeenCalled()
+  })
+
+  it('clears only the revoked Club scope when the backend provides club_slug', async () => {
+    const user = userEvent.setup()
+    saveSelectedClubSlug('demo-football-club')
+    mockedFetchCurrentUserProfile.mockRejectedValueOnce(
+      new ApiClientError('تم إلغاء صلاحية النادي', 403, {
+        code: 'CLUB_ACCESS_REVOKED',
+        details: { club_slug: 'demo-football-club' },
+      }),
+    )
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    await waitFor(() =>
+      expect(mockedClearScope).toHaveBeenCalledWith({
+        userId: 1,
+        clubSlug: 'demo-football-club',
+      }),
+    )
+    expect(mockedClearUserOperationalData).not.toHaveBeenCalled()
+    expect(getAccessToken()).toBeNull()
+    expect(getSelectedClubSlug()).toBeNull()
   })
 })

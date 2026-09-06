@@ -7,6 +7,7 @@ import type {
   BookingCacheRecord,
   BookingIntentStatus,
   BookingIntentRecord,
+  BookingRequestReviewReason,
   CurrentCustodySnapshotKind,
   CurrentCustodySnapshotPayload,
   OfflineContextInput,
@@ -17,6 +18,7 @@ import type {
   TransactionCacheRecord,
 } from '../offline.types'
 import { OFFLINE_SCHEMA_VERSION } from '../offline.types'
+import { normalizeBookingRequestRecord } from '../bookings/bookingRequestPersistence'
 import {
   createOfflineScopeKey,
   getScopedRecordIdentity,
@@ -71,8 +73,21 @@ export interface ScheduleDaySnapshot {
 
 export type BookingIntentInput = Omit<
   BookingIntentRecord,
-  keyof ReturnType<typeof getScopedRecordIdentity>
->
+  | keyof ReturnType<typeof getScopedRecordIdentity>
+  | 'client_request_id'
+  | 'last_attempt_at'
+  | 'review_reason'
+  | 'updated_at'
+> &
+  Partial<
+    Pick<
+      BookingIntentRecord,
+      | 'client_request_id'
+      | 'last_attempt_at'
+      | 'review_reason'
+      | 'updated_at'
+    >
+  >
 
 export type BookingIntentUpdate = Partial<
   Pick<
@@ -81,9 +96,15 @@ export type BookingIntentUpdate = Partial<
     | 'requested_date'
     | 'requested_start'
     | 'requested_end'
+    | 'customer_name'
+    | 'customer_phone'
+    | 'notes'
+    | 'original_slot_snapshot'
     | 'status'
-    | 'last_checked_at'
+    | 'last_attempt_at'
+    | 'review_reason'
     | 'resolved_booking_id'
+    | 'requested_recurring'
   >
 >
 
@@ -170,6 +191,23 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
   return {
     getSyncMetadata(scope: OfflineScope): Promise<SyncMetadataRecord | undefined> {
       return db.sync_metadata.get(createOfflineScopeKey(scope))
+    },
+
+    async markOperationalSyncComplete(
+      scope: OfflineScope,
+      syncedAt: string,
+    ): Promise<void> {
+      const identity = getScopedRecordIdentity(scope)
+      const existing = await db.sync_metadata.get(identity.scope_key)
+      const record: SyncMetadataRecord = {
+        ...identity,
+        ...existing,
+        operational_last_sync_at: syncedAt,
+        schema_version: OFFLINE_SCHEMA_VERSION,
+        updated_at: syncedAt,
+      }
+
+      await db.sync_metadata.put(record)
     },
 
     async replaceScheduleDay(
@@ -438,10 +476,15 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       scope: OfflineScope,
       intent: BookingIntentInput,
     ): Promise<void> {
-      await db.booking_intents.put({
+      const createdAt = intent.created_at ?? new Date().toISOString()
+      const record = normalizeBookingRequestRecord({
         ...getScopedRecordIdentity(scope),
         ...intent,
+        created_at: createdAt,
+        updated_at: intent.updated_at ?? createdAt,
       })
+
+      await db.booking_intents.put(record)
     },
 
     getBookingIntents(
@@ -459,6 +502,37 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       localId: string,
     ): Promise<BookingIntentRecord | undefined> {
       return db.booking_intents.get([createOfflineScopeKey(scope), localId])
+    },
+
+    async getBookingRequestsForSync(
+      scope: OfflineScope,
+      courtIds: number[],
+    ): Promise<BookingIntentRecord[]> {
+      const intents = await this.getBookingIntentsForCourts(scope, courtIds)
+
+      return intents
+        .filter((intent) =>
+          intent.status === 'PENDING_SYNC' || intent.status === 'SYNCING',
+        )
+        .sort((firstIntent, secondIntent) => {
+          const appointmentDifference =
+            firstIntent.requested_start.localeCompare(
+              secondIntent.requested_start,
+            )
+
+          if (appointmentDifference !== 0) {
+            return appointmentDifference
+          }
+
+          const createdDifference =
+            firstIntent.created_at.localeCompare(secondIntent.created_at)
+
+          if (createdDifference !== 0) {
+            return createdDifference
+          }
+
+          return firstIntent.local_id.localeCompare(secondIntent.local_id)
+        })
     },
 
     async getBookingIntentsForCourts(
@@ -491,10 +565,11 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
         return undefined
       }
 
-      const updatedIntent: BookingIntentRecord = {
-        ...existing,
+      const updatedIntent = normalizeBookingRequestRecord({
+        ...normalizeBookingRequestRecord(existing),
         ...updates,
-      }
+        updated_at: new Date().toISOString(),
+      })
 
       await db.booking_intents.put(updatedIntent)
 
@@ -506,7 +581,8 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       localId: string,
       status: BookingIntentStatus,
       options: {
-        lastCheckedAt?: string | null
+        lastAttemptAt?: string | null
+        reviewReason?: BookingRequestReviewReason | null
         resolvedBookingId?: number | null
       } = {},
     ): Promise<BookingIntentRecord | undefined> {
@@ -517,16 +593,20 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
         return undefined
       }
 
-      const updatedIntent: BookingIntentRecord = {
-        ...existing,
+      const updatedIntent = normalizeBookingRequestRecord({
+        ...normalizeBookingRequestRecord(existing),
         status,
-        ...(Object.prototype.hasOwnProperty.call(options, 'lastCheckedAt')
-          ? { last_checked_at: options.lastCheckedAt ?? null }
+        updated_at: new Date().toISOString(),
+        ...(Object.prototype.hasOwnProperty.call(options, 'lastAttemptAt')
+          ? { last_attempt_at: options.lastAttemptAt ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(options, 'reviewReason')
+          ? { review_reason: options.reviewReason ?? null }
           : {}),
         ...(Object.prototype.hasOwnProperty.call(options, 'resolvedBookingId')
           ? { resolved_booking_id: options.resolvedBookingId ?? null }
           : {}),
-      }
+      })
 
       await db.booking_intents.put(updatedIntent)
 
@@ -554,6 +634,25 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       scope: OfflineScope,
     ): Promise<OfflineContextRecord | undefined> {
       return db.offline_context.get(createOfflineScopeKey(scope))
+    },
+
+    async readLatestOfflineContextForClub(
+      clubSlug: string,
+    ): Promise<OfflineContextRecord | undefined> {
+      const normalizedClubSlug = clubSlug.trim()
+
+      if (!normalizedClubSlug) {
+        return undefined
+      }
+
+      const contexts = await db.offline_context
+        .where('club_slug')
+        .equals(normalizedClubSlug)
+        .toArray()
+
+      return contexts.sort((left, right) =>
+        right.last_verified_at.localeCompare(left.last_verified_at),
+      )[0]
     },
 
     async clearScope(scope: OfflineScope): Promise<void> {

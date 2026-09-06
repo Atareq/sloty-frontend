@@ -1,16 +1,53 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../core/auth/useAuth'
 import { PageActions } from '../../shared/components/PageActions/PageActions'
 import { AppSheet } from '../../shared/components/AppSheet/AppSheet'
 import { HEADER_COLLAPSE_END_PX } from '../../shared/hooks/usePageHeaderScroll'
+import type { OfflineSyncContextValue } from '../../offline/sync/offlineSyncContext'
 import { AppShell } from './AppShell'
 
 vi.mock('../../core/auth/useAuth', () => ({
   useAuth: vi.fn(),
+}))
+
+const offlineSyncContextValue = vi.hoisted<OfflineSyncContextValue>(() => ({
+  connectivity: {
+    browserNetwork: 'likely_online' as const,
+    backendReachability: 'reachable' as const,
+    lastConnectivityChangeAt: null,
+    lastBrowserEvent: null,
+    eventVersion: 0,
+  },
+  freshness: {
+    ageMs: 60 * 60 * 1000,
+    canCreateNewOfflineRequest: true,
+    isLoading: false,
+    lastSuccessfulOperationalSyncAt: '2026-09-04T11:00:00.000Z',
+    level: 'fresh' as const,
+    warningText: null,
+  },
+  requestSync: vi.fn(),
+  sync: {
+    status: 'idle' as const,
+    activeScopeKey: null,
+    activeDataset: null,
+    lastRunStartedAt: null,
+    lastRunCompletedAt: null,
+    lastRunResult: null,
+    backendReachability: 'reachable' as const,
+  },
+}))
+
+vi.mock('../../offline/sync/OfflineSyncProvider', () => ({
+  OfflineSyncProvider: ({ children }: { children: ReactNode }) => children,
+}))
+
+vi.mock('../../offline/sync/offlineSyncContext', () => ({
+  useOfflineSync: () => offlineSyncContextValue,
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
@@ -147,6 +184,13 @@ function renderAppShell(
 describe('AppShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    offlineSyncContextValue.connectivity.browserNetwork = 'likely_online'
+    offlineSyncContextValue.connectivity.backendReachability = 'reachable'
+    offlineSyncContextValue.freshness.ageMs = 60 * 60 * 1000
+    offlineSyncContextValue.freshness.canCreateNewOfflineRequest = true
+    offlineSyncContextValue.freshness.isLoading = false
+    offlineSyncContextValue.freshness.level = 'fresh'
+    offlineSyncContextValue.freshness.warningText = null
     window.localStorage.clear()
     Object.defineProperty(window, 'scrollY', {
       configurable: true,
@@ -173,6 +217,24 @@ describe('AppShell', () => {
 
     expect(screen.getAllByText('النادي الحالي: Demo Football Club').length)
       .toBeGreaterThan(0)
+  })
+
+  it('shows one offline freshness warning in the shell when cached data is stale', () => {
+    offlineSyncContextValue.connectivity.browserNetwork = 'offline'
+    offlineSyncContextValue.connectivity.backendReachability = 'unreachable'
+    offlineSyncContextValue.freshness.ageMs = 13 * 60 * 60 * 1000
+    offlineSyncContextValue.freshness.level = 'stale_warning'
+    offlineSyncContextValue.freshness.warningText =
+      'البيانات المحفوظة بقالها أكتر من 12 ساعة.\nاتصل بالإنترنت علشان تحدّث Sloty.'
+
+    renderAppShell()
+
+    expect(
+      screen.getByText('البيانات المحفوظة بقالها أكتر من 12 ساعة.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('اتصل بالإنترنت علشان تحدّث Sloty.'),
+    ).toBeInTheDocument()
   })
 
   it('renders the shell page heading once without feature title duplication', () => {

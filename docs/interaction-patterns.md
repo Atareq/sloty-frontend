@@ -132,19 +132,20 @@ Do not route important errors through this primitive.
 - With a cached empty day, show the backend/fallback empty-day message as a legitimate synchronized state.
 - With no cached day while offline/unreachable, show internet-required copy and a `حاول مرة تانية` action wired through the coordinator/manual refresh path.
 - Dates outside the 31-day Schedule window require internet; do not silently grow unlimited local Schedule history.
-- Offline/backend-unreachable FREE slots may save a one-time BookingIntent through the existing booking sheet. Other business actions remain online-only: payment, cancel, complete, no-show, edit, reschedule, stop recurrence, and recurring booking creation show `يحتاج اتصال بالإنترنت` or disabled online-required copy and do not queue writes.
+- Offline/backend-unreachable FREE slots may save a Booking Request through the existing booking sheet. Weekly intent is allowed only when the cached Backend slot has `can_start_recurring === true`; otherwise recurrence stays disabled. Other business actions remain online-only: payment, cancel, complete, no-show, edit, reschedule, stop recurrence, and final Booking creation show `يحتاج اتصال بالإنترنت` or disabled online-required copy and do not queue writes.
 - Cached and fresh Schedule rows share the same board presentation: Morning uses the warm light period container, Evening uses the deeper blue-gray period container, and slot buttons keep their status-owned styling in both contexts.
 
-## Offline BookingIntent interactions
+## Offline Booking Request interactions
 
-- Offline save uses the existing booking sheet with `احفظ طلب الحجز`. It saves a local customer request only, starts as `PENDING_RECHECK`, and shows `تم حفظ طلب الحجز` / `بانتظار التأكيد`.
-- Never show `تم الحجز` or Booking success copy until the existing Backend `createBooking()` call succeeds after manual employee action.
-- Schedule/Operational Home shows active requests in-place: `PENDING_RECHECK`, `READY_TO_BOOK`, `CONFLICT`, and `EXPIRED`. `BOOKED` and `DISMISSED` do not clutter the active queue.
-- Reconnect order is Schedule refresh first, intent recheck second, and never auto-submit. A raw browser online event must not call Booking creation.
-- `READY_TO_BOOK` exposes `احجز الآن` only while online/reachable. The final request uses existing Booking API fields and must not send `local_id`.
-- A final slot-unavailable Backend error turns the intent into `CONFLICT` and preserves customer name, phone, and notes. Generic network failure does not become conflict.
-- `CONFLICT` offers `اختار معاد تاني`; alternatives are presentation-ranked from already refreshed Backend FREE slots only. Selecting one preserves customer data and reclassifies against the cached authoritative row.
-- `EXPIRED` means the requested appointment time has passed using Egypt-local schedule helpers. It may be dismissed or moved to an alternative slot where the current UX supports that recovery.
+- Offline save uses the existing booking sheet with `احفظ طلب الحجز`. It saves a local customer request only, starts as `PENDING_SYNC`, and shows `تم حفظ طلب الحجز` / `بانتظار التأكيد`.
+- Never show `تم الحجز` or Booking success copy until a future authenticated Backend Booking creation succeeds.
+- Schedule/Operational Home shows active requests in-place: `PENDING_SYNC`, `SYNCING`, `NEEDS_REVIEW`, and compatibility-only `EXPIRED`. `BOOKED` and `DISMISSED` do not clutter the active queue.
+- Reconnect order remains Schedule refresh first, but Task 5 does not auto-submit, replay HTTP requests, or expose a manual request `احجز الآن` action.
+- `SYNCING` displays `جاري التأكيد...` and is locked from edit, alternative-slot selection, one-time conversion, and dismissal.
+- `NEEDS_REVIEW` actions depend on `review_reason`: `SLOT_UNAVAILABLE` offers `اختار معاد تاني`; `INVALID_CUSTOMER_DATA` offers `تعديل البيانات`; `RECURRING_UNAVAILABLE` offers `احجز مرة واحدة` or `اختار معاد تاني`. All review states may be dismissed except `SYNCING`.
+- Customer-data edits preserve request identity, slot identity, and recurrence intent, then reset the row to `PENDING_SYNC`.
+- Alternatives are presentation-ranked from already refreshed Backend FREE slots only. Selecting one updates requested slot fields and `original_slot_snapshot`. A recurring request cannot be silently downgraded when the new slot cannot start recurrence.
+- Appointment time passing does not expire a Booking Request. `EXPIRED` is retained only for legacy compatibility or a future approved lifecycle reason.
 
 ## Offline Booking History interactions
 

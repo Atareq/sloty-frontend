@@ -1,5 +1,4 @@
 import type { BookingSlot } from '../../features/schedule/scheduleApi.types'
-import { isPastSlot } from '../../features/schedule/scheduleBoard.helpers'
 import type {
   BookingIntentRecord,
   BookingIntentStatus,
@@ -12,34 +11,30 @@ import {
 } from '../repositories/offlineRepositories'
 
 export const ACTIVE_BOOKING_INTENT_STATUSES: BookingIntentStatus[] = [
-  'PENDING_RECHECK',
-  'READY_TO_BOOK',
-  'CONFLICT',
+  'PENDING_SYNC',
+  'SYNCING',
+  'NEEDS_REVIEW',
   'EXPIRED',
 ]
 
-export const RECHECKABLE_BOOKING_INTENT_STATUSES: BookingIntentStatus[] = [
-  'PENDING_RECHECK',
-  'READY_TO_BOOK',
-  'CONFLICT',
-]
+export const RECHECKABLE_BOOKING_INTENT_STATUSES: BookingIntentStatus[] = []
 
 export function getBookingIntentStatusLabel(
   status: BookingIntentStatus,
 ): string {
   switch (status) {
-    case 'PENDING_RECHECK':
+    case 'PENDING_SYNC':
       return 'بانتظار التأكيد'
-    case 'READY_TO_BOOK':
-      return 'المعاد متاح'
-    case 'CONFLICT':
-      return 'المعاد مبقاش متاح'
+    case 'SYNCING':
+      return 'جاري التأكيد...'
+    case 'NEEDS_REVIEW':
+      return 'محتاج مراجعة'
     case 'BOOKED':
       return 'تم الحجز'
     case 'DISMISSED':
       return 'تم تجاهل الطلب'
     case 'EXPIRED':
-      return 'انتهى الطلب'
+      return 'محفوظ للتوافق'
   }
 }
 
@@ -49,15 +44,13 @@ export function getSlotWallTime(value: string): string {
   return timePart.slice(0, 5)
 }
 
-function getRequestedEnd(intent: BookingIntentRecord): string {
-  return getSlotWallTime(intent.requested_end)
-}
-
 export function isBookingIntentExpired(
   intent: BookingIntentRecord,
-  now = new Date(),
+  _now = new Date(),
 ): boolean {
-  return isPastSlot(intent.requested_date, getRequestedEnd(intent), now)
+  void intent
+  void _now
+  return false
 }
 
 export function findExactBookingIntentSlot(
@@ -96,13 +89,11 @@ export function classifyBookingIntentFromSchedule(
   scheduleDay: ScheduleDayRecord,
   now = new Date(),
 ): BookingIntentStatus {
-  if (isBookingIntentExpired(intent, now)) {
-    return 'EXPIRED'
-  }
+  void now
 
   return isAuthoritativeFreeSlot(findExactBookingIntentSlot(intent, scheduleDay))
-    ? 'READY_TO_BOOK'
-    : 'CONFLICT'
+    ? 'PENDING_SYNC'
+    : 'NEEDS_REVIEW'
 }
 
 export interface BookingIntentAlternative {
@@ -236,11 +227,11 @@ export async function recheckBookingIntentsForScheduleCourts(options: {
 
     if (
       nextStatus !== intent.status ||
-      intent.last_checked_at !== checkedAt
+      intent.last_attempt_at !== checkedAt
     ) {
       await repositories.updateBookingIntent(options.scope, intent.local_id, {
         status: nextStatus,
-        last_checked_at: checkedAt,
+        last_attempt_at: checkedAt,
       })
       updatedCount += 1
     }

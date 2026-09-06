@@ -14,6 +14,7 @@ import type {
   SyncDataset,
 } from './sync.types'
 import { OfflineSyncCoordinator } from './syncCoordinator'
+import type { BookingRequestQueueResult } from '../bookings/bookingRequestSync'
 
 interface Deferred<TValue> {
   promise: Promise<TValue>
@@ -57,6 +58,24 @@ function createCurrentCustodyTask(
   return createTask('current_custody', run)
 }
 
+function createBookingRequestResult(
+  overrides: Partial<BookingRequestQueueResult> = {},
+): BookingRequestQueueResult {
+  return {
+    processed: 0,
+    booked: 0,
+    needsReview: 0,
+    pendingRetry: 0,
+    skipped: 0,
+    integrityMismatch: 0,
+    unknownNonretryable: 0,
+    stopped: false,
+    stopReason: null,
+    results: [],
+    ...overrides,
+  }
+}
+
 const membership: CurrentUserMembership = {
   id: 10,
   role: 'STAFF',
@@ -91,10 +110,14 @@ const contextA = createContext(1, 'club-a')
 const contextB = createContext(2, 'club-a')
 
 describe('OfflineSyncCoordinator', () => {
-  it('runs Schedule first, then starts Bookings and Transactions concurrently', async () => {
+  it('runs Booking Requests first, then starts Schedule and later refresh datasets', async () => {
     const scheduleGate = createDeferred<DatasetSyncTaskResult>()
     const calls: string[] = []
     const coordinator = new OfflineSyncCoordinator({
+      processBookingRequests: vi.fn(async () => {
+        calls.push('booking-requests')
+        return createBookingRequestResult()
+      }),
       tasks: [
         createTask('schedule', async () => {
           calls.push('schedule:start')
@@ -122,13 +145,15 @@ describe('OfflineSyncCoordinator', () => {
       trigger: 'startup',
     })
     await Promise.resolve()
+    await Promise.resolve()
 
-    expect(calls).toEqual(['schedule:start'])
+    expect(calls).toEqual(['booking-requests', 'schedule:start'])
 
     scheduleGate.resolve(createResult('schedule'))
     const result = await run
 
     expect(calls).toEqual([
+      'booking-requests',
       'schedule:start',
       'schedule:end',
       'bookings:start',
@@ -138,12 +163,17 @@ describe('OfflineSyncCoordinator', () => {
     expect(result.status).toBe('success')
   })
 
-  it('rechecks BookingIntents only after successful Schedule persistence and before secondary datasets', async () => {
+  it('processes Booking Requests before Schedule persistence and secondary datasets', async () => {
     const calls: string[] = []
     const intentRecheck = vi.fn(async () => {
       calls.push('intent-recheck')
     })
+    const processBookingRequests = vi.fn(async () => {
+      calls.push('booking-requests')
+      return createBookingRequestResult({ processed: 1, booked: 1 })
+    })
     const coordinator = new OfflineSyncCoordinator({
+      processBookingRequests,
       recheckBookingIntents: intentRecheck,
       tasks: [
         createTask('schedule', async () => {
@@ -168,12 +198,13 @@ describe('OfflineSyncCoordinator', () => {
       ],
     })
 
-    await coordinator.requestSync({
+    const result = await coordinator.requestSync({
       context: contextA,
       trigger: 'online',
     })
 
     expect(calls).toEqual([
+      'booking-requests',
       'schedule',
       'intent-recheck',
       'bookings',
@@ -188,11 +219,20 @@ describe('OfflineSyncCoordinator', () => {
         status: 'success',
       }),
     )
+    expect(processBookingRequests).toHaveBeenCalledWith(
+      contextA,
+      expect.any(AbortSignal),
+    )
+    expect(result.bookingRequests).toEqual(
+      expect.objectContaining({ processed: 1, booked: 1 }),
+    )
   })
 
-  it('does not recheck BookingIntents when Schedule sync fails', async () => {
+  it('processes Booking Requests first but does not recheck BookingIntents when Schedule sync fails', async () => {
     const intentRecheck = vi.fn()
+    const processBookingRequests = vi.fn()
     const coordinator = new OfflineSyncCoordinator({
+      processBookingRequests,
       recheckBookingIntents: intentRecheck,
       tasks: [
         createTask('schedule', async () => {
@@ -211,6 +251,55 @@ describe('OfflineSyncCoordinator', () => {
 
     expect(result.datasets.schedule.status).toBe('failed')
     expect(intentRecheck).not.toHaveBeenCalled()
+    expect(processBookingRequests).toHaveBeenCalledOnce()
+  })
+
+  it('skips secondary datasets when Booking Request processing stops for auth or access recovery', async () => {
+    const calls: string[] = []
+    const coordinator = new OfflineSyncCoordinator({
+      processBookingRequests: vi.fn(async () => {
+        calls.push('booking-requests')
+        return createBookingRequestResult({
+          processed: 1,
+          stopped: true,
+          stopReason: 'auth_required',
+        })
+      }),
+      tasks: [
+        createTask('schedule', async () => {
+          calls.push('schedule')
+          return {
+            ...createResult('schedule'),
+            metadata: { successfulCourtIds: [7], failedCourtIds: [] },
+          }
+        }),
+        createTask('bookings', async () => {
+          calls.push('bookings')
+          return createResult('bookings')
+        }),
+        createTask('transactions', async () => {
+          calls.push('transactions')
+          return createResult('transactions')
+        }),
+        createCurrentCustodyTask(async () => {
+          calls.push('current_custody')
+          return createResult('current_custody')
+        }),
+      ],
+    })
+
+    const result = await coordinator.requestSync({
+      context: contextA,
+      trigger: 'online',
+    })
+
+    expect(calls).toEqual(['booking-requests'])
+    expect(result.status).toBe('partial_failure')
+    expect(result.datasets.schedule.status).toBe('skipped')
+    expect(result.datasets.bookings.status).toBe('skipped')
+    expect(result.datasets.transactions.status).toBe('skipped')
+    expect(result.datasets.current_custody.status).toBe('skipped')
+    expect(result.bookingRequests?.stopReason).toBe('auth_required')
   })
 
   it('keeps dataset failures independent after Schedule receives priority', async () => {
@@ -300,6 +389,7 @@ describe('OfflineSyncCoordinator', () => {
     const transactionsRun = vi.fn(async () => createResult('transactions'))
     const currentCustodyRun = vi.fn(async () => createResult('current_custody'))
     const coordinator = new OfflineSyncCoordinator({
+      processBookingRequests: vi.fn(async () => createBookingRequestResult()),
       tasks: [
         createTask('schedule', scheduleRun),
         createTask('bookings', bookingsRun),
@@ -330,6 +420,7 @@ describe('OfflineSyncCoordinator', () => {
     expect(online).toBe(startup)
     expect(resume).toBe(startup)
     expect(manual).toBe(startup)
+    await Promise.resolve()
     expect(scheduleRun).toHaveBeenCalledTimes(1)
 
     scheduleGate.resolve(createResult('schedule'))
@@ -355,6 +446,54 @@ describe('OfflineSyncCoordinator', () => {
     await coordinator.requestSync({ context: contextA, trigger: 'manual' })
 
     expect(scheduleRun).toHaveBeenCalledTimes(2)
+  })
+
+  it('records operational freshness only after a fully successful sync cycle', async () => {
+    const recordOperationalSyncCompleted = vi.fn()
+    const coordinator = new OfflineSyncCoordinator({
+      getNow: () => new Date('2026-09-04T12:00:00.000Z'),
+      recordOperationalSyncCompleted,
+      tasks: [
+        createTask('schedule', async () => createResult('schedule')),
+        createTask('bookings', async () => createResult('bookings')),
+        createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
+      ],
+    })
+
+    const result = await coordinator.requestSync({
+      context: contextA,
+      trigger: 'manual',
+    })
+
+    expect(result.status).toBe('success')
+    expect(recordOperationalSyncCompleted).toHaveBeenCalledWith(
+      contextA,
+      '2026-09-04T12:00:00.000Z',
+    )
+  })
+
+  it('does not advance operational freshness after a partial sync failure', async () => {
+    const recordOperationalSyncCompleted = vi.fn()
+    const coordinator = new OfflineSyncCoordinator({
+      recordOperationalSyncCompleted,
+      tasks: [
+        createTask('schedule', async () => createResult('schedule')),
+        createTask('bookings', async () => {
+          throw new Error('bookings failed')
+        }),
+        createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
+      ],
+    })
+
+    const result = await coordinator.requestSync({
+      context: contextA,
+      trigger: 'manual',
+    })
+
+    expect(result.status).toBe('partial_failure')
+    expect(recordOperationalSyncCompleted).not.toHaveBeenCalled()
   })
 
   it('keeps scope-specific tasks and visible status isolated across user and Club changes', async () => {

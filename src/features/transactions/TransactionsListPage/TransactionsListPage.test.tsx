@@ -81,6 +81,14 @@ function mockOfflineConnectivity(): void {
       lastBrowserEvent: 'offline',
       lastConnectivityChangeAt: '2026-07-20T10:00:00.000Z',
     },
+    freshness: {
+      ageMs: 60 * 60 * 1000,
+      canCreateNewOfflineRequest: true,
+      isLoading: false,
+      lastSuccessfulOperationalSyncAt: '2026-07-20T09:00:00.000Z',
+      level: 'fresh',
+      warningText: null,
+    },
     requestSync: vi.fn(),
     sync: {
       activeDataset: null,
@@ -106,6 +114,14 @@ describe('TransactionsListPage', () => {
         eventVersion: 0,
         lastBrowserEvent: null,
         lastConnectivityChangeAt: '2026-07-20T10:00:00.000Z',
+      },
+      freshness: {
+        ageMs: 60 * 60 * 1000,
+        canCreateNewOfflineRequest: true,
+        isLoading: false,
+        lastSuccessfulOperationalSyncAt: '2026-07-20T09:00:00.000Z',
+        level: 'fresh',
+        warningText: null,
       },
       requestSync: vi.fn(),
       sync: {

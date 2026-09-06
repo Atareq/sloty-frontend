@@ -1,12 +1,14 @@
 import { createContext, useContext } from 'react'
 import type { ConnectivitySnapshot } from '../connectivity/browserConnectivity'
 import type {
+  OfflineSyncFreshnessSnapshot,
   OfflineSyncSnapshot,
   OperationalSyncRunResult,
 } from './sync.types'
 
 export interface OfflineSyncContextValue {
   connectivity: ConnectivitySnapshot
+  freshness: OfflineSyncFreshnessSnapshot
   requestSync: () => Promise<OperationalSyncRunResult>
   sync: OfflineSyncSnapshot
 }
