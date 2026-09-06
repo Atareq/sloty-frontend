@@ -71,10 +71,10 @@ function orderCourtsByPreference(
   ]
 }
 
-async function getAuthorizedCourtIds(
+export async function getAuthorizedScheduleCourtIds(
   context: OperationalSyncContext,
-  listCourts: NonNullable<CreateScheduleSyncTaskOptions['listCourts']>,
   signal: AbortSignal,
+  listCourts: NonNullable<CreateScheduleSyncTaskOptions['listCourts']> = defaultListCourts,
 ): Promise<number[]> {
   if (!canChooseOperationalCourt(context.role, context.membership)) {
     return context.assignedCourtId ? [context.assignedCourtId] : []
@@ -103,10 +103,10 @@ export function createScheduleSyncTask(
     dataset: 'schedule',
     async run({ operationalContext, signal, startedAt }) {
       const window = getScheduleSyncWindow(getNow())
-      const authorizedCourtIds = await getAuthorizedCourtIds(
+      const authorizedCourtIds = await getAuthorizedScheduleCourtIds(
         operationalContext,
-        listCourts,
         signal,
+        listCourts,
       )
       const preferredCourtId = getPreferredScheduleCourt(
         operationalContext.scopeKey,

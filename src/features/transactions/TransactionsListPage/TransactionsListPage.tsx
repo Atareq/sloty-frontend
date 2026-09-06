@@ -344,11 +344,7 @@ function TransactionDetailSheet({
     transaction.created_by_username ||
     getActorName(transaction.created_by) ||
     null
-  const cancellationActor =
-    getActorName(transaction.cancelled_by) ??
-    (getActorId(transaction.cancelled_by)
-      ? `مستخدم #${getActorId(transaction.cancelled_by)}`
-      : null)
+  const cancellationActor = getActorName(transaction.cancelled_by)
   const transactionType = getTransactionType(transaction)
   const isReferenceVisible =
     transaction.payment_method !== 'CASH' &&

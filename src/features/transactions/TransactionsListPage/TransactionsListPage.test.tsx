@@ -724,6 +724,41 @@ describe('TransactionsListPage', () => {
     expect(mockedCancelTransaction).not.toHaveBeenCalled()
   })
 
+  it('does not expose raw cancellation actor ids in transaction details', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+    mockOfflineConnectivity()
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValue([
+      {
+        id: 92,
+        amount: '150.00',
+        payment_method: 'CASH',
+        created: '2026-07-20T08:00:00Z',
+        is_cancelled: true,
+        is_settled: false,
+        cancellation_reason: 'تصحيح تسجيل سابق',
+        cancelled_by: 77,
+      },
+    ])
+
+    renderTransactionsPage()
+
+    await user.click((await screen.findAllByRole('button', { name: 'عرض التفاصيل' }))[0])
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getAllByText('تصحيح تسجيل سابق').length).toBeGreaterThan(0)
+    expect(screen.queryByText('مستخدم #77')).not.toBeInTheDocument()
+  })
+
   it('persists successful online transaction detail reads into the scoped cache', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,

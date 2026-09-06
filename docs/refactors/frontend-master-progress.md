@@ -8,9 +8,9 @@ The Product specification controls behavior. This file records engineering statu
 
 ## Current Status
 
-Task 4 — COMPLETE
+Task 7 — COMPLETE
 
-Task 4 introduced the canonical durable Booking Request persistence model, upgraded the local Dexie schema from version 2 to 3, migrated legacy BookingIntent rows in place, added stable `client_request_id` support, preserved unresolved customer request count, and kept the app safe before Tasks 5–6 by leaving canonical requests visible without implementing auto-sync.
+Task 7 makes the central offline coordinator the single orchestration owner for startup, reconnect, resume, retry, and manual operational sync triggers. The coordinator now runs Booking Request synchronization before authoritative dataset refresh, then refreshes Schedule, Bookings, Transactions, and Current Custody while preserving customer intent and aggregating partial results.
 
 ## Task Sequence
 
@@ -91,7 +91,7 @@ Pending Backend hardening or field rollout:
 - Legacy v2 rows migrate in place: `PENDING_RECHECK` and `READY_TO_BOOK` to `PENDING_SYNC`; `CONFLICT` to `NEEDS_REVIEW / SLOT_UNAVAILABLE`; legacy time-based `EXPIRED` to `PENDING_SYNC`; `BOOKED` and `DISMISSED` preserved.
 - Current Task-4 Schedule compatibility saves one-time requests as `PENDING_SYNC`, displays them, and does not auto-submit or expose the old manual-ready confirmation path.
 - Sync is centralized in `OfflineSyncProvider`, single-flight by scope/dataset, and runs on startup, online, visible resume, manual trigger, and one delayed retry.
-- Current sync order is Schedule, BookingIntent recheck, Bookings and Transactions, then Current Custody.
+- Current sync order is Booking Request processing first, Schedule refresh second, Bookings and Transactions third, then Current Custody.
 - Schedule cache covers today plus 30 Egypt-local days, cache-first, with authoritative post-mutation day refresh.
 - Booking cache covers the previous 7 Egypt-local days including today and stores lazy details separately.
 - Transaction cache covers the previous 7 Egypt-local days including today and is read-only offline.
@@ -129,7 +129,7 @@ The following existing behavior is intentionally not the target architecture:
 - Task 4: can implement stable local `client_request_id`; simultaneous same-key race hardening remains Backend-pending.
 - Task 5: ready once Task 4 request model exists.
 - Task 6: ready once Tasks 2, 4, and 5 provide access mode and request model foundations.
-- Task 7: ready once request synchronization and freshness foundations exist.
+- Task 7: complete. Booking Request sync now runs before authoritative operational refresh inside the single coordinator.
 - Task 8: ready.
 - Task 9: ready.
 - Task 10: ready.
@@ -145,10 +145,10 @@ The following existing behavior is intentionally not the target architecture:
 | Task 2 | PARTIALLY COMPLETE — BACKEND HARDENING DEPENDENCY | 80% | Frontend handles access-token account-state codes and verified offline context; refresh-token parity still depends on Backend. |
 | Task 3 | COMPLETE | 100% | Scoped operational freshness, persistence request, stale warning, and >72h new-request guard are implemented. |
 | Task 4 | COMPLETE | 100% | Canonical Booking Request persistence, migration, stable idempotency ID, and cleanup compatibility are implemented. |
-| Task 5 | READY | 30% | Existing queue/form helps, but recurring request capture and Needs Review UX are missing. |
-| Task 6 | DEPENDS ON TASK 5 | 20% | Automatic authenticated submission is not implemented; persistence/idempotency foundation now exists. |
+| Task 5 | COMPLETE | 100% | Booking Request UX, recurring intent capture, Needs Review recovery, edit locking, and dismissal are implemented. |
+| Task 6 | COMPLETE | 100% | Automatic authenticated submission, retry, stale `SYNCING`, idempotent replay, and historical/recurring sync are implemented. |
 | Audit B | AUDIT ONLY | n/a | Run after Task 6. |
-| Task 7 | DEPENDS ON TASKS 2-6 | 70% | Central coordinator is strong; ordering, summary, and cache scope refinements remain. |
+| Task 7 | COMPLETE | 100% | Central coordinator owns triggers, locking, Booking-Requests-first order, refresh aggregation, and operational freshness updates. |
 | Task 8 | READY | 0% | Public Home and public availability are missing. |
 | Task 9 | READY — SMALLER THAN EXPECTED | 90% | Notes and audit are mostly complete; final source-confidence UX/test gaps remain. |
 | Task 10 | READY — SMALLER THAN EXPECTED | 95% | Mobile and Schedule UX are mostly complete; real-device QA remains. |
@@ -175,7 +175,7 @@ Missing or target-specific coverage:
 - Refresh-token failure parity for inactive, deleted, and Club revoked states.
 - Real-device durable storage grant/denial behavior and browser eviction/manual device behavior.
 - Stable replay, mismatch, response-loss, and stale `SYNCING` network handling.
-- Automatic request synchronization before Schedule refresh and without manual confirmation.
+- Real-device/manual summary UX for processed Booking Requests after reconnect.
 - Historical and recurring Booking Request synchronization.
 - `NEEDS_REVIEW` reason mapping and edit/retry UX.
 - Public Home/public availability privacy boundary.
@@ -213,12 +213,15 @@ Pre-existing local changes preserved:
 - Task 2 — Access Modes + Offline Cold Start + Account State Hardening, partial pending Backend refresh-token parity.
 - Task 3 — Offline Freshness, Persistent Storage, and Local Durability.
 - Task 4 — Durable Booking Request Persistence, Migration, and Idempotency Foundation.
+- Task 5 — Booking Request UX, Recurring Intent, and Needs Review.
+- Task 6 — Booking Request Auto-Sync, Retry, and Historical Booking Synchronization.
+- Task 7 — Central Offline Sync Coordinator, Refresh Order, and Reconnect Recovery.
 
 ## Next Recommended Task
 
-Task 5 — Booking Request UX, Recurring Intent, and Needs Review.
+Task 8 — Public Home and Public Availability.
 
-Reason: Task 4 installed the canonical persistence/migration foundation. Task 5 is the next approved step for recurring request capture and human review UX before Task 6 adds automatic authenticated submission.
+Reason: Task 7 completed central sync ordering and coordinator ownership. The next approved item is the separate public-mode/privacy boundary for public home and public availability.
 
 ## Task 1 Durable Findings
 
@@ -338,7 +341,7 @@ Task 5 tests added/strengthened:
 - Unrelated validation and unknown non-transient client errors become non-retrying `NEEDS_REVIEW` with `review_reason=null`; user-facing integrity copy remains a Product/Engineering follow-up.
 - `BOOKING_CLIENT_REQUEST_MISMATCH` becomes non-retrying `NEEDS_REVIEW` with `review_reason=null`, preserves the request and `client_request_id`, and does not generate a replacement UUID.
 - `SESSION_EXPIRED`, `TOKEN_NOT_VALID`, `USER_INACTIVE`, `USER_DELETED`, and `CLUB_ACCESS_REVOKED` are classified through the Task-2 account-state helper. The request returns to `PENDING_SYNC`, processing stops for the current run/scope, and destructive cleanup remains delegated to AuthProvider/account-state ownership.
-- `OfflineSyncCoordinator` now invokes Booking Request processing after successful Schedule sync and before Bookings/Transactions/Current Custody. Task 7 can move this single processor earlier without changing the request state machine.
+- `OfflineSyncCoordinator` previously invoked Booking Request processing after successful Schedule sync and before Bookings/Transactions/Current Custody. Task 7 moved this single processor earlier without changing the request state machine.
 - If request processing stops for auth/account/access recovery, the coordinator skips secondary datasets for that run and reports a partial failure instead of hammering guaranteed unauthorized requests.
 - Schedule registers a process-local edit lock while the Booking Request edit sheet is open. This avoids submitting stale values from the current UI session while keeping persisted request state authoritative.
 - Task 6 intentionally does not add reconnect summary UI, manual refresh UX, page-level online listeners, Service Worker mutation handling, generic queues, cache window changes, or Backend hardening work.
@@ -348,3 +351,23 @@ Task 6 tests added/strengthened:
 - New `bookingRequestSync` unit tests cover one-time, recurring, historical one-time/recurring, 200 replay, stale `SYNCING` recovery, response-loss retry identity, technical retry classes, slot/recurring/customer validation mappings, unrelated validation, idempotency mismatch, auth/account/Club stops, dismissed/review/syncing/edit exclusions, deterministic continuation after mixed results, no message parsing, no cached price payload, and no recurrence generation.
 - Repository tests cover scoped sync selection and deterministic requested-time ordering.
 - Coordinator tests cover the Booking Request processor seam and auth-stop secondary dataset skipping.
+
+## Task 7 Durable Findings
+
+- `OfflineSyncCoordinator` is the single orchestration owner for operational startup, reconnect, resume, retry, and manual sync triggers mounted through `OfflineSyncProvider` and `OfflineSyncLifecycle`.
+- Sync order is now business-first: Booking Request processing runs before Schedule refresh, then Bookings and Transactions run after Schedule, then Current Custody refreshes last.
+- The coordinator calls the Task-6 `processPendingBookingRequests()` path through one processor seam. It does not duplicate Booking POST logic, idempotency handling, error classification, retry policy, or Needs Review mapping.
+- Authorized Court discovery for pre-refresh Booking Request processing reuses the Schedule sync Court-scope resolver so Staff stay limited to the assigned Court and management roles use active selected-Club Courts.
+- Startup, browser-online, visible-resume, manual, and delayed retry triggers continue to coalesce through one same-scope full-run lock. Dataset-level single-flight protection remains in place.
+- If Booking Request processing stops for auth/account/Club recovery, Schedule, Bookings, Transactions, and Current Custody are skipped for that run and the result is reported as partial failure.
+- Booking Request success is not rolled back when a later refresh fails. Dataset failures remain independent and retryable on later coordinator triggers.
+- `OperationalSyncRunResult` remains the minimal sync summary for future UI: dataset results, optional Booking Request counts, run status, start time, and completion time.
+- `sync_metadata.operational_last_sync_at` remains the approved canonical device-local operational freshness timestamp. It updates only after a fully successful coordinator cycle; dataset-specific timestamps remain independent.
+- No `last_successful_operational_sync_at` field, per-device sync table, Service Worker mutation queue, or page-level reconnect listener was added.
+
+Task 7 tests added/strengthened:
+
+- Coordinator tests now assert Booking Requests run before Schedule and secondary dataset refreshes.
+- Coordinator tests assert auth/access stop from Booking Request processing skips all refresh datasets.
+- Coordinator tests preserve coalescing across startup, online, resume, and manual triggers with the new pre-refresh order.
+- Existing focused sync tests continue covering stale `SYNCING`, idempotent replay, response-loss retry, partial request outcomes, scope isolation, and non-destructive refresh failures.

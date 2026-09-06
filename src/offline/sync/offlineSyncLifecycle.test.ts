@@ -9,6 +9,7 @@ import type {
 } from './sync.types'
 import { OfflineSyncCoordinator } from './syncCoordinator'
 import { OfflineSyncLifecycle } from './offlineSyncLifecycle'
+import type { BookingRequestQueueResult } from '../bookings/bookingRequestSync'
 
 interface Deferred<TValue> {
   promise: Promise<TValue>
@@ -37,6 +38,21 @@ function createTask(
   run: DatasetSyncTask['run'],
 ): DatasetSyncTask {
   return { dataset, run }
+}
+
+function createBookingRequestResult(): BookingRequestQueueResult {
+  return {
+    processed: 0,
+    booked: 0,
+    needsReview: 0,
+    pendingRetry: 0,
+    skipped: 0,
+    integrityMismatch: 0,
+    unknownNonretryable: 0,
+    stopped: false,
+    stopReason: null,
+    results: [],
+  }
 }
 
 const context: OperationalSyncContext = {
@@ -68,6 +84,7 @@ function createCoordinatorWithTasks(
   )
 
   return new OfflineSyncCoordinator({
+    processBookingRequests: vi.fn(async () => createBookingRequestResult()),
     tasks: includesCurrentCustody
       ? tasks
       : [
@@ -117,9 +134,8 @@ describe('OfflineSyncLifecycle', () => {
 
     currentContext = context
     lifecycle.updateContext()
-    await Promise.resolve()
 
-    expect(scheduleRun).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(scheduleRun).toHaveBeenCalledTimes(1))
     lifecycle.stop()
   })
 
@@ -147,9 +163,8 @@ describe('OfflineSyncLifecycle', () => {
     document.dispatchEvent(new Event('visibilitychange'))
     setVisibilityState('visible')
     document.dispatchEvent(new Event('visibilitychange'))
-    await Promise.resolve()
 
-    expect(scheduleRun).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(scheduleRun).toHaveBeenCalledTimes(1))
 
     scheduleGate.resolve(createResult('schedule'))
     await Promise.resolve()
@@ -257,7 +272,7 @@ describe('OfflineSyncLifecycle', () => {
     })
 
     lifecycle.start()
-    await Promise.resolve()
+    await vi.waitFor(() => expect(receivedSignals).toHaveLength(1))
     lifecycle.stop()
 
     expect(receivedSignals[0]?.aborted).toBe(true)

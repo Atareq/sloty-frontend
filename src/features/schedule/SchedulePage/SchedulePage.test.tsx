@@ -2120,11 +2120,20 @@ describe('SchedulePage', () => {
     await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'إلغاء الحجز' }))
+    expect(mockedCancelBooking).toHaveBeenCalledTimes(0)
+
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('سبب الإلغاء'),
+      'لم يتم دفع العربون',
+    )
+    await user.click(
+      screen.getAllByRole('button', { name: 'إلغاء الحجز' }).at(-1)!,
+    )
 
     await waitFor(() => {
       expect(mockedCancelBooking).toHaveBeenCalledWith('nasr-club', 12, {
-        reason: 'إلغاء الحجز المؤقت',
-        notes: 'تم إلغاء الحجز من لوحة الحجز',
+        reason: 'لم يتم دفع العربون',
       })
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(3)
     })

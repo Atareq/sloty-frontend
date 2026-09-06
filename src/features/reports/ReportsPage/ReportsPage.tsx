@@ -612,6 +612,21 @@ export function ReportsPage() {
             </AppCard>
           ) : null}
 
+          {!isLoading &&
+          !error &&
+          !report &&
+          !hasRequiredReportDates(filtersFromSearch) ? (
+            <AppCard>
+              <p className="text-sm font-black text-[var(--sloty-text-primary)]">
+                اختار فترة التقرير الأول.
+              </p>
+              <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+                حدد من تاريخ وإلى تاريخ، وبعدها اعرض تقرير إشغال الملاعب من
+                بيانات السيرفر.
+              </p>
+            </AppCard>
+          ) : null}
+
           {report && !isLoading ? (
             <>
               <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">

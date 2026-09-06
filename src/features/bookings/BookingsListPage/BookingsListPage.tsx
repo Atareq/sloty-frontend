@@ -970,31 +970,6 @@ export function BookingsListPage() {
     }
   }
 
-  async function handleFreeHoldBooking(booking: Booking): Promise<void> {
-    if (!selectedClubSlug || blockOfflineMutation()) {
-      return
-    }
-
-    setIsActionSubmitting(true)
-    setActionError(null)
-
-    try {
-      await cancelBooking(selectedClubSlug, booking.id, {
-        reason: 'إلغاء الحجز المؤقت',
-        notes: 'تم إلغاء الحجز من سجل الحجوزات',
-      })
-      setSelectedBooking(null)
-      setSuccessMessage('تم إلغاء الحجز بنجاح')
-      await reloadBookings()
-    } catch (error) {
-      setActionError(
-        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
-      )
-    } finally {
-      setIsActionSubmitting(false)
-    }
-  }
-
   async function handleCancelBooking(
     values: CancelBookingReasonValues,
   ): Promise<void> {
@@ -1503,7 +1478,10 @@ export function BookingsListPage() {
         onFreeHold={isOfflineMode
           ? undefined
           : (booking) => {
-              void handleFreeHoldBooking(booking)
+              setCancellingBooking(booking)
+              setCancellationPreview(null)
+              setActionError(null)
+              setActionFieldErrors(null)
             }}
         onNoShow={isOfflineMode
           ? undefined

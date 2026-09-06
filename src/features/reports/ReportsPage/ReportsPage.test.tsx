@@ -324,6 +324,14 @@ describe('ReportsPage', () => {
 
     renderReportsPage()
 
+    expect(await screen.findByText('اختار فترة التقرير الأول.'))
+      .toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'حدد من تاريخ وإلى تاريخ، وبعدها اعرض تقرير إشغال الملاعب من بيانات السيرفر.',
+      ),
+    ).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'عرض التقرير' }))
 
     expect(await screen.findByText('من تاريخ مطلوب')).toBeInTheDocument()

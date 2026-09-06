@@ -292,7 +292,6 @@ export function SchedulePage() {
   const [selectedActionBooking, setSelectedActionBooking] =
     useState<BookingListItem | null>(null)
   const [holdBooking, setHoldBooking] = useState<BookingListItem | null>(null)
-  const [isHoldActionSubmitting, setIsHoldActionSubmitting] = useState(false)
   const [holdActionError, setHoldActionError] = useState<string | null>(null)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -1732,37 +1731,6 @@ export function SchedulePage() {
     }
   }
 
-  async function handleFreeHoldBooking(booking: BookingListItem): Promise<void> {
-    if (!selectedClubSlug) {
-      return
-    }
-
-    if (!requireOnlineAction(setHoldActionError)) {
-      return
-    }
-
-    setIsHoldActionSubmitting(true)
-    setHoldActionError(null)
-
-    try {
-      await cancelBooking(selectedClubSlug, booking.id, {
-        reason: 'إلغاء الحجز المؤقت',
-        notes: 'تم إلغاء الحجز من لوحة الحجز',
-      })
-      setSelectedActionBooking(null)
-      setHoldBooking(null)
-      setSelectedSlot(null)
-      setSuccessMessage('تم إلغاء الحجز بنجاح')
-      await reloadScheduleSlots()
-    } catch (error) {
-      setHoldActionError(
-        getApiErrorMessage(error, 'تعذر إلغاء الحجز. حاول مرة أخرى'),
-      )
-    } finally {
-      setIsHoldActionSubmitting(false)
-    }
-  }
-
   async function handleSelectSlot(slot: ScheduleBooking): Promise<void> {
     setSuccessMessage(null)
     setSelectedActionBooking(null)
@@ -2395,7 +2363,7 @@ export function SchedulePage() {
           isOpen
           isSubmitting={
             (selectedActionBooking ?? selectedSlot?.booking)?.status === 'HOLD'
-              ? isHoldActionSubmitting
+              ? false
               : isLifecycleSubmitting
           }
           onAddPayment={(booking) => {
@@ -2442,7 +2410,10 @@ export function SchedulePage() {
             void handleEndRecurrence(booking)
           }}
           onFreeHold={(booking) => {
-            void handleFreeHoldBooking(booking)
+            setCancellingBooking(booking)
+            setCancellationPreview(null)
+            setLifecycleError(null)
+            setLifecycleFieldErrors(null)
           }}
           onNoShow={(booking) => {
             if (!requireOnlineAction(setLifecycleError)) {
