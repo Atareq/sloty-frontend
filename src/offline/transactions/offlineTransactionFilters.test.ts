@@ -59,11 +59,12 @@ describe('getOfflineTransactionsView', () => {
     expect(view.transactions.map((transaction) => transaction.id)).toEqual([2])
   })
 
-  it('searches payment reference without pretending customer fields are available', () => {
+  it('searches backend-provided payment reference and booking customer fields', () => {
     const view = getOfflineTransactionsView(
       [
         createTransaction(1, {
-          notes: 'أحمد دفع',
+          booking_customer_name: 'أحمد علي',
+          booking_customer_phone: '+201001112222',
           payment_reference: 'PAY-123',
         }),
       ],
@@ -72,7 +73,7 @@ describe('getOfflineTransactionsView', () => {
     )
 
     expect(view.state).toBe('ready')
-    expect(view.transactions).toEqual([])
+    expect(view.transactions).toHaveLength(1)
 
     expect(
       getOfflineTransactionsView(

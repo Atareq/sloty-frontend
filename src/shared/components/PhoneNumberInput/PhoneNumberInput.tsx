@@ -70,9 +70,9 @@ export function SlotyPhoneNumberInput({
         country={selectedCountry}
         disabled={disabled}
         inputMode="tel"
-        limitMaxLength
         onChange={onChange}
         placeholder={placeholder}
+        smartCaret={false}
         value={value}
       />
     </div>

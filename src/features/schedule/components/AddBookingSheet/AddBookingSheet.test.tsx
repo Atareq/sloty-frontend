@@ -55,7 +55,7 @@ describe('AddBookingSheet', () => {
     expect(phoneInput).toHaveValue('')
   })
 
-  it('omits recurrence controls when backend eligibility does not apply', () => {
+  it('disables recurrence controls when backend eligibility is unknown online', () => {
     render(
       <AddBookingSheet
         canStartRecurring={null}
@@ -71,8 +71,13 @@ describe('AddBookingSheet', () => {
     )
 
     expect(
-      screen.queryByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
-    ).not.toBeInTheDocument()
+      screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
+    ).toBeDisabled()
+    expect(
+      screen.getByText(
+        'التثبيت الأسبوعي يحتاج تحديث حديث للمعاد من السيرفر قبل اختياره.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('submits trimmed customer fields and omits empty notes', async () => {
@@ -253,6 +258,11 @@ describe('AddBookingSheet', () => {
     expect(screen.queryByText('فحص الإتاحة')).not.toBeInTheDocument()
     expect(screen.queryByText('حجز مرة واحدة')).not.toBeInTheDocument()
     expect(screen.queryByText('حجز أسبوعي')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'هنطلب من السيرفر تثبيت نفس اليوم والساعة للعميل كل أسبوع.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('explains a backend recurring conflict without offering an alternate start', () => {

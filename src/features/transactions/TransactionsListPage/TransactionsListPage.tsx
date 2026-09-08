@@ -892,7 +892,11 @@ export function TransactionsListPage() {
 
     setTransactions(offlineView.transactions)
     setError(null)
-    setMessage(null)
+    setMessage(
+      fallbackError
+        ? 'تعذر تحديث البيانات حاليًا. يتم عرض آخر نسخة محفوظة.'
+        : null,
+    )
 
     return true
   }, [
@@ -1292,8 +1296,7 @@ export function TransactionsListPage() {
           </p>
           <p className="mt-1 text-xs font-bold text-[var(--sloty-text-muted)]">
             سجل المعاملات المعروض محدود بآخر ٧ أيام محفوظة على الجهاز. البحث
-            دون إنترنت يشمل مرجع الدفع فقط لأن بيانات العميل غير موجودة كاملة في
-            سجل المعاملات الحالي.
+            دون إنترنت يستخدم مرجع الدفع وبيانات العميل المحفوظة من الخادم.
           </p>
 
           <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
@@ -1304,7 +1307,7 @@ export function TransactionsListPage() {
               label="بحث محفوظ"
               onDraftChange={setOfflineSearchDraft}
               onSearch={handleOfflineSearch}
-              placeholder="مرجع الدفع"
+              placeholder="مرجع الدفع أو اسم/رقم العميل"
               value={offlineSearchQuery}
             />
             <div className="flex shrink-0 gap-2">
@@ -1400,10 +1403,18 @@ export function TransactionsListPage() {
       ) : null}
 
       <ResultRefreshRegion isRefreshing={isRefreshing}>
-      {isLoading ? (
+      {isLoading && transactions.length === 0 ? (
         <AppCard>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
             جاري تحميل المعاملات المالية...
+          </p>
+        </AppCard>
+      ) : null}
+
+      {isLoading && transactions.length > 0 ? (
+        <AppCard>
+          <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
+            جاري تحديث البيانات...
           </p>
         </AppCard>
       ) : null}
@@ -1437,7 +1448,7 @@ export function TransactionsListPage() {
         </AppCard>
       ) : null}
 
-      {!isLoading && !error && transactions.length > 0 ? (
+      {(!isLoading || transactions.length > 0) && !error && transactions.length > 0 ? (
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {transactions.map((transaction) => {
             const createdLabel = formatArabicDateTime(transaction.created)

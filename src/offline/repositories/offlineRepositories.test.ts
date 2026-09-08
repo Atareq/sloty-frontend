@@ -276,7 +276,7 @@ describe('scoped offline repositories', () => {
     ).toBeUndefined()
   })
 
-  it('atomically replaces a bounded Schedule window with empty-day markers', async () => {
+  it('atomically replaces a bounded Schedule window with empty-day markers and prunes stale days', async () => {
     await repositories.replaceScheduleDay(
       userOneClubA,
       7,
@@ -322,8 +322,8 @@ describe('scoped offline repositories', () => {
         slots: [],
         synced_at: '2026-08-30T12:00:00.000Z',
       })
-    expect((await repositories.readScheduleDay(userOneClubA, 7, '2026-08-29'))?.slots[0].label)
-      .toBe('خارج النافذة')
+    expect(await repositories.readScheduleDay(userOneClubA, 7, '2026-08-29'))
+      .toBeUndefined()
     expect((await repositories.readScheduleDay(userOneClubA, 8, '2026-08-30'))?.slots[0].label)
       .toBe('ملعب آخر')
     expect((await repositories.getSyncMetadata(userOneClubA))?.schedule_last_sync_at)
@@ -558,7 +558,7 @@ describe('scoped offline repositories', () => {
     const databaseName = `sloty-legacy-${crypto.randomUUID()}`
     await seedLegacyVersion2Database(databaseName, [
       createLegacyIntent('existing-id', 'PENDING_RECHECK', {
-        client_request_id: 'existing-client-request-id',
+        client_request_id: '33333333-3333-4333-8333-333333333333',
         requested_recurring: true,
       }),
     ])
@@ -574,8 +574,12 @@ describe('scoped offline repositories', () => {
     const secondRecord = await createOfflineRepositories(secondOpen)
       .getBookingIntent(userOneClubA, 'existing-id')
 
-    expect(firstRecord?.client_request_id).toBe('existing-client-request-id')
-    expect(secondRecord?.client_request_id).toBe('existing-client-request-id')
+    expect(firstRecord?.client_request_id).toBe(
+      '33333333-3333-4333-8333-333333333333',
+    )
+    expect(secondRecord?.client_request_id).toBe(
+      '33333333-3333-4333-8333-333333333333',
+    )
     expect(secondRecord?.requested_recurring).toBe(true)
 
     secondOpen.close()
@@ -585,7 +589,7 @@ describe('scoped offline repositories', () => {
   it('keeps partial Booking Request updates from changing idempotency, recurrence, or customer payload', async () => {
     await repositories.saveBookingIntent(userOneClubA, {
       ...createIntent('intent-stable'),
-      client_request_id: 'stable-client-request-id',
+      client_request_id: '44444444-4444-4444-8444-444444444444',
       requested_recurring: true,
     })
 
@@ -600,7 +604,9 @@ describe('scoped offline repositories', () => {
       userOneClubA,
       'intent-stable',
     )
-    expect(updated?.client_request_id).toBe('stable-client-request-id')
+    expect(updated?.client_request_id).toBe(
+      '44444444-4444-4444-8444-444444444444',
+    )
     expect(updated?.requested_recurring).toBe(true)
     expect(updated?.customer_name).toBe('عميل محلي')
     expect(updated?.original_slot_snapshot).toEqual(slot)
@@ -612,7 +618,9 @@ describe('scoped offline repositories', () => {
     const saved = await repositories.getBookingIntent(userOneClubA, 'intent-new')
 
     expect(saved?.status).toBe('PENDING_SYNC')
-    expect(saved?.client_request_id).toMatch(/^booking-request-/)
+    expect(saved?.client_request_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    )
     expect(saved?.requested_recurring).toBe(false)
     expect(saved?.review_reason).toBeNull()
     expect(saved?.updated_at).toBe(saved?.created_at)

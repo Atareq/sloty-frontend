@@ -46,6 +46,7 @@ import { ScheduleClosingSection } from '../components/ScheduleClosingSection/Sch
 import { ScheduleSummary } from '../components/ScheduleSummary/ScheduleSummary'
 import { VirtualRecurringSlotDetailsSheet } from '../components/VirtualRecurringSlotDetailsSheet/VirtualRecurringSlotDetailsSheet'
 import { BookingActionSheet } from '../../bookings/components/BookingActionSheet/BookingActionSheet'
+import { dismissBookingAttempt } from '../../bookings/bookingAttemptsApi'
 import { EditBookingDetailsSheet } from '../../bookings/components/EditBookingDetailsSheet/EditBookingDetailsSheet'
 import { RescheduleBookingSheet } from '../../bookings/components/RescheduleBookingSheet/RescheduleBookingSheet'
 import { hasActiveRecurrence, shouldRefreshRecurrencePreview } from '../../bookings/bookingRecurrence.helpers'
@@ -113,6 +114,7 @@ import {
   isDateInsideScheduleSyncWindow,
 } from '../../../offline/schedule/scheduleSyncWindow'
 import { getScheduleFreshnessLabel } from '../../../offline/schedule/scheduleFreshness'
+import { createBookingRequestClientRequestId } from '../../../offline/bookings/bookingRequestPersistence'
 
 const BOOKING_CANCELLATION_TIME_PASSED = 'BOOKING_CANCELLATION_TIME_PASSED'
 const FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT = 'FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT'
@@ -345,7 +347,9 @@ export function SchedulePage() {
   >([])
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [settledSlotsDate, setSettledSlotsDate] = useState<string | null>(null)
+  const [isMorningGuidanceActive, setIsMorningGuidanceActive] = useState(false)
   const slotsSectionRef = useRef<HTMLElement | null>(null)
+  const morningPeriodRef = useRef<HTMLDivElement | null>(null)
   const daySectionRef = useRef<HTMLElement | null>(null)
   const pendingSlotsScrollDateRef = useRef<string | null>(null)
   const requestSyncRef = useRef(requestSync)
@@ -386,6 +390,7 @@ export function SchedulePage() {
       block: 'start',
     })
   }, [isSlotsLoading, settledSlotsDate])
+
   const assignedCourt = useMemo(
     () =>
       selectedMembership?.court
@@ -463,6 +468,14 @@ export function SchedulePage() {
     )
     setScheduleSource(source)
     setCacheSyncedAt(syncedAt)
+  }
+
+  function handleMorningGuidance(): void {
+    setIsMorningGuidanceActive(true)
+    morningPeriodRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    })
   }
 
   function canAttemptNetworkRequest(): boolean {
@@ -1152,15 +1165,29 @@ export function SchedulePage() {
     }
   }
 
-  async function handleDismissBookingIntent(localId: string): Promise<void> {
+  async function handleDismissBookingIntent(
+    intent: BookingIntentRecord,
+  ): Promise<void> {
     if (!offlineScope) {
       return
     }
 
     setIntentError(null)
+
+    if (intent.backend_attempt_id && selectedClubSlug) {
+      try {
+        await dismissBookingAttempt(selectedClubSlug, intent.backend_attempt_id)
+      } catch (error) {
+        setIntentError(
+          getApiErrorMessage(error, 'تعذر تجاهل محاولة الحجز على الخادم.'),
+        )
+        return
+      }
+    }
+
     await offlineRepositories.updateBookingIntentStatus(
       offlineScope,
-      localId,
+      intent.local_id,
       'DISMISSED',
     )
     setAlternativeIntentId(null)
@@ -1237,6 +1264,9 @@ export function SchedulePage() {
 
     await offlineRepositories.updateBookingIntent(offlineScope, intent.local_id, {
       court_id: alternative.courtId,
+      client_request_id: createBookingRequestClientRequestId(),
+      backend_attempt_id: null,
+      last_attempt_at: null,
       requested_date: alternative.date,
       requested_start: formatBookingDateTime(
         alternative.date,
@@ -1246,6 +1276,7 @@ export function SchedulePage() {
       original_slot_snapshot: latestSlot
         ? createSlotSnapshotFromAlternative(latestSlot)
         : intent.original_slot_snapshot,
+      resolved_booking_id: null,
       status: nextStatus,
       review_reason: nextReviewReason,
     })
@@ -1265,13 +1296,29 @@ export function SchedulePage() {
     setIntentError(null)
 
     try {
+      const nextNotes = values.notes ?? null
+      const hasBusinessInputChanged =
+        editingIntent.customer_name !== values.customer_name ||
+        editingIntent.customer_phone !== values.customer_phone ||
+        editingIntent.notes !== nextNotes
+
       await offlineRepositories.updateBookingIntent(
         offlineScope,
         editingIntent.local_id,
         {
           customer_name: values.customer_name,
           customer_phone: values.customer_phone,
-          notes: values.notes ?? null,
+          ...(hasBusinessInputChanged
+            ? { client_request_id: createBookingRequestClientRequestId() }
+            : {}),
+          ...(hasBusinessInputChanged
+            ? {
+                backend_attempt_id: null,
+                last_attempt_at: null,
+                resolved_booking_id: null,
+              }
+            : {}),
+          notes: nextNotes,
           status: 'PENDING_SYNC',
           review_reason: null,
         },
@@ -1295,7 +1342,11 @@ export function SchedulePage() {
 
     setIntentError(null)
     await offlineRepositories.updateBookingIntent(offlineScope, intent.local_id, {
+      client_request_id: createBookingRequestClientRequestId(),
+      backend_attempt_id: null,
+      last_attempt_at: null,
       requested_recurring: false,
+      resolved_booking_id: null,
       status: 'PENDING_SYNC',
       review_reason: null,
     })
@@ -1691,11 +1742,13 @@ export function SchedulePage() {
       await createTransaction(selectedClubSlug, {
         booking: paymentBooking.id,
         amount: values.amount,
+        client_request_id: values.client_request_id,
         payment_method: values.payment_method,
         ...(values.reference
           ? { payment_reference: values.reference }
           : {}),
         ...(values.notes ? { notes: values.notes } : {}),
+        occurred_at: values.occurred_at,
       })
       setPaymentBooking(null)
       setSelectedActionBooking(null)
@@ -1819,12 +1872,11 @@ export function SchedulePage() {
   const selectedDateLabel = formatArabicDateWithWeekday(selectedDate)
   const shouldShowBoardSlots =
     !isSetupLoading &&
-    !isSlotsLoading &&
     !error &&
     slots.length > 0
   const shouldShowBoardMessage =
     !isSetupLoading &&
-    !isSlotsLoading &&
+    (!isSlotsLoading || slots.length === 0) &&
     !error &&
     Boolean(boardMessage) &&
     slots.length === 0
@@ -1951,10 +2003,14 @@ export function SchedulePage() {
                 <>
                   <div
                     className={[
-                      'relative flex min-h-0 flex-col justify-between overflow-hidden rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] sm:p-3 md:p-4',
+                      'relative flex min-h-0 flex-col justify-between overflow-hidden rounded-3xl border p-2 shadow-lg backdrop-blur-[1px] transition duration-300 sm:p-3 md:p-4',
                       schedulePeriodStyles.am.section,
+                      isMorningGuidanceActive
+                        ? 'ring-2 ring-amber-300/80 shadow-[0_0_34px_rgba(251,191,36,0.24)]'
+                        : '',
                     ].join(' ')}
                     data-testid="schedule-period-am"
+                    ref={morningPeriodRef}
                   >
                     <div
                       aria-hidden="true"
@@ -1979,7 +2035,23 @@ export function SchedulePage() {
                         >
                           فترة نهارية
                         </p>
-                        <h3 className="text-lg font-black">مواعيد الصباح</h3>
+                        <button
+                          aria-pressed={isMorningGuidanceActive}
+                          className="mt-1 -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-xl px-2 text-right text-lg font-black transition hover:bg-white/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
+                          onClick={handleMorningGuidance}
+                          type="button"
+                        >
+                          <span>مواعيد الصباح</span>
+                          <span
+                            aria-hidden="true"
+                            className={[
+                              'text-base transition-transform duration-300',
+                              isMorningGuidanceActive ? 'scale-110' : '',
+                            ].join(' ')}
+                          >
+                            ✨
+                          </span>
+                        </button>
                       </div>
                     </div>
                     <div className="relative z-10 grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
@@ -2111,6 +2183,9 @@ export function SchedulePage() {
                 const shouldShowOneTimeAction =
                   intent.status === 'NEEDS_REVIEW' &&
                   intent.review_reason === 'RECURRING_UNAVAILABLE'
+                const shouldShowGenericReviewAction =
+                  intent.status === 'NEEDS_REVIEW' &&
+                  intent.review_reason === null
                 const appointmentLabel = formatArabicDateWithWeekday(
                   intent.requested_date,
                 )
@@ -2211,10 +2286,19 @@ export function SchedulePage() {
                           اختار معاد تاني
                         </AppButton>
                       ) : null}
+                      {shouldShowGenericReviewAction ? (
+                        <AppButton
+                          onClick={() => setEditingIntent(intent)}
+                          type="button"
+                          variant="secondary"
+                        >
+                          مراجعة الطلب
+                        </AppButton>
+                      ) : null}
                       {!isSyncing ? (
                         <AppButton
                           onClick={() =>
-                            void handleDismissBookingIntent(intent.local_id)
+                            void handleDismissBookingIntent(intent)
                           }
                           type="button"
                           variant="secondary"

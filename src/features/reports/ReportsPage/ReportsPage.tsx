@@ -413,7 +413,6 @@ export function ReportsPage() {
         }
       } catch (error) {
         if (isActive) {
-          setReport(null)
           setError(getApiErrorMessage(error, 'تعذر تحميل التقرير'))
         }
       } finally {

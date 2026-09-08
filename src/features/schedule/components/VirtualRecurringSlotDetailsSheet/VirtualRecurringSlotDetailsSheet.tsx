@@ -97,6 +97,9 @@ export function VirtualRecurringSlotDetailsSheet({
             <p className="mt-2 text-sm font-medium leading-6 text-[var(--sloty-text-muted)]">
               {recurringCopy.weeklyHelper}
             </p>
+            <p className="mt-2 rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
+              {recurringCopy.virtualOccurrenceHelper}
+            </p>
           </header>
 
           {showCurrentPrice ? (

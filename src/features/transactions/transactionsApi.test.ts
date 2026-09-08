@@ -117,6 +117,29 @@ describe('transactionsApi', () => {
     )
   })
 
+  it('keeps Swagger transaction query params', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions('nasr-club', {
+      booking: 33,
+      ordering: '-created',
+      search: 'REF-123',
+      settlement: 9,
+      transaction_type: 'PAYMENT',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.transactions.list(
+        'nasr-club',
+      )}?booking=33&ordering=-created&search=REF-123&settlement=9&transaction_type=PAYMENT`,
+    )
+  })
+
   it('skips empty query params', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,
@@ -140,8 +163,10 @@ describe('transactionsApi', () => {
     const payload = {
       booking: 10,
       amount: '150',
+      client_request_id: '9b9fa9a9-3c28-45f0-88a6-4d2523f42ea5',
       payment_method: 'CASH' as const,
       payment_reference: 'PAY-17',
+      occurred_at: '2026-09-08T10:00:00.000Z',
     }
 
     mockedApiRequest.mockResolvedValueOnce({

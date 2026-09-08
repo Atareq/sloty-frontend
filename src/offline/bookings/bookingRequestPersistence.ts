@@ -40,6 +40,21 @@ function createFallbackId(): string {
   return `booking-request-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+function createFallbackUuid(): string {
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (value) => {
+    const numericValue = Number(value)
+    const randomNibble = Math.floor(Math.random() * 16)
+
+    return (numericValue ^ (randomNibble >> (numericValue / 4))).toString(16)
+  })
+}
+
+function isUuidLike(value: string | undefined): value is string {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(value)
+}
+
 /**
  * Generates the stable Backend idempotency key for one local Booking Request.
  * The caller must persist the returned value immediately and must never
@@ -47,8 +62,8 @@ function createFallbackId(): string {
  */
 export function createBookingRequestClientRequestId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? `booking-request-${crypto.randomUUID()}`
-    : createFallbackId()
+    ? crypto.randomUUID()
+    : createFallbackUuid()
 }
 
 export function mapLegacyBookingIntentStatus(
@@ -113,14 +128,17 @@ export function normalizeBookingRequestRecord(
     options.generateClientRequestId ?? createBookingRequestClientRequestId
   const mappedStatus = mapLegacyBookingIntentStatus(record.status)
   const createdAt = record.created_at ?? now
+  const clientRequestId = isUuidLike(record.client_request_id)
+    ? record.client_request_id
+    : generatedClientRequestId()
 
   return {
     ...record,
     scope_key: record.scope_key ?? '',
     user_id: record.user_id ?? 0,
     club_slug: record.club_slug ?? '',
-    local_id: record.local_id ?? generatedClientRequestId(),
-    client_request_id: record.client_request_id ?? generatedClientRequestId(),
+    local_id: record.local_id ?? createFallbackId(),
+    client_request_id: clientRequestId,
     court_id: record.court_id ?? 0,
     requested_date: record.requested_date ?? '',
     requested_start: record.requested_start ?? '',
@@ -139,5 +157,6 @@ export function normalizeBookingRequestRecord(
     updated_at: record.updated_at ?? record.last_checked_at ?? createdAt,
     last_attempt_at: record.last_attempt_at ?? null,
     resolved_booking_id: record.resolved_booking_id ?? null,
+    backend_attempt_id: record.backend_attempt_id ?? null,
   } as BookingRequestRecord
 }

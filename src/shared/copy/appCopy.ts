@@ -70,7 +70,9 @@ export const recurringCopy = {
   weeklyReserved: '↻ محجوز أسبوعيًا',
   weeklyCheckbox: 'ثبّت نفس الموعد كل أسبوع',
   currentPrice: 'السعر الحالي',
-  weeklyHelper: 'المعاد ده متثبت للعميل كل أسبوع.',
+  weeklyHelper: 'التكرار الأسبوعي بيتأكد ويتحدث من السيرفر.',
+  virtualOccurrenceHelper:
+    'المعاد المعروض تكرار مستقبلي من الحجز الأسبوعي، وليس حجزًا جديدًا مستقلًا.',
   stopWeeklyConfirmTitle: 'إيقاف الحجز الأسبوعي؟',
   stopWeeklyConfirmBody:
     'الحجز الحالي هيفضل زي ما هو، لكن المعاد مش هيتحجز تلقائيًا في الأسابيع الجاية.',

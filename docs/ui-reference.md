@@ -53,9 +53,9 @@ Current Booking History offline UX:
 
 Current Transactions offline UX:
 
-- Online Transactions keep the existing backend-backed filters and pagination. The current backend contract still has no server search or ordering query, so the online ledger does not add those controls.
+- Online Transactions keep the existing backend-backed filters and pagination. The API layer supports server search and ordering query params, but the online ledger does not add new controls without Product scope.
 - Offline/backend-unreachable Transactions show the scoped previous-seven-day cached snapshot with a small `بدون إنترنت · آخر تحديث ...` context.
-- Offline search uses cached payment reference only. Customer name/phone are not shown as searchable because Transaction rows do not include complete customer context and the frontend must not fetch linked Booking details per row.
+- Offline search uses cached backend Transaction fields only: payment reference and customer name/phone when present. The frontend must not fetch linked Booking details per row.
 - Date requests outside the seven-day cache window use internet-required copy. Empty results inside the cached window remain ordinary empty filter/search results.
 - Offline sort controls (`↓ الأحدث`, `↑ الأقدم`) are local only over the complete bounded cache and must not imply server ordering.
 - Cached Transaction details use a read-only `AppSheet`, show only fields present in the response, hide CASH payment references, hide empty notes, and expose no payment/cancellation/refund/settlement action.

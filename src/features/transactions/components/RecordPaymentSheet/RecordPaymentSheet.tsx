@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   getFirstFieldErrorMessage,
@@ -21,9 +21,11 @@ import { paymentMethodLabels } from '../../transactions.types'
 
 export interface RecordPaymentSheetValues {
   amount: string
+  client_request_id: string
   payment_method: PaymentMethod
   reference?: string
   notes?: string
+  occurred_at: string
 }
 
 export interface RecordPaymentBookingMoney {
@@ -48,6 +50,37 @@ function hasMoneyValue(value: string | number | null | undefined): boolean {
   return value !== null && value !== undefined && value !== ''
 }
 
+function createFallbackUuid(): string {
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (value) => {
+    const numericValue = Number(value)
+    const randomNibble = Math.floor(Math.random() * 16)
+
+    return (numericValue ^ (randomNibble >> (numericValue / 4))).toString(16)
+  })
+}
+
+function createPaymentClientRequestId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : createFallbackUuid()
+}
+
+function createPaymentBusinessKey(values: {
+  amount: string
+  bookingId: number | string
+  notes?: string
+  paymentMethod: PaymentMethod
+  reference?: string
+}): string {
+  return JSON.stringify({
+    booking: String(values.bookingId),
+    amount: values.amount,
+    payment_method: values.paymentMethod,
+    payment_reference: values.reference ?? '',
+    notes: values.notes ?? '',
+  })
+}
+
 /**
  * Presentational payment-recording form for HOLD or confirmed bookings.
  *
@@ -55,6 +88,7 @@ function hasMoneyValue(value: string | number | null | undefined): boolean {
  * this sheet can remain reusable from booking details or future transaction UI.
  */
 export function RecordPaymentSheet({
+  bookingId,
   bookingMoney = null,
   error,
   fieldErrors = null,
@@ -72,6 +106,11 @@ export function RecordPaymentSheet({
     null,
   )
   const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
+  const idempotencyRef = useRef<{
+    businessKey: string
+    clientRequestId: string
+    occurredAt: string
+  } | null>(null)
   const amountFieldError = getFirstFieldErrorMessage(fieldErrors, 'amount')
   const referenceFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'reference') ??
@@ -130,14 +169,36 @@ export function RecordPaymentSheet({
     }
 
     setAmountValidationError(null)
+    const submittedReference = showPaymentReference
+      ? trimmedReference || undefined
+      : undefined
+    const submittedNotes = trimmedNotes || undefined
+    const businessKey = createPaymentBusinessKey({
+      amount: trimmedAmount,
+      bookingId,
+      notes: submittedNotes,
+      paymentMethod,
+      reference: submittedReference,
+    })
+    const idempotency =
+      idempotencyRef.current?.businessKey === businessKey
+        ? idempotencyRef.current
+        : {
+            businessKey,
+            clientRequestId: createPaymentClientRequestId(),
+            occurredAt: new Date().toISOString(),
+          }
+
+    idempotencyRef.current = idempotency
+
     try {
       await onSubmit({
         amount: trimmedAmount,
+        client_request_id: idempotency.clientRequestId,
         payment_method: paymentMethod,
-        reference: showPaymentReference
-          ? trimmedReference || undefined
-          : undefined,
-        notes: trimmedNotes || undefined,
+        reference: submittedReference,
+        notes: submittedNotes,
+        occurred_at: idempotency.occurredAt,
       })
     } catch {
       // The parent owns the API error message so this form stays presentational.

@@ -9,6 +9,7 @@ import { offlineRepositories } from '../../../offline/repositories/offlineReposi
 import type { BookingIntentRecord } from '../../../offline/offline.types'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listCourts } from '../../courts/courtsApi'
+import { dismissBookingAttempt } from '../../bookings/bookingAttemptsApi'
 import { createTransaction } from '../../transactions/transactionsApi'
 import {
   cancelBooking,
@@ -90,6 +91,10 @@ vi.mock('../../transactions/transactionsApi', () => ({
   createTransaction: vi.fn(),
 }))
 
+vi.mock('../../bookings/bookingAttemptsApi', () => ({
+  dismissBookingAttempt: vi.fn(),
+}))
+
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedUseOfflineSync = vi.mocked(useOfflineSync)
 const mockedOfflineRepositories = vi.mocked(offlineRepositories)
@@ -104,6 +109,7 @@ const mockedCompleteBooking = vi.mocked(completeBooking)
 const mockedMarkBookingNoShow = vi.mocked(markBookingNoShow)
 const mockedPreviewBookingCancellation = vi.mocked(previewBookingCancellation)
 const mockedCreateTransaction = vi.mocked(createTransaction)
+const mockedDismissBookingAttempt = vi.mocked(dismissBookingAttempt)
 const scrollIntoViewMock = vi.fn()
 
 function paginatedResponse<T>(results: T[]) {
@@ -363,6 +369,21 @@ function mockScheduleApiData(): void {
   mockedOfflineRepositories.updateBookingIntentStatus.mockResolvedValue(
     undefined,
   )
+  mockedDismissBookingAttempt.mockResolvedValue({
+    id: 77,
+    club: 1,
+    court: 7,
+    customer_name: 'عميل',
+    customer_phone: '+201012345678',
+    requested_start: '2026-07-20T09:00:00',
+    requested_end: '2026-07-20T10:00:00',
+    requested_recurring: false,
+    outcome: 'REJECTED',
+    resolution: 'DISMISSED',
+    status: 'DISMISSED',
+    created: '2026-09-08T10:00:00.000Z',
+    modified: '2026-09-08T10:00:00.000Z',
+  })
   mockedUseOfflineSync.mockReturnValue({
     connectivity: {
       browserNetwork: 'likely_online',
@@ -1052,7 +1073,37 @@ describe('SchedulePage', () => {
       .not.toHaveBeenCalled()
   })
 
-  it('edits Booking Request customer data without changing request identity or recurrence', async () => {
+  it('dismisses backend BookingAttempt before hiding a linked local request', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const intent = makeBookingIntent({
+      local_id: 'intent-backed-attempt',
+      backend_attempt_id: 77,
+      status: 'NEEDS_REVIEW',
+      review_reason: 'SLOT_UNAVAILABLE',
+      customer_name: 'عميل محاولة',
+    })
+    mockedOfflineRepositories.getBookingIntentsForCourts.mockResolvedValue([
+      intent,
+    ])
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'تجاهل الطلب' }))
+
+    expect(mockedDismissBookingAttempt).toHaveBeenCalledWith('nasr-club', 77)
+    expect(mockedOfflineRepositories.updateBookingIntentStatus)
+      .toHaveBeenCalledWith(
+        { userId: 1, clubSlug: 'nasr-club' },
+        'intent-backed-attempt',
+        'DISMISSED',
+      )
+  })
+
+  it('edits Booking Request customer data as a new logical request without changing recurrence', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const intent = makeBookingIntent({
       local_id: 'intent-edit',
@@ -1090,7 +1141,11 @@ describe('SchedulePage', () => {
         {
           customer_name: 'عميل معدل',
           customer_phone: '+201012345678',
+          client_request_id: expect.any(String),
+          backend_attempt_id: null,
+          last_attempt_at: null,
           notes: 'ملاحظة معدلة',
+          resolved_booking_id: null,
           status: 'PENDING_SYNC',
           review_reason: null,
         },
@@ -1146,12 +1201,54 @@ describe('SchedulePage', () => {
     expect(mockedOfflineRepositories.updateBookingIntent).toHaveBeenCalledWith(
       { userId: 1, clubSlug: 'nasr-club' },
       'intent-recurring',
-      {
+      expect.objectContaining({
+        client_request_id: expect.any(String),
+        backend_attempt_id: null,
+        last_attempt_at: null,
         requested_recurring: false,
+        resolved_booking_id: null,
         status: 'PENDING_SYNC',
         review_reason: null,
-      },
+      }),
     )
+    expect(mockedCreateBooking).not.toHaveBeenCalled()
+  })
+
+  it('shows a review action for old Needs Review requests without a known reason', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const intent = makeBookingIntent({
+      local_id: 'intent-old-review',
+      status: 'NEEDS_REVIEW',
+      review_reason: null,
+      customer_name: 'عميل قديم',
+      customer_phone: '+201012345678',
+      notes: 'ملاحظة محفوظة',
+    })
+    mockedOfflineRepositories.getBookingIntentsForCourts.mockResolvedValue([
+      intent,
+    ])
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('عميل قديم')).toBeInTheDocument()
+    expect(
+      screen.getByText('الطلب محفوظ ومحتاج مراجعة قبل التأكيد.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تعديل البيانات' }),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'مراجعة الطلب' }))
+
+    expect(screen.getByText('تعديل بيانات طلب الحجز')).toBeInTheDocument()
+    expect(screen.getByLabelText('اسم العميل')).toHaveValue('عميل قديم')
+    expect(screen.getByLabelText('ملاحظات')).toHaveValue('ملاحظة محفوظة')
+    expect(screen.getByRole('button', { name: 'تجاهل الطلب' }))
+      .toBeInTheDocument()
     expect(mockedCreateBooking).not.toHaveBeenCalled()
   })
 
@@ -1233,10 +1330,14 @@ describe('SchedulePage', () => {
       'intent-alt',
       expect.objectContaining({
         court_id: 7,
+        client_request_id: expect.any(String),
+        backend_attempt_id: null,
+        last_attempt_at: null,
         requested_date: today,
         requested_start: `${today}T10:00:00`,
         requested_end: `${today}T11:00:00`,
         original_slot_snapshot: alternativeSlot,
+        resolved_booking_id: null,
         status: 'PENDING_SYNC',
         review_reason: null,
       }),
@@ -1297,6 +1398,10 @@ describe('SchedulePage', () => {
       expect.objectContaining({
         requested_start: `${today}T10:00:00`,
         requested_end: `${today}T11:00:00`,
+        client_request_id: expect.any(String),
+        backend_attempt_id: null,
+        last_attempt_at: null,
+        resolved_booking_id: null,
         status: 'NEEDS_REVIEW',
         review_reason: 'RECURRING_UNAVAILABLE',
       }),
@@ -1482,6 +1587,29 @@ describe('SchedulePage', () => {
     expect(eveningPeriod).not.toHaveClass('bg-white/[0.18]')
     expect(within(morningPeriod).getByText('مواعيد الصباح')).toBeInTheDocument()
     expect(within(eveningPeriod).getByText('مواعيد المساء')).toBeInTheDocument()
+  })
+
+  it('guides users toward morning slots after selecting the morning period', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const morningPeriod = await screen.findByTestId('schedule-period-am')
+
+    expect(morningPeriod).not.toHaveClass('ring-2')
+
+    await user.click(within(morningPeriod).getByRole('button', {
+      name: 'مواعيد الصباح',
+    }))
+
+    expect(morningPeriod).toHaveClass('ring-2', 'ring-amber-300/80')
+    expect(within(morningPeriod).getByRole('button', {
+      name: 'مواعيد الصباح',
+    })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('keeps identical slot statuses styled the same across morning and evening periods', async () => {
@@ -2113,7 +2241,15 @@ describe('SchedulePage', () => {
     await user.click(screen.getByRole('button', { name: 'تسجيل العربون' }))
 
     await waitFor(() => {
-      expect(mockedCreateTransaction).toHaveBeenCalled()
+      expect(mockedCreateTransaction).toHaveBeenCalledWith(
+        'nasr-club',
+        expect.objectContaining({
+          booking: 12,
+          amount: '100',
+          client_request_id: expect.any(String),
+          occurred_at: expect.any(String),
+        }),
+      )
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
     })
 

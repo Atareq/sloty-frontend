@@ -517,6 +517,26 @@ describe('ReportsPage', () => {
     expect(screen.getAllByText('محمود حسن').length).toBeGreaterThan(0)
   })
 
+  it('keeps the last loaded report visible when a later refresh fails', async () => {
+    const user = userEvent.setup()
+
+    mockedGetCourtUsageReport
+      .mockResolvedValueOnce(reportFixture)
+      .mockRejectedValueOnce(new Error('network unavailable'))
+
+    renderReportsPage('/reports?date_from=2026-07-01&date_to=2026-07-15')
+
+    expect(await screen.findByText('سياق التقرير')).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('إلى تاريخ'))
+    await user.type(screen.getByLabelText('إلى تاريخ'), '2026-07-16')
+    await user.click(screen.getByRole('button', { name: 'عرض التقرير' }))
+
+    expect(await screen.findByText('تعذر تحميل التقرير')).toBeInTheDocument()
+    expect(screen.getByText('سياق التقرير')).toBeInTheDocument()
+    expect(screen.getAllByText('3,600.00 جنيه').length).toBeGreaterThan(0)
+  })
+
   it('renders empty messages for empty report sections', async () => {
     mockedGetCourtUsageReport.mockResolvedValueOnce({
       ...reportFixture,

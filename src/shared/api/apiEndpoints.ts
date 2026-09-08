@@ -44,6 +44,13 @@ export const apiEndpoints = {
       reschedule: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/bookings/${id}/reschedule/`,
     },
+    bookingAttempts: {
+      list: (clubSlug: string) => `clubs/${clubSlug}/booking-attempts/`,
+      detail: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/booking-attempts/${id}/`,
+      dismiss: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/booking-attempts/${id}/dismiss/`,
+    },
     courts: {
       list: (clubSlug: string) => `clubs/${clubSlug}/courts/`,
       detail: (clubSlug: string, id: ApiId) =>
@@ -82,6 +89,13 @@ export const apiEndpoints = {
         `clubs/${clubSlug}/transactions/${id}/`,
       cancel: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/transactions/${id}/cancel/`,
+    },
+    transactionAttempts: {
+      list: (clubSlug: string) => `clubs/${clubSlug}/transaction-attempts/`,
+      detail: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/transaction-attempts/${id}/`,
+      dismiss: (clubSlug: string, id: ApiId) =>
+        `clubs/${clubSlug}/transaction-attempts/${id}/dismiss/`,
     },
     users: {
       list: (clubSlug: string) => `clubs/${clubSlug}/users/`,

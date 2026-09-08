@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  BarChart3,
   Building2,
   CalendarDays,
   ClipboardList,
@@ -84,14 +83,6 @@ export const navigationItems: NavigationItem[] = [
     label: appNavCopy.moneyManagement,
     icon: Wallet,
     allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
-    showInMobile: false,
-    showInPrimaryNav: true,
-  },
-  {
-    path: '/reports',
-    label: appNavCopy.reports,
-    icon: BarChart3,
-    allowedRoles: ['OWNER', 'MANAGER'],
     showInMobile: false,
     showInPrimaryNav: true,
   },

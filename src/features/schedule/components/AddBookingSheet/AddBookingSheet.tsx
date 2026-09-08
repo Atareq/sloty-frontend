@@ -104,11 +104,21 @@ export function AddBookingSheet({
     getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')
   const isRecurringBlocked = canStartRecurring !== true
-  const shouldShowRecurringControl = offlineIntentMode || canStartRecurring !== null
   const recurringBlockedMessage = getRecurringBlockedMessage(
     recurringBlockedReason,
     firstRecurringConflictStart,
   )
+  const recurringHelperText = offlineIntentMode
+    ? canStartRecurring === true
+      ? 'التثبيت الأسبوعي متاح طبقًا لآخر تحديث وسيتم التأكد منه عند رجوع الإنترنت.'
+      : canStartRecurring === false
+        ? 'غير متاح تثبيت الموعد لهذا الحجز طبقًا لآخر تحديث.'
+        : 'التثبيت الأسبوعي يحتاج إنترنت أو تحديث حديث للمعاد قبل حفظ الطلب.'
+    : canStartRecurring === null
+      ? 'التثبيت الأسبوعي يحتاج تحديث حديث للمعاد من السيرفر قبل اختياره.'
+      : isRecurringBlocked
+        ? 'غير متاح تثبيت الموعد لهذا الحجز.'
+        : 'هنطلب من السيرفر تثبيت نفس اليوم والساعة للعميل كل أسبوع.'
   const submitLabel = offlineIntentMode ? 'احفظ طلب الحجز' : 'تأكيد الحجز'
   const submittingLabel = offlineIntentMode
     ? 'جاري حفظ الطلب...'
@@ -223,41 +233,31 @@ export function AddBookingSheet({
             </p>
           ) : null}
 
-          {shouldShowRecurringControl ? (
-            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-3 text-[var(--sloty-text-primary)]">
-              <input
-                checked={isRecurring}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--sloty-primary)]"
-                disabled={isSubmitting || isRecurringBlocked}
-                onChange={(event) => {
-                  setIsRecurring(event.target.checked)
-                  setValidationError(null)
-                }}
-                type="checkbox"
-              />
-              <span>
-                <span className="block text-sm font-black">
-                  ثبّت نفس الموعد كل أسبوع
-                </span>
-                <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                  {offlineIntentMode
-                    ? canStartRecurring === true
-                      ? 'التثبيت الأسبوعي متاح طبقًا لآخر تحديث وسيتم التأكد منه عند رجوع الإنترنت.'
-                      : canStartRecurring === false
-                        ? 'غير متاح تثبيت الموعد لهذا الحجز طبقًا لآخر تحديث.'
-                        : 'التثبيت الأسبوعي يحتاج إنترنت أو تحديث حديث للمعاد قبل حفظ الطلب.'
-                    : isRecurringBlocked
-                    ? 'غير متاح تثبيت الموعد لهذا الحجز.'
-                    : 'هيتحجز نفس اليوم والساعة للعميل كل أسبوع.'}
-                </span>
-                {isRecurringBlocked && recurringBlockedMessage ? (
-                  <span className="mt-1 block text-xs font-bold leading-5 text-amber-800">
-                    {recurringBlockedMessage}
-                  </span>
-                ) : null}
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-3 text-[var(--sloty-text-primary)]">
+            <input
+              checked={isRecurring}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--sloty-primary)]"
+              disabled={isSubmitting || isRecurringBlocked}
+              onChange={(event) => {
+                setIsRecurring(event.target.checked)
+                setValidationError(null)
+              }}
+              type="checkbox"
+            />
+            <span>
+              <span className="block text-sm font-black">
+                ثبّت نفس الموعد كل أسبوع
               </span>
-            </label>
-          ) : null}
+              <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                {recurringHelperText}
+              </span>
+              {isRecurringBlocked && recurringBlockedMessage ? (
+                <span className="mt-1 block text-xs font-bold leading-5 text-amber-800">
+                  {recurringBlockedMessage}
+                </span>
+              ) : null}
+            </span>
+          </label>
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>ملاحظات</span>

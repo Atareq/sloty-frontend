@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
+import { LogOut, X } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
   canViewOwnSettlements,
@@ -122,10 +122,6 @@ function OfflineFreshnessNotice() {
       ))}
     </div>
   )
-}
-
-function getViewModeToggleLabel(currentViewMode: ViewMode): string {
-  return currentViewMode === 'desktop' ? 'عرض الهاتف' : 'عرض سطح المكتب'
 }
 
 /**
@@ -257,17 +253,6 @@ export function AppShell() {
     setViewMode(nextViewMode)
   }
 
-  function handleToggleViewMode(): void {
-    setViewMode((currentViewMode) => {
-      const nextViewMode = currentViewMode === 'desktop' ? 'mobile' : 'desktop'
-
-      window.localStorage.setItem(viewModeStorageKey, nextViewMode)
-      setIsMenuOpen(false)
-
-      return nextViewMode
-    })
-  }
-
   useEffect(() => {
     if (!isMenuOpen) {
       return
@@ -351,11 +336,12 @@ export function AppShell() {
               عرض الهاتف
             </button>
             <button
-              className="mt-2 min-h-11 w-full rounded-xl px-3 py-2 text-right text-sm font-bold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
+              className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[var(--sloty-danger)]/20 bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-black text-[var(--sloty-danger)] transition hover:border-[var(--sloty-danger)]/35 hover:bg-[var(--sloty-danger-soft)]/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sloty-danger)]"
               onClick={handleLogoutRequest}
               type="button"
             >
-              تسجيل الخروج
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+              <span>تسجيل الخروج</span>
             </button>
           </section>
         ) : null}
@@ -418,26 +404,26 @@ export function AppShell() {
             onClick={requestCloseMenu}
             type="button"
           />
-          <aside className="absolute bottom-0 right-0 top-0 flex w-[min(82vw,320px)] flex-col overflow-y-auto bg-[var(--sloty-surface)] p-4 shadow-2xl">
-            <div className="flex items-start justify-between gap-3 border-b border-[var(--sloty-border)] pb-4">
+          <aside className="absolute bottom-3 right-3 top-3 flex w-[min(86vw,332px)] flex-col overflow-y-auto rounded-l-[2rem] rounded-r-3xl border border-white/70 bg-[var(--sloty-surface)] p-4 shadow-2xl">
+            <div className="sloty-green-surface flex items-start justify-between gap-3 rounded-3xl p-4 text-white shadow-sm">
               <div className="min-w-0">
-                <p className="text-base font-bold leading-6 text-[var(--sloty-text-primary)]">
+                <p className="text-base font-black leading-6 text-white">
                   {displayName}
                 </p>
                 {identityContext ? (
-                  <p className="mt-1 text-xs font-medium leading-5 text-[var(--sloty-text-muted)]">
+                  <p className="mt-1 text-xs font-bold leading-5 text-white/80">
                     {identityContext}
                   </p>
                 ) : null}
                 {roleLabel ? (
-                  <p className="mt-0.5 text-xs font-medium leading-5 text-[var(--sloty-text-muted)]">
+                  <p className="mt-0.5 text-xs font-bold leading-5 text-white/80">
                     {roleLabel}
                   </p>
                 ) : null}
               </div>
               <button
                 aria-label="إغلاق القائمة"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--sloty-text-muted)] transition hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)]"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/14 text-white transition hover:bg-white/22"
                 onClick={requestCloseMenu}
                 type="button"
               >
@@ -476,30 +462,24 @@ export function AppShell() {
               })}
             </nav>
 
-            <section className="mt-auto space-y-2 border-t border-[var(--sloty-border)] pt-5">
-                {canChangeClub ? (
-                  <button
-                    className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
-                    onClick={handleChangeClub}
-                    type="button"
-                  >
-                    تغيير النادي
-                  </button>
-                ) : null}
+            <section className="mt-auto space-y-2 rounded-3xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3">
+              {canChangeClub ? (
                 <button
                   className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-text-primary)] transition hover:bg-[var(--sloty-bg)]"
-                  onClick={handleToggleViewMode}
+                  onClick={handleChangeClub}
                   type="button"
                 >
-                  {getViewModeToggleLabel(viewMode)}
+                  تغيير النادي
                 </button>
-                <button
-                  className="min-h-11 w-full rounded-xl px-3 py-2 text-right text-[15px] font-semibold text-[var(--sloty-danger)] transition hover:bg-[var(--sloty-danger-soft)]"
-                  onClick={handleLogoutRequest}
-                  type="button"
-                >
-                  تسجيل الخروج
-                </button>
+              ) : null}
+              <button
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[var(--sloty-danger)]/20 bg-[var(--sloty-danger-soft)] px-3 py-2 text-[15px] font-black text-[var(--sloty-danger)] transition hover:border-[var(--sloty-danger)]/35 hover:bg-[var(--sloty-danger-soft)]/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sloty-danger)]"
+                onClick={handleLogoutRequest}
+                type="button"
+              >
+                <LogOut aria-hidden="true" className="h-4 w-4" />
+                <span>تسجيل الخروج</span>
+              </button>
             </section>
           </aside>
         </div>

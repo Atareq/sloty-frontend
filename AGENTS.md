@@ -132,7 +132,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - The canonical persisted model is `BookingRequestRecord`; `BookingIntentRecord` is a transitional alias only. The existing physical IndexedDB store remains `booking_intents` for non-destructive migration safety.
 - Persisted Booking Request states are exactly `PENDING_SYNC`, `SYNCING`, `BOOKED`, `NEEDS_REVIEW`, `DISMISSED`, and `EXPIRED`; UI must render Arabic copy and never expose internal state names.
 - Review reasons are exactly `SLOT_UNAVAILABLE`, `INVALID_CUSTOMER_DATA`, and `RECURRING_UNAVAILABLE`. Do not add `PAST_APPOINTMENT`.
-- `local_id` is local UI/IndexedDB identity only. `client_request_id` is the stable Backend idempotency identity and must survive retries, app/PWA restarts, response loss, session expiry, re-authentication, and migration.
+- `local_id` is local UI/IndexedDB identity only. `client_request_id` is the stable Backend idempotency UUID for one logical Booking Request and must survive technical retries, app/PWA restarts, response loss, session expiry, re-authentication, and migration.
 - `requested_recurring` means the customer requested weekly recurrence. It is not Backend eligibility, a generated occurrence plan, or confirmed recurrence. Do not infer it from `original_slot_snapshot.can_start_recurring`.
 - Offline recurrence controls must preserve Backend tri-state meaning: `can_start_recurring=true` enables `ثبّت نفس الموعد كل أسبوع`; `false` disables it with Backend conflict context when available; `null` disables it and explains fresh Backend information is required.
 - Booking Request rows contain sensitive customer name, phone, and notes. Every read/write must stay scoped to user + Club + Court, Staff must use only `selectedMembership.court`, and selected-Club Platform Admins must never get a global all-Clubs queue.
@@ -140,7 +140,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - `EXPIRED` is retained only for migration/backward compatibility or a future approved lifecycle reason. Appointment time passing must not transition a request to `EXPIRED`.
 - `PENDING_SYNC` renders as waiting for confirmation. `SYNCING` renders as `جاري التأكيد...` and must not expose edit, alternative-slot, one-time conversion, or dismissal actions.
 - `NEEDS_REVIEW` actions are reason-specific: `SLOT_UNAVAILABLE` can choose another slot or dismiss, `INVALID_CUSTOMER_DATA` can edit customer fields or dismiss, and `RECURRING_UNAVAILABLE` can convert locally to one-time, choose another slot, or dismiss.
-- Customer-data editing changes only name, phone, and notes, then resets to `PENDING_SYNC` and clears `review_reason`. It must preserve `local_id`, `client_request_id`, requested slot fields, and `requested_recurring`.
+- Customer-data editing changes only name, phone, and notes, then resets to `PENDING_SYNC` and clears `review_reason`. It must preserve `local_id`, requested slot fields, and `requested_recurring`; if customer fields actually change, generate a new `client_request_id` UUID because it is a new logical backend request.
+- Choosing an alternative slot or converting recurring to one-time also generates a new `client_request_id` UUID and clears old attempt/resolution metadata. Technical retry of unchanged input must keep the previous UUID.
+- If a local Booking Request is linked to a backend BookingAttempt id, dismissing it must call the backend attempt dismiss endpoint before hiding it locally. Local-only requests remain local-only dismissals.
 - Alternative slots may be ranked for presentation only from already refreshed Backend-authoritative FREE slots. Do not generate slots or infer availability. Selecting an alternative updates requested slot fields and `original_slot_snapshot`; if a recurring request selects a slot whose `can_start_recurring` is not true, keep the request under `NEEDS_REVIEW / RECURRING_UNAVAILABLE` until the user explicitly converts to one-time or chooses another slot.
 - Automatic Booking Request synchronization is owned by `src/offline/bookings/bookingRequestSync.ts` and invoked through `OfflineSyncCoordinator`; do not add page-level online listeners or a generic mutation queue.
 - Sync eligibility is `PENDING_SYNC` plus stale `SYNCING` only, scoped to current user + Club + authorized Courts. Do not auto-submit `BOOKED`, `DISMISSED`, `NEEDS_REVIEW`, or `EXPIRED`, and do not block past requested times.
@@ -172,9 +174,9 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Transaction sync follows coordinator priority after Booking Requests and Schedule refresh, alongside Bookings in the secondary dataset phase. Do not start a page-owned canonical Transaction sync from `/transactions` mount, filter, search, sort, or pagination changes.
 - If the Transactions list endpoint is paginated, fetch all pages for the seven-day unfiltered period before committing. Page or IndexedDB failure preserves the previous snapshot and does not advance `transactions_last_sync_at`.
 - Staff Transaction sync uses only `selectedMembership.court` from verified auth context and must not send `created_by=currentUser` as a frontend scoping hack. Owner, Manager, and selected-Club Platform Admin use the backend's selected-Club scope; never combine Clubs.
-- Online `/transactions` remains server-backed for filters and pagination, and it does not expose unsupported server search or ordering controls. IndexedDB is used only for offline/backend-unreachable resilience.
+- Online `/transactions` remains server-backed for filters and pagination. Search/order are supported in the API layer, but do not expose new online controls without Product scope. IndexedDB is used only for offline/backend-unreachable resilience.
 - Offline `/transactions` reads the scoped seven-day snapshot and applies only safe local filters over cached fields: date/date range inside the window, Court where role allows, collector where data exists, payment method, cancellation state, and settlement state.
-- Offline Transaction search is limited to `payment_reference` with the current contract. Transaction rows do not include complete customer name/phone, so the frontend must not promise customer search or fetch linked Booking details per Transaction row.
+- Offline Transaction search uses cached Backend Transaction fields only: `payment_reference`, `booking_customer_name`, and `booking_customer_phone` when present. Do not fetch linked Booking details per Transaction row.
 - Offline Transaction sorting is local only because it operates on the complete bounded cache. Online paginated results remain backend ordered.
 - Cached Transaction details are lazy: successful online `getTransaction()` responses may be stored in `transaction_details`, but the seven-day list sync must not N+1 fetch every detail by default.
 - Offline Transactions are strictly read-only. Payment recording, transaction cancellation, refunds, settlement creation/approval/receive, PATCH/DELETE financial changes, and every other money mutation require internet and must not be queued.
@@ -193,10 +195,10 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 
 - Mobile navigation uses the shell `PageHeader`, burger drawer, Home affordance, and global floating `+ حجز جديد`; the mobile bottom navigation is removed. Desktop keeps its existing sidebar.
 - The global booking action is mobile-first on `/dashboard` and `/bookings`, hides while any modal task or burger drawer is active, and navigates to `/schedule` with `beginAtDayChoice` without inventing a new route or auto-opening a booking form. It is hidden on `/schedule` because Schedule is already Home.
-- Canonical product navigation labels live in `src/shared/copy/appCopy.ts` / `navigation.config.ts`: الرئيسية (Schedule), سجل الحجوزات، إدارة الأموال (Owner/authorized Manager) or معاملاتي المالية + عهدتي (Staff), التقارير، سجل النشاط، الإعدادات. `/dashboard` is `المتابعة` and stays out of primary Burger/sidebar.
+- Canonical product navigation labels live in `src/shared/copy/appCopy.ts` / `navigation.config.ts`: الرئيسية (Schedule), سجل الحجوزات، إدارة الأموال (Owner/authorized Manager) or معاملاتي المالية + عهدتي (Staff), سجل النشاط، الإعدادات. Reports remain implemented internally but are temporarily hidden from product routes and primary navigation.
 - Recurrence is Booking metadata and has no separate recurring-agreement route or top-level navigation concept.
 - Logout and change-club actions belong in the account menu, not the visible header area.
-- Default authenticated experience is mobile-style, and users can switch to Desktop View from the hamburger menu.
+- Default authenticated experience is mobile-style; do not expose a manual `عرض سطح المكتب` switch in the hamburger menu.
 - Sloty defaults to mobile view unless `sloty:view-mode` explicitly stores `desktop`; invalid saved view-mode values fall back to mobile.
 - Desktop view must always expose a visible `عرض الهاتف` recovery action outside hidden mobile-only UI surfaces.
 - Do not place the only mobile/desktop view toggle inside a drawer or surface hidden by the current view mode.
@@ -306,6 +308,7 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Available/cancelled slots can create bookings; existing bookings open action/details. Completed bookings are locked/read-only and must never open AddBookingSheet.
 - Raw transaction editing is forbidden; payment correction remains cancel payment with a required reason.
 - Transaction request and response contracts use `payment_reference`; a form-local `reference` value must be translated at the API call boundary.
+- Transaction creation must send the stable `client_request_id` UUID and `occurred_at` for the submitted payment input. Same-input retry reuses both values; changed booking/payment amount/method/reference/notes is a new logical transaction and gets a new UUID/timestamp.
 - Transactions may be `PAYMENT` or `REFUND`; legacy rows without `transaction_type` should display as `PAYMENT`.
 - REFUND transaction amounts are signed backend values. Do not use absolute values or recalculate settlement totals in the frontend.
 - RecordPaymentSheet creates PAYMENT transactions only; do not add a transaction-type selector or allow negative payment entry.
@@ -488,8 +491,8 @@ This is the Sloty React frontend repository. It is frontend-only and must not co
 - Mobile Overview must hide the desktop sidebar even on wide screens and keep the hamburger/drawer available.
 - Desktop Overview must expose logout in the sidebar.
 - Mobile navigation uses the shell header, hamburger drawer, and route-gated `NewBookingFAB`; desktop navigation uses the sidebar.
-- Finance, admin, history, reports, audit, settlements, and settings links live in the hamburger menu and desktop sidebar.
-- Primary drawer/sidebar club navigation contains only direct hub pages: `الرئيسية` (`/schedule`), `سجل الحجوزات`, role-aware finance (`إدارة الأموال` or Staff `معاملاتي المالية` + `عهدتي`), `التقارير`, and `الإعدادات`. `/dashboard` remains routed but is not a Burger item.
+- Finance, admin, history, audit, settlements, and settings links live in the hamburger menu and desktop sidebar. Reports remain implemented internally but are temporarily hidden from product routes and navigation.
+- Primary drawer/sidebar club navigation contains only direct hub pages: `الرئيسية` (`/schedule`), `سجل الحجوزات`, role-aware finance (`إدارة الأموال` or Staff `معاملاتي المالية` + `عهدتي`), and `الإعدادات`. `/dashboard` remains routed but is not a Burger item.
 - Settings sub-pages live inside Settings; keep detail links such as `إعدادات الملاعب`, `المستخدمون والصلاحيات`, and `سجل النشاط` out of primary drawer/sidebar navigation.
 - Do not restore a mobile footer or add a `المزيد` navigation item; use the hamburger icon, not a three-dots icon.
 - Navigation finance labels are role-aware: Staff sees `معاملاتي المالية` and `عهدتي`; Owner and Managers with `canManageSettlements()` see `إدارة الأموال`, while restricted Managers see `عهدتي`. The Owner/Manager transaction ledger is secondary, not a Burger item.

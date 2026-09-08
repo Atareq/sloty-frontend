@@ -562,7 +562,11 @@ export function BookingsListPage() {
 
     setBookings(offlineView.bookings)
     setError(null)
-    setMessage(null)
+    setMessage(
+      fallbackError
+        ? 'تعذر تحديث البيانات حاليًا. يتم عرض آخر نسخة محفوظة.'
+        : null,
+    )
     hasCompletedInitialLoadRef.current = true
 
     return true
@@ -931,11 +935,13 @@ export function BookingsListPage() {
       await createTransaction(selectedClubSlug, {
         booking: paymentBooking.id,
         amount: values.amount,
+        client_request_id: values.client_request_id,
         payment_method: values.payment_method,
         ...(values.reference
           ? { payment_reference: values.reference }
           : {}),
         ...(values.notes ? { notes: values.notes } : {}),
+        occurred_at: values.occurred_at,
       })
       setPaymentBooking(null)
       setSelectedBooking(null)

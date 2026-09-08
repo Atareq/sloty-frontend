@@ -75,10 +75,79 @@ describe('RecordPaymentSheet', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({
       amount: '150',
+      client_request_id: expect.any(String),
       payment_method: 'DIGITAL_WALLET',
       reference: 'REF-123',
       notes: 'دفعة مقدمة',
+      occurred_at: expect.any(String),
     })
+  })
+
+  it('reuses idempotency fields for same-input retries and rotates them after financial edits', async () => {
+    const user = userEvent.setup()
+    const randomUUIDSpy = vi
+      .spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
+      .mockReturnValueOnce('22222222-2222-4222-8222-222222222222')
+    const dateSpy = vi
+      .spyOn(Date.prototype, 'toISOString')
+      .mockReturnValueOnce('2026-09-08T10:00:00.000Z')
+      .mockReturnValueOnce('2026-09-08T10:01:00.000Z')
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockResolvedValueOnce(undefined)
+
+    try {
+      render(
+        <RecordPaymentSheet
+          bookingId={10}
+          error={null}
+          isSubmitting={false}
+          onClose={vi.fn()}
+          onSubmit={onSubmit}
+        />,
+      )
+
+      fireEvent.change(screen.getByLabelText('المبلغ'), {
+        target: { value: '150' },
+      })
+      await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+      await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+      expect(onSubmit).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          client_request_id: '11111111-1111-4111-8111-111111111111',
+          occurred_at: '2026-09-08T10:00:00.000Z',
+        }),
+      )
+      expect(onSubmit).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          client_request_id: '11111111-1111-4111-8111-111111111111',
+          occurred_at: '2026-09-08T10:00:00.000Z',
+        }),
+      )
+
+      fireEvent.change(screen.getByLabelText('المبلغ'), {
+        target: { value: '175' },
+      })
+      await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
+
+      expect(onSubmit).toHaveBeenNthCalledWith(
+        3,
+        expect.objectContaining({
+          amount: '175',
+          client_request_id: '22222222-2222-4222-8222-222222222222',
+          occurred_at: '2026-09-08T10:01:00.000Z',
+        }),
+      )
+    } finally {
+      dateSpy.mockRestore()
+      randomUUIDSpy.mockRestore()
+    }
   })
 
   it('calls onClose when cancel is clicked', async () => {

@@ -175,7 +175,7 @@ describe('BookingActionSheet', () => {
     )
 
     expect(screen.getByText('↻ حجز أسبوعي')).toBeInTheDocument()
-    expect(screen.getByText('المعاد ده متثبت للعميل كل أسبوع.'))
+    expect(screen.getByText('التكرار الأسبوعي بيتأكد ويتحدث من السيرفر.'))
       .toBeInTheDocument()
     const inlineStop = screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' })
     expect(inlineStop.closest('details')).toBeNull()

@@ -40,8 +40,8 @@ describe('navigation config', () => {
 
   it('keeps owner-only routes out of staff navigation', () => {
     expect(canRoleAccessPath('STAFF', '/reports')).toBe(false)
-    expect(canRoleAccessPath('OWNER', '/reports')).toBe(true)
-    expect(canRoleAccessPath('MANAGER', '/reports')).toBe(true)
+    expect(canRoleAccessPath('OWNER', '/reports')).toBe(false)
+    expect(canRoleAccessPath('MANAGER', '/reports')).toBe(false)
     expect(canRoleAccessPath('STAFF', '/transactions')).toBe(true)
     expect(canRoleAccessPath('STAFF', '/settlements')).toBe(true)
     expect(canRoleAccessPath('STAFF', '/settings/users')).toBe(false)
@@ -80,7 +80,6 @@ describe('navigation config', () => {
       'الرئيسية',
       'سجل الحجوزات',
       'إدارة الأموال',
-      'التقارير',
       'الإعدادات',
     ])
     expect(ownerPrimaryLabels).not.toEqual(
@@ -146,7 +145,6 @@ describe('navigation config', () => {
     const hiddenMobilePaths = [
       '/transactions',
       '/settlements',
-      '/reports',
       '/audit-logs',
       '/settings/courts',
       '/settings',
@@ -188,7 +186,6 @@ describe('navigation config', () => {
         'سجل المعاملات المالية',
         'إدارة الأموال',
         'سجل النشاط',
-        'التقارير',
         'الإعدادات',
         'المستخدمون والصلاحيات',
       ]),
@@ -226,7 +223,6 @@ describe('navigation config', () => {
       '/settlements/history',
       '/settlements/preview',
       '/settlements/42',
-      '/reports',
       '/audit-logs',
       '/settings/courts',
       '/settings/courts/5',

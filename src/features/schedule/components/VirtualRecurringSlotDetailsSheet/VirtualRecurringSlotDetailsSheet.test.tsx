@@ -40,6 +40,11 @@ describe('VirtualRecurringSlotDetailsSheet', () => {
     expect(screen.getByText('أحمد محمد')).toBeInTheDocument()
     expect(screen.getByText('+201012345678')).toBeInTheDocument()
     expect(screen.getByText('↻ محجوز أسبوعيًا')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'المعاد المعروض تكرار مستقبلي من الحجز الأسبوعي، وليس حجزًا جديدًا مستقلًا.',
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' }))
       .toBeInTheDocument()
     expect(screen.queryByText('••• خيارات أخرى')).not.toBeInTheDocument()
@@ -55,6 +60,7 @@ describe('VirtualRecurringSlotDetailsSheet', () => {
       .not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'تغيير الموعد' }))
       .not.toBeInTheDocument()
+    expect(screen.queryByText('حجز #120')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'إيقاف الحجز الأسبوعي' }))
     expect(screen.getByRole('heading', { name: 'إيقاف الحجز الأسبوعي؟' }))

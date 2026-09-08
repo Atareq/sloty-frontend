@@ -4,7 +4,6 @@ import { RoleRoute } from '../core/auth/RoleRoute'
 import { AdminUserDetailsPage } from '../features/adminUsers/AdminUserDetailsPage/AdminUserDetailsPage'
 import { AdminUserFormPage } from '../features/adminUsers/AdminUserFormPage/AdminUserFormPage'
 import { AdminUsersPage } from '../features/adminUsers/AdminUsersPage/AdminUsersPage'
-import { ReportsPage } from '../features/reports/ReportsPage/ReportsPage'
 import { SettlementPreviewPage } from '../features/settlements/SettlementPreviewPage/SettlementPreviewPage'
 import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/SettlementsHubPage'
 import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHubPage'
@@ -59,19 +58,13 @@ describe('router settings routes', () => {
   })
 })
 
-describe('router report routes', () => {
-  it('allows owner and manager roles to reach reports', () => {
-    const routeElement = getProtectedChildRoute('/reports')
-
-    expect(routeElement?.type).toBe(RoleRoute)
-    expect(routeElement?.props.allowedRoles).toEqual(['OWNER', 'MANAGER'])
-    expect(routeElement?.props.children.type).toBe(ReportsPage)
-  })
-})
-
 describe('router leftover bottom-nav routes', () => {
   it('does not keep the obsolete /more placeholder', () => {
     expect(getProtectedChildRoute('/more')).toBeNull()
+  })
+
+  it('temporarily hides reports from authenticated routes without deleting the feature', () => {
+    expect(getProtectedChildRoute('/reports')).toBeNull()
   })
 })
 

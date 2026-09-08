@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
+import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
 import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
@@ -481,6 +482,45 @@ describe('TransactionsListPage', () => {
     expect(mockedListTransactions).not.toHaveBeenCalled()
     expect(mockedListCourts).not.toHaveBeenCalled()
     expect(mockedListClubUsers).not.toHaveBeenCalled()
+  })
+
+  it('keeps cached transactions visible with fallback copy when online refresh fails', async () => {
+    mockedListTransactions.mockRejectedValue(
+      new ApiClientError('تعذر الاتصال بالخادم', 503),
+    )
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-20T08:42:00.000Z',
+      transactions_last_sync_at: '2026-07-20T08:42:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedTransactions.mockResolvedValue([
+      {
+        id: 52,
+        booking: 10,
+        amount: '225.00',
+        payment_method: 'CASH',
+        created: '2026-07-20T08:00:00Z',
+        booking_start_time: '2026-07-20T10:00:00Z',
+        booking_end_time: '2026-07-20T11:00:00Z',
+        court: 3,
+        court_name: 'ملعب 1',
+        created_by: 15,
+        created_by_username: 'collector',
+        is_cancelled: false,
+        is_settled: false,
+      },
+    ])
+
+    renderTransactionsPage('/transactions?date_from=2026-07-14&date_to=2026-07-20')
+
+    expect(await screen.findByText(/225\.00 ج\.م/)).toBeInTheDocument()
+    expect(
+      screen.getByText('تعذر تحديث البيانات حاليًا. يتم عرض آخر نسخة محفوظة.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('تعذر الاتصال بالخادم')).not.toBeInTheDocument()
   })
 
   it('shows an internet-required state offline when no transaction cache exists', async () => {

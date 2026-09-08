@@ -138,6 +138,7 @@ export interface BookingRequestRecord extends ScopedOfflineRecord {
   updated_at: string
   last_attempt_at: string | null
   resolved_booking_id: number | null
+  backend_attempt_id?: number | null
 }
 
 export const BOOKING_INTENT_STATUSES = BOOKING_REQUEST_STATUSES

@@ -13,7 +13,8 @@ here.
 - Schedule synchronization stores today + the next 30 Egypt-local days. It
   partitions backend slots by authoritative `slot.date` and writes one row per
   date, including empty synchronized days with optional backend messages.
-- `replaceScheduleWindow()` is atomic per scope + Court + requested window.
+- `replaceScheduleWindow()` is atomic per scope + Court and prunes prior rows
+  for that Court before storing the current bounded window.
   Manager/Owner/selected-Club Platform Admin sync the currently viewed Court
   first, then other authorized active Courts. Staff syncs only the assigned
   Court.
@@ -55,8 +56,9 @@ here.
   write `booking_details`; the canonical list sync does not N+1 prefetch all
   details.
 - Transactions use the server filters and pagination online. Offline they read
-  the complete bounded snapshot locally, support payment-reference search,
-  cached-field filters, and local sort. Transaction detail cache is lazy:
+  the complete bounded snapshot locally, support payment-reference and cached
+  customer-field search, cached-field filters, and local sort. Transaction
+  detail cache is lazy:
   successful online `getTransaction()` responses may write
   `transaction_details`; the canonical list sync does not N+1 prefetch all
   details.
@@ -82,9 +84,12 @@ here.
   remains a temporary compatibility alias, and the physical store remains
   `booking_intents` so schema upgrades do not drop customer requests.
 - `local_id` is local IndexedDB/UI identity. `client_request_id` is the stable
-  Backend idempotency key for the logical request and is generated once, then
-  preserved across retry, response loss, app restart, session expiry, and
-  re-authentication.
+  Backend idempotency UUID for the logical request and is generated once, then
+  preserved across technical retry, response loss, app restart, session expiry,
+  and re-authentication.
+- Customer-field edits, alternative-slot selection, or recurring-to-one-time
+  conversion create a new logical backend request and therefore a new
+  `client_request_id` UUID while preserving `local_id`.
 - `requested_recurring` records what the customer asked for. Do not infer it
   from cached Backend recurrence eligibility, and do not generate `+7 day`
   occurrences locally.
@@ -102,8 +107,9 @@ here.
 - Supported review reasons are `SLOT_UNAVAILABLE`, `INVALID_CUSTOMER_DATA`, and
   `RECURRING_UNAVAILABLE`. There is no active `PAST_APPOINTMENT` reason.
 - Editing a local Booking Request changes only customer name, phone, and notes,
-  then resets the row to `PENDING_SYNC` while preserving `local_id`,
-  `client_request_id`, requested slot, and `requested_recurring`.
+  then resets the row to `PENDING_SYNC` while preserving `local_id`, requested
+  slot, and `requested_recurring`. Changed customer fields get a new backend
+  idempotency UUID.
 - Alternative slot recovery uses only already refreshed cached/backend FREE
   slots. It updates requested slot fields and `original_slot_snapshot`, and it
   never silently changes a recurring request to one-time when the new slot
@@ -121,7 +127,7 @@ here.
   are skipped to avoid double submission.
 - The Booking create payload sends customer intent only: Court, customer name,
   phone, requested start/end, optional notes, `is_recurring` from
-  `requested_recurring`, and the stable `client_request_id`. It never sends
+  `requested_recurring`, and the stable `client_request_id` UUID. It never sends
   local IDs, review state, cached prices, slot snapshots, or generated
   recurrence details.
 - HTTP 201 create and HTTP 200 idempotent replay both mark the local request

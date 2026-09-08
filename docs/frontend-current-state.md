@@ -81,7 +81,6 @@ See also:
 - `/schedule`
 - `/bookings`
 - `/transactions`
-- `/reports`
 - `/audit-logs`
 - `/settings`
 - `/settings/users`
@@ -186,11 +185,11 @@ See also:
 - Startup, browser online, visible-resume, manual, and one bounded retry trigger all go through the same coordinator. Same-scope duplicate triggers coalesce while a full run is active, and each `scope_key + dataset` has at most one active dataset task.
 - The Schedule adapter fetches today + the next 30 Egypt-local calendar days through the backend slots range contract, partitions slots by authoritative `slot.date`, and atomically replaces each Court window. Staff syncs only the assigned Court. Owner, Manager, and selected-Club Platform Admin sync authorized active Courts, with the currently viewed Court first.
 - The Booking adapter runs after Schedule settles. It synchronizes the previous 7 Egypt-local calendar days for the current `user + Club` scope by fetching every paginated Booking list page before one atomic snapshot replacement. Staff uses only the assigned Court already returned by `/me`; Owner, Manager, and selected-Club Platform Admin rely on the backend's selected-Club scope. `bookings_last_sync_at` advances only after successful commit.
-- The Transaction adapter runs in the same secondary phase as Bookings. It synchronizes the previous 7 Egypt-local calendar days for the current `user + Club` scope by fetching every paginated Transaction list page before one atomic snapshot replacement. Staff uses the assigned Court from `/me` and does not send `created_by=currentUser`; Owner, Manager, and selected-Club Platform Admin rely on the backend's selected-Club scope. `transactions_last_sync_at` advances only after successful commit.
+- The Transaction adapter runs in the same secondary phase as Bookings. It synchronizes the previous 7 Egypt-local calendar days for the current `user + Club` scope by fetching every paginated Transaction list page before one atomic snapshot replacement. Staff uses the assigned Court from `/me` and does not send `created_by=currentUser`; Owner, Manager, and selected-Club Platform Admin rely on the backend's selected-Club scope. Cached rows may include backend customer fields for offline search. `transactions_last_sync_at` advances only after successful commit.
 - The Current Custody adapter runs after Schedule, BookingIntent recheck, Bookings, and Transactions. It stores one Backend current-custody response for the active scope: Staff/restricted views use settlement preview, and Owner/authorized Manager views use grouped `unsettled-summary`. `current_custody_last_sync_at` advances only after the snapshot commit.
 - SchedulePage reads scoped cache first for dates inside the 31-day window. Valid cached data remains visible while an online refresh is running or failing, and freshness copy is only presentation context. Dates outside the window require internet when no valid row is available.
 - Booking History remains server-backed online for search, filters, ordering, and pagination. Offline/backend-unreachable mode reads the scoped seven-day snapshot, searches cached customer name/phone locally, supports safe cached-field filters, distinguishes empty results from outside-window requests, and shows cached Booking details read-only. Notes appear only when an authoritative detail response was previously cached.
-- Transactions remain server-backed online for their current filters and pagination. The current backend list contract has no server search or ordering query, so online `/transactions` does not expose those controls. Offline/backend-unreachable mode reads the scoped seven-day snapshot, searches cached payment references locally, supports safe cached-field filters, sorts the complete bounded dataset locally, distinguishes empty results from outside-window requests, and shows cached Transaction details read-only.
+- Transactions remain server-backed online for their current filters and pagination. The current backend list contract supports search/order parameters in the API layer, though online `/transactions` has not exposed a new search UI. Offline/backend-unreachable mode reads the scoped seven-day snapshot, searches cached payment references and backend-provided customer fields locally, supports safe cached-field filters, sorts the complete bounded dataset locally, distinguishes empty results from outside-window requests, and shows cached Transaction details read-only.
 - Current Custody remains server-backed online. After a current-custody request fails, Dashboard and Settlements may render the last successful scoped Backend custody snapshot with last-update context. If no snapshot exists, they show an internet-required/error state rather than a fake zero.
 - Booking details and Transaction details render full meaningful `notes` under `ملاحظات` with readable wrapping/newlines and hide the entire Notes block when notes are null, empty, or whitespace-only.
 - Schedule, Booking History, Transactions, and Current Custody offline data remains read-mostly. The only offline write is saving a Booking Request customer intent from the existing booking sheet. Payment, transaction cancellation, refunds, settlement actions, booking cancel/complete/no-show/customer edit/reschedule/recurrence-stop, automatic booking submission, and every other mutation require internet and are not queued.
@@ -202,7 +201,7 @@ See also:
 - Persisted states are `PENDING_SYNC`, `SYNCING`, `NEEDS_REVIEW`, `BOOKED`, `DISMISSED`, and compatibility-only `EXPIRED`; UI copy is Arabic and state names are not shown to users.
 - Reconnect order remains Schedule refresh first before future submission logic. Task 5 does not auto-submit, replay HTTP requests, classify from raw browser online events, or expose a manual `احجز الآن` request action.
 - Needs Review is reason-driven: `SLOT_UNAVAILABLE` offers another cached/backend FREE slot, `INVALID_CUSTOMER_DATA` offers editing name/phone/notes, and `RECURRING_UNAVAILABLE` offers local one-time conversion or another cached/backend FREE slot.
-- Editing customer data preserves `local_id`, `client_request_id`, requested slot fields, and `requested_recurring`, then resets the request to `PENDING_SYNC`.
+- Editing customer data preserves `local_id`, requested slot fields, and `requested_recurring`, then resets the request to `PENDING_SYNC`. Changed customer fields create a new `client_request_id` UUID; unchanged technical retry keeps the existing UUID.
 - Alternative slots are ranked only from already refreshed backend FREE slots. Selecting one updates requested slot fields and `original_slot_snapshot`; the frontend does not generate availability, price, or recurrence.
 
 ## Settlements
@@ -227,7 +226,7 @@ See also:
 ## Dashboard, Reports, And Audit Logs
 
 - Sprint 7 dashboard, reports, and audit foundation is implemented.
-- Dashboard, reports, and audit pages use `selectedClubSlug` and backend endpoints for metrics and log data.
+- Dashboard, reports, and audit pages use `selectedClubSlug` and backend endpoints for metrics and log data. Reports remain implemented internally but are temporarily hidden from product routes/navigation.
 - `/schedule` is the operational Home labeled `الرئيسية`. `/dashboard` remains routed as `المتابعة` for analytics and is not a Burger item in this pass.
 - The current Dashboard contract supplies period total/HOLD/action counts and financial activity totals. It does not supply upcoming count, authoritative nearest HOLD expiry, next booking, or booking-level action records, so those Home blocks are intentionally omitted rather than derived or fabricated.
 - Dashboard loads current custody independently from period activity. Today/Yesterday/`آخر 7 أيام` may change Summary request dates, but current custody keeps the same Backend scope unless Court scope changes.
@@ -258,11 +257,11 @@ See also:
 ## Transactions
 
 - Payment corrections use the cancel payment flow with a required reason.
-- Transaction API requests and responses use `payment_reference`; Record Payment keeps `reference` only as form-local state and maps it at the API boundary.
+- Transaction API requests and responses use `payment_reference`; Record Payment keeps `reference` only as form-local state and maps it at the API boundary. Transaction create also sends `client_request_id` and `occurred_at`; same-input retry reuses both fields, while changed payment input creates a new logical transaction identity.
 - Cancelled transactions remain visible in the transaction list and are marked as cancelled.
 - The list prioritizes signed amount, collection/refund type, payment method, human booking time, Court, collector, and created time from the existing response. IDs remain fallback context only.
 - Settlement and cancellation Boolean filters stay as checkbox pairs; neither/both means all and omits the corresponding URL/API parameter.
-- Offline Transactions use the complete previous-seven-calendar-day cache only when offline/backend-unreachable. Local search is payment-reference only because list rows do not contain complete customer name/phone and the frontend does not fetch Booking details per Transaction row. Local sort applies only to the complete cached dataset; online paginated results stay backend ordered.
+- Offline Transactions use the complete previous-seven-calendar-day cache only when offline/backend-unreachable. Local search uses cached backend Transaction fields, including payment reference and customer name/phone when the row provides them. The frontend does not fetch Booking details per Transaction row. Local sort applies only to the complete cached dataset; online paginated results stay backend ordered.
 - Successful online `getTransaction()` detail reads may populate `transaction_details` lazily. The canonical Transaction sync does not prefetch one detail per row.
 - Offline Transaction cards/details are read-only. Cancellation, refunds, payment recording, settlement creation/approval/receive, and all other financial writes require internet.
 

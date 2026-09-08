@@ -281,7 +281,7 @@ describe('AppShell', () => {
     const dialog = screen.getByRole('dialog', { name: 'قائمة التنقل' })
     const drawer = dialog.querySelector('aside')
 
-    expect(drawer).toHaveClass('right-0')
+    expect(drawer).toHaveClass('right-3')
     expect(drawer).not.toHaveClass('left-0')
   })
 
@@ -398,7 +398,6 @@ describe('AppShell', () => {
       'الرئيسية',
       'سجل الحجوزات',
       'إدارة الأموال',
-      'التقارير',
       'الإعدادات',
     ]) {
       expect(within(dialog).getByRole('link', { name: label }))
@@ -412,6 +411,8 @@ describe('AppShell', () => {
     expect(within(dialog).queryByRole('link', { name: 'عهد الموظفين' }))
       .not.toBeInTheDocument()
     expect(within(dialog).queryByRole('link', { name: 'سجل المعاملات المالية' }))
+      .not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: 'التقارير' }))
       .not.toBeInTheDocument()
 
     expect(within(dialog).queryByRole('link', { name: 'إعدادات الملاعب' }))
@@ -439,7 +440,6 @@ describe('AppShell', () => {
       'الرئيسية',
       'سجل الحجوزات',
       'إدارة الأموال',
-      'التقارير',
       'الإعدادات',
     ]) {
       expect(within(sidebar).getByRole('link', { name: label }))
@@ -449,6 +449,8 @@ describe('AppShell', () => {
     expect(within(sidebar).queryByRole('link', { name: 'التحصيلات' }))
       .not.toBeInTheDocument()
     expect(within(sidebar).queryByRole('link', { name: 'مبالغ الموظفين' }))
+      .not.toBeInTheDocument()
+    expect(within(sidebar).queryByRole('link', { name: 'التقارير' }))
       .not.toBeInTheDocument()
 
     expect(within(sidebar).queryByRole('link', { name: /إعدادات الملاعب/ }))
@@ -635,7 +637,7 @@ describe('AppShell', () => {
     expect(await screen.findByText('تسجيل الدخول')).toBeInTheDocument()
   })
 
-  it('stores desktop view preference and hides the mobile footer', async () => {
+  it('does not expose a manual desktop-view switch from the mobile drawer', async () => {
     const user = userEvent.setup()
 
     renderAppShell('/bookings')
@@ -646,16 +648,12 @@ describe('AppShell', () => {
       .toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
-    await user.click(screen.getByRole('button', { name: 'عرض سطح المكتب' }))
 
-    expect(window.localStorage.getItem('sloty:view-mode')).toBe('desktop')
+    expect(screen.queryByRole('button', { name: 'عرض سطح المكتب' }))
+      .not.toBeInTheDocument()
+    expect(window.localStorage.getItem('sloty:view-mode')).toBeNull()
     expect(screen.getByLabelText('هيكل تطبيق سلوتي'))
-      .toHaveAttribute('data-view-mode', 'desktop')
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'فتح القائمة' }))
-      .not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'حجز جديد' }))
-      .not.toBeInTheDocument()
+      .toHaveAttribute('data-view-mode', 'mobile')
   })
 
   it('defaults to mobile view when no saved view mode exists', () => {
@@ -794,7 +792,7 @@ describe('AppShell', () => {
     expect(await screen.findByText('تسجيل الدخول')).toBeInTheDocument()
   })
 
-  it('keeps the desktop view toggle inside the mobile drawer in mobile mode', async () => {
+  it('keeps the removed desktop view toggle out of the mobile drawer', async () => {
     const user = userEvent.setup()
 
     renderAppShell()
@@ -803,8 +801,8 @@ describe('AppShell', () => {
 
     const dialog = screen.getByRole('dialog')
 
-    expect(within(dialog).getByRole('button', { name: 'عرض سطح المكتب' }))
-      .toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'عرض سطح المكتب' }))
+      .not.toBeInTheDocument()
   })
 
   it('opens the owner overview dashboard in mobile view on a fresh load', () => {

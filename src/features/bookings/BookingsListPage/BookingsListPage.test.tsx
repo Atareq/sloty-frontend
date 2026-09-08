@@ -398,6 +398,40 @@ describe('BookingsListPage', () => {
     expect(mockedListCourts).not.toHaveBeenCalled()
   })
 
+  it('keeps cached Booking History visible with fallback copy when online refresh fails', async () => {
+    mockedListBookings.mockRejectedValueOnce(
+      new ApiClientError('تعذر الاتصال بالخادم', 503),
+    )
+    mockedOfflineRepositories.getSyncMetadata.mockResolvedValueOnce({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      schema_version: 1,
+      updated_at: '2026-07-21T09:00:00.000Z',
+      bookings_last_sync_at: '2026-07-21T09:00:00.000Z',
+    })
+    mockedOfflineRepositories.readCachedBookings.mockResolvedValueOnce([
+      bookingFixture({
+        id: 12,
+        court: 3,
+        customer_name: 'عميل محفوظ',
+        customer_phone: '+201033333333',
+        start_time: '2026-07-21T20:00:00+03:00',
+        end_time: '2026-07-21T21:00:00+03:00',
+        status: 'CONFIRMED',
+        remaining_amount: '0.00',
+      }),
+    ])
+
+    renderBookingsPage('/bookings')
+
+    expect(await screen.findByText('عميل محفوظ')).toBeInTheDocument()
+    expect(
+      screen.getByText('تعذر تحديث البيانات حاليًا. يتم عرض آخر نسخة محفوظة.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('تعذر الاتصال بالخادم')).not.toBeInTheDocument()
+  })
+
   it('searches cached Booking names and phones locally while offline', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
@@ -1267,7 +1301,9 @@ describe('BookingsListPage', () => {
       expect(mockedCreateTransaction).toHaveBeenCalledWith('nasr-club', {
         booking: 33,
         amount: '50',
+        client_request_id: expect.any(String),
         payment_method: 'CASH',
+        occurred_at: expect.any(String),
       })
     })
     await waitFor(() => {

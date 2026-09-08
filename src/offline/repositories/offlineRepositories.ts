@@ -98,6 +98,7 @@ export type BookingIntentUpdate = Partial<
     | 'requested_end'
     | 'customer_name'
     | 'customer_phone'
+    | 'client_request_id'
     | 'notes'
     | 'original_slot_snapshot'
     | 'status'
@@ -105,6 +106,7 @@ export type BookingIntentUpdate = Partial<
     | 'review_reason'
     | 'resolved_booking_id'
     | 'requested_recurring'
+    | 'backend_attempt_id'
   >
 >
 
@@ -254,7 +256,6 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       syncedAt: string,
     ): Promise<void> {
       const identity = getScopedRecordIdentity(scope)
-      const dates = new Set(days.map((day) => day.date))
       const records: ScheduleDayRecord[] = days.map((day) => ({
         ...identity,
         court_id: courtId,
@@ -276,7 +277,6 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
 
           await Promise.all(
             existingCourtRows
-              .filter((row) => dates.has(row.date))
               .map((row) =>
                 db.schedule_days.delete([
                   row.scope_key,
@@ -584,6 +584,7 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
         lastAttemptAt?: string | null
         reviewReason?: BookingRequestReviewReason | null
         resolvedBookingId?: number | null
+        backendAttemptId?: number | null
       } = {},
     ): Promise<BookingIntentRecord | undefined> {
       const scopeKey = createOfflineScopeKey(scope)
@@ -605,6 +606,9 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
           : {}),
         ...(Object.prototype.hasOwnProperty.call(options, 'resolvedBookingId')
           ? { resolved_booking_id: options.resolvedBookingId ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(options, 'backendAttemptId')
+          ? { backend_attempt_id: options.backendAttemptId ?? null }
           : {}),
       })
 

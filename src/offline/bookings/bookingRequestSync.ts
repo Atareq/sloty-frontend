@@ -1,6 +1,7 @@
 import { getAccountStateAction } from '../../core/auth/accountState'
 import {
   getApiErrorCode,
+  getApiErrorDetails,
   getApiFieldErrors,
   isApiClientError,
 } from '../../core/api/apiError.helpers'
@@ -54,6 +55,7 @@ interface BookingRequestSyncRepositories {
       lastAttemptAt?: string | null
       reviewReason?: BookingRequestReviewReason | null
       resolvedBookingId?: number | null
+      backendAttemptId?: number | null
     },
   ) => Promise<BookingIntentRecord | undefined>
 }
@@ -112,9 +114,13 @@ interface ProcessPendingBookingRequestsOptions {
 
 type ClassifiedBookingCreateError =
   | { type: 'retryable_technical' }
-  | { type: 'needs_review'; reason: BookingRequestReviewReason }
+  | {
+      type: 'needs_review'
+      reason: BookingRequestReviewReason
+      backendAttemptId?: number | null
+    }
   | { type: 'auth_stopped'; stopReason: BookingRequestStopReason }
-  | { type: 'integrity_mismatch' }
+  | { type: 'integrity_mismatch'; backendAttemptId?: number | null }
   | { type: 'unknown_nonretryable' }
 
 function isAbortError(error: unknown): boolean {
@@ -139,6 +145,29 @@ function hasCustomerFieldError(
     Object.prototype.hasOwnProperty.call(fieldErrors, 'customer_phone') ||
     Object.prototype.hasOwnProperty.call(fieldErrors, 'phone_number')
   )
+}
+
+function getBackendAttemptId(error: unknown): number | null {
+  const details = getApiErrorDetails(error)
+
+  if (!details) {
+    return null
+  }
+
+  for (const key of [
+    'booking_attempt_id',
+    'existing_attempt_id',
+    'attempt_id',
+  ]) {
+    const rawValue = details[key]
+    const numericValue = Number(rawValue)
+
+    if (Number.isSafeInteger(numericValue)) {
+      return numericValue
+    }
+  }
+
+  return null
 }
 
 function isRetryableTechnicalError(error: unknown): boolean {
@@ -189,19 +218,34 @@ export function classifyBookingRequestSyncError(
   }
 
   if (code === 'BOOKING_SLOT_UNAVAILABLE') {
-    return { type: 'needs_review', reason: 'SLOT_UNAVAILABLE' }
+    return {
+      type: 'needs_review',
+      reason: 'SLOT_UNAVAILABLE',
+      backendAttemptId: getBackendAttemptId(error),
+    }
   }
 
   if (code === 'RECURRING_UNAVAILABLE') {
-    return { type: 'needs_review', reason: 'RECURRING_UNAVAILABLE' }
+    return {
+      type: 'needs_review',
+      reason: 'RECURRING_UNAVAILABLE',
+      backendAttemptId: getBackendAttemptId(error),
+    }
   }
 
   if (code === 'VALIDATION_ERROR' && hasCustomerFieldError(getApiFieldErrors(error))) {
-    return { type: 'needs_review', reason: 'INVALID_CUSTOMER_DATA' }
+    return {
+      type: 'needs_review',
+      reason: 'INVALID_CUSTOMER_DATA',
+      backendAttemptId: getBackendAttemptId(error),
+    }
   }
 
   if (code === 'BOOKING_CLIENT_REQUEST_MISMATCH') {
-    return { type: 'integrity_mismatch' }
+    return {
+      type: 'integrity_mismatch',
+      backendAttemptId: getBackendAttemptId(error),
+    }
   }
 
   return { type: 'unknown_nonretryable' }
@@ -337,6 +381,7 @@ export async function processBookingRequest(
         {
           lastAttemptAt: attemptAt,
           reviewReason: classification.reason,
+          backendAttemptId: classification.backendAttemptId,
         },
       )
 
@@ -351,6 +396,7 @@ export async function processBookingRequest(
         {
           lastAttemptAt: attemptAt,
           reviewReason: null,
+          backendAttemptId: classification.backendAttemptId,
         },
       )
 

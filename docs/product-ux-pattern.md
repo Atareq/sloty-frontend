@@ -21,7 +21,7 @@ Practical presentation baseline for the Sloty frontend.
 - Route changes reset window scroll; query-only live search does not.
 - `NewBookingFAB` (`+ حجز جديد`) appears on mobile for `/dashboard` and `/bookings` only. It is hidden on `/schedule`.
 - Burger identity uses the current user name, club or Staff Court, and role. No `القائمة` title and no letter markers. Active items use soft mint + green + semibold weight.
-- Owner/authorized Manager Burger: الرئيسية، سجل الحجوزات، إدارة الأموال، التقارير، الإعدادات. `/dashboard` is `المتابعة` and stays routed, not a Burger item. Audit remains a privileged extra, not a fake removal.
+- Owner/authorized Manager Burger: الرئيسية، سجل الحجوزات، إدارة الأموال، الإعدادات. `/dashboard` is `المتابعة` and stays routed, not a Burger item. Reports remain implemented internally but are temporarily hidden from product routes/navigation; Audit remains a privileged extra, not a fake removal.
 - Staff Burger: الرئيسية، سجل الحجوزات، معاملاتي المالية، عهدتي.
 
 ## Finance mental model
@@ -96,7 +96,7 @@ Practical presentation baseline for the Sloty frontend.
 - The existing booking sheet is reused. Offline/backend-unreachable mode changes the primary action to `احفظ طلب الحجز` and keeps name/phone/notes validation. Weekly recurrence intent is enabled only from cached Backend `can_start_recurring === true`.
 - Saved requests start as `بانتظار التأكيد`. Task 5 does not auto-submit, replay HTTP requests, or expose a manual request `احجز الآن` action.
 - `SYNCING` shows `جاري التأكيد...` and locks edit, alternative-slot, one-time conversion, and dismissal actions.
-- Needs Review recovery should preserve customer name, phone, notes, `local_id`, and `client_request_id`. `SLOT_UNAVAILABLE` offers alternatives, `INVALID_CUSTOMER_DATA` offers customer-data editing, and `RECURRING_UNAVAILABLE` offers one-time conversion or another slot.
+- Needs Review recovery should preserve `local_id` and all unchanged business fields. `SLOT_UNAVAILABLE` offers alternatives, `INVALID_CUSTOMER_DATA` offers customer-data editing, and `RECURRING_UNAVAILABLE` offers one-time conversion or another slot. Changed customer data, alternative slots, or one-time conversion create a new backend idempotency UUID; unchanged technical retries keep the existing one.
 - Alternatives come only from refreshed/cached backend FREE slots. Do not generate slots or calculate recurrence/price locally, and do not silently downgrade a recurring request to one-time.
 
 ## Offline Booking History
@@ -109,9 +109,9 @@ Practical presentation baseline for the Sloty frontend.
 
 ## Offline Transactions
 
-- Transactions are server-authoritative online: current server filters and pagination stay unchanged, and unsupported server search/order controls are not added.
+- Transactions are server-authoritative online: current server filters and pagination stay unchanged. Search/order are supported in the API layer, but new online controls are not added unless Product scopes them.
 - Offline/backend-unreachable Transactions use only the complete previous-seven-calendar-day snapshot for the current user + selected Club. It must explain that cached data is limited.
-- Local offline search covers payment reference only with the current contract. Transaction rows do not include complete customer name/phone, so the frontend does not promise customer search and does not fetch one linked Booking per Transaction row.
+- Local offline search uses cached backend Transaction fields only, including payment reference and customer name/phone when present. The frontend does not fetch one linked Booking per Transaction row.
 - Local filters may use cached authoritative fields only: date/date range inside the cache window, Court where role allows, collector where data exists, payment method, cancellation state, and settlement state. Do not calculate custody totals, settlement eligibility, refunds, or financial permissions locally.
 - Local sorting is allowed only offline because it operates on the complete bounded cache. Online paginated results remain backend ordered.
 - Cached Transaction details are read-only. Payment creation, cancellation, refunds, settlement creation/approval/receive, and all financial writes require internet and are never queued.

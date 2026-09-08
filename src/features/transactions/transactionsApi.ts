@@ -17,15 +17,20 @@ function buildTransactionListPath(
   params: TransactionQueryParams = {},
 ): string {
   const query: Record<string, QueryParamValue> = {
+    booking: params.booking,
     court: params.court,
     created_by: params.created_by,
     date: params.date,
     date_from: params.date_from,
     date_to: params.date_to,
     is_cancelled: params.is_cancelled,
+    ordering: params.ordering,
     page: params.page,
     payment_method: params.payment_method,
+    search: params.search,
+    settlement: params.settlement,
     settlement_status: params.settlement_status,
+    transaction_type: params.transaction_type,
   }
 
   return buildPathWithQuery(apiEndpoints.clubs.transactions.list(clubSlug), query)

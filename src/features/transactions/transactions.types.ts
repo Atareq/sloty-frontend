@@ -21,28 +21,38 @@ export const transactionTypeLabels: Record<TransactionType, string> = {
 export type TransactionSettlementStatus = 'settled' | 'unsettled'
 
 export interface TransactionQueryParams {
+  booking?: number | string
   date?: string
   date_from?: string
   date_to?: string
   court?: number | string
   payment_method?: PaymentMethod | ''
   created_by?: number | string
+  ordering?: 'created' | '-created' | ''
+  search?: string
+  settlement?: number | string
   settlement_status?: TransactionSettlementStatus | ''
   is_cancelled?: boolean | string | ''
   page?: number | string
+  transaction_type?: TransactionType | ''
 }
 
 export interface Transaction {
   id: number
   booking?: number | null
+  club?: number
   transaction_type?: TransactionType
   amount: string
   payment_method: PaymentMethod
   payment_reference?: string | null
   notes?: string | null
+  client_request_id?: string | null
+  occurred_at?: string | null
   created?: string
   booking_start_time?: string | null
   booking_end_time?: string | null
+  booking_customer_name?: string | null
+  booking_customer_phone?: string | null
   court?: number | null
   court_name?: string | null
   created_by_username?: string | null
@@ -56,11 +66,13 @@ export interface Transaction {
 }
 
 export interface TransactionCreatePayload {
-  booking?: number
+  booking: number
   amount: string
+  client_request_id?: string | null
   payment_method: PaymentMethod
   payment_reference?: string
   notes?: string
+  occurred_at?: string
 }
 
 export interface TransactionCancelPayload {

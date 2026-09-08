@@ -65,16 +65,23 @@ function isMatchingSearch(
   const paymentReference = normalizeSearchValue(
     transaction.payment_reference ?? '',
   )
+  const customerName = normalizeSearchValue(
+    transaction.booking_customer_name ?? '',
+  )
+  const customerPhone = normalizeSearchValue(
+    transaction.booking_customer_phone ?? '',
+  )
 
-  return Boolean(paymentReference) && paymentReference.includes(search)
+  return [paymentReference, customerName, customerPhone].some((value) =>
+    Boolean(value) && value.includes(search),
+  )
 }
 
 /**
  * Applies safe local filtering over the complete bounded Transaction cache.
  *
- * Customer name/phone are intentionally not searched because the current
- * Transaction list contract does not provide complete customer context and
- * Task 6 forbids Transaction -> Booking N+1 enrichment.
+ * Customer name/phone search uses only cached Backend Transaction fields.
+ * It never enriches rows with Transaction -> Booking N+1 requests.
  */
 export function getOfflineTransactionsView(
   transactions: Transaction[],
