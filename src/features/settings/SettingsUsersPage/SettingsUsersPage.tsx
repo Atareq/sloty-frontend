@@ -1332,16 +1332,6 @@ export function SettingsUsersPage() {
             </p>
           ) : null}
 
-          <AppCard className="hidden md:block">
-            <UsersFilterForm
-              courts={courts}
-              filters={filters}
-              isLoading={isLoading}
-              key={`desktop-${getUsersSearch(queryParams) || 'empty'}`}
-              onApply={applyFilters}
-              onReset={resetFilters}
-            />
-          </AppCard>
 
           <FilterSheet
             isOpen={isFilterSheetOpen}

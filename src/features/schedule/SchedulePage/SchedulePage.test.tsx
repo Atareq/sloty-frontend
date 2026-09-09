@@ -591,6 +591,16 @@ describe('SchedulePage', () => {
         court: 7,
         date: getEgyptDateValue(),
       })
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: getEgyptDateValue(),
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
     })
     expect(mockedListCourts).not.toHaveBeenCalled()
     expect(screen.queryByLabelText('الملعب')).not.toBeInTheDocument()
@@ -599,6 +609,8 @@ describe('SchedulePage', () => {
   })
 
   it('renders a cached Schedule day before any online refresh resolves', async () => {
+    const onlineRefresh = createDeferred<BookingSlotsResponse>()
+    mockedListBookingSlots.mockReturnValue(onlineRefresh.promise)
     mockedOfflineRepositories.readScheduleDay.mockResolvedValue(cachedScheduleDay())
 
     render(
@@ -610,10 +622,174 @@ describe('SchedulePage', () => {
     expect(await screen.findByRole('button', { name: '9:00 ص متاح' }))
       .toBeInTheDocument()
     expect(screen.queryByText('جاري تحميل المواعيد...')).not.toBeInTheDocument()
+    expect(mockedListBookingSlots).toHaveBeenCalledWith(
+      'nasr-club',
+      {
+        court: 7,
+        date: getEgyptDateValue(),
+      },
+      {
+        signal: expect.any(AbortSignal),
+      },
+    )
+    expect(screen.getByText(/آخر تحديث/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'تحديث البيانات' }))
+      .toBeInTheDocument()
+
+    await act(async () => {
+      onlineRefresh.resolve(
+        makeSlotsResponse([
+          makeSlot({
+            start_time: '10:00',
+            end_time: '11:00',
+            slot_status: 'FREE',
+            is_available: true,
+            label: 'متاح',
+          }),
+        ]),
+      )
+    })
+
+    expect(await screen.findByRole('button', { name: '10:00 ص متاح' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '9:00 ص متاح' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('online with empty cache renders empty cached day immediately then refreshes from backend', async () => {
+    const onlineRefresh = createDeferred<BookingSlotsResponse>()
+    mockedListBookingSlots.mockReturnValue(onlineRefresh.promise)
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      court_id: 7,
+      date: getEgyptDateValue(),
+      message: 'الملعب مغلق في هذا اليوم.',
+      slots: [],
+      synced_at: '2026-07-20T01:00:00.000Z',
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('الملعب مغلق في هذا اليوم.'))
+      .toBeInTheDocument()
+    expect(screen.queryByText('جاري تحميل المواعيد...')).not.toBeInTheDocument()
+    expect(mockedListBookingSlots).toHaveBeenCalledWith(
+      'nasr-club',
+      {
+        court: 7,
+        date: getEgyptDateValue(),
+      },
+      {
+        signal: expect.any(AbortSignal),
+      },
+    )
+
+    await act(async () => {
+      onlineRefresh.resolve(
+        makeSlotsResponse([
+          makeSlot({
+            start_time: '10:00',
+            end_time: '11:00',
+            slot_status: 'FREE',
+            is_available: true,
+            label: 'متاح',
+          }),
+        ]),
+      )
+    })
+
+    expect(await screen.findByRole('button', { name: '10:00 ص متاح' }))
+      .toBeInTheDocument()
+    expect(screen.queryByText('الملعب مغلق في هذا اليوم.'))
+      .not.toBeInTheDocument()
+  })
+
+  it('offline with cache renders cached day and does not call backend', async () => {
+    mockOfflineSyncContext({
+      connectivity: {
+        browserNetwork: 'offline',
+        backendReachability: 'unreachable',
+      },
+    })
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue(cachedScheduleDay())
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+      .toBeInTheDocument()
     expect(mockedListBookingSlots).not.toHaveBeenCalled()
     expect(screen.getByText(/آخر تحديث/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'تحديث البيانات' }))
       .toBeInTheDocument()
+  })
+
+  it('does not restart or abort in-flight foreground slot request when background sync transitions from syncing to idle', async () => {
+    const onlineRefresh = createDeferred<BookingSlotsResponse>()
+    mockedListBookingSlots.mockReturnValue(onlineRefresh.promise)
+
+    mockOfflineSyncContext({
+      sync: {
+        status: 'syncing',
+        activeDataset: 'schedule',
+      },
+    })
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledTimes(1)
+    })
+
+    const firstCallSignal = mockedListBookingSlots.mock.calls[0][2]?.signal
+
+    mockOfflineSyncContext({
+      sync: {
+        status: 'idle',
+        activeDataset: null,
+        lastRunCompletedAt: new Date().toISOString(),
+      },
+    })
+
+    rerender(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(mockedListBookingSlots).toHaveBeenCalledTimes(1)
+    expect(firstCallSignal?.aborted).toBe(false)
+
+    await act(async () => {
+      onlineRefresh.resolve(
+        makeSlotsResponse([
+          makeSlot({
+            start_time: '11:00',
+            end_time: '12:00',
+            slot_status: 'FREE',
+            is_available: true,
+            label: 'متاح',
+          }),
+        ]),
+      )
+    })
+
+    expect(await screen.findByRole('button', { name: '11:00 ص متاح' }))
+      .toBeInTheDocument()
+    expect(mockedListBookingSlots).toHaveBeenCalledTimes(1)
   })
 
   it('manual Schedule refresh uses central sync, keeps cached slots visible, and prevents duplicate taps', async () => {
@@ -787,6 +963,10 @@ describe('SchedulePage', () => {
 
   it('shows the manual Schedule refresh loading state from the existing sync status', async () => {
     mockOfflineSyncContext({
+      connectivity: {
+        browserNetwork: 'offline',
+        backendReachability: 'unreachable',
+      },
       sync: {
         status: 'syncing',
         activeDataset: 'schedule',
@@ -2085,6 +2265,16 @@ describe('SchedulePage', () => {
         court: 7,
         date: getEgyptDateValue(),
       })
+      expect(mockedListBookingSlots).toHaveBeenLastCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: getEgyptDateValue(),
+        },
+        {
+          signal: undefined,
+        },
+      )
     })
   })
 
@@ -2633,6 +2823,16 @@ describe('SchedulePage', () => {
         court: 7,
         date: '2026-07-21',
       })
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: '2026-07-21',
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
     })
 
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 2')
@@ -2642,6 +2842,16 @@ describe('SchedulePage', () => {
         court: 8,
         date: '2026-07-21',
       })
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 8,
+          date: '2026-07-21',
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
     })
     expect(scrollIntoViewMock).toHaveBeenCalledTimes(1)
   })
@@ -2687,6 +2897,16 @@ describe('SchedulePage', () => {
       court: 7,
       date: getEgyptDateValue(),
     })
+    expect(mockedListBookingSlots).toHaveBeenCalledWith(
+      'nasr-club',
+      {
+        court: 7,
+        date: getEgyptDateValue(),
+      },
+      {
+        signal: expect.any(AbortSignal),
+      },
+    )
   })
 
   it('loads and renders slots when background sync rejects or fails', async () => {
@@ -2863,6 +3083,16 @@ describe('SchedulePage', () => {
         court: 7,
         date: getEgyptDateValue(),
       })
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: getEgyptDateValue(),
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
     })
 
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 2')
@@ -2872,6 +3102,16 @@ describe('SchedulePage', () => {
         court: 8,
         date: getEgyptDateValue(),
       })
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 8,
+          date: getEgyptDateValue(),
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
     })
 
     await act(async () => {
@@ -2946,6 +3186,16 @@ describe('SchedulePage', () => {
         court: 7,
         date: getEgyptDateValue(),
       })
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: getEgyptDateValue(),
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
     })
 
     await user.click(
@@ -2957,6 +3207,16 @@ describe('SchedulePage', () => {
         court: 7,
         date: '2026-07-21',
       })
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: '2026-07-21',
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
     })
 
     await act(async () => {

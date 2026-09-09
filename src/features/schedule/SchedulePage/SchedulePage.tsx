@@ -633,9 +633,23 @@ export function SchedulePage() {
     }
 
     lastRequestedWindowSyncKeyRef.current = syncKey
-    void requestSyncRef.current().catch(() => {
-      // The coordinator exposes failure through `sync`; cached data remains visible.
-    })
+    void requestSyncRef.current()
+      .then((result) => {
+        const scheduleSucceeded =
+          result.datasets.schedule?.status === 'success'
+
+        if (
+          !scheduleSucceeded &&
+          lastRequestedWindowSyncKeyRef.current === syncKey
+        ) {
+          lastRequestedWindowSyncKeyRef.current = null
+        }
+      })
+      .catch(() => {
+        if (lastRequestedWindowSyncKeyRef.current === syncKey) {
+          lastRequestedWindowSyncKeyRef.current = null
+        }
+      })
   }
 
   async function fetchAuthoritativeScheduleDay(options: {
@@ -660,10 +674,16 @@ export function SchedulePage() {
     setError(null)
 
     try {
-      const response = await listBookingSlots(clubSlug, {
-        court: courtId,
-        date,
-      })
+      const response = await listBookingSlots(
+        clubSlug,
+        {
+          court: courtId,
+          date,
+        },
+        {
+          signal: options.signal,
+        },
+      )
       const syncedAt = new Date().toISOString()
 
       if (
@@ -853,8 +873,10 @@ export function SchedulePage() {
         setPreferredScheduleCourt(offlineScopeKey, courtId)
       }
 
+      let cachedDay: ScheduleDayRecord | undefined
+
       if (scope && isInsideWindow) {
-        const cachedDay = await offlineRepositories.readScheduleDay(
+        cachedDay = await offlineRepositories.readScheduleDay(
           scope,
           courtId,
           date,
@@ -880,36 +902,44 @@ export function SchedulePage() {
           )
           setSettledSlotsDate(date)
           requestWindowSyncIfNeeded()
-          return
+
+          if (!canAttemptNetworkRequest()) {
+            return
+          }
         }
       }
 
-      setScheduleSource(null)
-      setCacheSyncedAt(null)
+      const hasRenderedCache = Boolean(cachedDay)
 
-      if (!isInsideWindow && !canAttemptNetworkRequest()) {
-        setSlots([])
-        setBoardMessage(getOfflineDateBoundaryMessage(date))
-        setSettledSlotsDate(date)
-        return
+      if (!hasRenderedCache) {
+        setScheduleSource(null)
+        setCacheSyncedAt(null)
+
+        if (!isInsideWindow && !canAttemptNetworkRequest()) {
+          setSlots([])
+          setBoardMessage(getOfflineDateBoundaryMessage(date))
+          setSettledSlotsDate(date)
+          return
+        }
+
+        if (isInsideWindow && !canAttemptNetworkRequest()) {
+          setSlots([])
+          setBoardMessage(
+            'محتاج اتصال بالإنترنت أول مرة\nاتصل بالإنترنت علشان نحمل مواعيد الملعب ونجهزها للاستخدام بدون إنترنت.',
+          )
+          setSettledSlotsDate(date)
+          return
+        }
+
+        setIsSlotsLoading(true)
       }
 
-      if (isInsideWindow && !canAttemptNetworkRequest()) {
-        setSlots([])
-        setBoardMessage(
-          'محتاج اتصال بالإنترنت أول مرة\nاتصل بالإنترنت علشان نحمل مواعيد الملعب ونجهزها للاستخدام بدون إنترنت.',
-        )
-        setSettledSlotsDate(date)
-        return
-      }
-
-      setIsSlotsLoading(true)
       setError(null)
 
       const didLoad = await fetchAuthoritativeScheduleDay({
         persistIfInsideWindow: isInsideWindow,
         requestKey,
-        showLoading: true,
+        showLoading: !hasRenderedCache,
         signal: controller.signal,
       })
 
@@ -928,21 +958,19 @@ export function SchedulePage() {
       isActive = false
       controller.abort()
     }
-  // The concrete schedule inputs below intentionally drive this effect. The
-  // network-refresh callbacks read through refs/guards so a DB write does not
-  // trigger an equivalent sync loop.
+  // The concrete schedule inputs below intentionally drive this effect.
+  // Primitive dependencies ensure harmless component rerenders never restart or cancel
+  // the foreground request. Background sync fields (sync.status, sync.activeDataset,
+  // sync.lastRunCompletedAt) are intentionally omitted so background sync transitions
+  // never cancel or restart the foreground current-day request.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedClubSlug,
-    selectedCourt,
+    selectedCourt?.id,
+    selectedCourt?.name,
     selectedDate,
-    offlineScope,
     offlineScopeKey,
     connectivity.browserNetwork,
-    connectivity.backendReachability,
-    sync.status,
-    sync.activeDataset,
-    sync.lastRunCompletedAt,
   ])
 
   useEffect(() => {
