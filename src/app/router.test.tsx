@@ -8,6 +8,7 @@ import { SettlementPreviewPage } from '../features/settlements/SettlementPreview
 import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/SettlementsHubPage'
 import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHubPage'
 import { SettingsUsersPage } from '../features/settings/SettingsUsersPage/SettingsUsersPage'
+import { PublicSchedulePage } from '../features/publicSchedule/PublicSchedulePage/PublicSchedulePage'
 import { router } from './router'
 
 function getProtectedChildRoute(path: string) {
@@ -91,5 +92,17 @@ describe('router platform admin users routes', () => {
     expect(routeElement?.type).toBe(RoleRoute)
     expect(routeElement?.props.allowedRoles).toEqual(['PLATFORM_ADMIN'])
     expect(routeElement?.props.children.type).toBe(AdminUserDetailsPage)
+  })
+})
+
+describe('router public schedule routes', () => {
+  it('maps /public/:clubSlug/courts/:courtId/schedule to PublicSchedulePage directly without ProtectedRoute', () => {
+    const route = router.routes.find(
+      (r) => r.path === '/public/:clubSlug/courts/:courtId/schedule',
+    )
+
+    expect(route).toBeDefined()
+    expect(isValidElement(route?.element)).toBe(true)
+    expect((route?.element as ReactElement).type).toBe(PublicSchedulePage)
   })
 })

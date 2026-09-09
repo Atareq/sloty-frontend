@@ -85,4 +85,34 @@ describe('AppDateNavigator', () => {
     expect(screen.getByRole('button', { name: 'فتح تقويم تاريخ الحجز' }))
       .toBeInTheDocument()
   })
+
+  it('disables dates outside minDate and maxDate in the rolling strip', async () => {
+    const user = userEvent.setup()
+    const handleChange = vi.fn()
+
+    render(
+      <AppDateNavigator
+        maxDate="2026-08-18"
+        minDate="2026-08-16"
+        onChange={handleChange}
+        value="2026-08-16"
+      />,
+    )
+
+    const buttons = screen.getAllByRole('button')
+    // buttons[0] is 2026-08-16 (enabled, selected)
+    // buttons[1] is 2026-08-17 (enabled)
+    // buttons[2] is 2026-08-18 (enabled)
+    // buttons[3] is 2026-08-19 (disabled)
+    expect(buttons[0]).not.toBeDisabled()
+    expect(buttons[1]).not.toBeDisabled()
+    expect(buttons[2]).not.toBeDisabled()
+    expect(buttons[3]).toBeDisabled()
+
+    await user.click(buttons[3])
+    expect(handleChange).not.toHaveBeenCalled()
+
+    await user.click(buttons[1])
+    expect(handleChange).toHaveBeenCalledWith('2026-08-17')
+  })
 })

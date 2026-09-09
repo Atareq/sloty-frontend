@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { LogOut, X } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
@@ -21,6 +21,7 @@ import {
 } from '../../shared/components/AppSheet/appSheetOverlay'
 import { NewBookingFAB } from '../../shared/components/NewBookingFAB/NewBookingFAB'
 import { PageHeader } from '../../shared/components/PageHeader/PageHeader'
+import { PageHeaderActionContext } from '../../shared/components/PageHeader/pageHeaderActionContext'
 import { AppSuccessNotice } from '../../shared/components/AppSuccessNotice/AppSuccessNotice'
 import { roleCopy } from '../../shared/copy/appCopy'
 import { appRoutes } from '../../shared/navigation/appRoutes'
@@ -146,6 +147,7 @@ export function AppShell() {
     useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
+  const [pageHeaderAction, setPageHeaderAction] = useState<ReactNode>(null)
   const hasActiveAppSheet = useHasActiveAppSheet()
   const hasActiveModalTask = useHasActiveModalTask()
   const pageHeaderMeta = getPageHeaderMeta(
@@ -347,49 +349,52 @@ export function AppShell() {
         ) : null}
       </aside>
 
-      <div
-        className={[
-          shouldUseDesktopNav ? 'pr-72' : '',
-          'transition-[padding]',
-        ].join(' ')}
-      >
-        <RouteScrollReset />
-        <PageHeader
-          clubName={selectedClubName}
-          onHomeClick={() => {
-            navigate(appRoutes.home)
-          }}
-          onMenuClick={handleOpenMenu}
-          resetKey={location.pathname}
-          showHomeButton={shouldShowHomeButton}
-          showMenuButton={isDrawerAllowed}
-          subtitle={pageHeaderMeta.subtitle}
-          title={pageHeaderMeta.title}
-        />
-
-        <main
+      <PageHeaderActionContext.Provider value={setPageHeaderAction}>
+        <div
           className={[
-            'min-h-svh px-4 pt-5 sm:px-6 lg:pl-8 lg:pb-8 lg:pt-8',
-            isBookingRoute && canCreateBooking ? 'pb-24' : 'pb-8',
-            shouldUseDesktopNav ? 'pr-4 sm:pr-6' : 'lg:pr-8',
+            shouldUseDesktopNav ? 'pr-72' : '',
+            'transition-[padding]',
           ].join(' ')}
         >
-          <div className="mx-auto w-full max-w-7xl">
-            {flashMessage ? (
-              <AppSuccessNotice
-                message={flashMessage}
-                onDismiss={clearFlashMessage}
-              />
-            ) : null}
-            <OfflineSyncProvider>
-              <OfflineFreshnessNotice />
-              <AppViewModeContext.Provider value={viewMode}>
-                <Outlet />
-              </AppViewModeContext.Provider>
-            </OfflineSyncProvider>
-          </div>
-        </main>
-      </div>
+          <RouteScrollReset />
+          <PageHeader
+            clubName={selectedClubName}
+            endAction={pageHeaderAction ?? undefined}
+            onHomeClick={() => {
+              navigate(appRoutes.home)
+            }}
+            onMenuClick={handleOpenMenu}
+            resetKey={location.pathname}
+            showHomeButton={shouldShowHomeButton}
+            showMenuButton={isDrawerAllowed}
+            subtitle={pageHeaderMeta.subtitle}
+            title={pageHeaderMeta.title}
+          />
+
+          <main
+            className={[
+              'min-h-svh px-4 pt-5 sm:px-6 lg:pl-8 lg:pb-8 lg:pt-8',
+              isBookingRoute && canCreateBooking ? 'pb-24' : 'pb-8',
+              shouldUseDesktopNav ? 'pr-4 sm:pr-6' : 'lg:pr-8',
+            ].join(' ')}
+          >
+            <div className="mx-auto w-full max-w-7xl">
+              {flashMessage ? (
+                <AppSuccessNotice
+                  message={flashMessage}
+                  onDismiss={clearFlashMessage}
+                />
+              ) : null}
+              <OfflineSyncProvider>
+                <OfflineFreshnessNotice />
+                <AppViewModeContext.Provider value={viewMode}>
+                  <Outlet />
+                </AppViewModeContext.Provider>
+              </OfflineSyncProvider>
+            </div>
+          </main>
+        </div>
+      </PageHeaderActionContext.Provider>
 
       {isMenuOpen && isDrawerAllowed ? (
         <div

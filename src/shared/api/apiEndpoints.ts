@@ -105,4 +105,8 @@ export const apiEndpoints = {
     list: 'users/',
     detail: (id: ApiId) => `users/${id}/`,
   },
+  public: {
+    courtAvailability: (clubSlug: string, courtId: ApiId) =>
+      `public/clubs/${clubSlug}/courts/${courtId}/availability/`,
+  },
 } as const

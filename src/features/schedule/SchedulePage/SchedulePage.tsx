@@ -88,6 +88,8 @@ import {
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { PageHeaderAction } from '../../../shared/components/PageHeader/PageHeaderAction'
+import { ShareCourtScheduleButton } from '../../publicSchedule/components/ShareCourtScheduleButton'
 import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
 import {
   OFFLINE_CREATION_RESTRICTED_TEXT,
@@ -1983,6 +1985,17 @@ export function SchedulePage() {
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-7xl flex-col bg-[var(--sloty-bg)]">
+      {selectedClubSlug && selectedCourtId ? (
+        <PageHeaderAction>
+          <ShareCourtScheduleButton
+            clubSlug={selectedClubSlug}
+            courtId={selectedCourtId}
+            courtName={selectedCourt?.name}
+            variant="header"
+          />
+        </PageHeaderAction>
+      ) : null}
+
       <div className="space-y-4 md:space-y-6">
         <section
           className="space-y-4 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-surface)] p-4 shadow-[var(--sloty-shadow)] md:px-5"

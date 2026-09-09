@@ -1001,6 +1001,8 @@ describe('SettingsUsersPage', () => {
 
     await screen.findByText('أحمد مالك')
 
+    await user.click(screen.getByRole('button', { name: 'فلترة' }))
+
     await chooseAppSelectOption(user, screen.getByLabelText('الدور'), 'مدير')
     await chooseAppSelectOption(
       user,

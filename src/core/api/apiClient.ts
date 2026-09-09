@@ -17,6 +17,7 @@ export interface ApiRequestOptions {
   headers?: HeadersInit
   signal?: AbortSignal
   skipAuthRefresh?: boolean
+  omitAuth?: boolean
   retried?: boolean
 }
 
@@ -351,7 +352,12 @@ function shouldAttemptSilentRefresh(
   options: ApiRequestOptions,
   status?: number,
 ): boolean {
-  if (options.skipAuthRefresh || options.retried || isAuthTokenPath(path)) {
+  if (
+    options.omitAuth ||
+    options.skipAuthRefresh ||
+    options.retried ||
+    isAuthTokenPath(path)
+  ) {
     return false
   }
 
@@ -446,7 +452,7 @@ export async function apiRequest<TResponse>(
     }
   }
 
-  const token = getAccessToken()
+  const token = options.omitAuth ? null : getAccessToken()
   const headers = new Headers(options.headers)
 
   if (!headers.has('Accept-Language')) {

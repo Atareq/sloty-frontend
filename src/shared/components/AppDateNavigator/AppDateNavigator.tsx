@@ -25,6 +25,8 @@ export interface AppDateNavigatorProps {
   value: string
   onChange: (date: string) => void
   days?: number
+  minDate?: string
+  maxDate?: string
 }
 
 const dayPickerClassNames = getDefaultClassNames()
@@ -116,6 +118,8 @@ export function AppDateNavigator({
   days = 7,
   onChange,
   value,
+  minDate,
+  maxDate,
 }: AppDateNavigatorProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
 
@@ -148,7 +152,27 @@ export function AppDateNavigator({
     value || formatDateInputValue(new Date()),
   )
 
+  const disabledMatchers = useMemo(() => {
+    if (!minDate && !maxDate) {
+      return undefined
+    }
+
+    return (date: Date) => {
+      const dateStr = formatDateInputValue(date)
+      if (minDate && dateStr < minDate) {
+        return true
+      }
+      if (maxDate && dateStr > maxDate) {
+        return true
+      }
+      return false
+    }
+  }, [minDate, maxDate])
+
   function handleDateClick(dateValue: string): void {
+    if ((minDate && dateValue < minDate) || (maxDate && dateValue > maxDate)) {
+      return
+    }
     setVisibleStartValue(effectiveVisibleStartValue)
     onChange(dateValue)
   }
@@ -159,6 +183,10 @@ export function AppDateNavigator({
     }
 
     const nextValue = formatDateInputValue(nextDate)
+
+    if ((minDate && nextValue < minDate) || (maxDate && nextValue > maxDate)) {
+      return
+    }
 
     // A date inside the current 7-day window changes selection only.
     // An outside date starts a new visible 7-day window.
@@ -179,6 +207,10 @@ export function AppDateNavigator({
             {dateValues.map((dateValue) => {
               const label = formatArabicCompactDay(dateValue)
               const isSelected = dateValue === value
+              const isDateDisabled = Boolean(
+                (minDate && dateValue < minDate) ||
+                  (maxDate && dateValue > maxDate),
+              )
 
               return (
                 <button
@@ -199,7 +231,17 @@ export function AppDateNavigator({
                           'hover:bg-[var(--sloty-bg)]',
                           'hover:text-[var(--sloty-text-primary)]',
                         ].join(' '),
+                    isDateDisabled
+                      ? 'cursor-not-allowed opacity-30 text-[var(--sloty-text-muted)]'
+                      : isSelected
+                        ? 'sloty-green-surface-button text-white shadow-sm'
+                        : [
+                            'text-[var(--sloty-text-muted)]',
+                            'hover:bg-[var(--sloty-bg)]',
+                            'hover:text-[var(--sloty-text-primary)]',
+                          ].join(' '),
                   ].join(' ')}
+                  disabled={isDateDisabled}
                   key={dateValue}
                   onClick={() => handleDateClick(dateValue)}
                   type="button"
@@ -479,6 +521,7 @@ export function AppDateNavigator({
               }}
               defaultMonth={selectedDate}
               dir="rtl"
+              disabled={disabledMatchers}
               fixedWeeks
               locale={arSA}
               mode="single"

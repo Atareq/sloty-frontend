@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
+import { PageHeaderActionContext } from '../../../shared/components/PageHeader/pageHeaderActionContext'
 import { useAuth } from '../../../core/auth/useAuth'
 import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
@@ -587,10 +588,6 @@ describe('SchedulePage', () => {
     expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
       .toBeInTheDocument()
     await waitFor(() => {
-      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-        date: getEgyptDateValue(),
-      })
       expect(mockedListBookingSlots).toHaveBeenCalledWith(
         'nasr-club',
         {
@@ -2261,10 +2258,6 @@ describe('SchedulePage', () => {
     expect(screen.queryByText('409 Conflict')).not.toBeInTheDocument()
     await waitFor(() => {
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
-      expect(mockedListBookingSlots).toHaveBeenLastCalledWith('nasr-club', {
-        court: 7,
-        date: getEgyptDateValue(),
-      })
       expect(mockedListBookingSlots).toHaveBeenLastCalledWith(
         'nasr-club',
         {
@@ -2819,10 +2812,6 @@ describe('SchedulePage', () => {
     )
 
     await waitFor(() => {
-      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-        date: '2026-07-21',
-      })
       expect(mockedListBookingSlots).toHaveBeenCalledWith(
         'nasr-club',
         {
@@ -2838,10 +2827,6 @@ describe('SchedulePage', () => {
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 2')
 
     await waitFor(() => {
-      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-        court: 8,
-        date: '2026-07-21',
-      })
       expect(mockedListBookingSlots).toHaveBeenCalledWith(
         'nasr-club',
         {
@@ -2893,10 +2878,6 @@ describe('SchedulePage', () => {
 
     expect(await screen.findByRole('button', { name: '6:00 م متاح' }))
       .toBeInTheDocument()
-    expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-      court: 7,
-      date: getEgyptDateValue(),
-    })
     expect(mockedListBookingSlots).toHaveBeenCalledWith(
       'nasr-club',
       {
@@ -3079,10 +3060,6 @@ describe('SchedulePage', () => {
     )
 
     await waitFor(() => {
-      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-        date: getEgyptDateValue(),
-      })
       expect(mockedListBookingSlots).toHaveBeenCalledWith(
         'nasr-club',
         {
@@ -3098,10 +3075,6 @@ describe('SchedulePage', () => {
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 2')
 
     await waitFor(() => {
-      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-        court: 8,
-        date: getEgyptDateValue(),
-      })
       expect(mockedListBookingSlots).toHaveBeenCalledWith(
         'nasr-club',
         {
@@ -3182,10 +3155,6 @@ describe('SchedulePage', () => {
     )
 
     await waitFor(() => {
-      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-        date: getEgyptDateValue(),
-      })
       expect(mockedListBookingSlots).toHaveBeenCalledWith(
         'nasr-club',
         {
@@ -3203,10 +3172,6 @@ describe('SchedulePage', () => {
     )
 
     await waitFor(() => {
-      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-        date: '2026-07-21',
-      })
       expect(mockedListBookingSlots).toHaveBeenCalledWith(
         'nasr-club',
         {
@@ -3265,5 +3230,173 @@ describe('SchedulePage', () => {
     expect(screen.getByRole('button', { name: '7:00 م متاح' }))
       .toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '6:00 م متاح' })).not.toBeInTheDocument()
+  })
+
+  it('supplies authenticated share button to PageHeaderAction and not in the day section', async () => {
+    mockedListBookingSlots.mockResolvedValueOnce(makeSlotsResponse([]))
+    let capturedAction: React.ReactNode = null
+    const mockSetter = vi.fn((action: React.ReactNode) => {
+      capturedAction = action
+    })
+
+    render(
+      <PageHeaderActionContext.Provider value={mockSetter}>
+        <MemoryRouter>
+          <SchedulePage />
+        </MemoryRouter>
+      </PageHeaderActionContext.Provider>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'اختار اليوم' })).toBeInTheDocument()
+
+    // 1. Must NOT be rendered inside the daySection (near اختار اليوم)
+    const daySection = screen.getByRole('heading', { name: 'اختار اليوم' }).closest('section')
+    expect(within(daySection as HTMLElement).queryByRole('button', { name: /مشاركة/ })).not.toBeInTheDocument()
+
+    // 2. Must be supplied to PageHeaderAction
+    expect(mockSetter).toHaveBeenCalled()
+    expect(capturedAction).not.toBeNull()
+
+    // Render captured action and verify it renders the locked button
+    render(<div>{capturedAction}</div>)
+    const shareButton = screen.getByRole('button', { name: 'مشاركة الجدول' })
+    expect(shareButton).toBeInTheDocument()
+  })
+
+  it('updates PageHeaderAction Share button when Owner or Manager changes court', async () => {
+    const user = userEvent.setup()
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      role: 'OWNER',
+      selectedMembership: {
+        id: 10,
+        role: 'OWNER',
+        club: {
+          id: 1,
+          slug: 'nasr-club',
+          name: 'نادي النصر',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: null,
+      },
+    } as unknown as ReturnType<typeof useAuth>)
+    mockedListCourts.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 7,
+          club: 1,
+          name: 'ملعب 1',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+        {
+          id: 8,
+          club: 1,
+          name: 'ملعب 2',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+      ]),
+    )
+    let latestAction: React.ReactNode = null
+    const mockSetter = vi.fn((action: React.ReactNode) => {
+      latestAction = action
+    })
+
+    render(
+      <PageHeaderActionContext.Provider value={mockSetter}>
+        <MemoryRouter>
+          <SchedulePage />
+        </MemoryRouter>
+      </PageHeaderActionContext.Provider>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'اختار اليوم' })).toBeInTheDocument()
+
+    // Switch court to 'ملعب 2' (court 8)
+    const courtSelect = await screen.findByLabelText('الملعب')
+    await chooseAppSelectOption(user, courtSelect, 'ملعب 2')
+
+    await waitFor(() => {
+      expect(mockSetter).toHaveBeenCalled()
+    })
+
+    const mockWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, 'navigator', {
+      value: {
+        share: undefined,
+        clipboard: { writeText: mockWriteText },
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    render(<div>{latestAction}</div>)
+    const shareBtn = screen.getByRole('button', { name: 'مشاركة الجدول' })
+    await user.click(shareBtn)
+
+    expect(mockWriteText).toHaveBeenCalledWith(
+      expect.stringContaining('/public/nasr-club/courts/8/schedule'),
+    )
+  })
+
+  it('shares assigned court when user is Staff', async () => {
+    const user = userEvent.setup()
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      role: 'STAFF',
+      selectedMembership: {
+        id: 20,
+        role: 'STAFF',
+        club: { id: 1, slug: 'nasr-club', name: 'Nasr Club' },
+        court: { id: 7, name: 'ملعب 1' },
+      },
+    } as unknown as ReturnType<typeof useAuth>)
+
+    let latestAction: React.ReactNode = null
+    const mockSetter = vi.fn((action: React.ReactNode) => {
+      latestAction = action
+    })
+
+    render(
+      <PageHeaderActionContext.Provider value={mockSetter}>
+        <MemoryRouter>
+          <SchedulePage />
+        </MemoryRouter>
+      </PageHeaderActionContext.Provider>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'اختار اليوم' })).toBeInTheDocument()
+
+    const mockWriteText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window, 'navigator', {
+      value: {
+        share: undefined,
+        clipboard: { writeText: mockWriteText },
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    render(<div>{latestAction}</div>)
+    const shareBtn = screen.getByRole('button', { name: 'مشاركة الجدول' })
+    await user.click(shareBtn)
+
+    expect(mockWriteText).toHaveBeenCalledWith(
+      expect.stringContaining('/public/nasr-club/courts/7/schedule'),
+    )
   })
 })

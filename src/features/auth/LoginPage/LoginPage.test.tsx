@@ -260,4 +260,127 @@ describe('LoginPage', () => {
     expect(screen.getByText('كلمة المرور غير صحيحة')).toBeInTheDocument()
     expect(getAccessToken()).toBeNull()
   })
+
+  it('hides the return as guest button on direct login without guestReturnTo', () => {
+    renderLoginPage()
+
+    expect(
+      screen.queryByRole('button', { name: 'المتابعة كزائر' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides the return as guest button when guestReturnTo is invalid or arbitrary', () => {
+    render(
+      <AuthProvider>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/login',
+              state: { guestReturnTo: '/schedule' },
+            },
+          ]}
+        >
+          <LoginPage />
+        </MemoryRouter>
+      </AuthProvider>,
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'المتابعة كزائر' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows return as guest button and navigates to the public court schedule on click', async () => {
+    const user = userEvent.setup()
+    const validPublicRoute = '/public/al-ahly/courts/5/schedule'
+
+    render(
+      <AuthProvider>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/login',
+              state: { guestReturnTo: validPublicRoute },
+            },
+          ]}
+        >
+          <Routes>
+            <Route element={<LoginPage />} path="/login" />
+            <Route
+              element={<p>الجدول العام للملعب</p>}
+              path="/public/:clubSlug/courts/:courtId/schedule"
+            />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    )
+
+    expect(
+      screen.getByText('مش من فريق العمل في الملعب؟'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.'),
+    ).toBeInTheDocument()
+
+    const returnButton = screen.getByRole('button', { name: 'المتابعة كزائر' })
+    expect(returnButton).toBeInTheDocument()
+
+    await user.click(returnButton)
+
+    expect(await screen.findByText('الجدول العام للملعب')).toBeInTheDocument()
+  })
+
+  it('does not render guest return copy on ordinary direct visits', () => {
+    renderLoginPage()
+
+    expect(
+      screen.queryByText('مش من فريق العمل في الملعب؟'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'المتابعة كزائر' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('navigates to the default home route (/) on successful login even if guestReturnTo is present', async () => {
+    const user = userEvent.setup()
+    const accessToken = createDevAccessToken('STAFF')
+
+    mockedLoginWithPassword.mockResolvedValueOnce({
+      access: accessToken,
+      refresh: 'refresh-token',
+    })
+
+    render(
+      <AuthProvider>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/login',
+              state: { guestReturnTo: '/public/al-ahly/courts/5/schedule' },
+            },
+          ]}
+        >
+          <Routes>
+            <Route element={<AuthLandingRedirect />} path="/" />
+            <Route element={<LoginPage />} path="/login" />
+            <Route element={<p>لوحة التحكم</p>} path="/schedule" />
+            <Route
+              element={<p>الجدول العام للملعب</p>}
+              path="/public/:clubSlug/courts/:courtId/schedule"
+            />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    )
+
+    await user.type(screen.getByLabelText('إسم المستخدم'), 'manager_a')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
+    expect(screen.queryByText('الجدول العام للملعب')).not.toBeInTheDocument()
+  })
 })

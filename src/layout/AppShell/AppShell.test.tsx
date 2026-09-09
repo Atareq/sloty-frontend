@@ -8,6 +8,7 @@ import { PageActions } from '../../shared/components/PageActions/PageActions'
 import { AppSheet } from '../../shared/components/AppSheet/AppSheet'
 import { HEADER_COLLAPSE_END_PX } from '../../shared/hooks/usePageHeaderScroll'
 import type { OfflineSyncContextValue } from '../../offline/sync/offlineSyncContext'
+import { PageHeaderAction } from '../../shared/components/PageHeader/PageHeaderAction'
 import { AppShell } from './AppShell'
 
 vi.mock('../../core/auth/useAuth', () => ({
@@ -1080,5 +1081,36 @@ describe('AppShell', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'عرض الهاتف' })).toBeInTheDocument()
     vi.unstubAllGlobals()
+  })
+
+  it('renders route-contributed PageHeaderAction in the PageHeader top-left action area', () => {
+    mockedUseAuth.mockReturnValue(getAuthValue())
+
+    render(
+      <MemoryRouter initialEntries={['/schedule']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route
+              element={
+                <PageHeaderAction>
+                  <button type="button">مشاركة الجدول</button>
+                </PageHeaderAction>
+              }
+              path="/schedule"
+            />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    const endActionSlot = document.querySelector(
+      '[data-page-header-actions="end"]',
+    )
+    expect(endActionSlot).toBeInTheDocument()
+    expect(
+      within(endActionSlot as HTMLElement).getByRole('button', {
+        name: 'مشاركة الجدول',
+      }),
+    ).toBeInTheDocument()
   })
 })

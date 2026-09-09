@@ -27,6 +27,7 @@ import { AuthLandingRedirect } from '../core/auth/AuthLandingRedirect'
 import { ProtectedRoute } from '../core/auth/ProtectedRoute'
 import { RoleRoute } from '../core/auth/RoleRoute'
 import { AppShell } from '../layout/AppShell/AppShell'
+import { PublicSchedulePage } from '../features/publicSchedule/PublicSchedulePage/PublicSchedulePage'
 
 /**
  * Sloty application route map.
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/public/:clubSlug/courts/:courtId/schedule',
+    element: <PublicSchedulePage />,
   },
   {
     path: '/select-club',

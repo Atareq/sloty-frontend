@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
@@ -11,6 +11,7 @@ import { consumeSessionExpiredNotice } from '../../../core/auth/authStorage'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { isValidGuestReturnRoute } from '../../publicSchedule/publicSchedule.helpers'
 
 interface LoginFormState {
   username: string
@@ -32,6 +33,7 @@ const initialFormState: LoginFormState = {
  */
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login } = useAuth()
   const [formState, setFormState] = useState<LoginFormState>(initialFormState)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +43,13 @@ export function LoginPage() {
   > | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  const guestReturnTo =
+    typeof (location.state as { guestReturnTo?: unknown } | null)
+      ?.guestReturnTo === 'string'
+      ? (location.state as { guestReturnTo: string }).guestReturnTo
+      : null
+  const canReturnAsGuest = isValidGuestReturnRoute(guestReturnTo)
 
   useEffect(() => {
     const notice = consumeSessionExpiredNotice()
@@ -208,6 +217,25 @@ export function LoginPage() {
             <AppButton disabled={isSubmitting} fullWidth type="submit">
               {isSubmitting ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
             </AppButton>
+
+            {canReturnAsGuest && guestReturnTo ? (
+              <div className="space-y-2.5 border-t border-[var(--sloty-border)] pt-2 text-center">
+                <div className="space-y-0.5 text-xs text-[var(--sloty-text-muted)]">
+                  <p className="font-semibold text-[var(--sloty-text-primary)]">
+                    مش من فريق العمل في الملعب؟
+                  </p>
+                  <p>تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.</p>
+                </div>
+                <AppButton
+                  fullWidth
+                  onClick={() => navigate(guestReturnTo)}
+                  type="button"
+                  variant="secondary"
+                >
+                  المتابعة كزائر
+                </AppButton>
+              </div>
+            ) : null}
           </form>
         </AppCard>
 

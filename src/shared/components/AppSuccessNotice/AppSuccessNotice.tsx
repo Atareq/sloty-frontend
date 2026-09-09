@@ -35,7 +35,7 @@ export function AppSuccessNotice({
   return (
     <div
       aria-live="polite"
-      className="fixed left-4 top-4 z-[70] max-w-sm rounded-2xl border border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)] px-4 py-3 text-sm font-semibold text-[var(--sloty-primary-dark)] shadow-[var(--sloty-shadow)]"
+      className="fixed left-4 top-4 z-[70] max-w-sm whitespace-pre-line rounded-2xl border border-[var(--sloty-primary)]/20 bg-[var(--sloty-soft-mint)] px-4 py-3 text-sm font-semibold text-[var(--sloty-primary-dark)] shadow-[var(--sloty-shadow)]"
       role="status"
     >
       {message}

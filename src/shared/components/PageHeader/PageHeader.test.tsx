@@ -284,4 +284,27 @@ describe('PageHeader', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'الرئيسية' }))
       .toBeInTheDocument()
   })
+
+  it('renders custom endAction and hides menu button when showMenuButton=false and showHomeButton=false', () => {
+    const { container } = render(
+      <PageHeader
+        endAction={<button type="button">تسجيل الدخول</button>}
+        showHomeButton={false}
+        showMenuButton={false}
+        title="جدول المواعيد"
+      />,
+    )
+
+    const endActions = getHeaderActionGroup(container, 'end')
+    expect(
+      within(endActions).getByRole('button', { name: 'تسجيل الدخول' }),
+    ).toBeVisible()
+
+    expect(
+      screen.queryByRole('button', { name: 'فتح القائمة' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'الرئيسية' }),
+    ).not.toBeInTheDocument()
+  })
 })

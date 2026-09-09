@@ -396,4 +396,36 @@ describe('apiRequest', () => {
     expect(getRequestUrl(1)).toContain('me/')
     expect(getRequestHeaders(1).get('Authorization')).toBe(`Bearer ${nextAccess}`)
   })
+
+  it('omits Authorization header when omitAuth is true even if access token is present', async () => {
+    mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
+    mockFetch(Response.json({ ok: true }))
+
+    await apiRequest('/public/clubs/demo/courts/1/availability/', {
+      omitAuth: true,
+    })
+
+    expect(getRequestHeaders().get('Authorization')).toBeNull()
+  })
+
+  it('does not trigger silent refresh or fail expired session when omitAuth is true on 401', async () => {
+    mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 })),
+    )
+
+    await expect(
+      apiRequest('/public/clubs/demo/courts/1/availability/', {
+        omitAuth: true,
+      }),
+    ).rejects.toMatchObject({
+      status: 401,
+    })
+
+    expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
+  })
 })

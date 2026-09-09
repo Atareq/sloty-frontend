@@ -11,6 +11,7 @@ export interface PageHeaderProps {
   showHomeButton?: boolean
   onMenuClick?: () => void
   onHomeClick?: () => void
+  endAction?: React.ReactNode
   /**
    * Route pathname (or similar). When it changes, collapse progress re-syncs
    * from the current window scroll so a new page at the top starts expanded.
@@ -46,12 +47,14 @@ export function PageHeader({
   showHomeButton = false,
   onMenuClick,
   onHomeClick,
+  endAction,
   resetKey,
 }: PageHeaderProps) {
   const headerRef = useRef<HTMLElement>(null)
   const scrollState = usePageHeaderScroll(headerRef, resetKey)
   const isCollapsed = scrollState === 'collapsed'
-  const hasPersistentControls = showMenuButton || showHomeButton
+  const hasPersistentControls =
+    showMenuButton || showHomeButton || Boolean(endAction)
   const controlButtonClassName = isCollapsed
     ? 'bg-[var(--sloty-bg)] text-[var(--sloty-text-primary)] hover:bg-[var(--sloty-soft-mint)] focus:ring-[var(--sloty-primary)]/30'
     : 'bg-white/12 text-white hover:bg-white/18 focus:ring-white/70'
@@ -92,7 +95,7 @@ export function PageHeader({
               className="flex min-h-11 min-w-11 shrink-0 items-start justify-center"
               data-page-header-actions="end"
             >
-              {showHomeButton ? (
+              {endAction ?? (showHomeButton ? (
                 <button
                   aria-label={appNavCopy.home}
                   className={`inline-flex h-11 max-w-[42vw] shrink-0 items-center gap-1.5 rounded-2xl px-2.5 transition focus:outline-none focus:ring-2 sm:max-w-none ${controlButtonClassName}`}
@@ -108,7 +111,7 @@ export function PageHeader({
                     {appNavCopy.home}
                   </span>
                 </button>
-              ) : null}
+              ) : null)}
             </div>
           </div>
         </div>
