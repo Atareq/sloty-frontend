@@ -101,13 +101,20 @@ export function createScheduleSyncTask(
 
   return {
     dataset: 'schedule',
-    async run({ operationalContext, signal, startedAt }) {
+    async run({
+      operationalContext,
+      signal,
+      startedAt,
+      authorizedCourtIds: providedCourtIds,
+    }) {
       const window = getScheduleSyncWindow(getNow())
-      const authorizedCourtIds = await getAuthorizedScheduleCourtIds(
-        operationalContext,
-        signal,
-        listCourts,
-      )
+      const authorizedCourtIds =
+        providedCourtIds ??
+        (await getAuthorizedScheduleCourtIds(
+          operationalContext,
+          signal,
+          listCourts,
+        ))
       const preferredCourtId = getPreferredScheduleCourt(
         operationalContext.scopeKey,
       )

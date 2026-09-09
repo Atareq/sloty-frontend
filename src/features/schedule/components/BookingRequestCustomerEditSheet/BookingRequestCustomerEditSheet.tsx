@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { Value } from 'react-phone-number-input'
+import type { Country } from 'react-phone-number-input'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { customerCopy } from '../../../../shared/copy/appCopy'
-import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
+import {
+  getCountryFromPhoneNumber,
+  normalizeSlotyPhoneNumber,
+} from '../../../../shared/validation/phone'
 import type { BookingIntentRecord } from '../../../../offline/offline.types'
 
 export interface BookingRequestCustomerEditValues {
@@ -35,7 +38,10 @@ export function BookingRequestCustomerEditSheet({
   request,
 }: BookingRequestCustomerEditSheetProps) {
   const [customerName, setCustomerName] = useState(request.customer_name)
-  const [customerPhone, setCustomerPhone] = useState<Value | undefined>(
+  const [selectedCountry, setSelectedCountry] = useState<Country>(() => {
+    return getCountryFromPhoneNumber(request.customer_phone) ?? 'EG'
+  })
+  const [customerPhone, setCustomerPhone] = useState(
     request.customer_phone,
   )
   const [notes, setNotes] = useState(request.notes ?? '')
@@ -60,13 +66,19 @@ export function BookingRequestCustomerEditSheet({
 
     const trimmedName = customerName.trim()
     const trimmedNotes = notes.trim()
+    const trimmedPhone = customerPhone.trim()
 
-    if (!trimmedName || !customerPhone) {
+    if (!trimmedName || !trimmedPhone) {
       setValidationError('اسم العميل ورقم الموبايل مطلوبان')
       return
     }
 
-    if (!isValidSlotyPhoneNumber(customerPhone)) {
+    const normalizedPhone = normalizeSlotyPhoneNumber(
+      trimmedPhone,
+      selectedCountry,
+    )
+
+    if (!normalizedPhone) {
       setValidationError('رقم الموبايل غير صحيح')
       return
     }
@@ -75,7 +87,7 @@ export function BookingRequestCustomerEditSheet({
 
     await onSubmit({
       customer_name: trimmedName,
-      customer_phone: customerPhone,
+      customer_phone: normalizedPhone,
       notes: trimmedNotes || undefined,
     })
   }
@@ -107,9 +119,12 @@ export function BookingRequestCustomerEditSheet({
             <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>{customerCopy.mobileNumber}</span>
               <SlotyPhoneNumberInput
+                country={selectedCountry}
                 disabled={isSubmitting}
                 error={validationError === 'رقم الموبايل غير صحيح'}
                 onChange={setCustomerPhone}
+                onCountryChange={setSelectedCountry}
+                raw
                 value={customerPhone}
               />
             </div>

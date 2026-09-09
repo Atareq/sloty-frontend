@@ -69,7 +69,7 @@ export function LoginPage() {
     event.preventDefault()
 
     if (!formState.username.trim() || !formState.password.trim()) {
-      setError('رقم الموبايل أو اسم المستخدم وكلمة المرور مطلوبان')
+      setError('إسم المستخدم وكلمة المرور مطلوبان')
       setFieldErrors(null)
       return
     }
@@ -137,7 +137,7 @@ export function LoginPage() {
                 className="text-sm font-semibold text-[var(--sloty-text-primary)]"
                 htmlFor="username"
               >
-                رقم الموبايل أو اسم المستخدم
+                إسم المستخدم
               </label>
               <div className="relative">
                 <input
@@ -149,7 +149,7 @@ export function LoginPage() {
                   onChange={(event) =>
                     updateField('username', event.target.value)
                   }
-                  placeholder="اسم المستخدم أو رقم الموبايل"
+                  placeholder="اسم المستخدم"
                   spellCheck={false}
                   type="text"
                   value={formState.username}

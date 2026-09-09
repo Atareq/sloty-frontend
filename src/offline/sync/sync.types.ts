@@ -47,6 +47,7 @@ export interface DatasetSyncRunContext {
   trigger: SyncTrigger
   signal: AbortSignal
   startedAt: string
+  authorizedCourtIds?: number[]
 }
 
 export interface DatasetSyncTaskResult {

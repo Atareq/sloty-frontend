@@ -535,6 +535,197 @@ describe('OfflineSyncCoordinator', () => {
     await runA
     expect(coordinator.getSnapshot().activeScopeKey).toBe(contextB.scopeKey)
   })
+
+  it('allows a canceled run to stop blocking immediately and never reuses the canceled Promise', async () => {
+    const scheduleGate = createDeferred<DatasetSyncTaskResult>()
+    const coordinator = new OfflineSyncCoordinator({
+      tasks: [
+        createTask('schedule', async () => scheduleGate.promise),
+        createTask('bookings', async () => createResult('bookings')),
+        createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
+      ],
+    })
+
+    coordinator.setActiveOwnerScope(contextA.scopeKey)
+    const runA = coordinator.requestSync({
+      context: contextA,
+      trigger: 'startup',
+    })
+
+    // Cancel Run A
+    coordinator.cancelScope(contextA.scopeKey)
+
+    // Run B requested immediately for the same scope
+    const runB = coordinator.requestSync({
+      context: contextA,
+      trigger: 'startup',
+    })
+
+    // Assert: Run B is a new Promise, not reusing Run A's promise
+    expect(runB).not.toBe(runA)
+
+    scheduleGate.resolve(createResult('schedule'))
+    const [resultA, resultB] = await Promise.all([runA, runB])
+
+    expect(resultA.status).toBe('cancelled')
+    expect(resultB.status).toBe('success')
+  })
+
+  it('prevents old finally cleanup from deleting a newer registered run', async () => {
+    const runAGate = createDeferred<DatasetSyncTaskResult>()
+    const runBGate = createDeferred<DatasetSyncTaskResult>()
+    let runCount = 0
+
+    const coordinator = new OfflineSyncCoordinator({
+      tasks: [
+        createTask('schedule', async () => {
+          runCount += 1
+          if (runCount === 1) {
+            return runAGate.promise
+          }
+          return runBGate.promise
+        }),
+        createTask('bookings', async () => createResult('bookings')),
+        createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
+      ],
+    })
+
+    coordinator.setActiveOwnerScope(contextA.scopeKey)
+    const runA = coordinator.requestSync({
+      context: contextA,
+      trigger: 'startup',
+    })
+
+    // Cancel Run A and start Run B
+    coordinator.cancelScope(contextA.scopeKey)
+    const runB = coordinator.requestSync({
+      context: contextA,
+      trigger: 'startup',
+    })
+
+    // Now Run A finishes and its .finally() executes
+    runAGate.resolve(createResult('schedule'))
+    await runA
+
+    // Run B should still be coalesced/deduplicated while active
+    const runBDedupe = coordinator.requestSync({
+      context: contextA,
+      trigger: 'online',
+    })
+    expect(runBDedupe).toBe(runB)
+
+    // Now Run B completes normally
+    runBGate.resolve(createResult('schedule'))
+    const resultB = await runB
+    expect(resultB.status).toBe('success')
+
+    // After Run B settles, registry is cleaned up without leaks
+    const runC = coordinator.requestSync({
+      context: contextA,
+      trigger: 'manual',
+    })
+    expect(runC).not.toBe(runB)
+  })
+
+  it('handles React StrictMode mount-unmount-remount lifecycle cleanly without blocking or state pollution', async () => {
+    const runAGate = createDeferred<DatasetSyncTaskResult>()
+    const runBGate = createDeferred<DatasetSyncTaskResult>()
+    let currentRun = 0
+
+    const coordinator = new OfflineSyncCoordinator({
+      tasks: [
+        createTask('schedule', async () => {
+          currentRun += 1
+          if (currentRun === 1) {
+            return runAGate.promise
+          }
+          return runBGate.promise
+        }),
+        createTask('bookings', async () => createResult('bookings')),
+        createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
+      ],
+    })
+
+    // Mount lifecycle A
+    coordinator.setActiveOwnerScope(contextA.scopeKey)
+    const runA = coordinator.requestSync({
+      context: contextA,
+      trigger: 'startup',
+    })
+    expect(coordinator.getSnapshot().status).toBe('syncing')
+
+    // StrictMode simulated unmount / cleanup
+    coordinator.cancelScope(contextA.scopeKey)
+
+    // Mount lifecycle B
+    const runB = coordinator.requestSync({
+      context: contextA,
+      trigger: 'startup',
+    })
+    expect(runB).not.toBe(runA)
+    expect(coordinator.getSnapshot().status).toBe('syncing')
+
+    // Run A completes late with an abort error / cancellation
+    runAGate.resolve(createResult('schedule'))
+    const resultA = await runA
+    expect(resultA.status).toBe('cancelled')
+
+    // Coordinator status still belongs to Run B (syncing)
+    expect(coordinator.getSnapshot().status).toBe('syncing')
+    expect(coordinator.getSnapshot().activeScopeKey).toBe(contextA.scopeKey)
+
+    // Run B finishes normally
+    runBGate.resolve(createResult('schedule'))
+    const resultB = await runB
+    expect(resultB.status).toBe('success')
+    expect(coordinator.getSnapshot().status).toBe('idle')
+    expect(coordinator.getSnapshot().lastRunResult?.status).toBe('success')
+  })
+
+  it('resolves authorized courts once per operational sync run and reuses them across tasks', async () => {
+    const ownerMembership: CurrentUserMembership = {
+      id: 20,
+      role: 'OWNER',
+      club: {
+        id: 1,
+        slug: 'club-a',
+        name: 'Club A',
+        is_active: true,
+      },
+      court: null,
+    }
+    const ownerContext = createContext(2, 'club-a', ownerMembership)
+    const resolveAuthorizedCourts = vi.fn(async () => [101, 102])
+    let scheduleReceivedCourts: number[] | undefined
+
+    const coordinator = new OfflineSyncCoordinator({
+      resolveAuthorizedCourts,
+      tasks: [
+        {
+          dataset: 'schedule',
+          async run({ authorizedCourtIds }) {
+            scheduleReceivedCourts = authorizedCourtIds
+            return createResult('schedule')
+          },
+        },
+        createTask('bookings', async () => createResult('bookings')),
+        createTask('transactions', async () => createResult('transactions')),
+        createCurrentCustodyTask(),
+      ],
+    })
+
+    const result = await coordinator.requestSync({
+      context: ownerContext,
+      trigger: 'online',
+    })
+
+    expect(result.status).toBe('success')
+    expect(resolveAuthorizedCourts).toHaveBeenCalledTimes(1)
+    expect(scheduleReceivedCourts).toEqual([101, 102])
+  })
 })
 
 describe('OfflineSyncCoordinator repository integration', () => {

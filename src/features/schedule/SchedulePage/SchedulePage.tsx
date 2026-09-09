@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
 import {
   getApiErrorCode,
@@ -346,6 +347,10 @@ export function SchedulePage() {
     VisibleBookingIntentAlternative[]
   >([])
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [manualRefreshError, setManualRefreshError] = useState<string | null>(
+    null,
+  )
+  const [isManualRefreshPending, setIsManualRefreshPending] = useState(false)
   const [settledSlotsDate, setSettledSlotsDate] = useState<string | null>(null)
   const [isMorningGuidanceActive, setIsMorningGuidanceActive] = useState(false)
   const slotsSectionRef = useRef<HTMLElement | null>(null)
@@ -446,6 +451,8 @@ export function SchedulePage() {
     connectivity.browserNetwork === 'offline' ||
     connectivity.backendReachability === 'unreachable'
   const freshness = getScheduleFreshnessLabel(cacheSyncedAt)
+  const isManualRefreshRunning =
+    isManualRefreshPending || sync.status === 'syncing'
 
   function applyScheduleResponse(
     response: {
@@ -635,6 +642,7 @@ export function SchedulePage() {
     persistIfInsideWindow: boolean
     requestKey?: string
     showLoading: boolean
+    signal?: AbortSignal
   }): Promise<boolean> {
     if (!selectedClubSlug || !selectedCourt) {
       return false
@@ -686,8 +694,10 @@ export function SchedulePage() {
       return true
     } catch (error) {
       if (
-        options.requestKey &&
-        activeScheduleRequestKeyRef.current !== options.requestKey
+        options.signal?.aborted ||
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (options.requestKey &&
+          activeScheduleRequestKeyRef.current !== options.requestKey)
       ) {
         return false
       }
@@ -714,6 +724,7 @@ export function SchedulePage() {
 
   useEffect(() => {
     let isActive = true
+    const controller = new AbortController()
 
     async function loadSetup(): Promise<void> {
       if (!selectedClubSlug || !selectedClub) {
@@ -744,7 +755,9 @@ export function SchedulePage() {
       }
 
       try {
-        const courtsResponse = await listCourts(selectedClubSlug)
+        const courtsResponse = await listCourts(selectedClubSlug, {
+          signal: controller.signal,
+        })
         const activeCourts = courtsResponse.results.filter(
           (court) => court.is_active,
         )
@@ -760,6 +773,13 @@ export function SchedulePage() {
           setBoardMessage(message)
         }
       } catch (error) {
+        if (
+          !isActive ||
+          controller.signal.aborted ||
+          (error instanceof DOMException && error.name === 'AbortError')
+        ) {
+          return
+        }
         if (isActive) {
           setError(
             getApiErrorMessage(error, 'تعذر تحميل إعدادات جدول الحجز'),
@@ -776,6 +796,7 @@ export function SchedulePage() {
 
     return () => {
       isActive = false
+      controller.abort()
     }
   }, [assignedCourtId, canChooseCourt, selectedClub, selectedClubSlug])
 
@@ -810,6 +831,7 @@ export function SchedulePage() {
     }
 
     let isActive = true
+    const controller = new AbortController()
     const courtId = selectedCourt.id
     const date = selectedDate
     const requestKey = getScheduleRequestKey(
@@ -881,16 +903,6 @@ export function SchedulePage() {
         return
       }
 
-      if (
-        isInsideWindow &&
-        sync.status === 'syncing' &&
-        sync.activeDataset === 'schedule'
-      ) {
-        setIsSlotsLoading(true)
-        setBoardMessage(null)
-        return
-      }
-
       setIsSlotsLoading(true)
       setError(null)
 
@@ -898,6 +910,7 @@ export function SchedulePage() {
         persistIfInsideWindow: isInsideWindow,
         requestKey,
         showLoading: true,
+        signal: controller.signal,
       })
 
       if (!isActive) {
@@ -913,6 +926,7 @@ export function SchedulePage() {
 
     return () => {
       isActive = false
+      controller.abort()
     }
   // The concrete schedule inputs below intentionally drive this effect. The
   // network-refresh callbacks read through refs/guards so a DB write does not
@@ -1065,6 +1079,61 @@ export function SchedulePage() {
       setError('تعذر تحديث المواعيد. حاول مرة أخرى.')
     } finally {
       setIsSlotsLoading(false)
+    }
+  }
+
+  async function handleManualScheduleRefresh(): Promise<void> {
+    if (isManualRefreshRunning || !offlineScope || !selectedCourt) {
+      return
+    }
+
+    const court = selectedCourt
+    const date = selectedDate
+    setManualRefreshError(null)
+    setIsManualRefreshPending(true)
+
+    try {
+      const result = await requestSyncRef.current()
+      const scheduleResult = result.datasets.schedule
+
+      if (
+        result.status === 'failed' ||
+        result.status === 'cancelled' ||
+        scheduleResult.status === 'failed'
+      ) {
+        setManualRefreshError('تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.')
+        return
+      }
+
+      const cachedDay = await offlineRepositories.readScheduleDay(
+        offlineScope,
+        court.id,
+        date,
+      )
+
+      if (!cachedDay) {
+        setManualRefreshError('تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.')
+        return
+      }
+
+      applyScheduleResponse(
+        {
+          court: court.id,
+          court_name: court.name,
+          date_from: date,
+          date_to: date,
+          slot_duration_minutes: 0,
+          message: cachedDay.message,
+          slots: cachedDay.slots,
+        },
+        'cache',
+        cachedDay.synced_at,
+      )
+      setSettledSlotsDate(date)
+    } catch {
+      setManualRefreshError('تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.')
+    } finally {
+      setIsManualRefreshPending(false)
     }
   }
 
@@ -1933,18 +2002,49 @@ export function SchedulePage() {
                     : 'border-emerald-100 bg-emerald-50 text-emerald-900',
               ].join(' ')}
             >
-              <p>
-                {isOfflineLike ? 'بدون إنترنت · ' : ''}
-                {freshness.text}
-              </p>
-              {isOfflineLike ? (
-                <p className="mt-1 text-xs font-semibold">
-                  تقدر تكمل باستخدام البيانات المحفوظة.
-                </p>
-              ) : null}
-              {isSlotsRefreshing || sync.activeDataset === 'schedule' ? (
-                <p className="mt-1 text-xs font-semibold">
-                  جاري تحديث البيانات...
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <p>
+                    {isOfflineLike ? 'بدون إنترنت · ' : ''}
+                    {freshness.text}
+                  </p>
+                  <button
+                    aria-busy={isManualRefreshRunning}
+                    aria-label="تحديث البيانات"
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-current/20 bg-white/75 px-3 py-2 text-sm font-extrabold transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isManualRefreshRunning}
+                    onClick={() => void handleManualScheduleRefresh()}
+                    type="button"
+                  >
+                    <RefreshCw
+                      aria-hidden="true"
+                      className={[
+                        'h-4 w-4',
+                        isManualRefreshRunning ? 'animate-spin' : '',
+                      ].join(' ')}
+                    />
+                    <span>
+                      {isManualRefreshRunning ? 'جاري التحديث...' : 'تحديث'}
+                    </span>
+                  </button>
+                </div>
+                {isOfflineLike ? (
+                  <p className="text-xs font-semibold">
+                    تقدر تكمل باستخدام البيانات المحفوظة.
+                  </p>
+                ) : null}
+                {isSlotsRefreshing || sync.activeDataset === 'schedule' ? (
+                  <p className="text-xs font-semibold">
+                    جاري تحديث البيانات...
+                  </p>
+                ) : null}
+              </div>
+              {manualRefreshError ? (
+                <p
+                  className="mt-2 text-xs font-semibold text-[var(--sloty-danger)]"
+                  role="alert"
+                >
+                  {manualRefreshError}
                 </p>
               ) : null}
             </div>

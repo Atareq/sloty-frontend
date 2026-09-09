@@ -1,3 +1,4 @@
+import { canChooseOperationalCourt } from '../../core/auth/auth.types'
 import { browserConnectivity } from '../connectivity/browserConnectivity'
 import { createBookingSyncTask } from '../bookings/bookingSyncTask'
 import { recheckBookingIntentsForScheduleCourts } from '../bookings/bookingIntentRecheck'
@@ -31,11 +32,29 @@ type IntentRecheckRunner = (
 type BookingRequestProcessor = (
   context: OperationalSyncContext,
   signal: AbortSignal,
+  courtIds?: number[],
 ) => Promise<BookingRequestQueueResult>
+type AuthorizedCourtsResolver = (
+  context: OperationalSyncContext,
+  signal: AbortSignal,
+) => Promise<number[]>
 type OperationalFreshnessRecorder = (
   context: OperationalSyncContext,
   syncedAt: string,
 ) => Promise<void>
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new DOMException('Operational sync was cancelled.', 'AbortError')
+  }
+}
+
+function defaultAuthorizedCourtsResolver(
+  context: OperationalSyncContext,
+  signal: AbortSignal,
+): Promise<number[]> {
+  return getAuthorizedScheduleCourtIds(context, signal)
+}
 
 const syncDatasets: SyncDataset[] = [
   'schedule',
@@ -132,6 +151,7 @@ interface SyncCoordinatorOptions {
   getNow?: () => Date
   recheckBookingIntents?: IntentRecheckRunner
   processBookingRequests?: BookingRequestProcessor
+  resolveAuthorizedCourts?: AuthorizedCourtsResolver
   recordOperationalSyncCompleted?: OperationalFreshnessRecorder
   logger?: SyncLogger
 }
@@ -152,6 +172,7 @@ export class OfflineSyncCoordinator {
   private readonly getNow: () => Date
   private readonly recheckBookingIntents: IntentRecheckRunner
   private readonly processBookingRequests: BookingRequestProcessor
+  private readonly resolveAuthorizedCourts: AuthorizedCourtsResolver
   private readonly recordOperationalSyncCompleted: OperationalFreshnessRecorder
   private readonly logger?: SyncLogger
   private readonly fullRuns = new Map<string, FullRunEntry>()
@@ -185,6 +206,8 @@ export class OfflineSyncCoordinator {
       options.recheckBookingIntents ?? defaultIntentRecheckRunner
     this.processBookingRequests =
       options.processBookingRequests ?? defaultBookingRequestProcessor
+    this.resolveAuthorizedCourts =
+      options.resolveAuthorizedCourts ?? defaultAuthorizedCourtsResolver
     this.recordOperationalSyncCompleted =
       options.recordOperationalSyncCompleted ?? defaultOperationalFreshnessRecorder
     this.logger = options.logger
@@ -210,7 +233,11 @@ export class OfflineSyncCoordinator {
     const existingRun = this.fullRuns.get(request.context.scopeKey)
 
     if (existingRun) {
-      return existingRun.promise
+      if (!existingRun.controller.signal.aborted) {
+        return existingRun.promise
+      }
+
+      this.fullRuns.delete(request.context.scopeKey)
     }
 
     const controller = new AbortController()
@@ -250,12 +277,42 @@ export class OfflineSyncCoordinator {
   }
 
   cancelScope(scopeKey: string): void {
-    this.fullRuns.get(scopeKey)?.controller.abort()
+    const run = this.fullRuns.get(scopeKey)
+    if (run) {
+      this.fullRuns.delete(scopeKey)
+      run.controller.abort()
+    }
+
+    for (const [key] of this.datasetRuns) {
+      if (key.startsWith(`${scopeKey}:`)) {
+        this.datasetRuns.delete(key)
+      }
+    }
+
+    if (this.snapshot.activeScopeKey === scopeKey && this.snapshot.status === 'syncing') {
+      this.publishForScope(scopeKey, {
+        status: 'idle',
+        activeScopeKey: null,
+        activeDataset: null,
+      })
+    }
   }
 
   cancelAll(): void {
-    for (const run of this.fullRuns.values()) {
+    const runs = Array.from(this.fullRuns.values())
+    this.fullRuns.clear()
+    this.datasetRuns.clear()
+
+    for (const run of runs) {
       run.controller.abort()
+    }
+
+    if (this.snapshot.status === 'syncing') {
+      this.updateSnapshot({
+        status: 'idle',
+        activeScopeKey: null,
+        activeDataset: null,
+      })
     }
   }
 
@@ -292,113 +349,241 @@ export class OfflineSyncCoordinator {
       lastRunStartedAt: startedAt,
     })
 
-    const bookingRequestsResult = await this.runBookingRequestsBeforeRefresh(
-      context,
-      controller.signal,
-    )
-    const shouldStopAfterBookingRequests = Boolean(
-      bookingRequestsResult?.stopped,
-    )
-    const scheduleResult = shouldStopAfterBookingRequests
-      ? createSkippedResult('schedule', 'booking_request_processing_stopped')
-      : await this.runDataset(
-          this.tasks.schedule,
-          context,
-          trigger,
-          controller.signal,
-          startedAt,
-        )
-    await this.runIntentRecheckAfterSchedule(context, scheduleResult)
-    const secondaryResults = await Promise.all([
-      shouldStopAfterBookingRequests
-        ? Promise.resolve(
-            createSkippedResult('bookings', 'booking_request_processing_stopped'),
-          )
-        : this.runDataset(
-            this.tasks.bookings,
-            context,
-            trigger,
-            controller.signal,
-            startedAt,
-          ),
-      shouldStopAfterBookingRequests
-        ? Promise.resolve(
-            createSkippedResult(
-              'transactions',
-              'booking_request_processing_stopped',
-            ),
-          )
-        : this.runDataset(
-            this.tasks.transactions,
-            context,
-            trigger,
-            controller.signal,
-            startedAt,
-          ),
-    ])
-    const currentCustodyResult = shouldStopAfterBookingRequests
-      ? createSkippedResult(
-          'current_custody',
-          'booking_request_processing_stopped',
-        )
-      : await this.runDataset(
-          this.tasks.current_custody,
-          context,
-          trigger,
-          controller.signal,
-          startedAt,
-        )
-    const datasets = createResultMap([
-      scheduleResult,
-      ...secondaryResults,
-      currentCustodyResult,
-    ])
-    const runStatus = shouldStopAfterBookingRequests
-      ? 'partial_failure'
-      : getRunStatus(datasets)
-    const completedAt = this.getNow().toISOString()
+    try {
+      throwIfAborted(controller.signal)
 
-    if (runStatus === 'success') {
-      try {
-        await this.recordOperationalSyncCompleted(context, completedAt)
-      } catch {
-        this.logger?.(
-          `[sync] operational freshness write failed scope=${context.scopeKey}`,
-        )
+      let authorizedCourtIds: number[] | undefined
+      if (!canChooseOperationalCourt(context.role, context.membership)) {
+        authorizedCourtIds = context.assignedCourtId
+          ? [context.assignedCourtId]
+          : []
+      } else {
+        try {
+          authorizedCourtIds = await this.resolveAuthorizedCourts(
+            context,
+            controller.signal,
+          )
+        } catch (error) {
+          if (controller.signal.aborted || isAbortError(error)) {
+            throw error
+          }
+          this.logger?.(
+            `[sync] authorized courts resolution failed scope=${context.scopeKey}`,
+          )
+        }
       }
-    }
 
-    const result: OperationalSyncRunResult = {
-      scopeKey: context.scopeKey,
-      trigger,
-      status: runStatus,
-      datasets,
-      ...(bookingRequestsResult
-        ? { bookingRequests: bookingRequestsResult }
-        : {}),
-      startedAt,
-      completedAt,
-    }
+      throwIfAborted(controller.signal)
 
-    if (hasBackendSuccess(result)) {
-      browserConnectivity.markBackendReachable()
-    } else if (hasDatasetFailure(result)) {
+      const bookingRequestsResult = await this.runBookingRequestsBeforeRefresh(
+        context,
+        controller.signal,
+        authorizedCourtIds,
+      )
+      throwIfAborted(controller.signal)
+
+      const shouldStopAfterBookingRequests = Boolean(
+        bookingRequestsResult?.stopped,
+      )
+      const scheduleResult = shouldStopAfterBookingRequests
+        ? createSkippedResult('schedule', 'booking_request_processing_stopped')
+        : await this.runDataset(
+            this.tasks.schedule,
+            context,
+            trigger,
+            controller.signal,
+            startedAt,
+            authorizedCourtIds,
+          )
+      throwIfAborted(controller.signal)
+
+      await this.runIntentRecheckAfterSchedule(context, scheduleResult)
+      throwIfAborted(controller.signal)
+
+      const secondaryResults = await Promise.all([
+        shouldStopAfterBookingRequests
+          ? Promise.resolve(
+              createSkippedResult('bookings', 'booking_request_processing_stopped'),
+            )
+          : this.runDataset(
+              this.tasks.bookings,
+              context,
+              trigger,
+              controller.signal,
+              startedAt,
+            ),
+        shouldStopAfterBookingRequests
+          ? Promise.resolve(
+              createSkippedResult(
+                'transactions',
+                'booking_request_processing_stopped',
+              ),
+            )
+          : this.runDataset(
+              this.tasks.transactions,
+              context,
+              trigger,
+              controller.signal,
+              startedAt,
+            ),
+      ])
+      throwIfAborted(controller.signal)
+
+      const currentCustodyResult = shouldStopAfterBookingRequests
+        ? createSkippedResult(
+            'current_custody',
+            'booking_request_processing_stopped',
+          )
+        : await this.runDataset(
+            this.tasks.current_custody,
+            context,
+            trigger,
+            controller.signal,
+            startedAt,
+          )
+      throwIfAborted(controller.signal)
+
+      const datasets = createResultMap([
+        scheduleResult,
+        ...secondaryResults,
+        currentCustodyResult,
+      ])
+      const runStatus = shouldStopAfterBookingRequests
+        ? 'partial_failure'
+        : getRunStatus(datasets)
+      const completedAt = this.getNow().toISOString()
+      const isStillRegisteredRun = (): boolean =>
+        this.fullRuns.get(context.scopeKey)?.controller === controller
+
+      if (!isStillRegisteredRun() || controller.signal.aborted) {
+        throw new DOMException('Operational sync was cancelled.', 'AbortError')
+      }
+
+      if (runStatus === 'success') {
+        try {
+          await this.recordOperationalSyncCompleted(context, completedAt)
+        } catch {
+          this.logger?.(
+            `[sync] operational freshness write failed scope=${context.scopeKey}`,
+          )
+        }
+      }
+
+      if (!isStillRegisteredRun() || controller.signal.aborted) {
+        throw new DOMException('Operational sync was cancelled.', 'AbortError')
+      }
+
+      const result: OperationalSyncRunResult = {
+        scopeKey: context.scopeKey,
+        trigger,
+        status: runStatus,
+        datasets,
+        ...(bookingRequestsResult
+          ? { bookingRequests: bookingRequestsResult }
+          : {}),
+        startedAt,
+        completedAt,
+      }
+
+      if (hasBackendSuccess(result)) {
+        browserConnectivity.markBackendReachable()
+      } else if (hasDatasetFailure(result)) {
+        browserConnectivity.markBackendUnreachable()
+      }
+
+      this.logger?.(
+        `[sync] complete scope=${context.scopeKey} status=${result.status}`,
+      )
+      this.publishForScope(context.scopeKey, {
+        status: getSnapshotStatus(result),
+        activeScopeKey: context.scopeKey,
+        activeDataset: null,
+        lastRunCompletedAt: completedAt,
+        lastRunResult: result,
+        backendReachability: browserConnectivity.getSnapshot().backendReachability,
+      })
+
+      return result
+    } catch (error) {
+      const completedAt = this.getNow().toISOString()
+      const isStillRegisteredRun =
+        this.fullRuns.get(context.scopeKey)?.controller === controller
+
+      if (controller.signal.aborted || isAbortError(error)) {
+        const cancelledResult: OperationalSyncRunResult = {
+          scopeKey: context.scopeKey,
+          trigger,
+          status: 'cancelled',
+          datasets: createResultMap(
+            syncDatasets.map((dataset) => ({
+              dataset,
+              status: 'cancelled',
+              reason: 'scope_cancelled',
+            })),
+          ),
+          startedAt,
+          completedAt,
+        }
+
+        this.logger?.(`[sync] cancelled scope=${context.scopeKey}`)
+        if (
+          isStillRegisteredRun &&
+          this.snapshot.activeScopeKey === context.scopeKey &&
+          this.snapshot.status === 'syncing'
+        ) {
+          this.publishForScope(context.scopeKey, {
+            status: 'idle',
+            activeScopeKey: null,
+            activeDataset: null,
+            lastRunCompletedAt: completedAt,
+            lastRunResult: cancelledResult,
+            backendReachability: browserConnectivity.getSnapshot().backendReachability,
+          })
+        }
+
+        return cancelledResult
+      }
+
+      const failedResult: OperationalSyncRunResult = {
+        scopeKey: context.scopeKey,
+        trigger,
+        status: 'failed',
+        datasets: createResultMap(
+          syncDatasets.map((dataset) => ({
+            dataset,
+            status: 'failed',
+            error,
+          })),
+        ),
+        startedAt,
+        completedAt,
+      }
+
       browserConnectivity.markBackendUnreachable()
+      this.logger?.(`[sync] failed scope=${context.scopeKey}`)
+      this.publishForScope(context.scopeKey, {
+        status: 'failed',
+        activeScopeKey: context.scopeKey,
+        activeDataset: null,
+        lastRunCompletedAt: completedAt,
+        lastRunResult: failedResult,
+        backendReachability: browserConnectivity.getSnapshot().backendReachability,
+      })
+      if (isStillRegisteredRun) {
+        browserConnectivity.markBackendUnreachable()
+        this.logger?.(`[sync] failed scope=${context.scopeKey}`)
+        this.publishForScope(context.scopeKey, {
+          status: 'failed',
+          activeScopeKey: context.scopeKey,
+          activeDataset: null,
+          lastRunCompletedAt: completedAt,
+          lastRunResult: failedResult,
+          backendReachability: browserConnectivity.getSnapshot().backendReachability,
+        })
+      }
+
+      return failedResult
     }
-
-    this.logger?.(
-      `[sync] complete scope=${context.scopeKey} status=${result.status}`,
-    )
-    this.publishForScope(context.scopeKey, {
-      status: getSnapshotStatus(result),
-      activeScopeKey: context.scopeKey,
-      activeDataset: null,
-      lastRunCompletedAt: completedAt,
-      lastRunResult: result,
-      backendReachability: browserConnectivity.getSnapshot().backendReachability,
-    })
-
-    return result
   }
 
   private runDataset(
@@ -407,7 +592,16 @@ export class OfflineSyncCoordinator {
     trigger: OperationalSyncRequest['trigger'],
     signal: AbortSignal,
     startedAt: string,
+    authorizedCourtIds?: number[],
   ): Promise<DatasetSyncTaskResult> {
+    if (signal.aborted) {
+      return Promise.resolve({
+        dataset: task.dataset,
+        status: 'cancelled',
+        reason: 'scope_cancelled',
+      })
+    }
+
     const runKey = `${context.scopeKey}:${task.dataset}`
     const existingRun = this.datasetRuns.get(runKey)
 
@@ -427,6 +621,7 @@ export class OfflineSyncCoordinator {
           trigger,
           signal,
           startedAt,
+          authorizedCourtIds,
         })
 
         this.logger?.(
@@ -469,7 +664,7 @@ export class OfflineSyncCoordinator {
     }
 
     try {
-      await this.recheckBookingIntents(context, scheduleResult)
+      await this.recheckBookingIntentsForScheduleCourtsSafe(context, scheduleResult)
     } catch {
       this.logger?.(
         `[sync] booking intent recheck failed scope=${context.scopeKey}`,
@@ -477,12 +672,23 @@ export class OfflineSyncCoordinator {
     }
   }
 
+  private async recheckBookingIntentsForScheduleCourtsSafe(
+    context: OperationalSyncContext,
+    scheduleResult: DatasetSyncTaskResult,
+  ): Promise<void> {
+    await this.recheckBookingIntents(context, scheduleResult)
+  }
+
   private async runBookingRequestsBeforeRefresh(
     context: OperationalSyncContext,
     signal: AbortSignal,
+    courtIds?: number[],
   ): Promise<BookingRequestQueueResult | null> {
     try {
-      const result = await this.processBookingRequests(context, signal)
+      const result =
+        this.processBookingRequests === defaultBookingRequestProcessor
+          ? await this.processBookingRequests(context, signal, courtIds)
+          : await this.processBookingRequests(context, signal)
 
       if (result.processed > 0 || result.stopped) {
         this.logger?.(
@@ -554,8 +760,10 @@ async function defaultOperationalFreshnessRecorder(
 async function defaultBookingRequestProcessor(
   context: OperationalSyncContext,
   signal: AbortSignal,
+  courtIds?: number[],
 ): Promise<BookingRequestQueueResult> {
-  const authorizedCourtIds = await getAuthorizedScheduleCourtIds(context, signal)
+  const authorizedCourtIds =
+    courtIds ?? (await getAuthorizedScheduleCourtIds(context, signal))
 
   return processPendingBookingRequests({
     courtIds: authorizedCourtIds,

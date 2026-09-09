@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import type { Country } from 'react-phone-number-input'
 import {
   getFirstFieldErrorMessage,
 } from '../../../../core/api/apiError.helpers'
@@ -7,9 +8,11 @@ import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
-import type { Value } from 'react-phone-number-input'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
-import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
+import {
+  getCountryFromPhoneNumber,
+  normalizeSlotyPhoneNumber,
+} from '../../../../shared/validation/phone'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
 import { formatTime12Hour } from '../../scheduleBoard.helpers'
@@ -90,8 +93,11 @@ export function AddBookingSheet({
   const [customerName, setCustomerName] = useState(
     initialValues?.customer_name ?? '',
   )
-  const [customerPhone, setCustomerPhone] = useState<Value | undefined>(
-    initialValues?.customer_phone,
+  const [selectedCountry, setSelectedCountry] = useState<Country>(() => {
+    return getCountryFromPhoneNumber(initialValues?.customer_phone) ?? 'EG'
+  })
+  const [customerPhone, setCustomerPhone] = useState(
+    initialValues?.customer_phone ?? '',
   )
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -126,11 +132,15 @@ export function AddBookingSheet({
 
   const displayStartTime = formatTime12Hour(startTime)
   const displayEndTime = formatTime12Hour(endTime)
+  const initialName = initialValues?.customer_name ?? ''
+  const initialPhone = initialValues?.customer_phone ?? ''
+  const initialNotes = initialValues?.notes ?? ''
+  const initialRecurring = initialValues?.is_recurring ?? false
   const isDirty =
-    isRecurring ||
-    customerName.length > 0 ||
-    Boolean(customerPhone) ||
-    notes.length > 0
+    isRecurring !== initialRecurring ||
+    customerName !== initialName ||
+    customerPhone !== initialPhone ||
+    notes !== initialNotes
 
   function requestClose(): boolean | void {
     if (isDirty) {
@@ -146,13 +156,19 @@ export function AddBookingSheet({
 
     const trimmedName = customerName.trim()
     const trimmedNotes = notes.trim()
+    const trimmedPhone = customerPhone.trim()
 
-    if (!trimmedName || !customerPhone) {
+    if (!trimmedName || !trimmedPhone) {
       setValidationError('اسم العميل ورقم الموبايل مطلوبان')
       return
     }
 
-    if (!isValidSlotyPhoneNumber(customerPhone)) {
+    const normalizedPhone = normalizeSlotyPhoneNumber(
+      trimmedPhone,
+      selectedCountry,
+    )
+
+    if (!normalizedPhone) {
       setValidationError('رقم الموبايل غير صحيح')
       return
     }
@@ -161,7 +177,7 @@ export function AddBookingSheet({
 
     const values: AddBookingSheetValues = {
       customer_name: trimmedName,
-      customer_phone: customerPhone,
+      customer_phone: normalizedPhone,
       is_recurring: isRecurring,
       notes: trimmedNotes || undefined,
     }
@@ -173,119 +189,122 @@ export function AddBookingSheet({
     <>
       <AppSheet ariaLabel="حجز جديد" onRequestClose={requestClose}>
         <form className="p-5 pt-14" onSubmit={handleSubmit}>
-        <div className="space-y-1">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            {title}
-          </h2>
-          <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-            {courtName} - {dateLabel}
-          </p>
-          <p
-            className="text-lg font-black text-[var(--sloty-primary-dark)]"
-            dir="ltr"
-          >
-            {displayStartTime} - {displayEndTime}
-          </p>
-          {slotPrice ? (
-            <p className="text-sm font-black text-[var(--sloty-primary-dark)]">
-              السعر {formatMoneyAmount(slotPrice)}
+          <div className="space-y-1">
+            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
+              {title}
+            </h2>
+            <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
+              {courtName} - {dateLabel}
             </p>
-          ) : null}
-          {offlineIntentMode ? (
-            <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
-              هنحاول نأكد الحجز تلقائيًا أول ما الإنترنت يرجع.
+            <p
+              className="text-lg font-black text-[var(--sloty-primary-dark)]"
+              dir="ltr"
+            >
+              {displayStartTime} - {displayEndTime}
             </p>
-          ) : null}
-        </div>
-
-        <div className="mt-5 space-y-4">
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>{customerCopy.customerName}</span>
-            <input
-              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-              disabled={isSubmitting}
-              onChange={(event) => setCustomerName(event.target.value)}
-              value={customerName}
-            />
-          </label>
-          {nameFieldError ? (
-            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-              {nameFieldError}
-            </p>
-          ) : null}
-
-          <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>{customerCopy.mobileNumber}</span>
-
-            <SlotyPhoneNumberInput
-              disabled={isSubmitting}
-              error={
-                validationError === 'رقم الموبايل غير صحيح' ||
-                Boolean(phoneFieldError)
-              }
-              onChange={setCustomerPhone}
-              value={customerPhone}
-            />
+            {slotPrice ? (
+              <p className="text-sm font-black text-[var(--sloty-primary-dark)]">
+                السعر {formatMoneyAmount(slotPrice)}
+              </p>
+            ) : null}
+            {offlineIntentMode ? (
+              <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
+                هنحاول نأكد الحجز تلقائيًا أول ما الإنترنت يرجع.
+              </p>
+            ) : null}
           </div>
-          {phoneFieldError ? (
-            <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-              {phoneFieldError}
+
+          <div className="mt-5 space-y-4">
+            <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+              <span>{customerCopy.customerName}</span>
+              <input
+                className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                disabled={isSubmitting}
+                onChange={(event) => setCustomerName(event.target.value)}
+                value={customerName}
+              />
+            </label>
+            {nameFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {nameFieldError}
+              </p>
+            ) : null}
+
+            <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+              <span>{customerCopy.mobileNumber}</span>
+
+              <SlotyPhoneNumberInput
+                country={selectedCountry}
+                disabled={isSubmitting}
+                error={
+                  validationError === 'رقم الموبايل غير صحيح' ||
+                  Boolean(phoneFieldError)
+                }
+                onChange={setCustomerPhone}
+                onCountryChange={setSelectedCountry}
+                raw
+                value={customerPhone}
+              />
+            </div>
+            {phoneFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {phoneFieldError}
+              </p>
+            ) : null}
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-3 text-[var(--sloty-text-primary)]">
+              <input
+                checked={isRecurring}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--sloty-primary)]"
+                disabled={isSubmitting || isRecurringBlocked}
+                onChange={(event) => {
+                  setIsRecurring(event.target.checked)
+                  setValidationError(null)
+                }}
+                type="checkbox"
+              />
+              <span>
+                <span className="block text-sm font-black">
+                  ثبّت نفس الموعد كل أسبوع
+                </span>
+                <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                  {recurringHelperText}
+                </span>
+                {isRecurringBlocked && recurringBlockedMessage ? (
+                  <span className="mt-1 block text-xs font-bold leading-5 text-amber-800">
+                    {recurringBlockedMessage}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+
+            <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+              <span>ملاحظات</span>
+              <textarea
+                className="sloty-mobile-safe-input min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                disabled={isSubmitting}
+                onChange={(event) => setNotes(event.target.value)}
+                value={notes}
+              />
+            </label>
+          </div>
+
+          {validationError || error ? (
+            <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
+              {validationError ?? error}
             </p>
           ) : null}
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 py-3 text-[var(--sloty-text-primary)]">
-            <input
-              checked={isRecurring}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--sloty-primary)]"
-              disabled={isSubmitting || isRecurringBlocked}
-              onChange={(event) => {
-                setIsRecurring(event.target.checked)
-                setValidationError(null)
-              }}
-              type="checkbox"
-            />
-            <span>
-              <span className="block text-sm font-black">
-                ثبّت نفس الموعد كل أسبوع
-              </span>
-              <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                {recurringHelperText}
-              </span>
-              {isRecurringBlocked && recurringBlockedMessage ? (
-                <span className="mt-1 block text-xs font-bold leading-5 text-amber-800">
-                  {recurringBlockedMessage}
-                </span>
-              ) : null}
-            </span>
-          </label>
-
-          <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>ملاحظات</span>
-            <textarea
-              className="sloty-mobile-safe-input min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+          <div className="mt-5">
+            <AppButton
               disabled={isSubmitting}
-              onChange={(event) => setNotes(event.target.value)}
-              value={notes}
-            />
-          </label>
-        </div>
-
-        {validationError || error ? (
-          <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-            {validationError ?? error}
-          </p>
-        ) : null}
-
-        <div className="mt-5">
-          <AppButton
-            disabled={isSubmitting}
-            fullWidth
-            type="submit"
-            variant="primary"
-          >
-            {isSubmitting ? submittingLabel : submitLabel}
-          </AppButton>
-        </div>
+              fullWidth
+              type="submit"
+              variant="primary"
+            >
+              {isSubmitting ? submittingLabel : submitLabel}
+            </AppButton>
+          </div>
         </form>
       </AppSheet>
       <UnsavedChangesPrompt

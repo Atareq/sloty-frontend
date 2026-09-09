@@ -28,7 +28,7 @@ Later sections of this file still contain historical screen inventories and old 
 Current Schedule date/control UX:
 
 - Schedule uses `AppDateNavigator`, not a native browser date input, as the primary date selector.
-- Schedule is cache-first inside its synchronized window of today + next 30 Egypt-local days. Cached board data renders before refresh waiting; freshness copy appears as a small contextual notice, not a persistent online badge.
+- Schedule is cache-first inside its synchronized window of today + next 30 Egypt-local days. Cached board data renders before refresh waiting; freshness copy appears as a small contextual notice, not a persistent online badge. Schedule exposes a manual `تحديث` control beside the last successful update information. It uses the centralized sync lifecycle and never performs a browser reload.
 - No-cache offline state uses `محتاج اتصال بالإنترنت أول مرة` with a retry action. Date outside the synchronized window uses internet-required copy. Cached empty days use the backend/fallback empty message and are not treated as no-cache.
 - Offline FREE Schedule slots open the existing booking sheet in request-save mode. The primary CTA is `احفظ طلب الحجز`, success is `تم حفظ طلب الحجز`, and status context is `بانتظار التأكيد`. All lifecycle/money/recurrence actions remain disabled or blocked with `يحتاج اتصال بالإنترنت`.
 

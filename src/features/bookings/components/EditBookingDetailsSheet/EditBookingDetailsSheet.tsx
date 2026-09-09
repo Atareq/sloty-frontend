@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { Value } from 'react-phone-number-input'
+import type { Country } from 'react-phone-number-input'
 import {
   getFirstFieldErrorMessage,
 } from '../../../../core/api/apiError.helpers'
@@ -10,7 +10,10 @@ import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { customerCopy } from '../../../../shared/copy/appCopy'
-import { isValidSlotyPhoneNumber } from '../../../../shared/validation/phone'
+import {
+  getCountryFromPhoneNumber,
+  normalizeSlotyPhoneNumber,
+} from '../../../../shared/validation/phone'
 import type {
   BookingCustomerUpdatePayload,
   BookingListItem,
@@ -23,10 +26,6 @@ export interface EditBookingDetailsSheetProps {
   fieldErrors?: Record<string, ApiFieldError[]> | null
   onClose: () => void
   onSubmit: (payload: BookingCustomerUpdatePayload) => Promise<void>
-}
-
-function toPhoneValue(phone: string | null | undefined): Value | undefined {
-  return phone ? (phone as Value) : undefined
 }
 
 /**
@@ -42,8 +41,11 @@ export function EditBookingDetailsSheet({
   onSubmit,
 }: EditBookingDetailsSheetProps) {
   const [customerName, setCustomerName] = useState(booking.customer_name ?? '')
-  const [customerPhone, setCustomerPhone] = useState<Value | undefined>(
-    toPhoneValue(booking.customer_phone),
+  const [selectedCountry, setSelectedCountry] = useState<Country>(() => {
+    return getCountryFromPhoneNumber(booking.customer_phone) ?? 'EG'
+  })
+  const [customerPhone, setCustomerPhone] = useState(
+    booking.customer_phone ?? '',
   )
   const [notes, setNotes] = useState(booking.notes ?? '')
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -58,7 +60,7 @@ export function EditBookingDetailsSheet({
   const initialNotes = booking.notes ?? ''
   const isDirty =
     customerName.trim() !== initialName ||
-    (customerPhone ?? '') !== initialPhone ||
+    customerPhone !== initialPhone ||
     notes !== initialNotes
 
   function requestClose(): boolean | void {
@@ -75,13 +77,19 @@ export function EditBookingDetailsSheet({
 
     const trimmedName = customerName.trim()
     const trimmedNotes = notes.trim()
+    const trimmedPhone = customerPhone.trim()
 
-    if (!trimmedName || !customerPhone) {
+    if (!trimmedName || !trimmedPhone) {
       setValidationError('اسم العميل ورقم الموبايل مطلوبان')
       return
     }
 
-    if (!isValidSlotyPhoneNumber(customerPhone)) {
+    const normalizedPhone = normalizeSlotyPhoneNumber(
+      trimmedPhone,
+      selectedCountry,
+    )
+
+    if (!normalizedPhone) {
       setValidationError('رقم الموبايل غير صحيح')
       return
     }
@@ -89,7 +97,7 @@ export function EditBookingDetailsSheet({
     setValidationError(null)
     await onSubmit({
       customer_name: trimmedName,
-      customer_phone: customerPhone,
+      customer_phone: normalizedPhone,
       notes: trimmedNotes,
     })
   }
@@ -129,12 +137,15 @@ export function EditBookingDetailsSheet({
             <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>{customerCopy.mobileNumber}</span>
               <SlotyPhoneNumberInput
+                country={selectedCountry}
                 disabled={isSubmitting}
                 error={
                   validationError === 'رقم الموبايل غير صحيح' ||
                   Boolean(phoneFieldError)
                 }
                 onChange={setCustomerPhone}
+                onCountryChange={setSelectedCountry}
+                raw
                 value={customerPhone}
               />
             </div>

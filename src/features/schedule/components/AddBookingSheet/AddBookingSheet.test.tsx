@@ -412,4 +412,220 @@ describe('AddBookingSheet', () => {
     await user.click(screen.getByRole('button', { name: 'اخرج من غير حفظ' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('preserves raw unformatted phone while typing without live reformatting', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    const phoneInput = screen.getByLabelText('رقم الموبايل')
+
+    await user.type(phoneInput, '+20 10 1234 5678')
+
+    // Visible value must remain raw during editing
+    expect(phoneInput).toHaveValue('+20 10 1234 5678')
+  })
+
+  it('normalizes local Egypt number to E.164 upon submit', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'أحمد علي',
+      customer_phone: '+201012345678',
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('normalizes formatted international number to E.164 upon submit', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    await user.type(screen.getByLabelText('اسم العميل'), 'طارق')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '+20 10 1234 5678')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'طارق',
+      customer_phone: '+201012345678',
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('normalizes with selected country context on submit and keeps raw text stable on country change', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    const phoneInput = screen.getByLabelText('رقم الموبايل')
+    await user.type(screen.getByLabelText('اسم العميل'), 'سالم')
+    await user.type(phoneInput, '0501234567')
+
+    // Change country to Saudi Arabia
+    const countryButton = screen.getByRole('button', { name: 'الدولة أو المنطقة' })
+    await user.click(countryButton)
+    const saudiOption = screen.getByRole('option', { name: /SA \+966/ })
+    await user.click(saudiOption)
+
+    // Raw input remains untouched
+    expect(phoneInput).toHaveValue('0501234567')
+
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    // Submitted payload receives SA-normalized E.164
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'سالم',
+      customer_phone: '+966501234567',
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('normalizes phone to E.164 before saving offline booking intent', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        offlineIntentMode
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    await user.type(screen.getByLabelText('اسم العميل'), 'عميل أوفلاين')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'عميل أوفلاين',
+      customer_phone: '+201012345678',
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('displays initial E.164 phone value stably and allows editing', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        initialValues={{
+          customer_name: 'أحمد',
+          customer_phone: '+201012345678',
+          is_recurring: false,
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    const phoneInput = screen.getByLabelText('رقم الموبايل')
+    expect(phoneInput).toHaveValue('+201012345678')
+
+    await user.clear(phoneInput)
+    await user.type(phoneInput, '01112345678')
+    expect(phoneInput).toHaveValue('01112345678')
+
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'أحمد',
+      customer_phone: '+201112345678',
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
 })

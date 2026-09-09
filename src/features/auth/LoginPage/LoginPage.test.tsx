@@ -93,7 +93,7 @@ describe('LoginPage', () => {
     renderLoginPage()
 
     expect(screen.getByText('سلوتي')).toBeInTheDocument()
-    expect(screen.getByLabelText('رقم الموبايل أو اسم المستخدم'))
+    expect(screen.getByLabelText('إسم المستخدم'))
       .toBeInTheDocument()
     expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
   })
@@ -103,7 +103,7 @@ describe('LoginPage', () => {
 
     renderLoginPage()
 
-    const usernameInput = screen.getByLabelText('رقم الموبايل أو اسم المستخدم')
+    const usernameInput = screen.getByLabelText('إسم المستخدم')
 
     expect(usernameInput).toHaveAttribute('type', 'text')
     expect(usernameInput).toHaveAttribute('autocomplete', 'username')
@@ -114,7 +114,7 @@ describe('LoginPage', () => {
     expect(usernameInput).not.toHaveAttribute('inputmode', 'numeric')
     expect(usernameInput).toHaveAttribute(
       'placeholder',
-      'اسم المستخدم أو رقم الموبايل',
+      'اسم المستخدم',
     )
     expect(screen.queryByText('01')).not.toBeInTheDocument()
 
@@ -161,7 +161,7 @@ describe('LoginPage', () => {
     renderLoginPageWithRoutes()
 
     await user.type(
-      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      screen.getByLabelText('إسم المستخدم'),
       'manager_a',
     )
     await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
@@ -188,7 +188,7 @@ describe('LoginPage', () => {
     renderLoginPageWithRoutes()
 
     await user.type(
-      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      screen.getByLabelText('إسم المستخدم'),
       '01012345678',
     )
     await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
@@ -209,7 +209,7 @@ describe('LoginPage', () => {
     renderLoginPageWithRoutes()
 
     await user.type(
-      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      screen.getByLabelText('إسم المستخدم'),
       'wrong-user',
     )
     await user.type(screen.getByLabelText('كلمة المرور'), 'bad-pass')
@@ -248,7 +248,7 @@ describe('LoginPage', () => {
     renderLoginPageWithRoutes()
 
     await user.type(
-      screen.getByLabelText('رقم الموبايل أو اسم المستخدم'),
+      screen.getByLabelText('إسم المستخدم'),
       'wrong-user',
     )
     await user.type(screen.getByLabelText('كلمة المرور'), 'bad-pass')

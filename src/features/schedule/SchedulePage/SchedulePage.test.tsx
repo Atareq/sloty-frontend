@@ -6,7 +6,10 @@ import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
-import type { BookingIntentRecord } from '../../../offline/offline.types'
+import type {
+  BookingIntentRecord,
+  ScheduleDayRecord,
+} from '../../../offline/offline.types'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listCourts } from '../../courts/courtsApi'
 import { dismissBookingAttempt } from '../../bookings/bookingAttemptsApi'
@@ -249,6 +252,56 @@ function defaultSlots(): BookingSlot[] {
       label: 'مكتمل',
     }),
   ]
+}
+
+function cachedScheduleDay(
+  slots: BookingSlot[] = defaultSlots(),
+  syncedAt = '2026-07-20T01:00:00.000Z',
+): ScheduleDayRecord {
+  return {
+    scope_key: 'user:1:club:nasr-club',
+    user_id: 1,
+    club_slug: 'nasr-club',
+    court_id: 7,
+    date: getEgyptDateValue(),
+    message: null,
+    slots,
+    synced_at: syncedAt,
+  }
+}
+
+type OfflineSyncContextTestOverrides = Partial<
+  Omit<ReturnType<typeof useOfflineSync>, 'connectivity' | 'freshness' | 'sync'>
+> & {
+  connectivity?: Partial<ReturnType<typeof useOfflineSync>['connectivity']>
+  freshness?: Partial<ReturnType<typeof useOfflineSync>['freshness']>
+  sync?: Partial<ReturnType<typeof useOfflineSync>['sync']>
+}
+
+function mockOfflineSyncContext(
+  overrides: OfflineSyncContextTestOverrides,
+): ReturnType<typeof useOfflineSync> {
+  const currentContext = mockedUseOfflineSync()
+  const nextContext = {
+    ...currentContext,
+    ...overrides,
+    connectivity: {
+      ...currentContext.connectivity,
+      ...overrides.connectivity,
+    },
+    freshness: {
+      ...currentContext.freshness,
+      ...overrides.freshness,
+    },
+    sync: {
+      ...currentContext.sync,
+      ...overrides.sync,
+    },
+  }
+
+  mockedUseOfflineSync.mockReturnValue(nextContext)
+
+  return nextContext
 }
 
 function makeBookingIntent(
@@ -546,16 +599,7 @@ describe('SchedulePage', () => {
   })
 
   it('renders a cached Schedule day before any online refresh resolves', async () => {
-    mockedOfflineRepositories.readScheduleDay.mockResolvedValue({
-      scope_key: 'user:1:club:nasr-club',
-      user_id: 1,
-      club_slug: 'nasr-club',
-      court_id: 7,
-      date: getEgyptDateValue(),
-      message: null,
-      slots: defaultSlots(),
-      synced_at: '2026-07-20T01:00:00.000Z',
-    })
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue(cachedScheduleDay())
 
     render(
       <MemoryRouter>
@@ -568,6 +612,202 @@ describe('SchedulePage', () => {
     expect(screen.queryByText('جاري تحميل المواعيد...')).not.toBeInTheDocument()
     expect(mockedListBookingSlots).not.toHaveBeenCalled()
     expect(screen.getByText(/آخر تحديث/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'تحديث البيانات' }))
+      .toBeInTheDocument()
+  })
+
+  it('manual Schedule refresh uses central sync, keeps cached slots visible, and prevents duplicate taps', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const manualSync = createDeferred<Awaited<ReturnType<typeof useOfflineSync>>['sync']['lastRunResult']>()
+    const requestSync = vi.fn(() => manualSync.promise)
+    mockOfflineSyncContext({
+      connectivity: {
+        browserNetwork: 'offline',
+        backendReachability: 'unreachable',
+      },
+      requestSync: requestSync as ReturnType<typeof useOfflineSync>['requestSync'],
+    })
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue(cachedScheduleDay())
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const refreshButton = await screen.findByRole('button', {
+      name: 'تحديث البيانات',
+    })
+    expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
+      .toBeInTheDocument()
+
+    await user.click(refreshButton)
+    await user.click(refreshButton)
+
+    expect(requestSync).toHaveBeenCalledTimes(1)
+    expect(refreshButton).toBeDisabled()
+    expect(screen.getByText('جاري التحديث...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
+      .toBeInTheDocument()
+
+    await act(async () => {
+      manualSync.resolve({
+        scopeKey: 'user:1:club:nasr-club',
+        trigger: 'manual',
+        status: 'success',
+        datasets: {
+          schedule: {
+            dataset: 'schedule',
+            status: 'success',
+            committedAt: '2026-07-20T02:00:00.000Z',
+          },
+          bookings: { dataset: 'bookings', status: 'skipped' },
+          transactions: { dataset: 'transactions', status: 'skipped' },
+          current_custody: { dataset: 'current_custody', status: 'skipped' },
+        },
+        startedAt: '2026-07-20T02:00:00.000Z',
+        completedAt: '2026-07-20T02:00:00.000Z',
+      })
+    })
+
+    expect(refreshButton).not.toBeDisabled()
+  })
+
+  it('manual Schedule refresh preserves old data and timestamp when central sync fails', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const requestSync = vi.fn(async () => ({
+      scopeKey: 'user:1:club:nasr-club',
+      trigger: 'manual' as const,
+      status: 'failed' as const,
+      datasets: {
+        schedule: { dataset: 'schedule' as const, status: 'failed' as const },
+        bookings: { dataset: 'bookings' as const, status: 'skipped' as const },
+        transactions: {
+          dataset: 'transactions' as const,
+          status: 'skipped' as const,
+        },
+        current_custody: {
+          dataset: 'current_custody' as const,
+          status: 'skipped' as const,
+        },
+      },
+      startedAt: '2026-07-20T02:00:00.000Z',
+      completedAt: '2026-07-20T02:00:01.000Z',
+    }))
+    mockOfflineSyncContext({
+      connectivity: {
+        browserNetwork: 'offline',
+        backendReachability: 'unreachable',
+      },
+      requestSync,
+    })
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue(cachedScheduleDay())
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+      .toBeInTheDocument()
+    const originalFreshness = screen.getByText(/آخر تحديث/)
+
+    await user.click(screen.getByRole('button', { name: 'تحديث البيانات' }))
+
+    expect(requestSync).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
+      .toBeInTheDocument()
+    expect(originalFreshness).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.',
+    )
+  })
+
+  it('manual Schedule refresh rereads the current cached day after successful sync', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const requestSync = vi.fn(async () => ({
+      scopeKey: 'user:1:club:nasr-club',
+      trigger: 'manual' as const,
+      status: 'success' as const,
+      datasets: {
+        schedule: {
+          dataset: 'schedule' as const,
+          status: 'success' as const,
+          committedAt: '2026-07-20T02:00:00.000Z',
+        },
+        bookings: { dataset: 'bookings' as const, status: 'skipped' as const },
+        transactions: {
+          dataset: 'transactions' as const,
+          status: 'skipped' as const,
+        },
+        current_custody: {
+          dataset: 'current_custody' as const,
+          status: 'skipped' as const,
+        },
+      },
+      startedAt: '2026-07-20T02:00:00.000Z',
+      completedAt: '2026-07-20T02:00:01.000Z',
+    }))
+    mockOfflineSyncContext({
+      connectivity: {
+        browserNetwork: 'offline',
+        backendReachability: 'unreachable',
+      },
+      requestSync,
+    })
+    mockedOfflineRepositories.readScheduleDay
+      .mockResolvedValueOnce(cachedScheduleDay(defaultSlots()))
+      .mockResolvedValueOnce(cachedScheduleDay([
+        makeSlot({
+          start_time: '10:00',
+          end_time: '11:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ], '2026-07-20T02:00:00.000Z'))
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+      .toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'تحديث البيانات' }))
+
+    expect(await screen.findByRole('button', { name: '10:00 ص متاح' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '9:00 ص متاح' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('shows the manual Schedule refresh loading state from the existing sync status', async () => {
+    mockOfflineSyncContext({
+      sync: {
+        status: 'syncing',
+        activeDataset: 'schedule',
+      },
+    })
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue(cachedScheduleDay())
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const refreshButton = await screen.findByRole('button', {
+      name: 'تحديث البيانات',
+    })
+
+    expect(refreshButton).toBeDisabled()
+    expect(screen.getByText('جاري التحديث...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
+      .toBeInTheDocument()
   })
 
   it('distinguishes a synchronized empty cached day from a no-cache offline day', async () => {
@@ -2404,5 +2644,366 @@ describe('SchedulePage', () => {
       })
     })
     expect(scrollIntoViewMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads and renders slots while background sync is unresolved and pending', async () => {
+    mockOfflineSyncContext({
+      sync: {
+        status: 'syncing',
+        activeScopeKey: 'user:1:club:nasr-club',
+        activeDataset: 'schedule',
+        lastRunStartedAt: '2026-07-20T10:00:00.000Z',
+        lastRunCompletedAt: null,
+        lastRunResult: null,
+      },
+    })
+    mockedListBookingSlots.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: getEgyptDateValue(),
+      date_to: getEgyptDateValue(),
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        makeSlot({
+          start_time: '18:00',
+          end_time: '19:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ],
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('button', { name: '6:00 م متاح' }))
+      .toBeInTheDocument()
+    expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
+      court: 7,
+      date: getEgyptDateValue(),
+    })
+  })
+
+  it('loads and renders slots when background sync rejects or fails', async () => {
+    mockOfflineSyncContext({
+      sync: {
+        status: 'failed',
+        activeScopeKey: 'user:1:club:nasr-club',
+        activeDataset: null,
+        lastRunStartedAt: '2026-07-20T10:00:00.000Z',
+        lastRunCompletedAt: '2026-07-20T10:00:01.000Z',
+        lastRunResult: {
+          scopeKey: 'user:1:club:nasr-club',
+          trigger: 'startup',
+          status: 'failed',
+          datasets: {
+            schedule: { dataset: 'schedule', status: 'failed' },
+            bookings: { dataset: 'bookings', status: 'skipped' },
+            transactions: { dataset: 'transactions', status: 'skipped' },
+            current_custody: { dataset: 'current_custody', status: 'skipped' },
+          },
+          startedAt: '2026-07-20T10:00:00.000Z',
+          completedAt: '2026-07-20T10:00:01.000Z',
+        },
+      },
+    })
+    mockedListBookingSlots.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: getEgyptDateValue(),
+      date_to: getEgyptDateValue(),
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        makeSlot({
+          start_time: '19:00',
+          end_time: '20:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ],
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('button', { name: '7:00 م متاح' }))
+      .toBeInTheDocument()
+  })
+
+  it('loads and renders slots when background sync is canceled', async () => {
+    mockOfflineSyncContext({
+      sync: {
+        status: 'idle',
+        activeScopeKey: null,
+        activeDataset: null,
+        lastRunStartedAt: '2026-07-20T10:00:00.000Z',
+        lastRunCompletedAt: '2026-07-20T10:00:01.000Z',
+        lastRunResult: {
+          scopeKey: 'user:1:club:nasr-club',
+          trigger: 'startup',
+          status: 'cancelled',
+          datasets: {
+            schedule: { dataset: 'schedule', status: 'cancelled' },
+            bookings: { dataset: 'bookings', status: 'cancelled' },
+            transactions: { dataset: 'transactions', status: 'cancelled' },
+            current_custody: { dataset: 'current_custody', status: 'cancelled' },
+          },
+          startedAt: '2026-07-20T10:00:00.000Z',
+          completedAt: '2026-07-20T10:00:01.000Z',
+        },
+      },
+    })
+    mockedListBookingSlots.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: getEgyptDateValue(),
+      date_to: getEgyptDateValue(),
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        makeSlot({
+          start_time: '20:00',
+          end_time: '21:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ],
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('button', { name: '8:00 م متاح' }))
+      .toBeInTheDocument()
+  })
+
+  it('prevents slow court response from overwriting newer court selection', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      currentUser: null,
+      selectedMembership: {
+        id: 10,
+        role: 'OWNER',
+        club: {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+        court: null,
+      },
+      role: 'OWNER',
+    })
+    mockedListCourts.mockResolvedValue(
+      paginatedResponse([
+        {
+          id: 7,
+          club: 1,
+          name: 'ملعب 1',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+        {
+          id: 8,
+          club: 1,
+          name: 'ملعب 2',
+          sport_type: 'FOOTBALL',
+          default_price: '250.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+      ]),
+    )
+
+    const court7Deferred = createDeferred<BookingSlotsResponse>()
+    const court8Deferred = createDeferred<BookingSlotsResponse>()
+
+    mockedListBookingSlots.mockImplementation((_club, params) => {
+      if (params.court === 7) {
+        return court7Deferred.promise
+      }
+      return court8Deferred.promise
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
+        court: 7,
+        date: getEgyptDateValue(),
+      })
+    })
+
+    await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 2')
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
+        court: 8,
+        date: getEgyptDateValue(),
+      })
+    })
+
+    await act(async () => {
+      court8Deferred.resolve({
+        court: 8,
+        court_name: 'ملعب 2',
+        date_from: getEgyptDateValue(),
+        date_to: getEgyptDateValue(),
+        slot_duration_minutes: 60,
+        message: null,
+        slots: [
+          makeSlot({
+            start_time: '19:00',
+            end_time: '20:00',
+            slot_status: 'FREE',
+            is_available: true,
+            can_start_recurring: false,
+          }),
+        ],
+      })
+    })
+
+    expect(await screen.findByRole('button', { name: '7:00 م متاح' }))
+      .toBeInTheDocument()
+
+    await act(async () => {
+      court7Deferred.resolve({
+        court: 7,
+        court_name: 'ملعب 1',
+        date_from: getEgyptDateValue(),
+        date_to: getEgyptDateValue(),
+        slot_duration_minutes: 60,
+        message: null,
+        slots: [
+          makeSlot({
+            start_time: '18:00',
+            end_time: '19:00',
+            slot_status: 'FREE',
+            is_available: true,
+            can_start_recurring: false,
+          }),
+        ],
+      })
+    })
+
+    expect(screen.getByRole('button', { name: '7:00 م متاح' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '6:00 م متاح' })).not.toBeInTheDocument()
+  })
+
+  it('prevents slow date response from overwriting newer date selection', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    const dateADeferred = createDeferred<BookingSlotsResponse>()
+    const dateBDeferred = createDeferred<BookingSlotsResponse>()
+
+    mockedListBookingSlots.mockImplementation((_club, params) => {
+      if (params.date === getEgyptDateValue()) {
+        return dateADeferred.promise
+      }
+      return dateBDeferred.promise
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
+        court: 7,
+        date: getEgyptDateValue(),
+      })
+    })
+
+    await user.click(
+      screen.getByRole('button', { name: /الثلاثاء، ٢١ يوليو ٢٠٢٦/ }),
+    )
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledWith('nasr-club', {
+        court: 7,
+        date: '2026-07-21',
+      })
+    })
+
+    await act(async () => {
+      dateBDeferred.resolve({
+        court: 7,
+        court_name: 'ملعب 1',
+        date_from: '2026-07-21',
+        date_to: '2026-07-21',
+        slot_duration_minutes: 60,
+        message: null,
+        slots: [
+          makeSlot({
+            start_time: '19:00',
+            end_time: '20:00',
+            slot_status: 'FREE',
+            is_available: true,
+            can_start_recurring: false,
+          }),
+        ],
+      })
+    })
+
+    expect(await screen.findByRole('button', { name: '7:00 م متاح' }))
+      .toBeInTheDocument()
+
+    await act(async () => {
+      dateADeferred.resolve({
+        court: 7,
+        court_name: 'ملعب 1',
+        date_from: getEgyptDateValue(),
+        date_to: getEgyptDateValue(),
+        slot_duration_minutes: 60,
+        message: null,
+        slots: [
+          makeSlot({
+            start_time: '18:00',
+            end_time: '19:00',
+            slot_status: 'FREE',
+            is_available: true,
+            can_start_recurring: false,
+          }),
+        ],
+      })
+    })
+
+    expect(screen.getByRole('button', { name: '7:00 م متاح' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '6:00 م متاح' })).not.toBeInTheDocument()
   })
 })
