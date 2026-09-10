@@ -67,14 +67,23 @@ interface PublicCourtAvailabilitySlot {
   end_time: string;   // "HH:MM"
   is_available: boolean;
   status: 'AVAILABLE' | 'UNAVAILABLE';
+interface PublicAvailabilitySlot {
+  start_time: string
+  end_time: string
+  availability: 'AVAILABLE' | 'UNAVAILABLE'
 }
 ```
 
 ### Visual & Interactive States:
 - **`AVAILABLE` → `متاح`:**
   Rendered as an active, clickable card. Clicking highlights the slot with an attention ring and surfaces an informational card explaining how to book (e.g. contacting the club) or offering an affordance to log in if the user is staff.
+  - Click shows Staff-only informational notice
+  - Login attention hint
+  - No Booking form
+  - No public booking/contact flow
 - **`UNAVAILABLE` → `غير متاح`:**
   Rendered as a muted, disabled card. Unclickable.
+  - Disabled/non-clickable
 
 ### Public HOLD & Private State Boundary:
 - **Sanitized Backend Availability:** Backend-blocked and private operational states are represented through the sanitized public availability contract only.
@@ -88,11 +97,16 @@ interface PublicCourtAvailabilitySlot {
 
 Guest date navigation is strictly bounded:
 - **Date Window:** Today through today + 31 days (32 days total).
+Guest date navigation is strictly bounded to 32 Egypt-local calendar dates:
+- **Date Window:** `today - 1` through `today + 30` inclusive.
 - **Navigation Controls:** Uses a customized `AppDateNavigator` constrained to the 32-day window.
 - **Boundary Guards:**
   - Navigating to dates before today is disabled.
   - Navigating to dates beyond 31 days in the future is disabled.
   - Manual URL manipulation to out-of-bounds dates redirects or resets to today.
+  - Navigating to dates before `today - 1` is disabled.
+  - Navigating to dates beyond `today + 30` is disabled.
+  - Manual URL manipulation to out-of-bounds dates resets or redirects inside the valid 32-day window.
 
 ---
 
@@ -109,12 +123,14 @@ Public Schedule renders a lightweight, branded header with two primary actions:
      ```
 2. **`تسجيل الدخول` (Login):**
    - Directs club staff to `/login`, preserving the current public URL as the return location state (`from`).
+   - Directs club staff to `/login`, preserving the current public URL as the return location state (`guestReturnTo`).
 
 ---
 
 ## 6. Login Page Guest Affordance
 
 To prevent guests or players who landed on the login page from getting trapped, `LoginPage` renders a dedicated guest affordance:
+To prevent guests or players who landed on the login page from getting trapped, `LoginPage` renders a dedicated guest affordance when arriving from a verified public court schedule:
 
 ### Locked Copy:
 ```text
@@ -127,3 +143,9 @@ To prevent guests or players who landed on the login page from getting trapped, 
 ### Navigation Behavior:
 - Tapping **`المتابعة كزائر`** navigates the user back to the previously viewed Public Schedule URL if preserved in route state.
 - If no previous public URL exists in history, it directs them to a safe fallback or club landing.
+- When arriving from a valid Public Schedule origin, `guestReturnTo` is preserved in navigation state (`isValidGuestReturnRoute`). Tapping **`المتابعة كزائر`** navigates back to that exact Public Schedule URL.
+- **Direct `/login` with no valid Public Schedule origin:**
+  - Guest block hidden
+  - No fallback Court
+  - No club landing
+  - No invented public destination

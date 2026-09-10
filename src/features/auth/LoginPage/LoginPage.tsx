@@ -227,6 +227,7 @@ export function LoginPage() {
                   <p>تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.</p>
                 </div>
                 <AppButton
+                  className="!border-amber-200/80 !bg-[var(--sloty-hold-soft)] !text-amber-950 hover:!border-amber-300 hover:!bg-amber-100"
                   fullWidth
                   onClick={() => navigate(guestReturnTo)}
                   type="button"

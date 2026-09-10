@@ -326,6 +326,7 @@ Same Schedule PRODUCT / EXPERIENCE
 - Sanitized availability states: `AVAILABLE` (`متاح`, clickable with attention highlight) and `UNAVAILABLE` (`غير متاح`, disabled). Backend-blocked and private operational states are represented through the sanitized public availability contract only. Operational `HOLD` (waiting for deposit) is required to surface publicly as `UNAVAILABLE` (`غير متاح`).
 - Absolute privacy: zero customer names, phone numbers, notes, money amounts, or internal booking IDs are exposed.
 - Bounded 32-day date window (today + 31 days).
+- Bounded 32-day date window (today - 1 through today + 30 inclusive, 32 Egypt-local dates).
 - Header share action implements native sharing (`navigator.share`) on mobile/supported platforms with clipboard copy fallback (`✓ تم النسخ`) for the canonical public URL `/public/:clubSlug/courts/:courtId/schedule`.
 - Dedicated guest affordance on `LoginPage`: `مش من فريق العمل في الملعب؟ تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط. المتابعة كزائر` returns guests to the public court schedule.
 

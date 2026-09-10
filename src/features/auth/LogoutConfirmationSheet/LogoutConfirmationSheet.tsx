@@ -31,10 +31,7 @@ export function LogoutConfirmationSheet({
             تسجيل الخروج؟
           </h2>
           <p className="text-sm leading-7 text-[var(--sloty-text-muted)]">
-            البيانات المحفوظة على الجهاز للاستخدام بدون إنترنت هتتمسح.
-          </p>
-          <p className="text-sm leading-7 text-[var(--sloty-text-muted)]">
-            هتحتاج اتصال بالإنترنت أول مرة تسجل دخول بعدها.
+            تنبيه: بيانات الحجوزات و المواعيد المحفوظه علي جهازك سيتم حذفها لو سجلت خروج.
           </p>
         </div>
 

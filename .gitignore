@@ -28,3 +28,6 @@ dist-ssr
 # Do not commit prototype source or exported zip files.
 references/v0-prototype/
 references/*.zip
+
+# Scoped agent documentation
+!src/**/AGENTS.md

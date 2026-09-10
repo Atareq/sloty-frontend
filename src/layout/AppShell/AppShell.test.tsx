@@ -628,7 +628,7 @@ describe('AppShell', () => {
       name: 'تسجيل الخروج؟',
     })
     expect(within(confirmation).getByText(
-      'البيانات المحفوظة على الجهاز للاستخدام بدون إنترنت هتتمسح.',
+      'تنبيه: بيانات الحجوزات و المواعيد المحفوظه علي جهازك سيتم حذفها لو سجلت خروج.',
     )).toBeInTheDocument()
     await user.click(
       within(confirmation).getByRole('button', { name: 'تسجيل الخروج' }),

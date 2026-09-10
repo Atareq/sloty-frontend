@@ -27,6 +27,7 @@ Authoritative Backend Reservation (Booking)
 3. **Data Model Identity:**
    - Physical IndexedDB store: `booking_intents` (retained for non-destructive migration safety).
    - Canonical TypeScript interface: `BookingRequestRecord` (in `src/offline/types.ts`).
+   - Canonical TypeScript interface: `BookingRequestRecord` (in `src/offline/offline.types.ts`).
    - `local_id`: Device-local IndexedDB primary key. **Must never** be sent to the backend as a booking ID.
    - `client_request_id`: Stable UUID idempotency key generated on the client.
 
@@ -105,6 +106,9 @@ const request: BookingRequestRecord = {
   customer_phone: form.phone,
   start_time: slot.start_time,
   end_time: slot.end_time,
+  requested_date: slot.date,
+  requested_start: slot.start_time,
+  requested_end: slot.end_time,
   requested_recurring: Boolean(form.is_recurring),
   // ...
 };
@@ -133,6 +137,7 @@ Booking Request synchronization is owned by `src/offline/bookings/bookingRequest
    Selects requests matching current `scope_key` where status is:
    - `PENDING_SYNC`
    - Stale `SYNCING` (last attempted > 60 seconds ago without resolution)
+   - Stale `SYNCING` (last attempted > 5 minutes ago without resolution)
 3. **Pre-Flight Persistence:**
    Before dispatching the HTTP POST, updates the local record to `SYNCING` with `last_attempt_at = now()`.
 4. **Payload Contract:**
@@ -158,8 +163,11 @@ Booking Request synchronization is owned by `src/offline/bookings/bookingRequest
 - Authenticated creation attempts that reach the backend create a historical `BookingAttempt` record.
 - When an attempt is rejected, the backend returns an attempt ID. Sloty stores this in `record.attempt_id`.
 - **Dismissal Traceability:** When a user dismisses a local request that has an `attempt_id`, the client calls:
+- When an attempt is rejected, the backend returns an attempt ID. Sloty stores this in the local record's `backend_attempt_id` field.
+- **Dismissal Traceability:** When a user dismisses a local request that has a `backend_attempt_id`, the client calls:
   ```http
   POST /api/v1/clubs/{club_slug}/booking-attempts/{attempt_id}/dismiss/
+  POST /api/v1/clubs/{club_slug}/booking-attempts/{backend_attempt_id}/dismiss/
   ```
   This keeps staff audit logs and attempt histories consistent between client and server.
 
