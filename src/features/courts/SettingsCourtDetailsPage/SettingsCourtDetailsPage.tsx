@@ -226,19 +226,26 @@ export function SettingsCourtDetailsPage() {
               </label>
               <label className="flex flex-col gap-2 text-sm font-semibold">
                 <span>سياسة استرداد التأمين</span>
-                <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
-                  disabled={!canEditRefundPolicy}
-                  inputMode="numeric"
-                  max="30"
-                  min="0"
-                  onChange={(event) => setRefundNoticeDays(event.target.value)}
-                  placeholder="عدد الأيام"
-                  type="number"
-                  value={refundNoticeDays}
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    className="h-11 flex-1 min-w-0 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
+                    disabled={!canEditRefundPolicy}
+                    inputMode="numeric"
+                    max="30"
+                    min="0"
+                    onChange={(event) => setRefundNoticeDays(event.target.value)}
+                    placeholder="عدد الأيام"
+                    type="number"
+                    value={refundNoticeDays}
+                  />
+                  <span className="shrink-0 text-sm font-bold text-[var(--sloty-text-muted)]">
+                    أيام
+                  </span>
+                </div>
                 <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
-                  يسترد العميل التأمين عند الإلغاء قبل الموعد بـ... أيام
+                  {refundNoticeDays.trim()
+                    ? `يسترد العميل التأمين عند الإلغاء قبل الموعد بـ ${refundNoticeDays.trim()} أيام`
+                    : 'يسترد العميل التأمين عند الإلغاء قبل الموعد بـ ... أيام'}
                 </span>
               </label>
               <div className="block space-y-2">
