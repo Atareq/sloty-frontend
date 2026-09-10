@@ -12,7 +12,6 @@ This is the **Sloty frontend** repository. It is frontend-only and must never co
 - **Framework & Language:** React 19 + TypeScript (strict mode, no `any`)
 - **Build Tool & Bundler:** Vite
 - **Styling:** Tailwind CSS (Arabic-first, RTL-first, mobile-first)
-- **Routing:** React Router v7
 - **Routing:** React Router 8
 - **Testing:** Vitest + Testing Library
 - **Local Storage & Offline:** Dexie (IndexedDB `sloty_local_db` version 3) + `vite-plugin-pwa`

@@ -690,8 +690,9 @@ export function SchedulePage() {
       const syncedAt = new Date().toISOString()
 
       if (
-        options.requestKey &&
-        activeScheduleRequestKeyRef.current !== options.requestKey
+        options.signal?.aborted ||
+        (options.requestKey &&
+          activeScheduleRequestKeyRef.current !== options.requestKey)
       ) {
         return false
       }

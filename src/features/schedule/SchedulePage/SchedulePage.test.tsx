@@ -3572,4 +3572,85 @@ describe('SchedulePage', () => {
     expect(await screen.findByRole('button', { name: '2:00 م متاح' })).toBeInTheDocument()
     expect(screen.queryByText('جاري تحميل المواعيد...')).not.toBeInTheDocument()
   })
+
+  it('prevents an aborted request from applying its response when a newer request has the same requestKey', async () => {
+    const requestADeferred = createDeferred<BookingSlotsResponse>()
+    const requestBDeferred = createDeferred<BookingSlotsResponse>()
+
+    mockedListBookingSlots
+      .mockReturnValueOnce(requestADeferred.promise)
+      .mockReturnValueOnce(requestBDeferred.promise)
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledTimes(1)
+    })
+
+    const initialAuth = mockedUseAuth()
+    mockedUseAuth.mockReturnValue({
+      ...initialAuth,
+      selectedMembership: {
+        ...initialAuth.selectedMembership!,
+        court: { id: 7, name: 'ملعب 1 الرئيسي' },
+      },
+    } as unknown as ReturnType<typeof useAuth>)
+
+    rerender(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
+    })
+
+    // Both calls had identical arguments (same club, same court, same date)
+    const call1Args = mockedListBookingSlots.mock.calls[0]
+    const call2Args = mockedListBookingSlots.mock.calls[1]
+    expect(call1Args[0]).toBe('nasr-club')
+    expect(call2Args[0]).toBe('nasr-club')
+    expect(call1Args[1]).toEqual(call2Args[1])
+
+    // Request B resolves with slot 10:00
+    await act(async () => {
+      requestBDeferred.resolve(
+        makeSlotsResponse([
+          makeSlot({
+            start_time: '10:00',
+            end_time: '11:00',
+            slot_status: 'FREE',
+            is_available: true,
+            label: 'متاح',
+          }),
+        ]),
+      )
+    })
+
+    expect(await screen.findByRole('button', { name: '10:00 ص متاح' })).toBeInTheDocument()
+
+    // Request A (aborted by effect cleanup) resolves later with slot 09:00
+    await act(async () => {
+      requestADeferred.resolve(
+        makeSlotsResponse([
+          makeSlot({
+            start_time: '09:00',
+            end_time: '10:00',
+            slot_status: 'FREE',
+            is_available: true,
+            label: 'متاح',
+          }),
+        ]),
+      )
+    })
+
+    // 10:00 remains visible; aborted Request A cannot apply its response
+    expect(screen.getByRole('button', { name: '10:00 ص متاح' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '9:00 ص متاح' })).not.toBeInTheDocument()
+  })
 })
