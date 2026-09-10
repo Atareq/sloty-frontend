@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
@@ -3398,5 +3399,177 @@ describe('SchedulePage', () => {
     expect(mockWriteText).toHaveBeenCalledWith(
       expect.stringContaining('/public/nasr-club/courts/7/schedule'),
     )
+  })
+
+  it('preserves cached slots and timestamp when foreground request fails with NETWORK_ERROR', async () => {
+    const cachedSlots = [
+      makeSlot({
+        start_time: '09:00',
+        end_time: '10:00',
+        slot_status: 'FREE',
+        is_available: true,
+        label: 'متاح',
+      }),
+    ]
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue(
+      cachedScheduleDay(cachedSlots, '2026-07-20T01:30:00.000Z'),
+    )
+    mockedListBookingSlots.mockRejectedValueOnce(
+      new ApiClientError('Network Error', 0, { code: 'NETWORK_ERROR' }),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('button', { name: '9:00 ص متاح' })).toBeInTheDocument()
+    expect(screen.getByText(/آخر تحديث/)).toBeInTheDocument()
+    expect(screen.queryByText('جاري تحميل المواعيد...')).not.toBeInTheDocument()
+    expect(screen.queryByText(/تعذر تحميل مواعيد اليوم/)).not.toBeInTheDocument()
+  })
+
+  it('issues backend request and renders authoritative slots under StrictMode', async () => {
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '11:00',
+          end_time: '12:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ]),
+    )
+
+    render(
+      <StrictMode>
+        <MemoryRouter>
+          <SchedulePage />
+        </MemoryRouter>
+      </StrictMode>,
+    )
+
+    expect(await screen.findByRole('button', { name: '11:00 ص متاح' })).toBeInTheDocument()
+    expect(screen.queryByText('جاري تحميل المواعيد...')).not.toBeInTheDocument()
+    expect(mockedListBookingSlots).toHaveBeenCalled()
+  })
+
+  it.each([
+    ['failed', 'failed'],
+    ['cancelled', 'cancelled'],
+  ] as const)(
+    'releases window sync key when schedule sync ends with %s status',
+    async (overallStatus, scheduleStatus) => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const requestSync = vi.fn(async () => ({
+        scopeKey: 'user:1:club:nasr-club',
+        trigger: 'manual' as const,
+        status: overallStatus,
+        datasets: {
+          schedule: { dataset: 'schedule' as const, status: scheduleStatus },
+          bookings: { dataset: 'bookings' as const, status: 'skipped' as const },
+          transactions: {
+            dataset: 'transactions' as const,
+            status: 'skipped' as const,
+          },
+          current_custody: {
+            dataset: 'current_custody' as const,
+            status: 'skipped' as const,
+          },
+        },
+        startedAt: '2026-07-20T02:00:00.000Z',
+        completedAt: '2026-07-20T02:00:01.000Z',
+      }))
+      mockOfflineSyncContext({
+        requestSync,
+      })
+
+      render(
+        <MemoryRouter>
+          <SchedulePage />
+        </MemoryRouter>,
+      )
+
+      expect(await screen.findByRole('button', { name: '9:00 ص متاح' })).toBeInTheDocument()
+      expect(requestSync).toHaveBeenCalledTimes(1)
+
+      await waitFor(() => {
+        expect(requestSync).toHaveReturned()
+      })
+
+      await user.click(
+        screen.getByRole('button', { name: /الثلاثاء، ٢١ يوليو ٢٠٢٦/ }),
+      )
+
+      await waitFor(() => {
+        expect(requestSync).toHaveBeenCalledTimes(2)
+      })
+    },
+  )
+
+  it('does not allow an aborted request finally to clear loading state of a newer pending request', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    const dateADeferred = createDeferred<BookingSlotsResponse>()
+    const dateBDeferred = createDeferred<BookingSlotsResponse>()
+
+    mockedListBookingSlots.mockImplementation((_clubSlug, params) => {
+      if (params.date === getEgyptDateValue()) {
+        return dateADeferred.promise
+      }
+      return dateBDeferred.promise
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('جاري تحميل المواعيد...')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: /الثلاثاء، ٢١ يوليو ٢٠٢٦/ }),
+    )
+
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledWith(
+        'nasr-club',
+        {
+          court: 7,
+          date: '2026-07-21',
+        },
+        {
+          signal: expect.any(AbortSignal),
+        },
+      )
+    })
+
+    await act(async () => {
+      dateADeferred.reject(
+        new DOMException('The user aborted a request.', 'AbortError'),
+      )
+    })
+
+    expect(screen.getByText('جاري تحميل المواعيد...')).toBeInTheDocument()
+
+    await act(async () => {
+      dateBDeferred.resolve(
+        makeSlotsResponse([
+          makeSlot({
+            start_time: '14:00',
+            end_time: '15:00',
+            slot_status: 'FREE',
+            is_available: true,
+            label: 'متاح',
+          }),
+        ]),
+      )
+    })
+
+    expect(await screen.findByRole('button', { name: '2:00 م متاح' })).toBeInTheDocument()
+    expect(screen.queryByText('جاري تحميل المواعيد...')).not.toBeInTheDocument()
   })
 })

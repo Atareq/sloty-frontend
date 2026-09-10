@@ -656,6 +656,7 @@ export function SchedulePage() {
 
   async function fetchAuthoritativeScheduleDay(options: {
     persistIfInsideWindow: boolean
+    preserveExistingDataOnConnectivityFailure?: boolean
     requestKey?: string
     showLoading: boolean
     signal?: AbortSignal
@@ -724,7 +725,11 @@ export function SchedulePage() {
         return false
       }
 
-      if (scheduleSource === 'cache' && shouldTreatAsConnectivityFailure(error)) {
+      const shouldPreserveExistingData = Boolean(
+        options.preserveExistingDataOnConnectivityFailure,
+      )
+
+      if (shouldPreserveExistingData && shouldTreatAsConnectivityFailure(error)) {
         setError(null)
       } else {
         setSlots([])
@@ -736,10 +741,17 @@ export function SchedulePage() {
       setSettledSlotsDate(date)
       return false
     } finally {
-      if (options.showLoading) {
-        setIsSlotsLoading(false)
-      } else {
-        setIsSlotsRefreshing(false)
+      const isCurrentRequest =
+        !options.signal?.aborted &&
+        (!options.requestKey ||
+          activeScheduleRequestKeyRef.current === options.requestKey)
+
+      if (isCurrentRequest) {
+        if (options.showLoading) {
+          setIsSlotsLoading(false)
+        } else {
+          setIsSlotsRefreshing(false)
+        }
       }
     }
   }
@@ -940,6 +952,7 @@ export function SchedulePage() {
 
       const didLoad = await fetchAuthoritativeScheduleDay({
         persistIfInsideWindow: isInsideWindow,
+        preserveExistingDataOnConnectivityFailure: hasRenderedCache,
         requestKey,
         showLoading: !hasRenderedCache,
         signal: controller.signal,

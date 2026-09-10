@@ -11,7 +11,6 @@ export interface PublicSlotCardProps {
  *
  * Exposes only 2 states:
  * - AVAILABLE: clickable button labeled "متاح", triggers login attention on click.
- * - UNAVAILABLE: disabled button labeled "محجوز", completely non-interactive.
  * - UNAVAILABLE: disabled button labeled "غير متاح", completely non-interactive.
  *
  * Strictly sanitized: no customer, payment, or operational booking data.
