@@ -82,6 +82,8 @@ export interface BookingListItem {
   previous_recurring_booking_id: number | null
   next_recurring_booking_id: number | null
   hold_expires_at?: string | null
+  last_status_changed_by?: number | null
+  last_status_changed_by_name?: string | null
 }
 
 export interface BookingCreatePayload {

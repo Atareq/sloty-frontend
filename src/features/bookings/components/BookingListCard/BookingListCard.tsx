@@ -17,6 +17,7 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
   const isClickable = Boolean(onSelect)
   const isRecurring = booking.is_recurring
   const notes = getBookingNotes(booking)
+  const hasRemainingAmount = Number(booking.remaining_amount) > 0
 
   const content = (
     <AppCard className="h-full space-y-3">
@@ -43,7 +44,14 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
             {booking.customer_phone || 'بدون رقم موبايل'}
           </p>
         </div>
-        <StatusChip status={booking.status} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {hasRemainingAmount ? (
+            <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-bold text-amber-800">
+              متبقي
+            </span>
+          ) : null}
+          <StatusChip status={booking.status} />
+        </div>
       </div>
 
       <p className="text-sm font-bold text-[var(--sloty-primary-dark)]">
@@ -55,6 +63,11 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
       <p className="text-sm font-semibold text-[var(--sloty-text-muted)]">
         {getBookingCourtLabel(booking)}
       </p>
+      {booking.last_status_changed_by_name ? (
+        <p className="text-xs font-semibold text-[var(--sloty-text-muted)]">
+          آخر تحديث للحالة بواسطة: {booking.last_status_changed_by_name}
+        </p>
+      ) : null}
 
       {notes ? (
         <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">

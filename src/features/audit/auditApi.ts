@@ -22,6 +22,10 @@ function buildQueryString(params?: AuditQueryParams): string {
     searchParams.set('action', params.action)
   }
 
+  if (params?.search) {
+    searchParams.set('search', params.search)
+  }
+
   if (params?.page) {
     searchParams.set('page', String(params.page))
   }

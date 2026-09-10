@@ -11,10 +11,21 @@ import {
 } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
+import { settingsCopy } from '../../../shared/copy/appCopy'
 import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
 import { getCourt, updateCourt } from '../courtsApi'
 import type { Court } from '../courts.types'
+
+const holdExpiryOptions = [
+  { value: '1', label: 'ساعة واحدة' },
+  { value: '2', label: 'ساعتان' },
+  { value: '6', label: '6 ساعات' },
+  { value: '12', label: '12 ساعة' },
+  { value: '16', label: '16 ساعة' },
+  { value: '24', label: '24 ساعة' },
+]
 
 export function SettingsCourtDetailsPage() {
   const { courtId } = useParams()
@@ -27,6 +38,9 @@ export function SettingsCourtDetailsPage() {
   const [court, setCourt] = useState<Court | null>(null)
   const [minimumDeposit, setMinimumDeposit] = useState('')
   const [refundNoticeDays, setRefundNoticeDays] = useState('')
+  const [internalHoldExpiryHours, setInternalHoldExpiryHours] = useState('12')
+  const [requiresDigitalPaymentReference, setRequiresDigitalPaymentReference] =
+    useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingPolicy, setIsSavingPolicy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +74,12 @@ export function SettingsCourtDetailsPage() {
             response.cancellation_refund_notice_days === null
               ? ''
               : String(response.cancellation_refund_notice_days),
+          )
+          setInternalHoldExpiryHours(
+            String(response.internal_hold_expiry_hours ?? 12),
+          )
+          setRequiresDigitalPaymentReference(
+            Boolean(response.requires_digital_payment_reference),
           )
         }
       } catch (error) {
@@ -122,9 +142,8 @@ export function SettingsCourtDetailsPage() {
         cancellation_refund_notice_days: parsedRefundNoticeDays,
         slot_duration_minutes: court.slot_duration_minutes,
         is_active: court.is_active,
-        requires_digital_payment_reference:
-          court.requires_digital_payment_reference,
-        internal_hold_expiry_hours: court.internal_hold_expiry_hours,
+        requires_digital_payment_reference: requiresDigitalPaymentReference,
+        internal_hold_expiry_hours: Number(internalHoldExpiryHours),
         notes: court.notes,
       })
 
@@ -134,6 +153,12 @@ export function SettingsCourtDetailsPage() {
         savedCourt.cancellation_refund_notice_days === null
           ? ''
           : String(savedCourt.cancellation_refund_notice_days),
+      )
+      setInternalHoldExpiryHours(
+        String(savedCourt.internal_hold_expiry_hours ?? 12),
+      )
+      setRequiresDigitalPaymentReference(
+        Boolean(savedCourt.requires_digital_payment_reference),
       )
       setPolicyMessage('تم حفظ سياسة الحجز والإلغاء')
     } catch (error) {
@@ -213,12 +238,40 @@ export function SettingsCourtDetailsPage() {
                   value={refundNoticeDays}
                 />
                 <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
-                  يسترد العميل التأمين عند الإلغاء قبل الموعد بـ
+                  يسترد العميل التأمين عند الإلغاء قبل الموعد بـ... أيام
                 </span>
               </label>
-              <p className="text-xs font-bold text-[var(--sloty-text-muted)] md:col-span-2">
-                الأيام بتتحسب قبل موعد الحجز، وسياسة الاسترداد المحفوظة هي اللي بتظهر وقت الإلغاء.
-              </p>
+              <div className="block space-y-2">
+                <AppSelect
+                  disabled={!canEditRefundPolicy}
+                  label="مدة انتظار الحجز بدون العربون"
+                  onChange={(value) => setInternalHoldExpiryHours(value)}
+                  options={holdExpiryOptions}
+                  value={internalHoldExpiryHours}
+                />
+                <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
+                  لو العربون متدفعش خلال المدة دي، الحجز هيتلغي تلقائيًا.
+                </span>
+              </div>
+              <label className="flex items-start gap-3 text-sm font-semibold md:col-span-2">
+                <input
+                  checked={requiresDigitalPaymentReference}
+                  className="mt-1"
+                  disabled={!canEditRefundPolicy}
+                  onChange={(event) =>
+                    setRequiresDigitalPaymentReference(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  <span className="block">
+                    {settingsCopy.requireDigitalPaymentReference}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
+                    {settingsCopy.requireDigitalPaymentReferenceHelper}
+                  </span>
+                </span>
+              </label>
               <div className="flex items-end md:col-span-2">
                 <AppButton
                   disabled={!canEditRefundPolicy || isSavingPolicy}

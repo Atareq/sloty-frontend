@@ -279,6 +279,34 @@ describe('AuditLogsPage', () => {
     })
   })
 
+  it('supports searching by customer phone number and updates query params', async () => {
+    const user = userEvent.setup()
+
+    renderAuditLogsPage()
+
+    const phoneInput = await screen.findByLabelText('رقم هاتف العميل')
+    await user.type(phoneInput, '01012345678')
+    await user.click(screen.getByRole('button', { name: 'تحديث السجل' }))
+
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/audit-logs?search=01012345678',
+    )
+    expect(mockedListAuditLogs).toHaveBeenLastCalledWith('nasr-club', {
+      search: '01012345678',
+    })
+  })
+
+  it('reads search query param from URL on initial load', async () => {
+    renderAuditLogsPage('/audit-logs?search=01099999999')
+
+    expect(await screen.findByLabelText('رقم هاتف العميل')).toHaveValue(
+      '01099999999',
+    )
+    expect(mockedListAuditLogs).toHaveBeenCalledWith('nasr-club', {
+      search: '01099999999',
+    })
+  })
+
   it('shows filter option errors without blocking audit logs', async () => {
     mockedListClubUsers.mockRejectedValueOnce(new Error('failed'))
 

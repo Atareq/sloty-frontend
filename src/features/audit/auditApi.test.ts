@@ -31,6 +31,23 @@ describe('auditApi', () => {
     )
   })
 
+  it('lists audit logs with search filter', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listAuditLogs('nasr-club', {
+      search: '01012345678',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.auditLogs.list('nasr-club')}?search=01012345678`,
+    )
+  })
+
   it('gets one audit log detail through the nested club endpoint', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       id: 52,

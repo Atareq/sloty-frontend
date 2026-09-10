@@ -82,7 +82,6 @@ const userStatusFilterOptions = [
 
 const createMembershipRoleOptions = [
   { value: '', label: 'اختر الدور' },
-  { value: 'MANAGER', label: 'مدير' },
   { value: 'STAFF', label: 'موظف' },
 ]
 
@@ -522,7 +521,7 @@ function AddUserSheet({
             إضافة مستخدم
           </h2>
           <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-            إنشاء عضوية مدير أو موظف داخل النادي
+            إنشاء عضوية موظف داخل النادي
           </p>
         </div>
 

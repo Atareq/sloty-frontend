@@ -124,9 +124,9 @@ export const searchCopy = {
 
 export const settingsCopy = {
   courtSettings: 'إعدادات الملاعب',
-  requireDigitalPaymentReference: 'طلب مرجع الدفع للمدفوعات الإلكترونية',
+  requireDigitalPaymentReference: 'إلزام إدخال مرجع الدفع الإلكتروني',
   requireDigitalPaymentReferenceHelper:
-    'لو الإعداد ده مفعّل، لازم الموظف يكتب مرجع العملية عند الدفع بمحفظة إلكترونية أو تحويل بنكي.',
+    'لو الإعداد دا مفعل, لازم الموظف يدخل رقم أو مرجع العملية عند تسجيل الدفع بمحفظة إلكترونية أو تحويل بنكي.',
   addPricingPeriod: '+ إضافة فترة جديدة',
   copyDayToRest: (weekdayLabel: string) =>
     `نسخ مواعيد ${weekdayLabel} لباقي أيام الأسبوع`,

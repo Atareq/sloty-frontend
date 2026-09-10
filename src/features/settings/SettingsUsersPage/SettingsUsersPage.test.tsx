@@ -422,6 +422,7 @@ describe('SettingsUsersPage', () => {
     expect(mockedDeleteClubMembership).toHaveBeenCalledTimes(1)
     expect(mockedUpdateMembershipActivity).not.toHaveBeenCalled()
     expect(screen.getByText('منى مدير')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'رجوع' }))
   })
 
   it('does not show manager permission edit action for unauthorized roles', async () => {
@@ -446,7 +447,7 @@ describe('SettingsUsersPage', () => {
 
     expect(dialog.getByText('إضافة مستخدم')).toBeInTheDocument()
     await user.click(dialog.getByLabelText('الدور'))
-    expect(dialog.getByRole('option', { name: 'مدير' })).toBeInTheDocument()
+    expect(dialog.queryByRole('option', { name: 'مدير' })).not.toBeInTheDocument()
     expect(dialog.getByRole('option', { name: 'موظف' })).toBeInTheDocument()
     expect(dialog.queryByRole('option', { name: 'مالك' })).not.toBeInTheDocument()
     expect(dialog.getByText('مستخدم جديد')).toBeInTheDocument()
@@ -519,16 +520,19 @@ describe('SettingsUsersPage', () => {
     await user.type(dialog.getByLabelText('البحث عن المستخدم'), 'ليلى')
     await user.click(dialog.getByRole('button', { name: 'بحث' }))
     await user.click(await dialog.findByLabelText(/ليلى جاهز/))
-    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
+    await chooseAppSelectOption(
+      user,
+      dialog.getByLabelText('الملعب المسؤول عنه'),
+      'ملعب 1',
+    )
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
 
     await waitFor(() => {
       expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
         user_id: 55,
-        role: 'MANAGER',
-        court: null,
-        manager_can_settle_transactions: false,
-        manager_can_change_pricing: false,
+        role: 'STAFF',
+        court: 7,
       })
     })
     expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
@@ -537,34 +541,23 @@ describe('SettingsUsersPage', () => {
     )
   })
 
-  it('shows manager permission toggles defaulted false for add manager', async () => {
+  it('does not offer manager role in add user sheet', async () => {
     const user = userEvent.setup()
 
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
-
-    expect(dialog.getByText('صلاحيات المدير')).toBeInTheDocument()
-    expect(
-      dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
-    ).not.toBeChecked()
-    expect(
-      dialog.getByRole('checkbox', { name: /تعديل الأسعار ومواعيد العمل/ }),
-    ).not.toBeChecked()
-    expect(dialog.queryByLabelText('الملعب المسؤول عنه')).not.toBeInTheDocument()
+    await user.click(dialog.getByLabelText('الدور'))
+    expect(dialog.queryByRole('option', { name: 'مدير' })).not.toBeInTheDocument()
+    expect(dialog.getByRole('option', { name: 'موظف' })).toBeInTheDocument()
   })
 
-  it('shows staff court selector, hides manager toggles, and clears manager permissions', async () => {
+  it('shows staff court selector and does not show manager permission toggles', async () => {
     const user = userEvent.setup()
 
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
-    await user.click(
-      dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
-    )
     await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
 
     expect(dialog.getByLabelText('الملعب المسؤول عنه')).toBeInTheDocument()
@@ -597,7 +590,12 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
+    await chooseAppSelectOption(
+      user,
+      dialog.getByLabelText('الملعب المسؤول عنه'),
+      'ملعب 1',
+    )
     await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
     await user.type(dialog.getByLabelText('اسم المستخدم'), 'mismatch-user')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
@@ -606,66 +604,6 @@ describe('SettingsUsersPage', () => {
 
     expect(dialog.getByText('تأكيد كلمة المرور غير مطابق')).toBeInTheDocument()
     expect(mockedCreateClubMembership).not.toHaveBeenCalled()
-  })
-
-  it('creates a new manager membership with E.164 phone and membership-level manager permissions', async () => {
-    const user = userEvent.setup()
-    mockedListClubUsers
-      .mockResolvedValueOnce([ownerUser, managerUser, staffUser])
-      .mockResolvedValueOnce([ownerUser, managerUser, staffUser])
-
-    renderUsersPage()
-
-    const dialog = await openAddUserSheet(user)
-    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
-    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
-    await user.type(dialog.getByLabelText('اسم العائلة'), 'مدير')
-    await user.type(dialog.getByLabelText('رقم الموبايل'), '01111111111')
-    await user.type(dialog.getByLabelText('البريد الإلكتروني'), 'manager@example.com')
-    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
-    await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
-    await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
-    await user.click(
-      dialog.getByRole('checkbox', { name: /إدارة التسويات المالية والجرد/ }),
-    )
-    await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
-
-    await waitFor(() => {
-      expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
-        user: {
-          username: 'new-manager',
-          email: 'manager@example.com',
-          password: 'secret123',
-          first_name: 'ليلى',
-          last_name: 'مدير',
-          phone_number: '+201111111111',
-        },
-        role: 'MANAGER',
-        court: null,
-        manager_can_settle_transactions: true,
-        manager_can_change_pricing: false,
-      })
-    })
-    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        user: expect.objectContaining({
-          phone_number: '01111111111',
-        }),
-      }),
-    )
-    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        can_change_pricing: expect.anything(),
-        can_manage_working_hours: expect.anything(),
-        can_manage_settlements: expect.anything(),
-      }),
-    )
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    })
-    expect(mockedListClubUsers).toHaveBeenCalledTimes(2)
   })
 
   it('creates a new staff membership with E.164 phone, court, and no manager permissions', async () => {
@@ -770,10 +708,10 @@ describe('SettingsUsersPage', () => {
               message: 'اسم المستخدم مستخدم بالفعل',
             },
           ],
-          manager_can_change_pricing: [
+          court: [
             {
-              code: 'MANAGER_PERMISSION_REQUIRES_MANAGER_ROLE',
-              message: 'صلاحية الأسعار متاحة للمدير فقط',
+              code: 'INVALID',
+              message: 'الملعب المحدد غير صالح',
             },
           ],
         },
@@ -783,9 +721,14 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
-    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
-    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
+    await chooseAppSelectOption(
+      user,
+      dialog.getByLabelText('الملعب المسؤول عنه'),
+      'ملعب 1',
+    )
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
     await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))
@@ -794,7 +737,7 @@ describe('SettingsUsersPage', () => {
       await screen.findByText('هذا المستخدم عضو بالفعل في النادي'),
     ).toBeInTheDocument()
     expect(screen.getByText('اسم المستخدم مستخدم بالفعل')).toBeInTheDocument()
-    expect(screen.getByText('صلاحية الأسعار متاحة للمدير فقط')).toBeInTheDocument()
+    expect(screen.getByText('الملعب المحدد غير صالح')).toBeInTheDocument()
   })
 
   it('shows 403 add-user error, refreshes current user, and does not retry', async () => {
@@ -807,9 +750,14 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     const dialog = await openAddUserSheet(user)
-    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'مدير')
-    await user.type(dialog.getByLabelText('الاسم الأول'), 'ليلى')
-    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-manager')
+    await chooseAppSelectOption(user, dialog.getByLabelText('الدور'), 'موظف')
+    await chooseAppSelectOption(
+      user,
+      dialog.getByLabelText('الملعب المسؤول عنه'),
+      'ملعب 1',
+    )
+    await user.type(dialog.getByLabelText('الاسم الأول'), 'سامي')
+    await user.type(dialog.getByLabelText('اسم المستخدم'), 'new-staff')
     await user.type(dialog.getByLabelText('كلمة المرور'), 'secret123')
     await user.type(dialog.getByLabelText('تأكيد كلمة المرور'), 'secret123')
     await user.click(dialog.getByRole('button', { name: 'حفظ المستخدم' }))

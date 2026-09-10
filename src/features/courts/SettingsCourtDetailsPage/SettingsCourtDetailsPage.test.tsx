@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../../core/auth/useAuth'
@@ -23,6 +24,41 @@ vi.mock('../components/CourtWorkingHoursSection/CourtWorkingHoursSection', () =>
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetCourt = vi.mocked(getCourt)
 const mockedUpdateCourt = vi.mocked(updateCourt)
+
+function mockOwner() {
+  mockedUseAuth.mockReturnValue({
+    accessToken: 'token',
+    claims: { user_id: 1 },
+    currentUser: null,
+    selectedClubSlug: 'nasr-club',
+    selectedMembership: {
+      id: 10,
+      role: 'OWNER',
+      club: {
+        id: 1,
+        name: 'نادي النصر',
+        slug: 'nasr-club',
+        city: 'ASSIUT',
+        is_active: true,
+      },
+      court: null,
+      can_change_pricing: true,
+      can_manage_working_hours: true,
+      can_manage_settlements: true,
+    },
+    role: 'OWNER',
+    isAuthenticated: true,
+    isLoadingSession: false,
+    isTokenExpired: false,
+    sessionError: null,
+    login: vi.fn(),
+    logout: vi.fn(),
+    selectClub: vi.fn(),
+    clearSelectedClub: vi.fn(),
+    refreshCurrentUser: vi.fn(),
+    setTokens: vi.fn(),
+  })
+}
 
 function mockManagerWithoutPermissions() {
   mockedUseAuth.mockReturnValue({
@@ -131,5 +167,43 @@ describe('SettingsCourtDetailsPage', () => {
     ).toBe(true)
     expect(screen.queryByText('سعر الفترة الواحدة')).not.toBeInTheDocument()
     expect(screen.getByText('cannot-edit-hours')).toBeInTheDocument()
+  })
+
+  it('allows owner to edit hold expiry and digital payment reference and saves policy', async () => {
+    mockOwner()
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(
+      await screen.findByText('سياسة الحجز والإلغاء'),
+    ).toBeInTheDocument()
+
+    // Hold expiry dropdown
+    const holdExpiryButton = screen.getByRole('button', { name: /12 ساعة/ })
+    await user.click(holdExpiryButton)
+    const option24 = screen.getByRole('option', { name: '24 ساعة' })
+    await user.click(option24)
+
+    // Checkbox for digital payment reference
+    const checkbox = screen.getByRole('checkbox')
+    expect(checkbox).not.toBeChecked()
+    await user.click(checkbox)
+    expect(checkbox).toBeChecked()
+
+    // Submit
+    const submitButton = screen.getByRole('button', { name: 'حفظ سياسة الحجز' })
+    await user.click(submitButton)
+
+    expect(mockedUpdateCourt).toHaveBeenCalledWith(
+      'nasr-club',
+      '7',
+      expect.objectContaining({
+        internal_hold_expiry_hours: 24,
+        requires_digital_payment_reference: true,
+      }),
+    )
+    expect(
+      await screen.findByText('تم حفظ سياسة الحجز والإلغاء'),
+    ).toBeInTheDocument()
   })
 })

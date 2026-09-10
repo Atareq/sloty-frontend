@@ -23,6 +23,7 @@ interface FilterState {
   date_to: string
   actor: string
   action: string
+  search: string
 }
 
 interface FilterOption {
@@ -36,6 +37,7 @@ function buildParams(filters: FilterState): AuditQueryParams {
     ...(filters.date_to ? { date_to: filters.date_to } : {}),
     ...(filters.actor.trim() ? { actor: filters.actor.trim() } : {}),
     ...(filters.action.trim() ? { action: filters.action.trim() } : {}),
+    ...(filters.search.trim() ? { search: filters.search.trim() } : {}),
   }
 }
 
@@ -47,6 +49,7 @@ function getFiltersFromSearch(search: string): FilterState {
     date_to: query.date_to ?? '',
     actor: query.actor ?? '',
     action: query.action ?? '',
+    search: query.search ?? '',
   }
 }
 
@@ -67,6 +70,10 @@ function getAuditSearch(params: AuditQueryParams): string {
 
   if (params.action) {
     searchParams.set('action', params.action)
+  }
+
+  if (params.search) {
+    searchParams.set('search', params.search)
   }
 
   const queryString = searchParams.toString()
@@ -278,7 +285,20 @@ export function AuditLogsPage() {
                 {filterOptionsError}
               </p>
             ) : null}
-            <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleSubmit}>
+            <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={handleSubmit}>
+              <label className="space-y-2 text-sm font-semibold">
+                <span>رقم هاتف العميل</span>
+                <input
+                  className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
+                  dir="ltr"
+                  onChange={(event) =>
+                    updateFilter('search', event.target.value)
+                  }
+                  placeholder="01xxxxxxxxx"
+                  type="search"
+                  value={filters.search}
+                />
+              </label>
               <label className="space-y-2 text-sm font-semibold">
                 <span>من تاريخ</span>
                 <input

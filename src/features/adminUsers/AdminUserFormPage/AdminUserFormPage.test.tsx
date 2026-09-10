@@ -164,7 +164,7 @@ describe('AdminUserFormPage', () => {
     await testUser.click(screen.getByLabelText('الدور'))
     expect(await screen.findByRole('option', { name: 'مالك' }))
       .toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'مدير' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'مدير' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'موظف' })).toBeInTheDocument()
     expect(screen.getByText('ربط مستخدم موجود')).toBeInTheDocument()
     expect(screen.queryByLabelText(/user_id/i)).not.toBeInTheDocument()
@@ -221,7 +221,7 @@ describe('AdminUserFormPage', () => {
     expect(await screen.findByText('تفاصيل المستخدم')).toBeInTheDocument()
   })
 
-  it('links an existing user as manager with only supported manager permission fields', async () => {
+  it('does not allow choosing manager role when creating club membership', async () => {
     const testUser = userEvent.setup()
 
     renderPage()
@@ -231,30 +231,9 @@ describe('AdminUserFormPage', () => {
       await screen.findByLabelText('نوع المستخدم'),
       'مستخدم نادي',
     )
-    await testUser.click(screen.getByLabelText('ربط مستخدم موجود'))
-    await testUser.type(screen.getByLabelText('البحث عن المستخدم'), 'existing')
-    await testUser.click(screen.getByRole('button', { name: 'بحث' }))
-    await testUser.click(await screen.findByLabelText(/أحمد موجود/))
     await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
-    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'مدير')
-    await testUser.click(
-      screen.getByLabelText(/إدارة التسويات المالية والجرد/),
-    )
-    await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
-
-    await waitFor(() =>
-      expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
-        user_id: 20,
-        role: 'MANAGER',
-        court: null,
-        manager_can_settle_transactions: true,
-        manager_can_change_pricing: false,
-      }),
-    )
-    expect(mockedCreateClubMembership).not.toHaveBeenCalledWith(
-      'nasr-club',
-      expect.objectContaining({ can_manage_working_hours: expect.anything() }),
-    )
+    await testUser.click(screen.getByLabelText('الدور'))
+    expect(screen.queryByRole('option', { name: 'مدير' })).not.toBeInTheDocument()
   })
 
   it('links an existing user as staff with court and without manager permission fields', async () => {

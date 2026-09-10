@@ -3,6 +3,7 @@ export interface AuditQueryParams {
   date_to?: string
   actor?: number | string
   action?: string
+  search?: string
   page?: number | string
 }
 

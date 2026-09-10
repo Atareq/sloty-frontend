@@ -82,7 +82,6 @@ const userKindOptions = [
 const platformMembershipRoleOptions = [
   { value: '', label: 'اختر الدور' },
   { value: 'OWNER', label: 'مالك' },
-  { value: 'MANAGER', label: 'مدير' },
   { value: 'STAFF', label: 'موظف' },
 ]
 

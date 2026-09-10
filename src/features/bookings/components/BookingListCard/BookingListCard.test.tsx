@@ -166,4 +166,56 @@ describe('BookingListCard', () => {
       'sloty-booking-card-note',
     )
   })
+
+  it('renders remaining amount badge when remaining_amount > 0 and hides it when fully paid', () => {
+    const { rerender } = render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          remaining_amount: '150.00',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('متبقي')).toBeInTheDocument()
+
+    rerender(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          remaining_amount: '0.00',
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('متبقي')).not.toBeInTheDocument()
+  })
+
+  it('renders last status actor name only when provided by backend', () => {
+    const { rerender } = render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          last_status_changed_by_name: 'أحمد',
+        }}
+      />,
+    )
+
+    expect(
+      screen.getByText('آخر تحديث للحالة بواسطة: أحمد'),
+    ).toBeInTheDocument()
+
+    rerender(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          last_status_changed_by_name: null,
+        }}
+      />,
+    )
+
+    expect(
+      screen.queryByText(/آخر تحديث للحالة بواسطة/),
+    ).not.toBeInTheDocument()
+  })
 })

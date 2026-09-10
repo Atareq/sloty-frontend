@@ -403,7 +403,7 @@ export function CourtFormPage() {
             <label className="space-y-2 text-sm font-semibold">
               <span>سياسة استرداد التأمين</span>
               <span className="block text-xs font-normal text-gray-500">
-                يسترد العميل التأمين عند الإلغاء قبل الموعد بـ
+                يسترد العميل التأمين عند الإلغاء قبل الموعد بـ... أيام
               </span>
               <input
                 className={inputClass}
