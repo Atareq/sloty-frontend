@@ -90,20 +90,19 @@ describe('current custody sync task', () => {
       expect.objectContaining({ clubSlug: 'nasr-club' }),
       {
         kind: 'grouped_summary',
-        courtId: null,
         payload: summary,
       },
       '2026-09-03T08:00:00.000Z',
     )
   })
 
-  it('stores one staff self-preview scoped to the assigned Court', async () => {
+  it('stores one staff self-preview without court scoping', async () => {
     const preview = {
       club: 1,
       collected_by: 1,
       collected_by_name: 'أحمد الموظف',
-      court: 7,
-      court_name: 'ملعب 1',
+      court: null,
+      court_name: null,
       is_self_preview: true,
       can_approve: false,
       approval_required: true,
@@ -137,7 +136,7 @@ describe('current custody sync task', () => {
 
     expect(getSettlementPreview).toHaveBeenCalledWith(
       'nasr-club',
-      { court: 7 },
+      {},
       { signal: expect.any(AbortSignal) },
     )
     expect(getCurrentCustodySummary).not.toHaveBeenCalled()
@@ -145,7 +144,6 @@ describe('current custody sync task', () => {
       expect.objectContaining({ clubSlug: 'nasr-club' }),
       {
         kind: 'preview',
-        courtId: 7,
         payload: preview,
       },
       '2026-09-03T08:00:00.000Z',

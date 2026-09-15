@@ -128,4 +128,36 @@ describe('bookingsApi', () => {
       )}?court=3&ended=true&hold_expiring=true&overdue=true&page=2`,
     )
   })
+
+  it('supports ordering parameter for newest and oldest first', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listBookings('nasr-club', {
+      ordering: '-created',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.bookings.list('nasr-club')}?ordering=-created`,
+    )
+
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listBookings('nasr-club', {
+      ordering: 'created',
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.bookings.list('nasr-club')}?ordering=created`,
+    )
+  })
 })

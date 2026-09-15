@@ -402,26 +402,33 @@ export function CourtFormPage() {
 
             <label className="space-y-2 text-sm font-semibold">
               <span>سياسة استرداد التأمين</span>
+              <div className="flex items-center gap-2">
+                <input
+                  className={inputClass}
+                  inputMode="numeric"
+                  max="30"
+                  min="0"
+                  onChange={(event) =>
+                    updateField(
+                      'cancellation_refund_notice_days',
+                      event.target.value,
+                    )
+                  }
+                  placeholder="عدد الأيام"
+                  type="number"
+                  value={formState.cancellation_refund_notice_days}
+                />
+                <span className="shrink-0 text-sm font-bold text-gray-500">
+                  أيام
+                </span>
+              </div>
               <span className="block text-xs font-normal text-gray-500">
-                يسترد العميل التأمين عند الإلغاء قبل الموعد بـ... أيام
+                {formState.cancellation_refund_notice_days.trim()
+                  ? `يسترد العميل التأمين عند الإلغاء قبل الموعد بـ ${formState.cancellation_refund_notice_days.trim()} أيام`
+                  : 'يسترد العميل التأمين عند الإلغاء قبل الموعد بـ... أيام'}
               </span>
-              <input
-                className={inputClass}
-                inputMode="numeric"
-                max="30"
-                min="0"
-                onChange={(event) =>
-                  updateField(
-                    'cancellation_refund_notice_days',
-                    event.target.value,
-                  )
-                }
-                placeholder="عدد الأيام"
-                type="number"
-                value={formState.cancellation_refund_notice_days}
-              />
               <span className="block text-xs font-normal text-gray-500">
-                أيام — اتركها فارغة لو مفيش مهلة محددة.
+                اتركها فارغة لو مفيش مهلة محددة.
               </span>
             </label>
             {cancellationRefundNoticeFieldError ? (

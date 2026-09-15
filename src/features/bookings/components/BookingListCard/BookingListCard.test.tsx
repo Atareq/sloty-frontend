@@ -172,23 +172,46 @@ describe('BookingListCard', () => {
       <BookingListCard
         booking={{
           ...confirmedBooking,
+          status: 'CONFIRMED',
           remaining_amount: '150.00',
         }}
       />,
     )
 
-    expect(screen.getByText('متبقي')).toBeInTheDocument()
+    const badge = screen.getByText('متبقي: 150.00 ج.م')
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveClass('text-[var(--sloty-balance-due)]')
+    expect(screen.getByText('العربون مدفوع')).toBeInTheDocument()
 
     rerender(
       <BookingListCard
         booking={{
           ...confirmedBooking,
+          status: 'CONFIRMED',
           remaining_amount: '0.00',
         }}
       />,
     )
 
-    expect(screen.queryByText('متبقي')).not.toBeInTheDocument()
+    expect(screen.queryByText(/متبقي/)).not.toBeInTheDocument()
+    expect(screen.getByText('العربون مدفوع')).toBeInTheDocument()
+  })
+
+  it('renders remaining amount badge alongside HOLD status without altering status chip', () => {
+    render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          status: 'HOLD',
+          remaining_amount: '200.00',
+        }}
+      />,
+    )
+
+    const badge = screen.getByText('متبقي: 200.00 ج.م')
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveClass('text-[var(--sloty-balance-due)]')
+    expect(screen.getByText('بانتظار العربون')).toBeInTheDocument()
   })
 
   it('renders last status actor name only when provided by backend', () => {

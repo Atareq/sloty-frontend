@@ -47,7 +47,6 @@ export interface SettlementPreview extends CurrentCustodyRecord {
 
 export interface SettlementPreviewQueryParams {
   collected_by?: number | string
-  court?: number | string
   page?: number | string
 }
 
@@ -67,12 +66,10 @@ export interface CurrentCustodySummaryResponse {
 
 export interface CurrentCustodySummaryQueryParams {
   collected_by?: number | string
-  court?: number | string
 }
 
 export interface CreateSettlementPayload {
   collected_by: number
-  court?: number
   notes?: string
 }
 

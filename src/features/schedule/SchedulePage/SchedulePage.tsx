@@ -2204,7 +2204,6 @@ export function SchedulePage() {
                               isMorningGuidanceActive ? 'scale-110' : '',
                             ].join(' ')}
                           >
-                            ✨
                           </span>
                         </button>
                       </div>

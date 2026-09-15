@@ -163,7 +163,7 @@ describe('SettlementPreviewPage', () => {
   })
 
   it('persists a successful Backend preview as the current-custody snapshot', async () => {
-    renderPage('/settlements/preview?collected_by=15&court=3')
+    renderPage('/settlements/preview?collected_by=15')
 
     expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
     expect(mockedOfflineRepositories.replaceCurrentCustodySnapshot)
@@ -172,7 +172,6 @@ describe('SettlementPreviewPage', () => {
         {
           kind: 'preview',
           collectorId: '15',
-          courtId: '3',
           payload: expect.objectContaining({
             collected_by: 15,
             net_amount: '700.00',
@@ -231,13 +230,12 @@ describe('SettlementPreviewPage', () => {
     expect(mockedCreateSettlement).not.toHaveBeenCalled()
   })
 
-  it('loads preview from URL params and renders review sections', async () => {
-    renderPage('/settlements/preview?collected_by=15&court=3')
+  it('loads preview from URL params and renders review sections without court scoping', async () => {
+    renderPage('/settlements/preview?collected_by=15')
 
     expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
       collected_by: '15',
-      court: '3',
     })
     expect(screen.getAllByText('أحمد المحصل')).not.toHaveLength(0)
     expect(screen.getByText('2')).toBeInTheDocument()
@@ -454,10 +452,10 @@ describe('SettlementPreviewPage', () => {
     expect(screen.queryByText('No unsettled transactions')).not.toBeInTheDocument()
   })
 
-  it('opens confirmation dialog and confirms with collected_by, court, and notes', async () => {
+  it('opens confirmation dialog and confirms with collected_by and notes', async () => {
     const user = userEvent.setup()
 
-    renderPage('/settlements/preview?collected_by=15&court=3')
+    renderPage('/settlements/preview?collected_by=15')
 
     await user.click(await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }))
     const dialog = screen.getByRole('dialog')
@@ -473,7 +471,6 @@ describe('SettlementPreviewPage', () => {
 
     expect(mockedCreateSettlement).toHaveBeenCalledWith('nasr-club', {
       collected_by: 15,
-      court: 3,
       notes: 'مراجعة الوردية',
     })
     expect(mockedCreateSettlement.mock.calls[0][1]).not.toHaveProperty('dry_run')

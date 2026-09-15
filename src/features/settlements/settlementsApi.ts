@@ -47,14 +47,13 @@ function buildCurrentCustodySummaryPath(
     apiEndpoints.clubs.settlements.unsettledSummary(clubSlug),
     {
       collected_by: params.collected_by,
-      court: params.court,
     },
   )
 }
 
 /**
  * Loads the Backend-authoritative current custody grouped by collector.
- * Analytical dates and payment-method filters are intentionally unsupported.
+ * Analytical dates, courts, and payment-method filters are intentionally unsupported.
  */
 export function getCurrentCustodySummary(
   clubSlug: string,
@@ -74,7 +73,6 @@ function buildPreviewPath(
 ): string {
   const query: Record<string, QueryParamValue> = {
     collected_by: params.collected_by,
-    court: params.court,
     page: params.page,
   }
 
@@ -99,6 +97,47 @@ export function getSettlementPreview(
     : apiRequest<SettlementPreview>(path)
 }
 
+export interface GetCurrentCustodyParams {
+  collected_by?: number | string
+}
+
+export interface GetCurrentCustodyOptions {
+  signal?: AbortSignal
+  isOwnCustody?: boolean
+}
+
+export type CurrentCustodyResult =
+  | { kind: 'preview'; data: SettlementPreview }
+  | { kind: 'grouped_summary'; data: CurrentCustodySummaryResponse }
+
+/**
+ * Unified Current Custody reader:
+ * Returns Backend-authoritative live custody amount for one employee (preview)
+ * or all club employees (grouped summary).
+ * Live custody is never scoped to court.
+ */
+export async function getCurrentCustody(
+  clubSlug: string,
+  params: GetCurrentCustodyParams = {},
+  options: GetCurrentCustodyOptions = {},
+): Promise<CurrentCustodyResult> {
+  if (options.isOwnCustody || params.collected_by) {
+    const preview = await getSettlementPreview(
+      clubSlug,
+      params.collected_by ? { collected_by: params.collected_by } : {},
+      { signal: options.signal },
+    )
+    return { kind: 'preview', data: preview }
+  }
+
+  const summary = await getCurrentCustodySummary(
+    clubSlug,
+    {},
+    { signal: options.signal },
+  )
+  return { kind: 'grouped_summary', data: summary }
+}
+
 /**
  * Confirms the current unsettled transactions for one collector.
  */
@@ -110,7 +149,6 @@ export function createSettlement(
     method: 'POST',
     body: {
       collected_by: payload.collected_by,
-      ...(payload.court !== undefined ? { court: payload.court } : {}),
       ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
     },
   })

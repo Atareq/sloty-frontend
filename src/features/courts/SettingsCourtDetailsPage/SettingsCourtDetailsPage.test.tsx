@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -139,44 +139,86 @@ describe('SettingsCourtDetailsPage', () => {
     })
   })
 
-  it('hides default price editing and shows policy and working-hours permissions', async () => {
+  it('renders booking/payment and cancellation/refund sections with units, helpers, and read-only state for managers', async () => {
     renderPage()
 
+    // 1. Sections render
+    expect(await screen.findByText('الحجز والدفع')).toBeInTheDocument()
+    expect(screen.getByText('الإلغاء واسترداد العربون')).toBeInTheDocument()
+
+    // 2. Minimum deposit label, unit, helper
+    expect(screen.getByText('الحد الأدنى للعربون المطلوب')).toBeInTheDocument()
+    const depositField = screen.getByText('الحد الأدنى للعربون المطلوب').closest('label')
+    expect(depositField).not.toBeNull()
+    expect(within(depositField!).getByText('ج.م')).toBeInTheDocument()
     expect(
-      await screen.findByText('سياسة استرداد التأمين للعرض فقط في هذا الحساب.'),
+      within(depositField!).getByText('أقل مبلغ مطلوب لتأكيد الحجز.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('سياسة استرداد التأمين')).toBeInTheDocument()
+    const depositInput = depositField?.querySelector('input')
+    expect(depositInput).toHaveValue('100.00')
+    expect(depositInput).toBeDisabled()
+
+    // 3. Hold expiry label, unit, helper
+    expect(screen.getByText('مهلة دفع العربون')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /12 ساعة/ })).toBeInTheDocument()
     expect(
-      screen.getByText('يسترد العميل التأمين عند الإلغاء قبل الموعد بـ'),
-    ).toBeInTheDocument()
-    const policyForm = screen.getByText('الحد الأدنى للعربون').closest('form')
-    const refundField = screen.getByText('سياسة استرداد التأمين').closest('label')
-    const refundInput = refundField?.querySelector('input')
-    const helper = screen.getByText(
-      'يسترد العميل التأمين عند الإلغاء قبل الموعد بـ',
-    )
-    expect(policyForm).toHaveClass('md:grid-cols-2', 'items-start')
-    expect(refundField).toContainElement(helper)
-    expect(refundInput).not.toBeNull()
-    expect(
-      Boolean(
-        refundInput &&
-          (refundInput.compareDocumentPosition(helper) &
-            Node.DOCUMENT_POSITION_FOLLOWING),
+      screen.getByText(
+        'يظل الحجز منتظرًا خلال هذه المدة. إذا لم يتم دفع العربون، يُلغى الحجز تلقائيًا.',
       ),
-    ).toBe(true)
+    ).toBeInTheDocument()
+
+    // 4. Electronic payment reference label, helper
+    expect(screen.getByText('طلب مرجع للدفع الإلكتروني')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'عند التفعيل، يجب إدخال مرجع العملية عند الدفع بمحفظة إلكترونية أو تحويل بنكي.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('checkbox')).toBeDisabled()
+
+    // 5. Cancellation & refund label, unit, dynamic helper
+    // 5. Cancellation & refund label, placeholder, dynamic helper
+    expect(screen.getByText('مدة السماح باسترداد العربون')).toBeInTheDocument()
+    const refundField = screen.getByText('مدة السماح باسترداد العربون').closest('label')
+    expect(refundField).not.toBeNull()
+    expect(within(refundField!).getByText('أيام')).toBeInTheDocument()
+    const refundInput = refundField?.querySelector('input')
+    expect(refundInput).toHaveAttribute('placeholder', 'أيام')
+    expect(within(refundField!).queryByText('أيام')).not.toBeInTheDocument()
+    expect(
+      within(refundField!).getByText(
+        'يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بـ 3 أيام أو أكثر.',
+      ),
+    ).toBeInTheDocument()
+    const refundInput = refundField?.querySelector('input')
+    expect(refundInput).toHaveValue(3)
+    expect(refundInput).toBeDisabled()
+
+    // 6. Read-only permissions notice (no التأمين)
+    expect(
+      screen.getByText('إعدادات الحجز للعرض فقط في هذا الحساب.'),
+    ).toBeInTheDocument()
+
+    // 7. No التأمين anywhere in this flow
+    expect(screen.queryByText(/التأمين/)).not.toBeInTheDocument()
     expect(screen.queryByText('سعر الفترة الواحدة')).not.toBeInTheDocument()
     expect(screen.getByText('cannot-edit-hours')).toBeInTheDocument()
   })
 
-  it('allows owner to edit hold expiry and digital payment reference and saves policy', async () => {
+  it('allows owner to edit settings with dynamic refund helper and saves with unchanged payload shape', async () => {
     mockOwner()
     const user = userEvent.setup()
     renderPage()
 
-    expect(
-      await screen.findByText('سياسة الحجز والإلغاء'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('الحجز والدفع')).toBeInTheDocument()
+    expect(screen.getByText('الإلغاء واسترداد العربون')).toBeInTheDocument()
+
+    // Minimum deposit editing
+    const depositField = screen.getByText('الحد الأدنى للعربون المطلوب').closest('label')
+    const depositInput = depositField?.querySelector('input')
+    expect(depositInput).not.toBeDisabled()
+    await user.clear(depositInput!)
+    await user.type(depositInput!, '150.00')
 
     // Hold expiry dropdown
     const holdExpiryButton = screen.getByRole('button', { name: /12 ساعة/ })
@@ -190,20 +232,63 @@ describe('SettingsCourtDetailsPage', () => {
     await user.click(checkbox)
     expect(checkbox).toBeChecked()
 
-    // Submit
-    const submitButton = screen.getByRole('button', { name: 'حفظ سياسة الحجز' })
+    // Refund notice days input & dynamic helper
+    const refundField = screen.getByText('مدة السماح باسترداد العربون').closest('label')
+    const refundInput = refundField?.querySelector('input')
+    expect(refundInput).not.toBeDisabled()
+    expect(refundInput).toHaveAttribute('placeholder', 'أيام')
+    expect(within(refundField!).queryByText('أيام')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بـ 3 أيام أو أكثر.',
+      ),
+    ).toBeInTheDocument()
+
+    // Test dynamic helper when cleared
+    await user.clear(refundInput!)
+    expect(refundInput).toHaveValue(null)
+    expect(
+      screen.getByText(
+        'يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بعدد الأيام المحدد.',
+      ),
+    ).toBeInTheDocument()
+
+    // Test typing 3 keeps numeric value 3 and displays dynamic helper
+    await user.type(refundInput!, '3')
+    expect(refundInput).toHaveValue(3)
+    expect(
+      screen.getByText(
+        'يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بـ 3 أيام أو أكثر.',
+      ),
+    ).toBeInTheDocument()
+
+    // Test dynamic helper when changed to 5
+    await user.clear(refundInput!)
+    await user.type(refundInput!, '5')
+    expect(refundInput).toHaveValue(5)
+    expect(
+      screen.getByText(
+        'يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بـ 5 أيام أو أكثر.',
+      ),
+    ).toBeInTheDocument()
+
+    // Submit using updated button copy
+    const submitButton = screen.getByRole('button', { name: 'حفظ إعدادات الحجز' })
     await user.click(submitButton)
 
     expect(mockedUpdateCourt).toHaveBeenCalledWith(
       'nasr-club',
       '7',
       expect.objectContaining({
+        minimum_deposit: '150.00',
         internal_hold_expiry_hours: 24,
         requires_digital_payment_reference: true,
+        cancellation_refund_notice_days: 5,
       }),
     )
     expect(
-      await screen.findByText('تم حفظ سياسة الحجز والإلغاء'),
+      await screen.findByText('تم حفظ إعدادات الحجز'),
     ).toBeInTheDocument()
+    expect(screen.queryByText(/التأمين/)).not.toBeInTheDocument()
   })
 })

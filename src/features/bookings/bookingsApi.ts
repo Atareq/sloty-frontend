@@ -19,6 +19,7 @@ function buildBookingsListPath(
     ended: params.ended,
     hold_expiring: params.hold_expiring,
     needs_action: params.needs_action,
+    ordering: params.ordering,
     overdue: params.overdue,
     page: params.page,
     search: params.search,

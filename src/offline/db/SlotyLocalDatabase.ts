@@ -31,7 +31,7 @@ export class SlotyLocalDatabase extends Dexie {
   transaction_details!: Table<TransactionDetailRecord, [string, number]>
   current_custody_snapshots!: Table<
     CurrentCustodySnapshotRecord,
-    [string, CurrentCustodySnapshotKind, string, string]
+    [string, CurrentCustodySnapshotKind, string]
   >
   booking_intents!: Table<BookingRequestRecord, [string, string]>
   offline_context!: EntityTable<OfflineContextRecord, 'scope_key'>
@@ -75,7 +75,7 @@ export class SlotyLocalDatabase extends Dexie {
       offline_context: '&scope_key, user_id, club_slug, last_verified_at',
     })
 
-    this.version(OFFLINE_SCHEMA_VERSION).stores({
+    this.version(3).stores({
       sync_metadata: '&scope_key, user_id, club_slug',
       schedule_days:
         '&[scope_key+court_id+date], scope_key, user_id, club_slug, [scope_key+court_id], [scope_key+date]',
@@ -101,6 +101,15 @@ export class SlotyLocalDatabase extends Dexie {
           delete record.last_checked_at
         }),
     )
+
+    this.version(4).stores({
+      current_custody_snapshots: null,
+    })
+
+    this.version(OFFLINE_SCHEMA_VERSION).stores({
+      current_custody_snapshots:
+        '&[scope_key+snapshot_kind+collector_scope], scope_key, user_id, club_slug, [scope_key+snapshot_kind], [scope_key+collector_scope], synced_at',
+    })
   }
 }
 

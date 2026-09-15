@@ -7,7 +7,7 @@ import type {
 } from '../features/settlements/settlements.types'
 import type { Transaction } from '../features/transactions/transactions.types'
 
-export const OFFLINE_SCHEMA_VERSION = 3
+export const OFFLINE_SCHEMA_VERSION = 5
 
 export interface OfflineScope {
   userId: number
@@ -80,15 +80,13 @@ export type CurrentCustodySnapshotPayload =
 /**
  * Last successful Backend current-custody response for one explicit view scope.
  *
- * `collector_scope` and `court_scope` distinguish all-employees, self/current
- * collector, selected employee, all-courts, and a specific Court.
+ * `collector_scope` distinguishes all-employees, self/current collector,
+ * and a selected employee. Current custody is never scoped to court.
  */
 export interface CurrentCustodySnapshotRecord extends ScopedOfflineRecord {
   snapshot_kind: CurrentCustodySnapshotKind
   collector_scope: string
   collector_id: number | null
-  court_scope: string
-  court_id: number | null
   payload: CurrentCustodySnapshotPayload
   synced_at: string
 }

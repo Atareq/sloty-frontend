@@ -323,9 +323,7 @@ describe('DashboardPage', () => {
         court: '3',
       })
     })
-    expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
-      court: 3,
-    })
+    expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
     expect(mockedGetCurrentCustodySummary).not.toHaveBeenCalled()
   })
 
@@ -576,8 +574,6 @@ describe('DashboardPage', () => {
       snapshot_kind: 'grouped_summary',
       collector_scope: 'all',
       collector_id: null,
-      court_scope: 'all',
-      court_id: null,
       payload: { results: [currentCustodyRow] },
       synced_at: '2026-09-03T08:00:00.000Z',
     })
@@ -656,7 +652,7 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(mockedGetCurrentCustodySummary).toHaveBeenLastCalledWith(
         'nasr-club',
-        { court: 3 },
+        {},
       )
     })
 
@@ -763,7 +759,7 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/ينتهي بعد/)).not.toBeInTheDocument()
   })
 
-  it('preserves selected court in operational and settlement links', async () => {
+  it('preserves selected court in operational links while keeping settlement preview club-scoped', async () => {
     renderDashboard('/dashboard?court=3')
 
     expect(await screen.findByText('18 حجوزات مسجلة النهاردة'))
@@ -774,7 +770,7 @@ describe('DashboardPage', () => {
     )
     expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
       'href',
-      '/settlements/preview?collected_by=15&court=3',
+      '/settlements/preview?collected_by=15',
     )
   })
 

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react'
 import { searchCopy } from '../../copy/appCopy'
 
 export interface QuickSearchShortcutsProps {
@@ -40,11 +40,17 @@ export function QuickSearchShortcuts({
         onClick={() => setIsQuickSearchExpanded((current) => !current)}
         type="button"
       >
-        <span>{searchCopy.quickShortcuts}</span>
+        <span className="flex items-center gap-2">
+          <SlidersHorizontal
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 text-[var(--sloty-text-muted)]"
+          />
+          <span>{searchCopy.quickShortcuts}</span>
+        </span>
         {isQuickSearchExpanded ? (
-          <ChevronUp aria-hidden="true" className="h-4 w-4" />
+          <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--sloty-text-muted)]" />
         ) : (
-          <ChevronDown aria-hidden="true" className="h-4 w-4" />
+          <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--sloty-text-muted)]" />
         )}
       </button>
       {isQuickSearchExpanded ? children : null}

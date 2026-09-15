@@ -288,6 +288,18 @@ Same Schedule PRODUCT / EXPERIENCE
 - Court settings saves the full weekly schedule with PUT using numeric weekdays (`0` Monday through `6` Sunday).
 - Working Hours uses period-based `pricing_periods` rows instead of `opens_at`/`closes_at`.
 - Court settings edits one weekday at a time while keeping all seven days in memory, copies the selected day to the rest of the week, and on invalid save shows a generic review message then focuses the first invalid field.
+- Midnight (`00:00`) boundary semantics:
+  - `START 00:00`: minute 0 (beginning of business day).
+  - `END 00:00`: minute 1440 (end of configured business day). E.g. `18:00 → 00:00` is valid, `00:00 → 08:00` is valid.
+  - Range `00:00 → 00:00` is explicitly rejected.
+  - General overnight periods past midnight (e.g. `22:00 → 02:00`) remain unsupported.
+  - Slot duration alignment preserves boundary roles (evaluating starts as minute 0 and ends as minute 1440).
+  - API serialization strictly preserves `00:00:00` (never sending `24:00` or `23:59`).
+  - Contextual helper text `00:00 تعني نهاية اليوم` renders under the "إلى" field when `ends_at` is `00:00`.
+- Validation presentation separation:
+  - Period-level errors (missing fields, invalid prices, end-before-start, slot alignment) display strictly once under the affected pricing period row and are not duplicated at the day header.
+  - Day-level error presentation is reserved strictly for whole-day cross-period issues (overlap: `لا يمكن أن تتداخل فترات العمل والأسعار.`).
+  - On failed save, a card-level summary appears (`حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.`), save is blocked, and focus moves to the first invalid field.
 
 ## Schedule Date UX
 

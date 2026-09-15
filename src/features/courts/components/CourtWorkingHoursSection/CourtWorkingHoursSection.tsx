@@ -24,9 +24,9 @@ import type {
   CourtWeekday,
 } from '../../courtWorkingHours.types'
 import {
-  areTimesAlignedToSlotDuration,
   doPricingPeriodsOverlap,
   getWeekdayLabel,
+  isPricingPeriodAlignedToSlotDuration,
   isTimeRangeOrdered,
   normalizeTimeString,
   sortPeriodsByStartTime,
@@ -171,19 +171,14 @@ function getDayValidationResult(
       continue
     }
 
-    if (
-      !areTimesAlignedToSlotDuration(
-        [period.starts_at, period.ends_at],
-        slotDurationMinutes,
-      )
-    ) {
+    if (!isPricingPeriodAlignedToSlotDuration(period, slotDurationMinutes)) {
       periodErrors[period.localId] =
         'يجب أن تتوافق حدود فترات العمل والأسعار مع مدة الحجز'
     }
   }
 
   if (Object.keys(periodErrors).length > 0) {
-    return { dayMessage: Object.values(periodErrors)[0] ?? null, periodErrors }
+    return { dayMessage: null, periodErrors }
   }
 
   if (doPricingPeriodsOverlap(draft.pricing_periods)) {
@@ -337,12 +332,17 @@ export function CourtWorkingHoursSection({
     const sortedPeriods = sortPeriodsByStartTime(draft.pricing_periods)
     const lastPeriod = sortedPeriods[sortedPeriods.length - 1]
 
+    const defaultStartsAt =
+      lastPeriod?.ends_at && normalizeTimeString(lastPeriod.ends_at) !== '00:00'
+        ? lastPeriod.ends_at
+        : ''
+
     updateDraft(weekday, {
       pricing_periods: [
         ...draft.pricing_periods,
         createPricingPeriodDraft(
           draft.pricing_periods.length,
-          lastPeriod?.ends_at ?? '',
+          defaultStartsAt,
         ),
       ],
     })
@@ -398,12 +398,6 @@ export function CourtWorkingHoursSection({
     resetMessages()
   }
 
-  function closeAllDays(): void {
-    setDrafts(createInitialDrafts())
-    setRowErrors({})
-    setPeriodErrors({})
-    resetMessages()
-  }
 
   function resetChanges(): void {
     setDrafts(lastSavedDrafts)
@@ -455,7 +449,9 @@ export function CourtWorkingHoursSection({
       },
       {} as Partial<Record<CourtWeekday, Record<string, string>>>,
     )
-    const firstErrorWeekday = weekdays.find((weekday) => nextErrors[weekday])
+    const firstErrorWeekday = weekdays.find(
+      (weekday) => nextErrors[weekday] || nextPeriodErrors[weekday],
+    )
 
     if (firstErrorWeekday !== undefined) {
       setSelectedWeekday(firstErrorWeekday)
@@ -490,9 +486,11 @@ export function CourtWorkingHoursSection({
         )
         const field = firstInvalidMessage.includes('سعر')
           ? priceField
-          : firstInvalidMessage.includes('نهاية')
+          : firstInvalidMessage.includes('نهاية') ||
+              firstInvalidMessage ===
+                'وقت نهاية فترة العمل يجب أن يكون بعد وقت البداية'
             ? endsField
-            : startsField ?? priceField
+            : startsField ?? priceField ?? endsField
 
         field?.focus()
       })
@@ -550,6 +548,9 @@ export function CourtWorkingHoursSection({
           فترات العمل والأسعار
         </h2>
         <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
+          اختار اليوم، وبعدها حدد الفترات اللي الملعب بيكون متاح فيها للحجز.
+        </p>
+        <p className="text-xs leading-5 text-[var(--sloty-text-muted)]">
           كل فترة تعني أن الملعب متاح للحجز خلالها بهذا السعر. أي وقت خارج
           الفترات يكون غير متاح.
         </p>
@@ -577,20 +578,6 @@ export function CourtWorkingHoursSection({
         <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
           ليس لديك صلاحية تعديل فترات العمل والأسعار.
         </p>
-      ) : null}
-
-      {canEdit ? (
-        <div className="flex flex-wrap gap-2">
-          <AppButton onClick={copySelectedDayToRest} variant="secondary">
-            {settingsCopy.copyDayToRest(getWeekdayLabel(selectedWeekday))}
-          </AppButton>
-          <AppButton onClick={closeAllDays} variant="secondary">
-            إغلاق كل الأيام
-          </AppButton>
-          <AppButton onClick={resetChanges} variant="secondary">
-            إلغاء التغييرات
-          </AppButton>
-        </div>
       ) : null}
 
       <AppSelect
@@ -681,13 +668,35 @@ export function CourtWorkingHoursSection({
         )
       })()}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      {canEdit ? (
+        <div>
+          <AppButton
+            onClick={copySelectedDayToRest}
+            type="button"
+            variant="secondary"
+          >
+            {settingsCopy.copyDayToRest(getWeekdayLabel(selectedWeekday))}
+          </AppButton>
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <AppButton
           disabled={isSaving || isLoading || !canEdit}
           onClick={() => void handleSave()}
         >
           {isSaving ? 'جاري الحفظ...' : 'حفظ مواعيد الأسبوع'}
         </AppButton>
+        {canEdit ? (
+          <AppButton
+            disabled={isSaving || isLoading}
+            onClick={resetChanges}
+            type="button"
+            variant="secondary"
+          >
+            إلغاء التغييرات
+          </AppButton>
+        ) : null}
       </div>
     </AppCard>
   )

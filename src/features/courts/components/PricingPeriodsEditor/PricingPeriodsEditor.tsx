@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { settingsCopy } from '../../../../shared/copy/appCopy'
+import { normalizeTimeString } from '../CourtWorkingHoursSection/courtWorkingHours.helpers'
 
 export interface PricingPeriodDraft {
   localId: string
@@ -82,6 +83,11 @@ export function PricingPeriodsEditor({
                 type="time"
                 value={period.ends_at}
               />
+              {normalizeTimeString(period.ends_at) === '00:00' ? (
+                <span className="block text-[11px] font-normal text-[var(--sloty-text-muted)]">
+                  00:00 تعني نهاية اليوم
+                </span>
+              ) : null}
             </label>
 
             <label className="space-y-1 text-xs font-semibold text-[var(--sloty-text-muted)]">

@@ -15,6 +15,13 @@ const weekdayLabels: Record<CourtWeekday, string> = {
   6: 'الأحد',
 }
 
+export type TimeBoundaryRole = 'start' | 'end'
+
+export interface TimeBoundaryItem {
+  time: string
+  role?: TimeBoundaryRole
+}
+
 export function getWeekdayLabel(weekday: CourtWeekday): string {
   return weekdayLabels[weekday]
 }
@@ -63,6 +70,25 @@ export function timeToMinutes(value: string): number {
   return hours * 60 + minutes
 }
 
+/**
+ * Converts a 24-hour time string into operational business minutes.
+ *
+ * For role === 'end', '00:00' represents the end-of-day boundary (minute 1440).
+ * For role === 'start' (default) or other times, '00:00' is minute 0.
+ */
+export function timeToBusinessMinutes(
+  value: string,
+  role: TimeBoundaryRole = 'start',
+): number {
+  const normalized = normalizeTimeString(value)
+
+  if (role === 'end' && normalized === '00:00') {
+    return 24 * 60
+  }
+
+  return timeToMinutes(value)
+}
+
 function padTimePart(value: number): string {
   return String(value).padStart(2, '0')
 }
@@ -78,32 +104,45 @@ export function isTimeRangeOrdered(
     return false
   }
 
-  return timeToMinutes(range.ends_at) > timeToMinutes(range.starts_at)
+  const normalizedStart = normalizeTimeString(range.starts_at)
+  const normalizedEnd = normalizeTimeString(range.ends_at)
+
+  // 00:00 -> 00:00 is explicitly rejected (neither 24-hour nor valid positive range)
+  if (normalizedStart === '00:00' && normalizedEnd === '00:00') {
+    return false
+  }
+
+  const startMinutes = timeToBusinessMinutes(range.starts_at, 'start')
+  const endMinutes = timeToBusinessMinutes(range.ends_at, 'end')
+
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) {
+    return false
+  }
+
+  return endMinutes > startMinutes
 }
 
-export function sortPeriodsByStartTime<T extends Pick<CourtPricingPeriodPayload, 'starts_at'>>(
-  periods: T[],
-): T[] {
-  return [...periods].sort(
-    (first, second) => {
-      const firstStart = timeToMinutes(first.starts_at)
-      const secondStart = timeToMinutes(second.starts_at)
+export function sortPeriodsByStartTime<
+  T extends Pick<CourtPricingPeriodPayload, 'starts_at'>,
+>(periods: T[]): T[] {
+  return [...periods].sort((first, second) => {
+    const firstStart = timeToBusinessMinutes(first.starts_at, 'start')
+    const secondStart = timeToBusinessMinutes(second.starts_at, 'start')
 
-      if (!Number.isFinite(firstStart) && !Number.isFinite(secondStart)) {
-        return 0
-      }
+    if (!Number.isFinite(firstStart) && !Number.isFinite(secondStart)) {
+      return 0
+    }
 
-      if (!Number.isFinite(firstStart)) {
-        return 1
-      }
+    if (!Number.isFinite(firstStart)) {
+      return 1
+    }
 
-      if (!Number.isFinite(secondStart)) {
-        return -1
-      }
+    if (!Number.isFinite(secondStart)) {
+      return -1
+    }
 
-      return firstStart - secondStart
-    },
-  )
+    return firstStart - secondStart
+  })
 }
 
 export function doPricingPeriodsOverlap(
@@ -114,23 +153,61 @@ export function doPricingPeriodsOverlap(
   return sortedPeriods.some((period, index) => {
     const nextPeriod = sortedPeriods[index + 1]
 
-    return nextPeriod
-      ? timeToMinutes(period.ends_at) > timeToMinutes(nextPeriod.starts_at)
-      : false
+    if (!nextPeriod) {
+      return false
+    }
+
+    const currentEnd = timeToBusinessMinutes(period.ends_at, 'end')
+    const nextStart = timeToBusinessMinutes(nextPeriod.starts_at, 'start')
+
+    if (!Number.isFinite(currentEnd) || !Number.isFinite(nextStart)) {
+      return false
+    }
+
+    return currentEnd > nextStart
   })
 }
 
+export function isTimeAlignedToSlotDuration(
+  time: string,
+  slotDurationMinutes: number | undefined,
+  role: TimeBoundaryRole = 'start',
+): boolean {
+  if (!slotDurationMinutes) {
+    return true
+  }
+
+  const minutes = timeToBusinessMinutes(time, role)
+
+  return Number.isFinite(minutes) && minutes % slotDurationMinutes === 0
+}
+
 export function areTimesAlignedToSlotDuration(
-  times: string[],
+  times: Array<string | TimeBoundaryItem>,
   slotDurationMinutes: number | undefined,
 ): boolean {
   if (!slotDurationMinutes) {
     return true
   }
 
-  return times.every((time) => {
-    const minutes = timeToMinutes(time)
+  return times.every((item) => {
+    const time = typeof item === 'string' ? item : item.time
+    const role = typeof item === 'string' ? 'start' : (item.role ?? 'start')
 
-    return Number.isFinite(minutes) && minutes % slotDurationMinutes === 0
+    return isTimeAlignedToSlotDuration(time, slotDurationMinutes, role)
   })
+}
+
+export function isPricingPeriodAlignedToSlotDuration(
+  period: Pick<CourtPricingPeriodPayload, 'starts_at' | 'ends_at'>,
+  slotDurationMinutes: number | undefined,
+): boolean {
+  return (
+    isTimeAlignedToSlotDuration(
+      period.starts_at,
+      slotDurationMinutes,
+      'start',
+    ) &&
+    isTimeAlignedToSlotDuration(period.ends_at, slotDurationMinutes, 'end')
+  )
 }

@@ -8,7 +8,6 @@ import {
 import {
   canManageSettlements,
   canViewOwnSettlements,
-  getAssignedOperationalCourtId,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
@@ -173,10 +172,6 @@ export function SettlementsHubPage() {
   const canSettle = canManageSettlements(selectedMembership, role)
   const canViewOwn = canViewOwnSettlements(selectedMembership, role)
   const isOwnMode = canViewOwn && !canSettle
-  const assignedCourtId = getAssignedOperationalCourtId(
-    role,
-    selectedMembership,
-  )
   const query = useMemo(
     () => parseHubQuery(location.search),
     [location.search],
@@ -322,19 +317,9 @@ export function SettlementsHubPage() {
       try {
         if (isOwnMode || query.collected_by) {
           const previewCollectorId = isOwnMode ? null : query.collected_by
-          const previewCourtId = isOwnMode
-            ? assignedCourtId
-            : query.court || null
           const preview = await getSettlementPreview(
             selectedClubSlug,
-            {
-              ...(isOwnMode
-                ? assignedCourtId
-                  ? { court: assignedCourtId }
-                  : {}
-                : { collected_by: query.collected_by }),
-              ...(!isOwnMode && query.court ? { court: query.court } : {}),
-            },
+            isOwnMode ? {} : { collected_by: query.collected_by },
           )
 
           if (!isActive) {
@@ -353,7 +338,6 @@ export function SettlementsHubPage() {
                 {
                   kind: 'preview',
                   collectorId: previewCollectorId,
-                  courtId: previewCourtId,
                   payload: preview,
                 },
                 syncedAt,
@@ -363,10 +347,7 @@ export function SettlementsHubPage() {
             }
           }
         } else {
-          const summaryCourtId = query.court || null
-          const summary = await getCurrentCustodySummary(selectedClubSlug, {
-            ...(summaryCourtId ? { court: summaryCourtId } : {}),
-          })
+          const summary = await getCurrentCustodySummary(selectedClubSlug, {})
 
           if (!isActive) {
             return
@@ -384,7 +365,6 @@ export function SettlementsHubPage() {
                 {
                   kind: 'grouped_summary',
                   collectorId: null,
-                  courtId: summaryCourtId,
                   payload: summary,
                 },
                 syncedAt,
@@ -406,7 +386,6 @@ export function SettlementsHubPage() {
                 offlineScope,
                 isOwnMode || query.collected_by ? 'preview' : 'grouped_summary',
                 isOwnMode ? null : query.collected_by,
-                isOwnMode ? assignedCourtId : query.court || null,
               )
             } catch {
               // Non-fatal: stale local cleanup must not block the empty state.
@@ -422,7 +401,6 @@ export function SettlementsHubPage() {
                     ? 'preview'
                     : 'grouped_summary',
                   isOwnMode ? null : query.collected_by,
-                  isOwnMode ? assignedCourtId : query.court || null,
                 )
                 .catch(() => undefined)
             : undefined
@@ -471,14 +449,12 @@ export function SettlementsHubPage() {
       isActive = false
     }
   }, [
-    assignedCourtId,
     canSettle,
     currentFinancialRefreshToken,
     currentUser?.id,
     isOwnMode,
     offlineScope,
     query.collected_by,
-    query.court,
     selectedClubSlug,
   ])
 
@@ -711,11 +687,6 @@ export function SettlementsHubPage() {
             ? financeCopy.currentCustody
             : financeCopy.currentEmployeeMoney}
         </h2>
-        {canSettle ? (
-          <p className="text-sm font-semibold text-[var(--sloty-text-muted)]">
-            نطاق العهدة: {selectedCourtLabel}
-          </p>
-        ) : null}
         {currentSnapshotLabel ? (
           <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
             {currentSnapshotLabel}
@@ -773,7 +744,6 @@ export function SettlementsHubPage() {
               <Link
                 to={buildPathWithQuery('/settlements/preview', {
                   collected_by: currentPreview.collected_by,
-                  court: query.court || currentPreview.court,
                 })}
               >
                 <AppButton fullWidth type="button">
@@ -802,7 +772,6 @@ export function SettlementsHubPage() {
 
         {!isCurrentLoading && !currentError && currentEmployees.length > 0 ? (
           <CurrentCustodySection
-            court={query.court || undefined}
             mode="management"
             records={currentEmployees}
             showTitle={false}

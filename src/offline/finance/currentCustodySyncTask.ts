@@ -76,7 +76,6 @@ export function createCurrentCustodySyncTask(
           operationalContext,
           {
             kind: 'grouped_summary',
-            courtId: null,
             payload: response,
           },
           startedAt,
@@ -94,11 +93,7 @@ export function createCurrentCustodySyncTask(
 
       const response: SettlementPreview = await fetchOwnPreview(
         operationalContext.clubSlug,
-        {
-          ...(operationalContext.assignedCourtId
-            ? { court: operationalContext.assignedCourtId }
-            : {}),
-        },
+        {},
         { signal },
       )
       throwIfAborted(signal)
@@ -106,7 +101,6 @@ export function createCurrentCustodySyncTask(
         operationalContext,
         {
           kind: 'preview',
-          courtId: operationalContext.assignedCourtId,
           payload: response,
         },
         startedAt,

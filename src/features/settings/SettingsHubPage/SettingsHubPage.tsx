@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { navigationCopy } from '../../../shared/copy/appCopy'
+import { ChangePasswordSheet } from '../components/ChangePasswordSheet/ChangePasswordSheet'
 
 interface SettingsLinkCardProps {
   title: string
@@ -37,14 +39,15 @@ function SettingsLinkCard({
 }
 
 /**
- * Owner-facing settings hub for club administration links.
+ * Settings hub for club administration and authenticated account security.
  */
 export function SettingsHubPage() {
   const { role } = useAuth()
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const canViewOwnerLinks = role === 'OWNER'
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <SettingsLinkCard
           actionLabel="فتح إعدادات الملاعب"
@@ -71,6 +74,36 @@ export function SettingsHubPage() {
           />
         ) : null}
       </section>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-extrabold text-[var(--sloty-text-primary)]">
+          الأمان والحساب
+        </h2>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <AppCard className="space-y-4">
+            <div>
+              <h3 className="text-lg font-extrabold text-[var(--sloty-text-primary)]">
+                تغيير كلمة المرور
+              </h3>
+              <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
+                غيّر كلمة مرور حسابك للحفاظ على أمانه.
+              </p>
+            </div>
+            <AppButton
+              fullWidth
+              onClick={() => setIsChangePasswordOpen(true)}
+              variant="secondary"
+            >
+              تغيير كلمة المرور
+            </AppButton>
+          </AppCard>
+        </div>
+      </section>
+
+      <ChangePasswordSheet
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+      />
     </div>
   )
 }

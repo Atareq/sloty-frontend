@@ -3,6 +3,7 @@ import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   createSettlement,
+  getCurrentCustody,
   getCurrentCustodySummary,
   getSettlementPreview,
   getSettlement,
@@ -25,8 +26,12 @@ function expectCurrentCustodyParams(
 
 describe('settlementsApi', () => {
   it('keeps current-custody params narrower than analytical dashboard filters', () => {
-    expect(expectCurrentCustodyParams({ court: 3 })).toEqual({ court: 3 })
+    expect(expectCurrentCustodyParams({ collected_by: 5 })).toEqual({
+      collected_by: 5,
+    })
 
+    // @ts-expect-error Current custody must not accept court filter.
+    expectCurrentCustodyParams({ court: 3 })
     // @ts-expect-error Current custody must not accept analytical date filters.
     expectCurrentCustodyParams({ date_from: '2026-07-15' })
   })
@@ -34,10 +39,10 @@ describe('settlementsApi', () => {
   it('gets grouped current custody without analytical date filters', async () => {
     mockedApiRequest.mockResolvedValueOnce({ results: [] })
 
-    await getCurrentCustodySummary('nasr-club', { court: 3 })
+    await getCurrentCustodySummary('nasr-club', { collected_by: 5 })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.clubs.settlements.unsettledSummary('nasr-club')}?court=3`,
+      `${apiEndpoints.clubs.settlements.unsettledSummary('nasr-club')}?collected_by=5`,
     )
   })
 
@@ -68,7 +73,7 @@ describe('settlementsApi', () => {
     )
   })
 
-  it('gets a settlement preview with optional court and page params', async () => {
+  it('gets a settlement preview with optional page param', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       transaction_count: 0,
       total_amount: '0.00',
@@ -78,14 +83,13 @@ describe('settlementsApi', () => {
 
     await getSettlementPreview('nasr-club', {
       collected_by: 5,
-      court: 3,
       page: 2,
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.settlements.preview(
         'nasr-club',
-      )}?collected_by=5&court=3&page=2`,
+      )}?collected_by=5&page=2`,
     )
   })
 
@@ -99,12 +103,79 @@ describe('settlementsApi', () => {
 
     await getSettlementPreview('nasr-club', {
       collected_by: 5,
-      court: '',
       page: '',
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.settlements.preview('nasr-club')}?collected_by=5`,
+    )
+  })
+
+  it('delegates getCurrentCustody to preview when isOwnCustody is true', async () => {
+    const previewData = {
+      collected_by: 1,
+      collected_by_name: 'أحمد',
+      transaction_count: 1,
+      net_amount: '150.00',
+      total_amount: '150.00',
+      booking_payments: '150.00',
+      booking_refunds: '0.00',
+      totals_by_payment_method: {},
+      transactions: [],
+      club: 1,
+      is_self_preview: true,
+      can_approve: false,
+      approval_required: true,
+      period_start: '',
+      period_end: '',
+    }
+    mockedApiRequest.mockResolvedValueOnce(previewData)
+
+    const result = await getCurrentCustody('nasr-club', {}, { isOwnCustody: true })
+
+    expect(result).toEqual({ kind: 'preview', data: previewData })
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.settlements.preview('nasr-club'),
+    )
+  })
+
+  it('delegates getCurrentCustody to preview when collected_by is provided', async () => {
+    const previewData = {
+      collected_by: 15,
+      collected_by_name: 'علي',
+      transaction_count: 2,
+      net_amount: '500.00',
+      total_amount: '500.00',
+      booking_payments: '500.00',
+      booking_refunds: '0.00',
+      totals_by_payment_method: {},
+      transactions: [],
+      club: 1,
+      is_self_preview: false,
+      can_approve: true,
+      approval_required: false,
+      period_start: '',
+      period_end: '',
+    }
+    mockedApiRequest.mockResolvedValueOnce(previewData)
+
+    const result = await getCurrentCustody('nasr-club', { collected_by: 15 })
+
+    expect(result).toEqual({ kind: 'preview', data: previewData })
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.settlements.preview('nasr-club')}?collected_by=15`,
+    )
+  })
+
+  it('delegates getCurrentCustody to summary for all employees', async () => {
+    const summaryData = { results: [] }
+    mockedApiRequest.mockResolvedValueOnce(summaryData)
+
+    const result = await getCurrentCustody('nasr-club')
+
+    expect(result).toEqual({ kind: 'grouped_summary', data: summaryData })
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.settlements.unsettledSummary('nasr-club'),
     )
   })
 
@@ -134,12 +205,11 @@ describe('settlementsApi', () => {
     )
   })
 
-  it('creates a settlement with optional court and trimmed notes only', async () => {
+  it('creates a settlement with trimmed notes only', async () => {
     mockedApiRequest.mockResolvedValueOnce({ id: 9 })
 
     await createSettlement('nasr-club', {
       collected_by: 5,
-      court: 3,
       notes: ' Shift settlement ',
     })
 
@@ -149,7 +219,6 @@ describe('settlementsApi', () => {
         method: 'POST',
         body: {
           collected_by: 5,
-          court: 3,
           notes: 'Shift settlement',
         },
       },
@@ -172,7 +241,6 @@ describe('settlementsApi', () => {
 
     await createSettlement('nasr-club', {
       collected_by: 5,
-      court: 3,
       notes: 'تأكيد الوردية',
     })
 
@@ -182,7 +250,6 @@ describe('settlementsApi', () => {
       method: 'POST',
       body: {
         collected_by: 5,
-        court: 3,
         notes: 'تأكيد الوردية',
       },
     })
@@ -190,6 +257,7 @@ describe('settlementsApi', () => {
     expect(options?.body).not.toHaveProperty('transactions')
     expect(options?.body).not.toHaveProperty('total_amount')
     expect(options?.body).not.toHaveProperty('net_amount')
+    expect(options?.body).not.toHaveProperty('court')
     expect(options?.body).not.toHaveProperty('period_start')
     expect(options?.body).not.toHaveProperty('period_end')
     expect(options?.body).not.toHaveProperty('totals_by_payment_method')

@@ -717,7 +717,7 @@ describe('scoped offline repositories', () => {
       .toBe('2026-08-30T13:00:00.000Z')
   })
 
-  it('stores current-custody snapshots by scope, collector, and Court without reading transactions', async () => {
+  it('stores current-custody snapshots by scope and collector without reading transactions', async () => {
     const groupedPayload = {
       results: [
         {
@@ -739,13 +739,27 @@ describe('scoped offline repositories', () => {
         },
       ],
     }
-    const courtPayload = {
-      results: [
-        {
-          ...groupedPayload.results[0],
-          net_amount: '900.00',
-        },
-      ],
+    const collectorPayload = {
+      club: 1,
+      collected_by: 15,
+      collected_by_name: 'محمد علي',
+      court: null,
+      court_name: null,
+      is_self_preview: false,
+      can_approve: true,
+      approval_required: false,
+      period_start: '2026-07-01T10:00:00+03:00',
+      period_end: '2026-09-03T10:00:00+03:00',
+      transaction_count: 3,
+      total_amount: '1250.00',
+      booking_payments: '1400.00',
+      booking_refunds: '-150.00',
+      net_amount: '1250.00',
+      totals_by_payment_method: {
+        CASH: '500.00',
+        DIGITAL_WALLET: '750.00',
+      },
+      transactions: [],
     }
 
     await repositories.replaceTransactionsSnapshot(
@@ -758,7 +772,6 @@ describe('scoped offline repositories', () => {
       {
         kind: 'grouped_summary',
         collectorId: null,
-        courtId: null,
         payload: groupedPayload,
       },
       '2026-08-30T12:00:00.000Z',
@@ -766,10 +779,9 @@ describe('scoped offline repositories', () => {
     await repositories.replaceCurrentCustodySnapshot(
       userOneClubA,
       {
-        kind: 'grouped_summary',
-        collectorId: null,
-        courtId: 7,
-        payload: courtPayload,
+        kind: 'preview',
+        collectorId: 15,
+        payload: collectorPayload,
       },
       '2026-08-30T12:05:00.000Z',
     )
@@ -779,22 +791,19 @@ describe('scoped offline repositories', () => {
         userOneClubA,
         'grouped_summary',
         null,
-        null,
       ))?.payload,
     ).toEqual(groupedPayload)
     expect(
       (await repositories.readCurrentCustodySnapshot(
         userOneClubA,
-        'grouped_summary',
-        null,
-        7,
+        'preview',
+        15,
       ))?.payload,
-    ).toEqual(courtPayload)
+    ).toEqual(collectorPayload)
     expect(
       await repositories.readCurrentCustodySnapshot(
         userOneClubB,
         'grouped_summary',
-        null,
         null,
       ),
     ).toBeUndefined()
@@ -827,7 +836,6 @@ describe('scoped offline repositories', () => {
       {
         kind: 'grouped_summary',
         collectorId: null,
-        courtId: null,
         payload: firstPayload,
       },
       '2026-08-30T12:00:00.000Z',
@@ -842,7 +850,6 @@ describe('scoped offline repositories', () => {
         {
           kind: 'grouped_summary',
           collectorId: null,
-          courtId: null,
           payload: nextPayload,
         },
         '2026-08-30T13:00:00.000Z',
@@ -853,7 +860,6 @@ describe('scoped offline repositories', () => {
       (await repositories.readCurrentCustodySnapshot(
         userOneClubA,
         'grouped_summary',
-        null,
         null,
       ))?.payload,
     ).toEqual(firstPayload)

@@ -28,6 +28,10 @@ import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
 import { LiveSearchField } from '../../../shared/components/LiveSearchField/LiveSearchField'
 import { QuickSearchShortcuts } from '../../../shared/components/QuickSearchShortcuts/QuickSearchShortcuts'
+import {
+  SortOrderToggle,
+  type SortDirection,
+} from '../../../shared/components/SortOrderToggle/SortOrderToggle'
 import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
 import { customerCopy } from '../../../shared/copy/appCopy'
 import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration'
@@ -136,6 +140,7 @@ const bookingFilterKeys = [
   'ended',
   'hold_expiring',
   'needs_action',
+  'ordering',
   'overdue',
   'page',
   'search',
@@ -150,12 +155,18 @@ function isBookingStatus(value: string): value is BookingStatus {
 
 function parseBookingsQueryParams(search: string): BookingsQueryParams {
   const queryObject = toQueryObject(search)
-  const params: BookingsQueryParams = {}
+  const params: BookingsQueryParams = {
+    ordering: queryObject.ordering === 'created' ? 'created' : '-created',
+  }
 
   bookingFilterKeys.forEach((key) => {
     const value = queryObject[key]
 
     if (!value) {
+      return
+    }
+
+    if (key === 'ordering') {
       return
     }
 
@@ -721,9 +732,10 @@ export function BookingsListPage() {
   }, [reloadBookings])
 
   function handleApplyFilters(nextFilters: FilterState): void {
-    const nextParams = {
+    const nextParams: BookingsQueryParams = {
       ...paramsFromFilterState(nextFilters),
       ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
+      ordering: effectiveParams.ordering ?? '-created',
     }
     delete nextParams.page
     if (!canChooseCourt) {
@@ -752,6 +764,7 @@ export function BookingsListPage() {
         ? { upcoming: effectiveParams.upcoming }
         : {}),
       ...(effectiveParams.search ? { search: effectiveParams.search } : {}),
+      ordering: effectiveParams.ordering ?? '-created',
     }
 
     navigate(
@@ -846,6 +859,26 @@ export function BookingsListPage() {
     } else {
       nextParams.page = String(nextPage)
     }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getBookingsSearch(nextParams),
+      },
+      { replace: false },
+    )
+  }
+
+  const sortDirection: SortDirection =
+    effectiveParams.ordering === 'created' ? 'asc' : 'desc'
+
+  function handleSortDirectionChange(nextDirection: SortDirection): void {
+    const nextOrdering = nextDirection === 'asc' ? 'created' : '-created'
+    const nextParams: BookingsQueryParams = {
+      ...effectiveParams,
+      ordering: nextOrdering,
+    }
+    delete nextParams.page
 
     navigate(
       {
@@ -1258,37 +1291,52 @@ export function BookingsListPage() {
         value={effectiveParams.search ?? ''}
       />
 
-      <QuickSearchShortcuts searchQuery={searchDraft}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <FilterCheckboxGroup
-            className="min-w-0 flex-1"
-            label="مراجعة سريعة"
-            onChange={handlePrimaryFilter}
-            options={[
-              {
-                key: 'upcoming',
-                label: 'الحجوزات القادمة فقط',
-                checked: effectiveParams.upcoming === 'true',
-                disabled: isOfflineMode,
-              },
-              {
-                key: 'needs_action',
-                label: 'تحتاج إجراء',
-                checked: effectiveParams.needs_action === 'true',
-                disabled: isOfflineMode,
-              },
-              {
-                key: 'has_remaining_amount',
-                label: 'بها مبلغ متبقي',
-                checked: effectiveParams.has_remaining_amount === 'true',
-              },
-            ]}
-          />
-          <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
-            فلاتر إضافية
-          </AppButton>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <QuickSearchShortcuts searchQuery={searchDraft}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <FilterCheckboxGroup
+                className="min-w-0 flex-1"
+                label="مراجعة سريعة"
+                onChange={handlePrimaryFilter}
+                options={[
+                  {
+                    key: 'upcoming',
+                    label: 'الحجوزات القادمة فقط',
+                    checked: effectiveParams.upcoming === 'true',
+                    disabled: isOfflineMode,
+                  },
+                  {
+                    key: 'needs_action',
+                    label: 'تحتاج إجراء',
+                    checked: effectiveParams.needs_action === 'true',
+                    disabled: isOfflineMode,
+                  },
+                  {
+                    key: 'has_remaining_amount',
+                    label: 'بها مبلغ متبقي',
+                    checked: effectiveParams.has_remaining_amount === 'true',
+                  },
+                ]}
+              />
+              <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
+                فلاتر إضافية
+              </AppButton>
+            </div>
+          </QuickSearchShortcuts>
         </div>
-      </QuickSearchShortcuts>
+
+        <SortOrderToggle
+          ariaLabelPrefix="ترتيب الحجوزات"
+          ascendingLabel="الأقدم أولاً"
+          className="mt-1 shrink-0"
+          compact
+          descendingLabel="الأحدث أولاً"
+          disabled={isOfflineMode}
+          onChange={handleSortDirectionChange}
+          value={sortDirection}
+        />
+      </div>
 
       {filterOptionsError ? (
         <p className="text-xs font-bold text-[var(--sloty-danger)]">

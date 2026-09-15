@@ -1320,7 +1320,7 @@ export function SettingsUsersPage() {
                 }}
                 type="button"
               >
-                إضافة مستخدم
+               إضافة مستخدم
               </AppButton>
             </div>
           </div>

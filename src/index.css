@@ -24,6 +24,10 @@
   --sloty-expired-soft: #f3f4f6;
   --sloty-expired-text: #4b5563;
 
+  --sloty-balance-due: #5b21b6;
+  --sloty-balance-due-soft: #f5f3ff;
+  --sloty-balance-due-border: #ddd6fe;
+
   --sloty-cash: #059669;
   --sloty-instapay: #4f46e5;
   --sloty-wallet: #7c3aed;

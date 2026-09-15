@@ -19,6 +19,7 @@ export interface BookingsQueryParams {
   has_remaining_amount?: boolean | string | ''
   ended?: boolean | string | ''
   hold_expiring?: boolean | string | ''
+  ordering?: 'created' | '-created'
   page?: number | string
 }
 

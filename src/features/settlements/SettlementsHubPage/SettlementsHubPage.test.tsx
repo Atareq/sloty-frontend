@@ -235,9 +235,7 @@ describe('SettlementsHubPage', () => {
     expect(screen.getByRole('link', { name: /معاملاتي المالية/ }))
       .toHaveAttribute('href', '/transactions')
     await waitFor(() => {
-      expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-      })
+      expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
     })
     expect(mockedListSettlements).not.toHaveBeenCalled()
     expect(mockedListClubUsers).not.toHaveBeenCalled()
@@ -289,8 +287,6 @@ describe('SettlementsHubPage', () => {
       snapshot_kind: 'grouped_summary',
       collector_scope: 'all',
       collector_id: null,
-      court_scope: 'all',
-      court_id: null,
       payload: currentCustodySummary,
       synced_at: '2026-09-03T08:00:00.000Z',
     })
@@ -340,8 +336,6 @@ describe('SettlementsHubPage', () => {
       snapshot_kind: 'grouped_summary',
       collector_scope: 'all',
       collector_id: null,
-      court_scope: 'all',
-      court_id: null,
       payload: currentCustodySummary,
       synced_at: '2026-09-03T08:00:00.000Z',
     })
@@ -368,14 +362,12 @@ describe('SettlementsHubPage', () => {
       snapshot_kind: 'preview',
       collector_scope: 'collector:15',
       collector_id: 15,
-      court_scope: 'court:3',
-      court_id: 3,
       payload: {
         club: 1,
         collected_by: 15,
         collected_by_name: 'أحمد محمد',
-        court: 3,
-        court_name: 'ملعب 1',
+        court: null,
+        court_name: null,
         is_self_preview: false,
         can_approve: true,
         approval_required: true,
@@ -393,7 +385,7 @@ describe('SettlementsHubPage', () => {
       synced_at: '2026-09-03T08:00:00.000Z',
     })
 
-    renderHub('/settlements?collected_by=15&court=3')
+    renderHub('/settlements?collected_by=15')
 
     expect(
       await screen.findByText('المبلغ المستحق للتسليم: 1,250.00 ج.م'),
@@ -403,7 +395,6 @@ describe('SettlementsHubPage', () => {
         { userId: 1, clubSlug: 'nasr-club' },
         'preview',
         '15',
-        '3',
       )
   })
 
@@ -583,89 +574,64 @@ describe('SettlementsHubPage', () => {
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
 
-  it('sends the selected court only after explicit narrowing and removes it for all courts', async () => {
+  it('sends the selected court for history filtering and removes it for all courts', async () => {
     const user = userEvent.setup()
     mockAuth('OWNER', true)
-    mockedGetCurrentCustodySummary
-      .mockResolvedValueOnce({
-        results: [
-          {
-            ...currentCustodySummary.results[0],
-            net_amount: '1000.00',
-            total_amount: '1000.00',
-            booking_payments: '1000.00',
-            booking_refunds: '0.00',
-            totals_by_payment_method: {
-              CASH: '700.00',
-              DIGITAL_WALLET: '300.00',
-            },
+    mockedGetCurrentCustodySummary.mockResolvedValueOnce({
+      results: [
+        {
+          ...currentCustodySummary.results[0],
+          net_amount: '1000.00',
+          total_amount: '1000.00',
+          booking_payments: '1000.00',
+          booking_refunds: '0.00',
+          totals_by_payment_method: {
+            CASH: '700.00',
+            DIGITAL_WALLET: '300.00',
           },
-        ],
-      })
-      .mockResolvedValueOnce({
-        results: [
-          {
-            ...currentCustodySummary.results[0],
-            net_amount: '700.00',
-            total_amount: '700.00',
-            booking_payments: '700.00',
-            booking_refunds: '0.00',
-            totals_by_payment_method: {
-              CASH: '700.00',
-            },
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        results: [
-          {
-            ...currentCustodySummary.results[0],
-            net_amount: '1000.00',
-            total_amount: '1000.00',
-            booking_payments: '1000.00',
-            booking_refunds: '0.00',
-            totals_by_payment_method: {
-              CASH: '700.00',
-              DIGITAL_WALLET: '300.00',
-            },
-          },
-        ],
-      })
+        },
+      ],
+    })
+    mockedListSettlements.mockResolvedValue({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
 
-    renderHub()
+    renderHub('/settlements?history=true')
 
     expect(
       await screen.findByText('المبلغ المستحق للتسليم: 1,000.00 ج.م'),
     ).toBeInTheDocument()
-    expect(mockedGetCurrentCustodySummary.mock.calls[0]).toEqual([
+    expect(mockedGetCurrentCustodySummary).toHaveBeenCalledWith(
       'nasr-club',
       {},
-    ])
+    )
+    expect(await screen.findByText('تم استلامها سابقًا')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /نطاق الملعب/ }))
     await user.click(screen.getByRole('option', { name: 'ملعب 1' }))
 
-    expect(
-      await screen.findByText('المبلغ المستحق للتسليم: 700.00 ج.م'),
-    ).toBeInTheDocument()
-    expect(mockedGetCurrentCustodySummary).toHaveBeenLastCalledWith(
-      'nasr-club',
-      { court: '3' },
-    )
+    await waitFor(() => {
+      expect(mockedListSettlements).toHaveBeenLastCalledWith(
+        'nasr-club',
+        expect.objectContaining({ court: '3' }),
+      )
+    })
 
     await user.click(screen.getByRole('button', { name: /نطاق الملعب/ }))
     await user.click(screen.getByRole('option', { name: 'كل الملاعب' }))
 
-    expect(
-      await screen.findByText('المبلغ المستحق للتسليم: 1,000.00 ج.م'),
-    ).toBeInTheDocument()
-    expect(mockedGetCurrentCustodySummary).toHaveBeenLastCalledWith(
-      'nasr-club',
-      {},
-    )
+    await waitFor(() => {
+      expect(mockedListSettlements).toHaveBeenLastCalledWith(
+        'nasr-club',
+        expect.not.objectContaining({ court: expect.anything() }),
+      )
+    })
   })
 
-  it('loads a selected employee preview with explicit court scope and no current period block', async () => {
+  it('loads a selected employee preview without court scope and no current period block', async () => {
     mockAuth('MANAGER', true)
     mockedGetSettlementPreview.mockResolvedValueOnce({
       club: 1,
@@ -687,17 +653,16 @@ describe('SettlementsHubPage', () => {
       transactions: [],
     })
 
-    renderHub('/settlements?collected_by=15&court=3')
+    renderHub('/settlements?collected_by=15')
 
     expect(await screen.findByText('منى سمير')).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
       collected_by: '15',
-      court: '3',
     })
     expect(mockedGetCurrentCustodySummary).not.toHaveBeenCalled()
     expect(screen.getByRole('link', { name: 'استلام المبلغ' })).toHaveAttribute(
       'href',
-      '/settlements/preview?collected_by=15&court=3',
+      '/settlements/preview?collected_by=15',
     )
     expect(screen.queryByText('الفترة')).not.toBeInTheDocument()
   })

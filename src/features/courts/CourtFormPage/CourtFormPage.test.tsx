@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
@@ -54,12 +54,17 @@ describe('CourtFormPage', () => {
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('سياسة استرداد التأمين')).toBeInTheDocument()
+    const refundField = screen.getByText('سياسة استرداد التأمين').closest('label')
+    expect(within(refundField!).getByText('أيام')).toBeInTheDocument()
     expect(screen.queryByText('internal_hold_expiry_hours')).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('اسم الملعب'), 'ملعب النخيل')
     await user.type(screen.getByLabelText('سعر الفترة الواحده'), '300')
     await user.type(screen.getByLabelText(/الحد الأدنى للعربون/), '100')
     await user.type(screen.getByLabelText(/سياسة استرداد التأمين/), '3')
+    expect(
+      screen.getByText('يسترد العميل التأمين عند الإلغاء قبل الموعد بـ 3 أيام'),
+    ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'حفظ الملعب' }))
 
     await waitFor(() => {

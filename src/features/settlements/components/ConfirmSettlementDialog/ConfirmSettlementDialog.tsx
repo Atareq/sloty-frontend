@@ -7,6 +7,7 @@ interface ConfirmSettlementDialogProps {
   isOpen: boolean
   collectorName: string
   totalAmount: string
+  netAmount: string
   transactionCount: number
   isSubmitting: boolean
   error?: string | null
@@ -21,6 +22,7 @@ export function ConfirmSettlementDialog({
   error,
   isOpen,
   isSubmitting,
+  netAmount,
   notes,
   onClose,
   onConfirm,
@@ -49,6 +51,7 @@ export function ConfirmSettlementDialog({
             </h2>
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
               هل تؤكد استلام {formatMoneyAmount(totalAmount)} من{' '}
+              هل تؤكد استلام {formatMoneyAmount(netAmount)} من{' '}
               {collectorName}؟
             </p>
             <p className="mt-1 text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">

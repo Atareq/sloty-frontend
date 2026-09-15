@@ -174,7 +174,6 @@ export function SettlementPreviewPage() {
             {
               kind: 'preview',
               collectorId: queryParams.collected_by ?? null,
-              courtId: queryParams.court ?? null,
               payload: nextPreview,
             },
             new Date().toISOString(),
@@ -221,7 +220,6 @@ export function SettlementPreviewPage() {
     const collectedBy = parseIntegerParam(
       queryParams.collected_by ?? preview.collected_by,
     )
-    const court = parseIntegerParam(queryParams.court)
 
     if (collectedBy === null) {
       setConfirmError('تعذر تحديد الموظف المحصل لهذه التسوية.')
@@ -235,7 +233,6 @@ export function SettlementPreviewPage() {
     try {
       const settlement = await createSettlement(selectedClubSlug, {
         collected_by: collectedBy,
-        ...(court !== null ? { court } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       })
       const flashMessage = 'تم استلام المبلغ بنجاح'
@@ -379,6 +376,7 @@ export function SettlementPreviewPage() {
               error={confirmError}
               isOpen={isConfirmOpen}
               isSubmitting={isConfirmSubmitting}
+              netAmount={preview.net_amount}
               notes={notes}
               onClose={() => setIsConfirmOpen(false)}
               onConfirm={handleConfirmSettlement}

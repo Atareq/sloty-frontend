@@ -327,12 +327,8 @@ export function DashboardPage() {
       setCustodySnapshotSyncedAt(null)
 
       try {
-        const court = getCourtQueryValue(selectedCourt)
-
         if (isStaff) {
-          const staffPreview = await getSettlementPreview(selectedClubSlug, {
-            ...(court !== undefined ? { court } : {}),
-          })
+          const staffPreview = await getSettlementPreview(selectedClubSlug, {})
           const records = [staffPreview]
 
           if (isActive) {
@@ -348,7 +344,6 @@ export function DashboardPage() {
                 {
                   kind: 'preview',
                   collectorId: null,
-                  courtId: court ?? null,
                   payload: staffPreview,
                 },
                 syncedAt,
@@ -358,9 +353,7 @@ export function DashboardPage() {
             }
           }
         } else {
-          const summary = await getCurrentCustodySummary(selectedClubSlug, {
-            ...(court !== undefined ? { court } : {}),
-          })
+          const summary = await getCurrentCustodySummary(selectedClubSlug, {})
           const records = summary.results
 
           if (isActive) {
@@ -376,7 +369,6 @@ export function DashboardPage() {
                 {
                   kind: 'grouped_summary',
                   collectorId: null,
-                  courtId: court ?? null,
                   payload: summary,
                 },
                 syncedAt,
@@ -398,7 +390,6 @@ export function DashboardPage() {
                 offlineScope,
                 isStaff ? 'preview' : 'grouped_summary',
                 null,
-                getCourtQueryValue(selectedCourt) ?? null,
               )
             } catch {
               // Non-fatal: stale local cleanup must not block the empty state.
@@ -406,14 +397,12 @@ export function DashboardPage() {
           }
           setCustodyRecords([])
         } else {
-          const court = getCourtQueryValue(selectedCourt)
           const snapshot = offlineScope
             ? await offlineRepositories
                 .readCurrentCustodySnapshot(
                   offlineScope,
                   isStaff ? 'preview' : 'grouped_summary',
                   null,
-                  court ?? null,
                 )
                 .catch(() => undefined)
             : undefined
@@ -458,7 +447,6 @@ export function DashboardPage() {
     isStaff,
     offlineScope,
     selectedClubSlug,
-    selectedCourt,
   ])
 
   useEffect(() => {
@@ -619,7 +607,6 @@ export function DashboardPage() {
 
       {isStaff || canManageStaffMoney ? (
         <CurrentCustodySection
-          court={getCourtQueryValue(selectedCourt)}
           error={custodyError}
           isLoading={isCustodyLoading}
           mode={isStaff ? 'staff' : 'management'}

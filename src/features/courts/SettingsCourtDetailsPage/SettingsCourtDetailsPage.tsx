@@ -108,7 +108,7 @@ export function SettingsCourtDetailsPage() {
     }
 
     if (!canEditRefundPolicy) {
-      setPolicyMessage('ليست لديك صلاحية تعديل سياسة الحجز والإلغاء.')
+      setPolicyMessage('ليست لديك صلاحية تعديل إعدادات الحجز.')
       return
     }
 
@@ -125,7 +125,7 @@ export function SettingsCourtDetailsPage() {
           parsedRefundNoticeDays > 30))
     ) {
       setPolicyMessage(
-        'الحد الأدنى للعربون يجب ألا يقل عن صفر، ومهلة الاسترداد من 0 إلى 30 أو فارغة.',
+        'الحد الأدنى للعربون يجب ألا يقل عن صفر، ومدة السماح باسترداد العربون من 0 إلى 30 أو فارغة.',
       )
       return
     }
@@ -160,10 +160,10 @@ export function SettingsCourtDetailsPage() {
       setRequiresDigitalPaymentReference(
         Boolean(savedCourt.requires_digital_payment_reference),
       )
-      setPolicyMessage('تم حفظ سياسة الحجز والإلغاء')
+      setPolicyMessage('تم حفظ إعدادات الحجز')
     } catch (error) {
       setPolicyMessage(
-        getApiErrorMessage(error, 'تعذر حفظ سياسة الحجز والإلغاء'),
+        getApiErrorMessage(error, 'تعذر حفظ إعدادات الحجز'),
       )
 
       if (isApiClientError(error) && error.status === 403) {
@@ -200,91 +200,127 @@ export function SettingsCourtDetailsPage() {
 
       {court && !isLoading ? (
         <>
-          <AppCard className="space-y-4">
-            <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-              سياسة الحجز والإلغاء
-            </h2>
+          <AppCard className="space-y-6">
             {!canEditRefundPolicy ? (
               <p className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm font-bold text-[var(--sloty-text-muted)]">
-                سياسة استرداد التأمين للعرض فقط في هذا الحساب.
+                إعدادات الحجز للعرض فقط في هذا الحساب.
               </p>
             ) : null}
             <form
-              className="grid items-start gap-x-4 gap-y-4 md:grid-cols-2"
+              className="space-y-6"
               dir="rtl"
               onSubmit={handleSavePolicy}
             >
-              <label className="flex flex-col gap-2 text-sm font-semibold">
-                <span>الحد الأدنى للعربون</span>
-                <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
-                  disabled={!canEditRefundPolicy}
-                  inputMode="decimal"
-                  onChange={(event) => setMinimumDeposit(event.target.value)}
-                  value={minimumDeposit}
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-sm font-semibold">
-                <span>سياسة استرداد التأمين</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    className="h-11 flex-1 min-w-0 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
-                    disabled={!canEditRefundPolicy}
-                    inputMode="numeric"
-                    max="30"
-                    min="0"
-                    onChange={(event) => setRefundNoticeDays(event.target.value)}
-                    placeholder="عدد الأيام"
-                    type="number"
-                    value={refundNoticeDays}
-                  />
-                  <span className="shrink-0 text-sm font-bold text-[var(--sloty-text-muted)]">
-                    أيام
-                  </span>
+              <section className="space-y-4">
+                <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+                  الحجز والدفع
+                </h2>
+                <div className="grid items-start gap-x-4 gap-y-4 md:grid-cols-2">
+                  <label className="flex flex-col gap-2 text-sm font-semibold">
+                    <span>الحد الأدنى للعربون المطلوب</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="h-11 flex-1 min-w-0 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
+                        disabled={!canEditRefundPolicy}
+                        inputMode="decimal"
+                        onChange={(event) => setMinimumDeposit(event.target.value)}
+                        value={minimumDeposit}
+                      />
+                      <span className="shrink-0 text-sm font-bold text-[var(--sloty-text-muted)]">
+                        ج.م
+                      </span>
+                    </div>
+                    <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
+                      أقل مبلغ مطلوب لتأكيد الحجز.
+                    </span>
+                  </label>
+
+                  <div className="block space-y-2">
+                    <AppSelect
+                      disabled={!canEditRefundPolicy}
+                      label="مهلة دفع العربون"
+                      onChange={(value) => setInternalHoldExpiryHours(value)}
+                      options={holdExpiryOptions}
+                      value={internalHoldExpiryHours}
+                    />
+                    <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
+                      يظل الحجز منتظرًا خلال هذه المدة. إذا لم يتم دفع العربون، يُلغى الحجز تلقائيًا.
+                    </span>
+                  </div>
+
+                  <label className="flex items-start gap-3 text-sm font-semibold md:col-span-2">
+                    <input
+                      checked={requiresDigitalPaymentReference}
+                      className="mt-1"
+                      disabled={!canEditRefundPolicy}
+                      onChange={(event) =>
+                        setRequiresDigitalPaymentReference(event.target.checked)
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      <span className="block">
+                        {settingsCopy.requireDigitalPaymentReference}
+                      </span>
+                      <span className="mt-1 block text-xs font-normal leading-5 text-[var(--sloty-text-muted)]">
+                        {settingsCopy.requireDigitalPaymentReferenceHelper}
+                      </span>
+                    </span>
+                  </label>
                 </div>
-                <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
-                  {refundNoticeDays.trim()
-                    ? `يسترد العميل التأمين عند الإلغاء قبل الموعد بـ ${refundNoticeDays.trim()} أيام`
-                    : 'يسترد العميل التأمين عند الإلغاء قبل الموعد بـ ... أيام'}
-                </span>
-              </label>
-              <div className="block space-y-2">
-                <AppSelect
-                  disabled={!canEditRefundPolicy}
-                  label="مدة انتظار الحجز بدون العربون"
-                  onChange={(value) => setInternalHoldExpiryHours(value)}
-                  options={holdExpiryOptions}
-                  value={internalHoldExpiryHours}
-                />
-                <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
-                  لو العربون متدفعش خلال المدة دي، الحجز هيتلغي تلقائيًا.
-                </span>
-              </div>
-              <label className="flex items-start gap-3 text-sm font-semibold md:col-span-2">
-                <input
-                  checked={requiresDigitalPaymentReference}
-                  className="mt-1"
-                  disabled={!canEditRefundPolicy}
-                  onChange={(event) =>
-                    setRequiresDigitalPaymentReference(event.target.checked)
-                  }
-                  type="checkbox"
-                />
-                <span>
-                  <span className="block">
-                    {settingsCopy.requireDigitalPaymentReference}
-                  </span>
-                  <span className="mt-1 block text-xs font-bold leading-5 text-[var(--sloty-text-muted)]">
-                    {settingsCopy.requireDigitalPaymentReferenceHelper}
-                  </span>
-                </span>
-              </label>
-              <div className="flex items-end md:col-span-2">
+              </section>
+
+              <hr className="border-[var(--sloty-border)]" />
+
+              <section className="space-y-4">
+                <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
+                  الإلغاء واسترداد العربون
+                </h2>
+                <div className="grid items-start gap-x-4 gap-y-4 md:grid-cols-2">
+                  <label className="flex flex-col gap-2 text-sm font-semibold">
+                    <span>مدة السماح باسترداد العربون</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="h-11 flex-1 min-w-0 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
+                        disabled={!canEditRefundPolicy}
+                        inputMode="numeric"
+                        max="30"
+                        min="0"
+                        onChange={(event) => setRefundNoticeDays(event.target.value)}
+                        placeholder="عدد الأيام"
+                        type="number"
+                        value={refundNoticeDays}
+                      />
+                      <span className="shrink-0 text-sm font-bold text-[var(--sloty-text-muted)]">
+                        أيام
+                      </span>
+                    </div>
+                    <input
+                      className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
+                      disabled={!canEditRefundPolicy}
+                      inputMode="numeric"
+                      max="30"
+                      min="0"
+                      onChange={(event) => setRefundNoticeDays(event.target.value)}
+                      placeholder="أيام"
+                      type="number"
+                      value={refundNoticeDays}
+                    />
+                    <span className="block text-xs font-normal text-[var(--sloty-text-muted)]">
+                      {refundNoticeDays.trim()
+                        ? `يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بـ ${refundNoticeDays.trim()} أيام أو أكثر.`
+                        : 'يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بعدد الأيام المحدد.'}
+                    </span>
+                  </label>
+                </div>
+              </section>
+
+              <div className="flex items-end pt-2">
                 <AppButton
                   disabled={!canEditRefundPolicy || isSavingPolicy}
                   type="submit"
                 >
-                  {isSavingPolicy ? 'جاري الحفظ...' : 'حفظ سياسة الحجز'}
+                  {isSavingPolicy ? 'جاري الحفظ...' : 'حفظ إعدادات الحجز'}
                 </AppButton>
               </div>
             </form>

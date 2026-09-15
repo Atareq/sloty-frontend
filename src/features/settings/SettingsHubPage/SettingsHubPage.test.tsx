@@ -81,5 +81,47 @@ describe('SettingsHubPage', () => {
     expect(
       screen.queryByRole('link', { name: 'فتح المستخدمين والصلاحيات' }),
     ).not.toBeInTheDocument()
+    // Account security is available for managers too
+    expect(screen.getByText('الأمان والحساب')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'تغيير كلمة المرور' }),
+    ).toBeInTheDocument()
+  })
+
+  it('renders account security and opens change password sheet', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+
+    render(
+      <MemoryRouter>
+        <SettingsHubPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('الأمان والحساب')).toBeInTheDocument()
+    expect(
+      screen.getByText('غيّر كلمة مرور حسابك للحفاظ على أمانه.'),
+    ).toBeInTheDocument()
+
+    const openButton = screen.getByRole('button', { name: 'تغيير كلمة المرور' })
+    await user.click(openButton)
+
+    expect(screen.getByLabelText('كلمة المرور الحالية')).toBeInTheDocument()
+    expect(screen.getByLabelText('كلمة المرور الجديدة')).toBeInTheDocument()
+    expect(screen.getByLabelText('تأكيد كلمة المرور الجديدة')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'حفظ كلمة المرور' }),
+    ).toBeInTheDocument()
+
+    // Test mismatch validation locally
+    await user.type(screen.getByLabelText('كلمة المرور الحالية'), 'cur123')
+    await user.type(screen.getByLabelText('كلمة المرور الجديدة'), 'new123')
+    await user.type(screen.getByLabelText('تأكيد كلمة المرور الجديدة'), 'diff456')
+    await user.click(screen.getByRole('button', { name: 'حفظ كلمة المرور' }))
+
+    expect(screen.getByText('تأكيد كلمة المرور غير مطابق')).toBeInTheDocument()
+
+    // Close sheet
+    await user.click(screen.getByRole('button', { name: 'إلغاء' }))
+    expect(screen.queryByLabelText('كلمة المرور الحالية')).not.toBeInTheDocument()
   })
 })

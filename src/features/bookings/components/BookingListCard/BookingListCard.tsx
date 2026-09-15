@@ -1,5 +1,6 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import { StatusChip } from '../../../../shared/components/StatusChip/StatusChip'
+import { formatMoneyAmount } from '../../../../shared/utils/money'
 import {
   formatBookingDateTimeRangeWithWeekday,
   getBookingCourtLabel,
@@ -45,12 +46,12 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          <StatusChip status={booking.status} />
           {hasRemainingAmount ? (
-            <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-bold text-amber-800">
-              متبقي
+            <span className="rounded-md border border-[var(--sloty-balance-due-border)] bg-[var(--sloty-balance-due-soft)] px-1.5 py-0.5 text-xs font-bold text-[var(--sloty-balance-due)]">
+              متبقي: {formatMoneyAmount(booking.remaining_amount, { suffix: 'ج.م' })}
             </span>
           ) : null}
-          <StatusChip status={booking.status} />
         </div>
       </div>
 

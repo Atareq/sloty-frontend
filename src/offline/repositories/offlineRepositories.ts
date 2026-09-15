@@ -10,6 +10,7 @@ import type {
   BookingRequestReviewReason,
   CurrentCustodySnapshotKind,
   CurrentCustodySnapshotPayload,
+  CurrentCustodySnapshotRecord,
   OfflineContextInput,
   OfflineContextRecord,
   OfflineScope,
@@ -113,7 +114,6 @@ export type BookingIntentUpdate = Partial<
 export interface CurrentCustodySnapshotInput {
   kind: CurrentCustodySnapshotKind
   collectorId?: number | string | null
-  courtId?: number | string | null
   payload: CurrentCustodySnapshotPayload
 }
 
@@ -123,16 +123,6 @@ export type OfflineSyncDataset =
   | 'transactions'
   | 'current_custody'
 
-function getCurrentCustodyCourtScope(
-  courtId?: number | string | null,
-): string {
-  if (courtId === undefined || courtId === null || courtId === '') {
-    return 'all'
-  }
-
-  return `court:${courtId}`
-}
-
 function getCurrentCustodyCollectorScope(
   collectorId?: number | string | null,
 ): string {
@@ -141,16 +131,6 @@ function getCurrentCustodyCollectorScope(
   }
 
   return `collector:${collectorId}`
-}
-
-function normalizeCourtId(courtId?: number | string | null): number | null {
-  if (courtId === undefined || courtId === null || courtId === '') {
-    return null
-  }
-
-  const numericCourtId = Number(courtId)
-
-  return Number.isSafeInteger(numericCourtId) ? numericCourtId : null
 }
 
 function normalizeCollectorId(
@@ -415,7 +395,7 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       syncedAt: string,
     ): Promise<void> {
       const identity = getScopedRecordIdentity(scope)
-      const record = {
+      const record: CurrentCustodySnapshotRecord = {
         ...identity,
         snapshot_kind: snapshot.kind,
         collector_scope:
@@ -423,8 +403,6 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
             ? 'all'
             : getCurrentCustodyCollectorScope(snapshot.collectorId),
         collector_id: normalizeCollectorId(snapshot.collectorId),
-        court_scope: getCurrentCustodyCourtScope(snapshot.courtId),
-        court_id: normalizeCourtId(snapshot.courtId),
         payload: snapshot.payload,
         synced_at: syncedAt,
       }
@@ -444,7 +422,6 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       scope: OfflineScope,
       kind: CurrentCustodySnapshotKind,
       collectorId?: number | string | null,
-      courtId?: number | string | null,
     ) {
       return db.current_custody_snapshots.get([
         createOfflineScopeKey(scope),
@@ -452,7 +429,6 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
         kind === 'grouped_summary'
           ? 'all'
           : getCurrentCustodyCollectorScope(collectorId),
-        getCurrentCustodyCourtScope(courtId),
       ])
     },
 
@@ -460,7 +436,6 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       scope: OfflineScope,
       kind: CurrentCustodySnapshotKind,
       collectorId?: number | string | null,
-      courtId?: number | string | null,
     ): Promise<void> {
       await db.current_custody_snapshots.delete([
         createOfflineScopeKey(scope),
@@ -468,7 +443,6 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
         kind === 'grouped_summary'
           ? 'all'
           : getCurrentCustodyCollectorScope(collectorId),
-        getCurrentCustodyCourtScope(courtId),
       ])
     },
 
