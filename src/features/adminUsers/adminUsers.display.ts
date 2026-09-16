@@ -1,5 +1,5 @@
 import type { PaginatedResponse } from '../../shared/api/api.types'
-import type { PlatformUser } from './adminUsers.types'
+import type { PlatformUser, PlatformUserRole } from './adminUsers.types'
 
 export function normalizePlatformUsersResponse(
   response: PlatformUser[] | PaginatedResponse<PlatformUser>,
@@ -16,12 +16,14 @@ export function getPlatformUserDisplayName(user: PlatformUser): string {
   return fullName || user.username
 }
 
-export function getPlatformUserAccountTypeLabel(user: PlatformUser): string {
-  if (user.is_platform_admin || user.account_type === 'PLATFORM_ADMIN') {
-    return 'مسؤول منصة'
-  }
-
-  return 'مستخدم نادي'
+/** Returns an Arabic label for the user's profile role. */
+export function getPlatformUserRoleLabel(
+  role: PlatformUserRole | string | null | undefined,
+): string {
+  if (role === 'ADMIN') return 'مسؤول منصة'
+  if (role === 'OWNER') return 'مالك'
+  if (role === 'STAFF') return 'موظف'
+  return role ?? 'غير محدد'
 }
 
 export function getPlatformUserStatusLabel(

@@ -5,17 +5,18 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { formatCourtPrice } from '../courtPricing.helpers'
 import { listCourts } from '../courtsApi'
 import type { Court } from '../courts.types'
 
 export function SettingsCourtsPage() {
-  const { role, selectedClubSlug, selectedMembership } = useAuth()
+  const { role, selectedClubSlug } = useAuth()
   const [courts, setCourts] = useState<Court[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const canOpenSettings =
-    canManagePricing(selectedMembership, role) ||
-    canManageWorkingHours(selectedMembership, role)
+    canManagePricing(role) ||
+    canManageWorkingHours(role)
 
   useEffect(() => {
     let isActive = true
@@ -98,6 +99,7 @@ export function SettingsCourtsPage() {
                 </h2>
                 <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
                   {court.default_price} جنيه
+                  {formatCourtPrice(court)}
                 </p>
                 <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
                   الحد الأدنى للعربون: {court.minimum_deposit} جنيه

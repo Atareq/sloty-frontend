@@ -1,22 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type {
   AuthContextValue,
-  CurrentUserMembership,
   CurrentUserProfile,
 } from '../../core/auth/auth.types'
 import { createOperationalSyncContext } from './operationalSyncContext'
-
-const staffMembership: CurrentUserMembership = {
-  id: 10,
-  role: 'STAFF',
-  club: {
-    id: 1,
-    slug: 'club-a',
-    name: 'Club A',
-    is_active: true,
-  },
-  court: { id: 7, name: 'Court 7' },
-}
 
 const profile: CurrentUserProfile = {
   id: 1,
@@ -26,10 +13,8 @@ const profile: CurrentUserProfile = {
   last_name: 'User',
   phone_number: null,
   is_active: true,
-  is_platform_admin: false,
+  profile_role: 'STAFF',
   account_created_by: null,
-  requires_club_selection: false,
-  memberships: [staffMembership],
 }
 
 function authValue(
@@ -41,7 +26,7 @@ function authValue(
   | 'isLoadingSession'
   | 'role'
   | 'selectedClubSlug'
-  | 'selectedMembership'
+  | 'selectedCourtId'
 > {
   return {
     currentUser: profile,
@@ -49,22 +34,18 @@ function authValue(
     isLoadingSession: false,
     role: 'STAFF',
     selectedClubSlug: 'club-a',
-    selectedMembership: staffMembership,
+    selectedCourtId: 7,
     ...overrides,
   }
 }
 
 describe('createOperationalSyncContext', () => {
-  it('waits for authenticated user, selected Club, and membership readiness', () => {
+  it('waits for authenticated user and selected Club readiness', () => {
     expect(
-      createOperationalSyncContext(
-        authValue({ currentUser: null, selectedMembership: null }),
-      ),
+      createOperationalSyncContext(authValue({ currentUser: null })),
     ).toBeNull()
     expect(
-      createOperationalSyncContext(
-        authValue({ selectedClubSlug: null, selectedMembership: null }),
-      ),
+      createOperationalSyncContext(authValue({ selectedClubSlug: null })),
     ).toBeNull()
     expect(
       createOperationalSyncContext(authValue({ isLoadingSession: true })),
@@ -79,20 +60,25 @@ describe('createOperationalSyncContext', () => {
       clubSlug: 'club-a',
       scopeKey: 'user:1:club:club-a',
       role: 'STAFF',
-      membershipId: 10,
       assignedCourtId: 7,
-      assignedCourtName: 'Court 7',
+      assignedCourtName: null,
     })
   })
 
-  it('does not create an all-platform sync context for Platform Admin without a selected Club membership', () => {
+  it('uses null assignedCourtId when no court is selected', () => {
+    const context = createOperationalSyncContext(
+      authValue({ selectedCourtId: null }),
+    )
+
+    expect(context).not.toBeNull()
+    expect(context?.assignedCourtId).toBeNull()
+  })
+
+  it('does not create a sync context when role is null', () => {
     expect(
       createOperationalSyncContext(
         authValue({
-          currentUser: { ...profile, is_platform_admin: true },
-          role: 'PLATFORM_ADMIN',
-          selectedClubSlug: null,
-          selectedMembership: null,
+          role: null,
         }),
       ),
     ).toBeNull()

@@ -6,7 +6,10 @@ import {
   safelyReadLatestOfflineContextForClub,
   safelyReadOfflineContext,
 } from '../../offline/security/offlineStorageSafety'
-import type { OfflineContextRecord } from '../../offline/offline.types'
+import type {
+  OfflineContextInput,
+  OfflineContextRecord,
+} from '../../offline/offline.types'
 import { getAuthenticatedUserDisplayName } from '../../shared/utils/displayNames'
 import {
   getApiErrorCode,
@@ -27,6 +30,10 @@ import type {
   CurrentUserProfile,
 } from './auth.types'
 import { fetchCurrentUserProfile } from './authApi'
+import { listClubs } from '../../features/clubs/clubsApi'
+import type { Club } from '../../features/clubs/clubs.types'
+import { listCourts } from '../../features/courts/courtsApi'
+import type { Court } from '../../features/courts/courts.types'
 import { AuthContext } from './authContext'
 import {
   clearAuthTokens,
@@ -76,42 +83,16 @@ function createOfflineUserProfile(
     last_name: '',
     phone_number: null,
     is_active: true,
-    /*
-     * Offline operational hydration is Club-scoped. Even when the last
-     * verified user is also a Platform Admin, the offline profile must not
-     * recreate all-platform authority without a live `/me` verification.
-     */
-    is_platform_admin: false,
+    profile_role: context.role,
     account_created_by: null,
-    requires_club_selection: false,
-    memberships: [
-      {
-        id: context.membership_id,
-        role: context.role,
-        club: {
-          id: 0,
-          slug: context.selected_club_slug,
-          name: context.selected_club_slug,
-          is_active: true,
-        },
-        court:
-          context.assigned_court_id === null
-            ? null
-            : {
-                id: context.assigned_court_id,
-                name: context.assigned_court_name ?? 'ملعب محدد',
-              },
-      },
-    ],
   }
 }
 
 /**
- * Provides decoded JWT auth state to the frontend.
+ * Provides authenticated profile and club access context to the frontend.
  *
- * The provider decodes access tokens in one place, hydrates the `/me` profile
- * for display data, and exposes role/navigation state for UI decisions. It
- * does not implement backend permissions.
+ * The provider hydrates the `/me` profile for account identity and `profile_role`,
+ * loads backend-scoped `/clubs/`, and manages court availability for the active club.
  */
 export function AuthProvider({ children }: AuthProviderProps) {
   const offlineContextWriteRef = useRef<Promise<void>>(Promise.resolve())
@@ -119,9 +100,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     getAccessToken(),
   )
   const [currentUser, setCurrentUser] = useState<CurrentUserProfile | null>(null)
+  const [accessibleClubs, setAccessibleClubs] = useState<Club[]>([])
   const [selectedClubSlug, setSelectedClubSlugState] = useState<string | null>(
     () => getSelectedClubSlug(),
   )
+  const [accessibleCourts, setAccessibleCourts] = useState<Court[]>([])
+  const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null)
+  const [offlineRole, setOfflineRole] = useState<AuthRole | null>(null)
   const [isLoadingSession, setIsLoadingSession] = useState(hasHydratableSession)
   const [hasRefreshToken, setHasRefreshToken] = useState(() =>
     Boolean(getRefreshToken()),
@@ -134,24 +119,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     accessToken && claims && (!isTokenExpired || hasRefreshToken),
   )
   const isAuthenticated = isOnlineAuthenticated || isOfflineOperational
-  const selectedMembership = useMemo(() => {
-    if (!currentUser || !selectedClubSlug) {
-      return null
-    }
 
-    return (
-      currentUser.memberships.find(
-        (membership) => membership.club.slug === selectedClubSlug,
-      ) ?? null
-    )
-  }, [currentUser, selectedClubSlug])
   const role: AuthRole | null = useMemo(() => {
-    if (currentUser?.is_platform_admin) {
-      return 'PLATFORM_ADMIN'
-    }
-
-    return selectedMembership?.role ?? claims?.role ?? null
-  }, [claims, currentUser, selectedMembership])
+    return currentUser?.profile_role ?? offlineRole ?? null
+  }, [currentUser, offlineRole])
 
   const clearSession = useCallback((): void => {
     clearAuthTokens()
@@ -159,6 +130,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAccessTokenState(null)
     setHasRefreshToken(false)
     setCurrentUser(null)
+    setAccessibleClubs([])
+    setAccessibleCourts([])
+    setSelectedCourtId(null)
+    setOfflineRole(null)
     setSelectedClubSlugState(null)
     setSessionError(null)
     setIsOfflineOperational(false)
@@ -170,6 +145,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAccessTokenState(null)
     setHasRefreshToken(false)
     setCurrentUser(null)
+    setOfflineRole(null)
     setSessionError(null)
     setIsOfflineOperational(false)
     setIsLoadingSession(false)
@@ -179,6 +155,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     (context: OfflineContextRecord): void => {
       saveSelectedClubSlug(context.selected_club_slug)
       setSelectedClubSlugState(context.selected_club_slug)
+      setOfflineRole(context.role)
+      setAccessibleClubs(context.accessible_clubs ?? [])
+      setAccessibleCourts(context.accessible_courts ?? [])
+      setSelectedCourtId(context.selected_court_id ?? null)
       setCurrentUser(createOfflineUserProfile(context))
       setSessionError(null)
       setIsOfflineOperational(true)
@@ -224,6 +204,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setRefreshToken(tokens.refreshToken)
     setHasRefreshToken(Boolean(tokens.refreshToken))
     setCurrentUser(null)
+    setOfflineRole(null)
     setSessionError(null)
     setIsOfflineOperational(false)
     setIsLoadingSession(true)
@@ -233,12 +214,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const clearSelectedClub = useCallback((): void => {
     clearSelectedClubSlug()
     setSelectedClubSlugState(null)
+    setSelectedCourtId(null)
+    setAccessibleCourts([])
   }, [])
 
   const selectClub = useCallback((slug: string): void => {
     saveSelectedClubSlug(slug)
     setSelectedClubSlugState(slug)
+    setSelectedCourtId(null)
     setIsOfflineOperational(false)
+  }, [])
+
+  const selectCourt = useCallback((id: number | null): void => {
+    setSelectedCourtId(id)
   }, [])
 
   const refreshCurrentUser = useCallback(async (): Promise<void> => {
@@ -264,7 +252,61 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setCurrentUser(profile)
+      setOfflineRole(null)
       setIsOfflineOperational(false)
+
+      let clubs: Club[] = []
+      try {
+        const clubsResponse = await listClubs()
+        clubs = Array.isArray(clubsResponse)
+          ? clubsResponse
+          : (clubsResponse.results ?? [])
+        setAccessibleClubs(clubs)
+      } catch {
+        // Continue with profile if club list fails
+      }
+
+      let activeSlug = selectedClubSlug
+      if (profile.profile_role === 'ADMIN') {
+        // Platform admin can operate without a club
+      } else if (clubs.length === 0) {
+        activeSlug = null
+        clearSelectedClub()
+      } else if (clubs.length === 1) {
+        activeSlug = clubs[0].slug
+        selectClub(clubs[0].slug)
+      } else {
+        const hasValidClub = clubs.some((c) => c.slug === selectedClubSlug)
+        if (!hasValidClub) {
+          activeSlug = null
+          clearSelectedClub()
+        }
+      }
+
+      if (activeSlug) {
+        try {
+          const courtsResponse = await listCourts(activeSlug)
+          const courts = Array.isArray(courtsResponse)
+            ? courtsResponse
+            : (courtsResponse.results ?? [])
+          setAccessibleCourts(courts)
+
+          if (courts.length === 1) {
+            setSelectedCourtId(courts[0].id)
+          } else if (courts.length > 1) {
+            setSelectedCourtId((prev) => {
+              if (prev && courts.some((c) => c.id === prev)) {
+                return prev
+              }
+              return courts[0].id
+            })
+          } else {
+            setSelectedCourtId(null)
+          }
+        } catch {
+          // Continue if court list fails
+        }
+      }
     } catch (error) {
       if (!getAccessToken()) {
         return
@@ -335,62 +377,69 @@ export function AuthProvider({ children }: AuthProviderProps) {
     hydrateLatestOfflineContextForSelectedClub,
     hydrateOfflineContextForScope,
     isOfflineOperational,
+    selectClub,
     selectedClubSlug,
   ])
 
+  // When selectedClubSlug changes online, refresh courts
   useEffect(() => {
-    if (!currentUser || currentUser.is_platform_admin) {
+    if (!selectedClubSlug || isOfflineOperational || !currentUser) {
       return
     }
 
-    const memberships = currentUser.memberships
+    let isMounted = true
 
-    if (memberships.length === 0) {
-      queueMicrotask(() => {
-        clearSelectedClub()
-      })
-      return
-    }
-
-    if (memberships.length === 1) {
-      const [membership] = memberships
-      if (selectedClubSlug !== membership.club.slug) {
-        queueMicrotask(() => {
-          selectClub(membership.club.slug)
-        })
-      }
-      return
-    }
-
-    const hasSelectedMembership = memberships.some(
-      (membership) => membership.club.slug === selectedClubSlug,
+    void listCourts(selectedClubSlug).then(
+      (courtsResponse) => {
+        if (!isMounted) {
+          return
+        }
+        const courts = Array.isArray(courtsResponse)
+          ? courtsResponse
+          : (courtsResponse.results ?? [])
+        setAccessibleCourts(courts)
+        if (courts.length === 1) {
+          setSelectedCourtId(courts[0].id)
+        } else if (courts.length > 1) {
+          setSelectedCourtId((prev) => {
+            if (prev && courts.some((c) => c.id === prev)) {
+              return prev
+            }
+            return courts[0].id
+          })
+        } else {
+          setSelectedCourtId(null)
+        }
+      },
+      () => {},
     )
 
-    if (selectedClubSlug && !hasSelectedMembership) {
-      queueMicrotask(() => {
-        clearSelectedClub()
-      })
+    return () => {
+      isMounted = false
     }
-  }, [clearSelectedClub, currentUser, selectClub, selectedClubSlug])
+  }, [currentUser, isOfflineOperational, selectedClubSlug])
 
   useEffect(() => {
     if (
       !currentUser ||
-      !selectedMembership ||
       !selectedClubSlug ||
+      !role ||
       isOfflineOperational
     ) {
       return
     }
 
-    const contextInput = {
+    const contextInput: OfflineContextInput = {
       scope: {
         userId: currentUser.id,
         clubSlug: selectedClubSlug,
       },
       displayName: getAuthenticatedUserDisplayName(currentUser, claims?.name),
-      isPlatformAdmin: currentUser.is_platform_admin,
-      membership: selectedMembership,
+      role,
+      selectedClubSlug,
+      accessibleClubs,
+      accessibleCourts,
+      selectedCourtId,
       lastVerifiedAt: new Date().toISOString(),
     }
 
@@ -402,11 +451,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       },
     )
   }, [
+    accessibleClubs,
+    accessibleCourts,
     claims?.name,
     currentUser,
     isOfflineOperational,
+    role,
     selectedClubSlug,
-    selectedMembership,
+    selectedCourtId,
   ])
 
   useEffect(() => {
@@ -497,7 +549,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       claims,
       currentUser,
       selectedClubSlug,
-      selectedMembership,
+      accessibleClubs,
+      selectedCourtId,
+      accessibleCourts,
       role,
       isAuthenticated,
       isLoadingSession,
@@ -507,11 +561,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logout,
       selectClub,
       clearSelectedClub,
+      selectCourt,
       refreshCurrentUser,
       setTokens,
     }),
     [
       accessToken,
+      accessibleClubs,
+      accessibleCourts,
       claims,
       clearSelectedClub,
       currentUser,
@@ -523,8 +580,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       refreshCurrentUser,
       role,
       selectClub,
+      selectCourt,
       selectedClubSlug,
-      selectedMembership,
+      selectedCourtId,
       sessionError,
       setTokens,
     ],

@@ -6,6 +6,7 @@ import { fetchCurrentUserProfile } from './authApi'
 import { ApiClientError } from '../api/apiClient'
 import { clearAuthTokens, getAccessToken, setAccessToken } from './authStorage'
 import { createDevAccessToken } from './devAuth'
+import type { CurrentUserProfile } from './auth.types'
 import { ProtectedRoute } from './ProtectedRoute'
 
 vi.mock('./authApi', () => ({
@@ -14,7 +15,7 @@ vi.mock('./authApi', () => ({
 
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 
-const currentUserProfile = {
+const currentUserProfile: CurrentUserProfile = {
   id: 1,
   username: 'staff-user',
   email: 'staff@example.com',
@@ -22,22 +23,8 @@ const currentUserProfile = {
   last_name: 'علي',
   phone_number: null,
   is_active: true,
-  is_platform_admin: false,
+  profile_role: 'STAFF',
   account_created_by: null,
-  requires_club_selection: false,
-  memberships: [
-    {
-      id: 10,
-      role: 'STAFF' as const,
-      club: {
-        id: 1,
-        slug: 'demo-football-club',
-        name: 'Demo Football Club',
-        is_active: true,
-      },
-      court: { id: 3, name: 'Court 1' },
-    },
-  ],
 }
 
 function renderProtectedRoute() {

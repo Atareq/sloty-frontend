@@ -52,11 +52,9 @@ export function createCurrentCustodySyncTask(
       throwIfAborted(signal)
 
       const canManageCurrentCustody = canManageSettlements(
-        operationalContext.membership,
         operationalContext.role,
       )
       const canViewOwnCurrentCustody = canViewOwnSettlements(
-        operationalContext.membership,
         operationalContext.role,
       )
 

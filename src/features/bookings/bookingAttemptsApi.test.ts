@@ -18,7 +18,7 @@ describe('bookingAttemptsApi', () => {
     vi.clearAllMocks()
   })
 
-  it('lists booking attempts through the shared endpoint registry', async () => {
+  it('lists booking attempts through the shared endpoint registry with supported filters', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,
       next: null,
@@ -28,16 +28,32 @@ describe('bookingAttemptsApi', () => {
 
     await listBookingAttempts('nasr-club', {
       court: 3,
-      failure_code: 'BOOKING_SLOT_UNAVAILABLE',
       outcome: 'REJECTED',
       status: 'REJECTED',
+      requested_source: 'SCHEDULE_QUICK_FORM',
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.bookingAttempts.list(
         'nasr-club',
-      )}?court=3&failure_code=BOOKING_SLOT_UNAVAILABLE&outcome=REJECTED&status=REJECTED`,
+      )}?court=3&outcome=REJECTED&requested_source=SCHEDULE_QUICK_FORM&status=REJECTED`,
     )
+  })
+
+  it('never sends failure_code as a query parameter', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listBookingAttempts('nasr-club', {
+      court: 3,
+    })
+
+    const calledUrl = mockedApiRequest.mock.calls[0][0] as string
+    expect(calledUrl).not.toContain('failure_code')
   })
 
   it('passes an abort signal for booking attempt reads', async () => {
@@ -50,9 +66,11 @@ describe('bookingAttemptsApi', () => {
       results: [],
     })
 
-    await listBookingAttempts('nasr-club', { page: 2 }, {
-      signal: controller.signal,
-    })
+    await listBookingAttempts(
+      'nasr-club',
+      { page: 2 },
+      { signal: controller.signal },
+    )
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.bookingAttempts.list('nasr-club')}?page=2`,
@@ -60,11 +78,32 @@ describe('bookingAttemptsApi', () => {
     )
   })
 
-  it('reads and dismisses one booking attempt by id', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 7 })
-    mockedApiRequest.mockResolvedValueOnce({ id: 7, status: 'DISMISSED' })
+  it('reads booking attempt preserving failure_code on response record and dismisses by id', async () => {
+    const mockAttempt = {
+      id: 7,
+      club: 1,
+      court: 3,
+      customer_name: 'أحمد',
+      customer_phone: '+201000000001',
+      requested_start: '2026-08-30T18:00:00+03:00',
+      requested_end: '2026-08-30T19:00:00+03:00',
+      requested_recurring: false,
+      outcome: 'REJECTED' as const,
+      resolution: 'UNRESOLVED' as const,
+      status: 'REJECTED' as const,
+      failure_code: 'BOOKING_SLOT_UNAVAILABLE',
+      failure_details: { reason: 'slot conflict' },
+      created: '2026-08-30T10:00:00Z',
+      modified: '2026-08-30T10:00:00Z',
+    }
 
-    await getBookingAttempt('nasr-club', 7)
+    mockedApiRequest.mockResolvedValueOnce(mockAttempt)
+    mockedApiRequest.mockResolvedValueOnce({ ...mockAttempt, status: 'DISMISSED' })
+
+    const result = await getBookingAttempt('nasr-club', 7)
+    expect(result.failure_code).toBe('BOOKING_SLOT_UNAVAILABLE')
+    expect(result.failure_details).toEqual({ reason: 'slot conflict' })
+
     await dismissBookingAttempt('nasr-club', 7)
 
     expect(mockedApiRequest).toHaveBeenNthCalledWith(

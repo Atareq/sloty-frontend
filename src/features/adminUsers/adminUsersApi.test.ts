@@ -28,14 +28,13 @@ describe('adminUsersApi', () => {
 
     await listPlatformUsers({
       search: '  ahmed  ',
-      account_type: 'CLUB_USER',
       club: 3,
       role: 'STAFF',
       is_active: false,
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.users.list}?search=ahmed&account_type=CLUB_USER&club=3&role=STAFF&is_active=false`,
+      `${apiEndpoints.users.list}?search=ahmed&club=3&role=STAFF&is_active=false`,
     )
   })
 
@@ -49,7 +48,7 @@ describe('adminUsersApi', () => {
     )
   })
 
-  it('creates platform admin accounts through POST /users/', async () => {
+  it('creates platform admin accounts through POST /users/ with is_platform_admin=true', async () => {
     mockedApiRequest.mockResolvedValueOnce({ id: 6 })
 
     await createPlatformAdmin({
@@ -71,6 +70,7 @@ describe('adminUsersApi', () => {
         email: undefined,
         phone_number: '+201000000001',
         is_active: undefined,
+        is_platform_admin: true,
       },
     })
   })

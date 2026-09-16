@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthRole } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
@@ -47,7 +48,7 @@ function renderReportsPage(initialEntry = '/reports') {
 }
 
 function mockAuth(
-  role: 'OWNER' | 'MANAGER' | 'STAFF' = 'OWNER',
+  role: AuthRole = 'OWNER',
   selectedClubSlug: string | null = 'nasr-club',
 ) {
   mockedUseAuth.mockReturnValue({
@@ -55,20 +56,10 @@ function mockAuth(
     claims: { user_id: 1 },
     currentUser: null,
     selectedClubSlug,
-    selectedMembership: selectedClubSlug
-      ? {
-          id: 10,
-          role,
-          club: {
-            id: 1,
-            name: 'نادي النصر',
-            slug: selectedClubSlug,
-            city: 'ASSIUT',
-            is_active: true,
-          },
-          court: null,
-        }
-      : null,
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
     isLoadingSession: false,
@@ -236,12 +227,12 @@ describe('ReportsPage', () => {
       results: [
         {
           id: 5,
-          membership_id: 50,
-          username: 'manager-user',
+          username: 'staff-user',
           first_name: 'محمود',
           last_name: 'حسن',
           phone_number: '01000000000',
-          role: 'MANAGER',
+          role: 'STAFF',
+          is_active: true,
         },
       ],
     })
@@ -270,8 +261,8 @@ describe('ReportsPage', () => {
     expect(mockedGetCourtUsageReport).not.toHaveBeenCalled()
   })
 
-  it('allows managers to access the court usage reports page', async () => {
-    mockAuth('MANAGER')
+  it('allows platform admins to access the court usage reports page', async () => {
+    mockAuth('ADMIN')
 
     renderReportsPage()
 
@@ -282,7 +273,7 @@ describe('ReportsPage', () => {
   })
 
   it('allows report loading when staff filter options fail', async () => {
-    mockAuth('MANAGER')
+    mockAuth('OWNER')
     mockedListCourts.mockResolvedValueOnce({
       count: 1,
       next: null,

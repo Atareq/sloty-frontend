@@ -4,7 +4,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import {
   canViewOwnSettlements,
   type AuthRole,
-  type CurrentUserMembership,
 } from '../../core/auth/auth.types'
 import { useAuth } from '../../core/auth/useAuth'
 import { LogoutConfirmationSheet } from '../../features/auth/LogoutConfirmationSheet/LogoutConfirmationSheet'
@@ -50,11 +49,10 @@ function isNavigationItemActive(pathname: string, itemPath: string): boolean {
 
 function canShowNavigationItem(
   item: NavigationItem,
-  selectedMembership: CurrentUserMembership | null,
   role: AuthRole | null,
 ): boolean {
   if (item.path === '/settlements') {
-    return canViewOwnSettlements(selectedMembership, role)
+    return canViewOwnSettlements(role)
   }
 
   return true
@@ -133,12 +131,15 @@ function OfflineFreshnessNotice() {
  */
 export function AppShell() {
   const {
+    accessibleClubs,
+    accessibleCourts,
     claims,
     clearSelectedClub,
     currentUser,
     logout,
     role,
-    selectedMembership,
+    selectedClubSlug,
+    selectedCourtId,
   } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -153,7 +154,6 @@ export function AppShell() {
   const pageHeaderMeta = getPageHeaderMeta(
     location.pathname,
     role,
-    selectedMembership,
   )
   const shouldUseDesktopNav = viewMode === 'desktop'
   const shouldShowMobileMenu = !shouldUseDesktopNav
@@ -163,36 +163,32 @@ export function AppShell() {
         ? getNavigationItemsForRole(
             role,
             { primaryOnly: true },
-            selectedMembership,
           ).filter((item) =>
-            canShowNavigationItem(item, selectedMembership, role),
+            canShowNavigationItem(item, role),
           )
         : [],
-    [role, selectedMembership],
+    [role],
   )
   const displayName = getAuthenticatedUserDisplayName(
     currentUser,
     claims?.name,
   )
-  const selectedClubName = selectedMembership?.club.name ?? null
-  const selectedCourtName = selectedMembership?.court?.name ?? null
-  const roleLabel = selectedMembership
-    ? roleCopy[selectedMembership.role]
-    : role
-      ? roleCopy[role]
-      : null
+  const selectedClub = accessibleClubs?.find((c) => c.slug === selectedClubSlug)
+  const selectedClubName = selectedClub?.name ?? null
+  const selectedCourt = accessibleCourts?.find((c) => c.id === selectedCourtId)
+  const selectedCourtName = selectedCourt?.name ?? null
+  const roleLabel = role ? roleCopy[role] : null
   const identityContext =
-    selectedMembership?.role === 'STAFF' && selectedCourtName
+    role === 'STAFF' && selectedCourtName
       ? selectedCourtName
       : selectedClubName
-  const canChangeClub = (currentUser?.memberships.length ?? 0) > 1
+  const canChangeClub = (accessibleClubs?.length ?? 0) > 1
   const flashMessage = getFlashMessage(location.state)
   const isDrawerAllowed = shouldShowMobileMenu
   const isBookingRoute = ['/dashboard', '/bookings'].includes(
     location.pathname,
   )
-  const canCreateBooking =
-    role === 'OWNER' || role === 'MANAGER' || role === 'STAFF'
+  const canCreateBooking = role === 'OWNER' || role === 'STAFF'
   const shouldShowBookingFab =
     isBookingRoute &&
     canCreateBooking &&
@@ -209,10 +205,7 @@ export function AppShell() {
   const isHomeRoute = location.pathname === appRoutes.home
   const shouldShowHomeButton =
     !isHomeRoute &&
-    (role === 'OWNER' ||
-      role === 'MANAGER' ||
-      role === 'STAFF' ||
-      role === 'PLATFORM_ADMIN')
+    (role === 'OWNER' || role === 'STAFF' || role === 'ADMIN')
   const requestCloseMenu = useAppOverlayRegistration(isMenuOpen, () => {
     setIsMenuOpen(false)
   })

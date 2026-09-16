@@ -1,4 +1,8 @@
 import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router'
+import { getApiErrorMessage } from '../../../../core/api/apiError.helpers'
+import { changePassword } from '../../../../core/auth/authApi'
+import { useAuth } from '../../../../core/auth/useAuth'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { PasswordField } from '../../../../shared/components/PasswordField/PasswordField'
@@ -11,22 +15,23 @@ export interface ChangePasswordSheetProps {
 
 /**
  * Change password modal for the authenticated user at account-level settings.
- *
- * NOTE: Backend currently lacks an authenticated change-password endpoint
- * (BE-REQ-AUTHENTICATED-CHANGE-PASSWORD). Submission is safely blocked without
- * faking endpoints or simulating success.
+ * On 204 success, clears tokens and redirects to /login.
  */
 export function ChangePasswordSheet({
   isOpen,
   onClose,
 }: ChangePasswordSheetProps) {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null)
   const [newPasswordError, setNewPasswordError] = useState<string | null>(null)
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null)
-  const [blockedNotice, setBlockedNotice] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [successNotice, setSuccessNotice] = useState<string | null>(null)
 
   function handleClose(): void {
     setCurrentPassword('')
@@ -35,13 +40,15 @@ export function ChangePasswordSheet({
     setCurrentPasswordError(null)
     setNewPasswordError(null)
     setConfirmPasswordError(null)
-    setBlockedNotice(null)
+    setError(null)
+    setSuccessNotice(null)
     onClose()
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-    setBlockedNotice(null)
+    setError(null)
+    setSuccessNotice(null)
 
     let hasError = false
 
@@ -73,10 +80,25 @@ export function ChangePasswordSheet({
       return
     }
 
-    // Backend endpoint does not exist. Do not fake success or invent endpoints.
-    setBlockedNotice(
-      'تغيير كلمة المرور غير متاح حاليًا بانتظار دعم الخادم (BE-REQ-AUTHENTICATED-CHANGE-PASSWORD).',
-    )
+    setIsLoading(true)
+    try {
+      await changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: confirmPassword,
+      })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setSuccessNotice('تم تغيير كلمة المرور بنجاح')
+      handleClose()
+      await logout()
+      navigate('/login', { replace: true })
+    } catch (caught) {
+      setError(getApiErrorMessage(caught, 'تعذر تغيير كلمة المرور. حاول مرة أخرى.'))
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -98,10 +120,6 @@ export function ChangePasswordSheet({
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             غيّر كلمة مرور حسابك للحفاظ على أمانه.
           </p>
-        </div>
-
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
-          ميزة تغيير كلمة المرور تتطلب دعم الخادم (BE-REQ-AUTHENTICATED-CHANGE-PASSWORD).
         </div>
 
         <div className="space-y-4">
@@ -151,22 +169,29 @@ export function ChangePasswordSheet({
           />
         </div>
 
-        {blockedNotice ? (
+        {error ? (
           <p className="rounded-xl bg-[var(--sloty-danger-soft)] p-3 text-xs font-bold text-[var(--sloty-danger)]">
-            {blockedNotice}
+            {error}
+          </p>
+        ) : null}
+
+        {successNotice ? (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
+            {successNotice}
           </p>
         ) : null}
 
         <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
           <AppButton
+            disabled={isLoading}
             onClick={handleClose}
             type="button"
             variant="secondary"
           >
             إلغاء
           </AppButton>
-          <AppButton type="submit">
-            حفظ كلمة المرور
+          <AppButton disabled={isLoading} type="submit">
+            {isLoading ? 'جاري الحفظ...' : 'حفظ كلمة المرور'}
           </AppButton>
         </div>
       </form>

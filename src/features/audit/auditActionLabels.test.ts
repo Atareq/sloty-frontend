@@ -19,9 +19,12 @@ describe('audit action labels', () => {
     expect(getAuditActionLabel('NEW_BACKEND_ACTION')).toBe(
       'New Backend Action',
     )
+    expect(getAuditActionLabel('HISTORICAL_UNKNOWN_EVENT')).toBe(
+      'Historical Unknown Event',
+    )
   })
 
-  it('exposes an all-actions option plus known action options', () => {
+  it('exposes an all-actions option plus known schema action options', () => {
     expect(auditActionOptions[0]).toEqual({
       value: '',
       label: 'كل الإجراءات',
@@ -29,11 +32,20 @@ describe('audit action labels', () => {
     expect(auditActionOptions).toEqual(
       expect.arrayContaining([
         { value: 'BOOKING_CREATED', label: 'إنشاء حجز' },
-        {
-          value: 'RECURRING_AGREEMENT_AUTO_TERMINATED',
-          label: 'إنهاء الحجز الأسبوعي تلقائيًا',
-        },
+        { value: 'BOOKING_CANCELLED', label: 'إلغاء حجز' },
+        { value: 'TRANSACTION_CREATED', label: 'تسجيل معاملة مالية' },
+        { value: 'SETTLEMENT_CREATED', label: 'إنشاء تسوية' },
+        { value: 'MEMBERSHIP_DELETED', label: 'حذف عضوية' },
       ]),
     )
+  })
+
+  it('does not include obsolete recurring actions in filter options', () => {
+    const actionValues = auditActionOptions.map((opt) => opt.value)
+    expect(actionValues).not.toContain('RECURRING_AGREEMENT_CREATED')
+    expect(actionValues).not.toContain('RECURRING_AGREEMENT_CANCELLED')
+    expect(actionValues).not.toContain('RECURRING_AGREEMENT_AUTO_TERMINATED')
+    expect(actionValues).not.toContain('RECURRING_OCCURRENCE_GENERATED')
+    expect(actionValues).not.toContain('RECURRING_GENERATION_FAILED')
   })
 })

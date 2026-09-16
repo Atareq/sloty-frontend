@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import { fetchCurrentUserProfile } from './authApi'
+import { changePassword, fetchCurrentUserProfile } from './authApi'
 
 vi.mock('../api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -19,10 +19,8 @@ describe('authApi', () => {
       last_name: 'علي',
       phone_number: null,
       is_active: true,
-      is_platform_admin: false,
+      profile_role: 'STAFF',
       account_created_by: { id: 7, name: 'مالك النادي' },
-      requires_club_selection: false,
-      memberships: [],
     })
 
     await fetchCurrentUserProfile()
@@ -39,14 +37,29 @@ describe('authApi', () => {
       last_name: 'علي',
       phone_number: null,
       is_active: true,
-      is_platform_admin: false,
+      profile_role: 'OWNER',
       account_created_by: null,
-      requires_club_selection: false,
-      memberships: [],
     })
 
     await fetchCurrentUserProfile()
 
     expect(mockedApiRequest).toHaveBeenCalledWith(apiEndpoints.auth.me)
+  })
+
+  it('calls passwordChange endpoint with correct payload', async () => {
+    mockedApiRequest.mockResolvedValueOnce(undefined)
+
+    const payload = {
+      current_password: 'old-password',
+      new_password: 'new-password-123',
+      new_password_confirmation: 'new-password-123',
+    }
+
+    await changePassword(payload)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(apiEndpoints.auth.passwordChange, {
+      method: 'POST',
+      body: payload,
+    })
   })
 })

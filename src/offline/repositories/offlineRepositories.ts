@@ -595,12 +595,11 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
       const record: OfflineContextRecord = {
         ...getScopedRecordIdentity(input.scope),
         display_name: input.displayName,
-        is_platform_admin: input.isPlatformAdmin,
-        selected_club_slug: input.scope.clubSlug.trim(),
-        membership_id: input.membership.id,
-        role: input.membership.role,
-        assigned_court_id: input.membership.court?.id ?? null,
-        assigned_court_name: input.membership.court?.name ?? null,
+        role: input.role,
+        selected_club_slug: input.selectedClubSlug.trim(),
+        accessible_clubs: input.accessibleClubs,
+        accessible_courts: input.accessibleCourts,
+        selected_court_id: input.selectedCourtId,
         last_verified_at: input.lastVerifiedAt,
         schema_version: OFFLINE_SCHEMA_VERSION,
       }

@@ -10,9 +10,9 @@ export interface BookingAttemptQueryParams {
   date?: string
   date_from?: string
   date_to?: string
-  failure_code?: string
   outcome?: BookingAttemptOutcome | ''
   page?: number | string
+  requested_source?: string
   resolution?: BookingAttemptResolution | ''
   status?: BookingAttemptStatus | ''
 }

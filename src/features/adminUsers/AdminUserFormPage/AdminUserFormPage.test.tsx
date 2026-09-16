@@ -4,14 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
-import { chooseAppSelectOption } from '../../../test/appSelectTestUtils'
-import { createClubMembership } from '../../clubUsers/clubUsersApi'
-import { listClubs } from '../../clubs/clubsApi'
-import { listCourts } from '../../courts/courtsApi'
-import {
-  createPlatformAdmin,
-  listPlatformUsers,
-} from '../adminUsersApi'
+import { settingsCopy } from '../../../shared/copy/appCopy'
+import { createPlatformAdmin } from '../adminUsersApi'
 import { AdminUserFormPage } from './AdminUserFormPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -20,27 +14,10 @@ vi.mock('../../../core/auth/useAuth', () => ({
 
 vi.mock('../adminUsersApi', () => ({
   createPlatformAdmin: vi.fn(),
-  listPlatformUsers: vi.fn(),
-}))
-
-vi.mock('../../clubUsers/clubUsersApi', () => ({
-  createClubMembership: vi.fn(),
-}))
-
-vi.mock('../../clubs/clubsApi', () => ({
-  listClubs: vi.fn(),
-}))
-
-vi.mock('../../courts/courtsApi', () => ({
-  listCourts: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedCreatePlatformAdmin = vi.mocked(createPlatformAdmin)
-const mockedListPlatformUsers = vi.mocked(listPlatformUsers)
-const mockedCreateClubMembership = vi.mocked(createClubMembership)
-const mockedListClubs = vi.mocked(listClubs)
-const mockedListCourts = vi.mocked(listCourts)
 
 function renderPage() {
   render(
@@ -59,11 +36,13 @@ describe('AdminUserFormPage', () => {
     vi.clearAllMocks()
     mockedUseAuth.mockReturnValue({
       accessToken: 'token',
-      claims: { user_id: 1, role: 'PLATFORM_ADMIN' },
+      claims: { user_id: 1, role: 'ADMIN' },
       currentUser: null,
       selectedClubSlug: null,
-      selectedMembership: null,
-      role: 'PLATFORM_ADMIN',
+      selectedCourtId: null,
+      accessibleClubs: [],
+      accessibleCourts: [],
+      role: 'ADMIN',
       isAuthenticated: true,
       isLoadingSession: false,
       isTokenExpired: false,
@@ -72,200 +51,87 @@ describe('AdminUserFormPage', () => {
       logout: vi.fn(),
       selectClub: vi.fn(),
       clearSelectedClub: vi.fn(),
+      selectCourt: vi.fn(),
       refreshCurrentUser: vi.fn(),
       setTokens: vi.fn(),
-    })
-    mockedListClubs.mockResolvedValue({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [
-        {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-      ],
-    })
-    mockedListCourts.mockResolvedValue({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [
-        {
-          id: 7,
-          club: 1,
-          name: 'ملعب 1',
-          sport_type: 'FOOTBALL',
-          default_price: '300.00',
-          minimum_deposit: '100.00',
-          cancellation_refund_notice_days: 3,
-          slot_duration_minutes: 60,
-          is_active: true,
-          requires_digital_payment_reference: false,
-          internal_hold_expiry_hours: 2,
-        },
-      ],
     })
     mockedCreatePlatformAdmin.mockResolvedValue({
       id: 10,
       username: 'admin',
+      first_name: 'منى',
+      last_name: 'مسؤول',
+      email: 'admin@example.com',
+      phone_number: null,
+      is_active: true,
+      profile_role: 'ADMIN',
     })
-    mockedListPlatformUsers.mockResolvedValue([
-      {
-        id: 20,
-        username: 'existing-user',
-        first_name: 'أحمد',
-        last_name: 'موجود',
-        phone_number: '+201000000020',
-      },
-    ])
-    mockedCreateClubMembership.mockResolvedValue({
-      id: 11,
-      membership_id: 111,
-      username: 'owner',
-      first_name: 'مالك',
-      last_name: '',
-      role: 'OWNER',
-      user_summary: {
-        id: 20,
-        username: 'existing-user',
-      },
-    } as never)
   })
 
-  it('shows platform admin account fields without club membership fields by default', async () => {
+  it('renders platform admin account fields without membership fields', async () => {
     renderPage()
 
-    expect(await screen.findByLabelText('نوع المستخدم')).toHaveValue(
-      'PLATFORM_ADMIN',
-    )
     expect(screen.getByLabelText('الاسم الأول')).toBeInTheDocument()
+    expect(screen.getByLabelText('اسم العائلة')).toBeInTheDocument()
     expect(screen.getByLabelText('اسم المستخدم')).toBeInTheDocument()
+    expect(screen.getByLabelText('البريد الإلكتروني')).toBeInTheDocument()
+    expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
+    expect(screen.getByLabelText('تأكيد كلمة المرور')).toBeInTheDocument()
+
     expect(screen.queryByLabelText('النادي')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('الدور')).not.toBeInTheDocument()
-    expect(screen.queryByText('صلاحيات المدير')).not.toBeInTheDocument()
   })
 
-  it('allows platform admins to choose owner memberships for club users', async () => {
+  it('creates platform admin user and navigates to detail', async () => {
     const testUser = userEvent.setup()
 
     renderPage()
 
-    await chooseAppSelectOption(
-      testUser,
-      await screen.findByLabelText('نوع المستخدم'),
-      'مستخدم نادي',
-    )
-
-    expect(await screen.findByLabelText('النادي')).toBeInTheDocument()
-    await testUser.click(screen.getByLabelText('الدور'))
-    expect(await screen.findByRole('option', { name: 'مالك' }))
-      .toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'مدير' })).not.toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'موظف' })).toBeInTheDocument()
-    expect(screen.getByText('ربط مستخدم موجود')).toBeInTheDocument()
-    expect(screen.queryByLabelText(/user_id/i)).not.toBeInTheDocument()
-  })
-
-  it('requires a court before creating staff membership', async () => {
-    const testUser = userEvent.setup()
-
-    renderPage()
-
-    await chooseAppSelectOption(
-      testUser,
-      await screen.findByLabelText('نوع المستخدم'),
-      'مستخدم نادي',
-    )
-    await testUser.type(screen.getByLabelText('الاسم الأول'), 'سامي')
-    await testUser.type(screen.getByLabelText('اسم المستخدم'), 'staff-user')
+    await testUser.type(screen.getByLabelText('الاسم الأول'), 'منى')
+    await testUser.type(screen.getByLabelText('اسم المستخدم'), 'admin')
     await testUser.type(screen.getByLabelText('كلمة المرور'), 'secret123')
     await testUser.type(screen.getByLabelText('تأكيد كلمة المرور'), 'secret123')
-    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
-    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'موظف')
-    await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
-
-    expect(await screen.findByText('اختر ملعبًا للموظف')).toBeInTheDocument()
-    expect(mockedCreateClubMembership).not.toHaveBeenCalled()
-
-    await waitFor(() => expect(mockedListCourts).toHaveBeenCalledWith('nasr-club'))
-  })
-
-  it('links an existing user as owner without court or manager permission fields', async () => {
-    const testUser = userEvent.setup()
-
-    renderPage()
-
-    await chooseAppSelectOption(
-      testUser,
-      await screen.findByLabelText('نوع المستخدم'),
-      'مستخدم نادي',
-    )
-    await testUser.click(screen.getByLabelText('ربط مستخدم موجود'))
-    await testUser.type(screen.getByLabelText('البحث عن المستخدم'), 'existing')
-    await testUser.click(screen.getByRole('button', { name: 'بحث' }))
-    await testUser.click(await screen.findByLabelText(/أحمد موجود/))
-    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
-    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'مالك')
     await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
 
     await waitFor(() =>
-      expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
-        user_id: 20,
-        role: 'OWNER',
+      expect(mockedCreatePlatformAdmin).toHaveBeenCalledWith({
+        first_name: 'منى',
+        last_name: undefined,
+        username: 'admin',
+        password: 'secret123',
+        email: undefined,
+        phone_number: undefined,
       }),
     )
+
     expect(await screen.findByText('تفاصيل المستخدم')).toBeInTheDocument()
   })
 
-  it('does not allow choosing manager role when creating club membership', async () => {
+  it('validates required fields', async () => {
     const testUser = userEvent.setup()
 
     renderPage()
 
-    await chooseAppSelectOption(
-      testUser,
-      await screen.findByLabelText('نوع المستخدم'),
-      'مستخدم نادي',
-    )
-    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
-    await testUser.click(screen.getByLabelText('الدور'))
-    expect(screen.queryByRole('option', { name: 'مدير' })).not.toBeInTheDocument()
-  })
-
-  it('links an existing user as staff with court and without manager permission fields', async () => {
-    const testUser = userEvent.setup()
-
-    renderPage()
-
-    await chooseAppSelectOption(
-      testUser,
-      await screen.findByLabelText('نوع المستخدم'),
-      'مستخدم نادي',
-    )
-    await testUser.click(screen.getByLabelText('ربط مستخدم موجود'))
-    await testUser.type(screen.getByLabelText('البحث عن المستخدم'), 'existing')
-    await testUser.click(screen.getByRole('button', { name: 'بحث' }))
-    await testUser.click(await screen.findByLabelText(/أحمد موجود/))
-    await chooseAppSelectOption(testUser, screen.getByLabelText('النادي'), 'نادي النصر')
-    await chooseAppSelectOption(testUser, screen.getByLabelText('الدور'), 'موظف')
-    await chooseAppSelectOption(
-      testUser,
-      await screen.findByLabelText('الملعب'),
-      'ملعب 1',
-    )
     await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
 
-    await waitFor(() =>
-      expect(mockedCreateClubMembership).toHaveBeenCalledWith('nasr-club', {
-        user_id: 20,
-        role: 'STAFF',
-        court: 7,
-      }),
-    )
+    expect(screen.getByText('الاسم الأول مطلوب')).toBeInTheDocument()
+    expect(screen.getByText('اسم المستخدم مطلوب')).toBeInTheDocument()
+    expect(screen.getByText('كلمة المرور مطلوبة')).toBeInTheDocument()
+    expect(mockedCreatePlatformAdmin).not.toHaveBeenCalled()
+  })
+
+  it('validates password mismatch', async () => {
+    const testUser = userEvent.setup()
+
+    renderPage()
+
+    await testUser.type(screen.getByLabelText('الاسم الأول'), 'منى')
+    await testUser.type(screen.getByLabelText('اسم المستخدم'), 'admin')
+    await testUser.type(screen.getByLabelText('كلمة المرور'), 'secret123')
+    await testUser.type(screen.getByLabelText('تأكيد كلمة المرور'), 'different')
+    await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    expect(screen.getByText(settingsCopy.passwordMismatch)).toBeInTheDocument()
+    expect(mockedCreatePlatformAdmin).not.toHaveBeenCalled()
   })
 
   it('maps duplicate username field errors to Arabic', async () => {
@@ -286,7 +152,7 @@ describe('AdminUserFormPage', () => {
 
     renderPage()
 
-    await testUser.type(await screen.findByLabelText('الاسم الأول'), 'منى')
+    await testUser.type(screen.getByLabelText('الاسم الأول'), 'منى')
     await testUser.type(screen.getByLabelText('اسم المستخدم'), 'admin')
     await testUser.type(screen.getByLabelText('كلمة المرور'), 'secret123')
     await testUser.type(screen.getByLabelText('تأكيد كلمة المرور'), 'secret123')

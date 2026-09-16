@@ -15,6 +15,7 @@ export type SupportedAuditAction =
   | 'RECURRING_AGREEMENT_AUTO_TERMINATED'
   | 'RECURRING_OCCURRENCE_GENERATED'
   | 'RECURRING_GENERATION_FAILED'
+  | 'MEMBERSHIP_DELETED'
 
 export const auditActionLabelMap: Record<SupportedAuditAction, string> = {
   BOOKING_CREATED: 'إنشاء حجز',
@@ -33,13 +34,29 @@ export const auditActionLabelMap: Record<SupportedAuditAction, string> = {
   RECURRING_AGREEMENT_AUTO_TERMINATED: 'إنهاء الحجز الأسبوعي تلقائيًا',
   RECURRING_OCCURRENCE_GENERATED: 'إنشاء حجز أسبوعي تلقائي',
   RECURRING_GENERATION_FAILED: 'تعذر إنشاء الحجز الأسبوعي',
+  MEMBERSHIP_DELETED: 'حذف عضوية',
 }
+
+export const auditFilterActions: SupportedAuditAction[] = [
+  'BOOKING_CREATED',
+  'BOOKING_UPDATED',
+  'BOOKING_CANCELLED',
+  'BOOKING_COMPLETED',
+  'BOOKING_NO_SHOW',
+  'BOOKING_EXPIRED',
+  'BOOKING_RESCHEDULED',
+  'TRANSACTION_CREATED',
+  'TRANSACTION_CANCELLED',
+  'SETTLEMENT_CREATED',
+  'SETTLEMENT_MARKED_SETTLED',
+  'MEMBERSHIP_DELETED',
+]
 
 export const auditActionOptions = [
   { value: '', label: 'كل الإجراءات' },
-  ...Object.entries(auditActionLabelMap).map(([value, label]) => ({
+  ...auditFilterActions.map((value) => ({
     value,
-    label,
+    label: auditActionLabelMap[value],
   })),
 ]
 

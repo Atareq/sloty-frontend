@@ -64,20 +64,10 @@ function mockAuth(
     claims: { user_id: 1 },
     currentUser: null,
     selectedClubSlug,
-    selectedMembership: selectedClubSlug
-      ? {
-          id: 10,
-          role,
-          club: {
-            id: 1,
-            name: 'نادي النصر',
-            slug: selectedClubSlug,
-            city: 'ASSIUT',
-            is_active: true,
-          },
-          court: null,
-        }
-      : null,
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
     isLoadingSession: false,
@@ -132,21 +122,21 @@ describe('AuditLogsPage', () => {
       results: [
         {
           id: 7,
-          membership_id: 70,
           username: 'owner-user',
           first_name: 'محمود',
           last_name: 'حسن',
           phone_number: '01000000000',
           role: 'OWNER',
+          is_active: true,
         },
         {
           id: 8,
-          membership_id: 80,
           username: 'staff-user',
           first_name: '',
           last_name: '',
           phone_number: '01111111111',
           role: 'STAFF',
+          is_active: true,
         },
       ],
     })

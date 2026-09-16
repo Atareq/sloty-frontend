@@ -894,18 +894,11 @@ describe('scoped offline repositories', () => {
     await repositories.saveOfflineContext({
       scope: userOneClubA,
       displayName: 'أحمد علي',
-      isPlatformAdmin: false,
-      membership: {
-        id: 10,
-        role: 'STAFF',
-        club: {
-          id: 1,
-          slug: 'club-a',
-          name: 'Club A',
-          is_active: true,
-        },
-        court: { id: 7, name: 'ملعب 1' },
-      },
+      role: 'STAFF',
+      selectedClubSlug: 'club-a',
+      accessibleClubs: [{ id: 1, slug: 'club-a', name: 'Club A', city: 'ASSIUT', is_active: true } as never],
+      accessibleCourts: [{ id: 7, name: 'ملعب 1' } as never],
+      selectedCourtId: 7,
       lastVerifiedAt: '2026-08-30T12:00:00.000Z',
     })
 
@@ -913,9 +906,8 @@ describe('scoped offline repositories', () => {
     expect(context).toMatchObject({
       user_id: 1,
       selected_club_slug: 'club-a',
-      membership_id: 10,
       role: 'STAFF',
-      assigned_court_id: 7,
+      selected_court_id: 7,
       schema_version: OFFLINE_SCHEMA_VERSION,
     })
     expect(context).not.toHaveProperty('password')
@@ -927,69 +919,61 @@ describe('scoped offline repositories', () => {
   })
 
   it('updates the selected Club context without deleting another isolated Club cache', async () => {
-    const membership = {
-      id: 10,
-      role: 'MANAGER' as const,
-      club: { id: 1, slug: 'club-a', name: 'Club A', is_active: true },
-      court: null,
-    }
     await repositories.saveOfflineContext({
       scope: userOneClubA,
       displayName: 'مدير',
-      isPlatformAdmin: false,
-      membership,
+      role: 'OWNER',
+      selectedClubSlug: 'club-a',
+      accessibleClubs: [{ id: 1, slug: 'club-a', name: 'Club A', city: 'ASSIUT', is_active: true } as never],
+      accessibleCourts: [],
+      selectedCourtId: null,
       lastVerifiedAt: '2026-08-30T12:00:00.000Z',
     })
     await repositories.saveOfflineContext({
       scope: userOneClubB,
       displayName: 'مدير',
-      isPlatformAdmin: false,
-      membership: {
-        ...membership,
-        id: 11,
-        club: { ...membership.club, id: 2, slug: 'club-b', name: 'Club B' },
-      },
+      role: 'OWNER',
+      selectedClubSlug: 'club-b',
+      accessibleClubs: [{ id: 2, slug: 'club-b', name: 'Club B', city: 'ASSIUT', is_active: true } as never],
+      accessibleCourts: [],
+      selectedCourtId: null,
       lastVerifiedAt: '2026-08-30T13:00:00.000Z',
     })
 
     expect(await repositories.readOfflineContext(userOneClubA)).toBeDefined()
-    expect((await repositories.readOfflineContext(userOneClubB))?.membership_id)
-      .toBe(11)
+    expect((await repositories.readOfflineContext(userOneClubB))?.selected_club_slug)
+      .toBe('club-b')
   })
 
   it('reads the latest verified context for a selected Club without crossing Club scope', async () => {
-    const membership = {
-      id: 10,
-      role: 'STAFF' as const,
-      club: { id: 1, slug: 'club-a', name: 'Club A', is_active: true },
-      court: { id: 7, name: 'ملعب 1' },
-    }
     await repositories.saveOfflineContext({
       scope: userOneClubA,
       displayName: 'قديم',
-      isPlatformAdmin: false,
-      membership,
+      role: 'STAFF',
+      selectedClubSlug: 'club-a',
+      accessibleClubs: [{ id: 1, slug: 'club-a', name: 'Club A', city: 'ASSIUT', is_active: true } as never],
+      accessibleCourts: [{ id: 7, name: 'ملعب 1' } as never],
+      selectedCourtId: 7,
       lastVerifiedAt: '2026-09-04T08:00:00.000Z',
     })
     await repositories.saveOfflineContext({
       scope: userTwoClubA,
       displayName: 'أحدث',
-      isPlatformAdmin: false,
-      membership: {
-        ...membership,
-        id: 20,
-      },
+      role: 'STAFF',
+      selectedClubSlug: 'club-a',
+      accessibleClubs: [{ id: 1, slug: 'club-a', name: 'Club A', city: 'ASSIUT', is_active: true } as never],
+      accessibleCourts: [{ id: 7, name: 'ملعب 1' } as never],
+      selectedCourtId: 7,
       lastVerifiedAt: '2026-09-04T09:00:00.000Z',
     })
     await repositories.saveOfflineContext({
       scope: userOneClubB,
       displayName: 'نادي آخر',
-      isPlatformAdmin: false,
-      membership: {
-        ...membership,
-        id: 30,
-        club: { id: 2, slug: 'club-b', name: 'Club B', is_active: true },
-      },
+      role: 'STAFF',
+      selectedClubSlug: 'club-b',
+      accessibleClubs: [{ id: 2, slug: 'club-b', name: 'Club B', city: 'ASSIUT', is_active: true } as never],
+      accessibleCourts: [{ id: 7, name: 'ملعب 1' } as never],
+      selectedCourtId: 7,
       lastVerifiedAt: '2026-09-04T10:00:00.000Z',
     })
 
@@ -999,34 +983,32 @@ describe('scoped offline repositories', () => {
       user_id: 2,
       club_slug: 'club-a',
       display_name: 'أحدث',
-      membership_id: 20,
+      role: 'STAFF',
     })
     expect(
       await repositories.readLatestOfflineContextForClub('club-b'),
     ).toMatchObject({
       user_id: 1,
       club_slug: 'club-b',
-      membership_id: 30,
+      display_name: 'نادي آخر',
+      role: 'STAFF',
     })
   })
 
   it('keeps Platform Admin operational context Club-scoped', async () => {
-    const membership = {
-      id: 20,
-      role: 'OWNER' as const,
-      club: { id: 1, slug: 'club-a', name: 'Club A', is_active: true },
-      court: null,
-    }
     await repositories.saveOfflineContext({
       scope: userOneClubA,
       displayName: 'مسؤول المنصة',
-      isPlatformAdmin: true,
-      membership,
+      role: 'ADMIN',
+      selectedClubSlug: 'club-a',
+      accessibleClubs: [{ id: 1, slug: 'club-a', name: 'Club A', city: 'ASSIUT', is_active: true } as never],
+      accessibleCourts: [],
+      selectedCourtId: null,
       lastVerifiedAt: '2026-08-30T12:00:00.000Z',
     })
 
-    expect((await repositories.readOfflineContext(userOneClubA))?.is_platform_admin)
-      .toBe(true)
+    expect((await repositories.readOfflineContext(userOneClubA))?.role)
+      .toBe('ADMIN')
     expect(await repositories.readOfflineContext(userOneClubB)).toBeUndefined()
   })
 
@@ -1055,18 +1037,11 @@ describe('scoped offline repositories', () => {
       await repositories.saveOfflineContext({
         scope,
         displayName: 'مستخدم',
-        isPlatformAdmin: false,
-        membership: {
-          id: 10,
-          role: 'STAFF',
-          club: {
-            id: 1,
-            slug: scope.clubSlug,
-            name: 'Club',
-            is_active: true,
-          },
-          court: { id: 7, name: 'ملعب 1' },
-        },
+        role: 'STAFF',
+        selectedClubSlug: scope.clubSlug,
+        accessibleClubs: [{ id: 1, slug: scope.clubSlug, name: 'Club', city: 'ASSIUT', is_active: true } as never],
+        accessibleCourts: [{ id: 7, name: 'ملعب 1' } as never],
+        selectedCourtId: 7,
         lastVerifiedAt: '2026-08-30T12:00:00.000Z',
       })
     }

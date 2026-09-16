@@ -492,8 +492,14 @@ export async function apiRequest<TResponse>(
       raw: error,
     })
   }
+  if (!response.ok) {
+    const error = await createApiClientError(response)
 
-    if (!response.ok) {
+    if (response.status === 401 && error.code === 'PASSWORD_CHANGED') {
+      failExpiredSession()
+      throw error
+    }
+
     if (shouldAttemptSilentRefresh(path, options, response.status)) {
       const refreshedToken = await refreshAccessTokenOnce()
 
@@ -510,7 +516,7 @@ export async function apiRequest<TResponse>(
       })
     }
 
-    throw await createApiClientError(response)
+    throw error
   }
 
   if (response.status === 204) {

@@ -1,7 +1,4 @@
-import type {
-  AuthRole,
-  CurrentUserMembership,
-} from '../../core/auth/auth.types'
+import type { AuthRole } from '../../core/auth/auth.types'
 import type {
   BookingRequestQueueResult,
 } from '../bookings/bookingRequestSync'
@@ -36,10 +33,8 @@ export type BackendReachability =
 export interface OperationalSyncContext extends OfflineScope {
   scopeKey: string
   role: AuthRole
-  membership: CurrentUserMembership
-  membershipId: number
-  assignedCourtId: number | null
-  assignedCourtName: string | null
+  assignedCourtId?: number | null
+  assignedCourtName?: string | null
 }
 
 export interface DatasetSyncRunContext {

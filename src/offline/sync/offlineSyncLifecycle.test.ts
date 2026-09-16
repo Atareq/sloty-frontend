@@ -60,18 +60,6 @@ const context: OperationalSyncContext = {
   clubSlug: 'club-a',
   scopeKey: createOfflineScopeKey({ userId: 1, clubSlug: 'club-a' }),
   role: 'STAFF',
-  membership: {
-    id: 10,
-    role: 'STAFF',
-    club: {
-      id: 1,
-      slug: 'club-a',
-      name: 'Club A',
-      is_active: true,
-    },
-    court: { id: 7, name: 'Court 7' },
-  },
-  membershipId: 10,
   assignedCourtId: 7,
   assignedCourtName: 'Court 7',
 }

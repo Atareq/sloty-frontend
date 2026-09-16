@@ -114,9 +114,8 @@ export function SettlementPreviewPage() {
     refreshCurrentUser,
     role,
     selectedClubSlug,
-    selectedMembership,
   } = useAuth()
-  const canViewOwn = canViewOwnSettlements(selectedMembership, role)
+  const canViewOwn = canViewOwnSettlements(role)
   const queryParams = useMemo(
     () => parsePreviewQuery(location.search),
     [location.search],

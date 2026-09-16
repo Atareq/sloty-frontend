@@ -32,3 +32,16 @@ export function refreshAccessToken(
 export function fetchCurrentUserProfile(): Promise<CurrentUserProfile> {
   return apiRequest<CurrentUserProfile>(apiEndpoints.auth.me)
 }
+
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+  new_password_confirmation: string
+}
+
+export function changePassword(payload: ChangePasswordPayload): Promise<void> {
+  return apiRequest<void>(apiEndpoints.auth.passwordChange, {
+    method: 'POST',
+    body: payload,
+  })
+}

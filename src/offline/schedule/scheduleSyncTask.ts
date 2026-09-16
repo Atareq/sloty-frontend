@@ -1,6 +1,4 @@
-import {
-  canChooseOperationalCourt,
-} from '../../core/auth/auth.types'
+import { canChooseOperationalCourt } from '../../core/auth/auth.types'
 import { listCourts as defaultListCourts } from '../../features/courts/courtsApi'
 import type { Court } from '../../features/courts/courts.types'
 import {
@@ -55,7 +53,7 @@ function throwIfAborted(signal: AbortSignal): void {
   }
 }
 
-function orderCourtsByPreference(
+export function orderCourtsWithPreference(
   courts: number[],
   preferredCourtId: number | null,
 ): number[] {
@@ -76,7 +74,7 @@ export async function getAuthorizedScheduleCourtIds(
   signal: AbortSignal,
   listCourts: NonNullable<CreateScheduleSyncTaskOptions['listCourts']> = defaultListCourts,
 ): Promise<number[]> {
-  if (!canChooseOperationalCourt(context.role, context.membership)) {
+  if (!canChooseOperationalCourt(context.role)) {
     return context.assignedCourtId ? [context.assignedCourtId] : []
   }
 
@@ -118,7 +116,7 @@ export function createScheduleSyncTask(
       const preferredCourtId = getPreferredScheduleCourt(
         operationalContext.scopeKey,
       )
-      const orderedCourtIds = orderCourtsByPreference(
+      const orderedCourtIds = orderCourtsWithPreference(
         authorizedCourtIds,
         preferredCourtId,
       )

@@ -18,9 +18,11 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const location = useLocation()
   const {
+    accessibleClubs,
     currentUser,
     isAuthenticated,
     isLoadingSession,
+    role,
     selectedClubSlug,
     sessionError,
   } = useAuth()
@@ -42,15 +44,15 @@ export function ProtectedRoute({
       )
     }
 
-    if (currentUser.is_platform_admin) {
+    if (role === 'ADMIN') {
       return children
     }
 
-    if (currentUser.memberships.length === 0) {
+    if (accessibleClubs.length === 0) {
       return <Navigate replace to="/no-club-access" />
     }
 
-    if (currentUser.memberships.length > 1 && !selectedClubSlug) {
+    if (accessibleClubs.length > 1 && !selectedClubSlug) {
       return <Navigate replace to="/select-club" />
     }
   }

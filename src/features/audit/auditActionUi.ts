@@ -93,6 +93,12 @@ export const auditActionUiConfig: Record<
     softBackgroundClass: 'bg-red-50',
     accentBorderClass: 'border-r-red-500',
   },
+  MEMBERSHIP_DELETED: {
+    icon: 'x',
+    foregroundClass: 'text-red-700',
+    softBackgroundClass: 'bg-red-50',
+    accentBorderClass: 'border-r-red-500',
+  },
   RECURRING_AGREEMENT_AUTO_TERMINATED: {
     icon: '!',
     foregroundClass: 'text-red-900',

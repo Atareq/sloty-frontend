@@ -74,7 +74,7 @@ export const router = createBrowserRouter([
       {
         path: '/dashboard',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
             <DashboardPage />
           </RoleRoute>
         ),
@@ -82,7 +82,7 @@ export const router = createBrowserRouter([
       {
         path: '/schedule',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
             <SchedulePage />
           </RoleRoute>
         ),
@@ -90,7 +90,7 @@ export const router = createBrowserRouter([
       {
         path: '/bookings',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
             <BookingsListPage />
           </RoleRoute>
         ),
@@ -98,7 +98,7 @@ export const router = createBrowserRouter([
       {
         path: '/transactions',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
             <TransactionsListPage />
           </RoleRoute>
         ),
@@ -106,7 +106,7 @@ export const router = createBrowserRouter([
       {
         path: '/settlements',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
             <SettlementsHubPage />
           </RoleRoute>
         ),
@@ -114,7 +114,7 @@ export const router = createBrowserRouter([
       {
         path: '/settlements/history',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+          <RoleRoute allowedRoles={['OWNER']}>
             <SettlementHistoryPage />
           </RoleRoute>
         ),
@@ -122,7 +122,7 @@ export const router = createBrowserRouter([
       {
         path: '/settlements/preview',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
             <SettlementPreviewPage />
           </RoleRoute>
         ),
@@ -130,7 +130,7 @@ export const router = createBrowserRouter([
       {
         path: '/settlements/:settlementId',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
+          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
             <SettlementDetailPage />
           </RoleRoute>
         ),
@@ -146,7 +146,7 @@ export const router = createBrowserRouter([
       {
         path: '/settings/courts',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+          <RoleRoute allowedRoles={['OWNER']}>
             <SettingsCourtsPage />
           </RoleRoute>
         ),
@@ -154,7 +154,7 @@ export const router = createBrowserRouter([
       {
         path: '/settings/courts/:courtId',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+          <RoleRoute allowedRoles={['OWNER']}>
             <SettingsCourtDetailsPage />
           </RoleRoute>
         ),
@@ -162,7 +162,7 @@ export const router = createBrowserRouter([
       {
         path: '/settings',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'MANAGER']}>
+          <RoleRoute allowedRoles={['OWNER']}>
             <SettingsHubPage />
           </RoleRoute>
         ),
@@ -178,7 +178,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <ClubsListPage />
           </RoleRoute>
         ),
@@ -186,7 +186,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/new',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <ClubFormPage />
           </RoleRoute>
         ),
@@ -194,7 +194,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubId',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <ClubFormPage />
           </RoleRoute>
         ),
@@ -202,7 +202,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubSlug/courts',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <CourtsListPage />
           </RoleRoute>
         ),
@@ -210,7 +210,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubSlug/courts/new',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <CourtFormPage />
           </RoleRoute>
         ),
@@ -218,7 +218,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/clubs/:clubSlug/courts/:courtId',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <CourtFormPage />
           </RoleRoute>
         ),
@@ -226,7 +226,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/users',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <AdminUsersPage />
           </RoleRoute>
         ),
@@ -234,7 +234,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/users/new',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <AdminUserFormPage />
           </RoleRoute>
         ),
@@ -242,7 +242,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/users/:userId',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <AdminUserDetailsPage />
           </RoleRoute>
         ),
@@ -250,7 +250,7 @@ export const router = createBrowserRouter([
       {
         path: '/admin/settings',
         element: (
-          <RoleRoute allowedRoles={['PLATFORM_ADMIN']}>
+          <RoleRoute allowedRoles={['ADMIN']}>
             <PlaceholderPage
               description="مسار مؤقت لإعدادات منصة سلوتي."
               title="إعدادات المنصة"

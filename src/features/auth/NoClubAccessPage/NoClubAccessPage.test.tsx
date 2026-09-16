@@ -12,7 +12,7 @@ vi.mock('../../../core/auth/useAuth', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const logout = vi.fn().mockResolvedValue(undefined)
 
-const authValue = {
+const authValue: AuthContextValue = {
   accessToken: 'token',
   claims: { user_id: 1 },
   currentUser: {
@@ -23,13 +23,14 @@ const authValue = {
     last_name: 'علي',
     phone_number: null,
     is_active: true,
-    is_platform_admin: false,
+    profile_role: null,
     account_created_by: null,
-    requires_club_selection: false,
-    memberships: [],
   },
   selectedClubSlug: null,
-  selectedMembership: null,
+  accessibleClubs: [],
+  accessibleCourts: [],
+  selectedCourtId: null,
+  selectCourt: vi.fn(),
   role: null,
   isAuthenticated: true,
   isLoadingSession: false,
@@ -41,7 +42,7 @@ const authValue = {
   clearSelectedClub: vi.fn(),
   refreshCurrentUser: vi.fn(),
   setTokens: vi.fn(),
-} satisfies AuthContextValue
+}
 
 describe('NoClubAccessPage', () => {
   beforeEach(() => {

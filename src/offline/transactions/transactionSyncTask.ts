@@ -47,7 +47,7 @@ function buildCanonicalTransactionSyncParams(
   getNow: () => Date,
 ): TransactionQueryParams | null {
   if (
-    !canChooseOperationalCourt(context.role, context.membership) &&
+    !canChooseOperationalCourt(context.role) &&
     context.assignedCourtId === null
   ) {
     return null
@@ -58,8 +58,10 @@ function buildCanonicalTransactionSyncParams(
   return {
     date_from: window.dateFrom,
     date_to: window.dateTo,
-    ...(!canChooseOperationalCourt(context.role, context.membership)
-      ? { court: context.assignedCourtId ?? undefined }
+    ...(!canChooseOperationalCourt(context.role) &&
+    context.assignedCourtId !== null &&
+    context.assignedCourtId !== undefined
+      ? { court: context.assignedCourtId }
       : {}),
   }
 }

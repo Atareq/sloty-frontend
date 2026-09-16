@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { BookingListItem } from '../../../schedule/scheduleApi.types'
@@ -20,7 +20,7 @@ const booking: BookingListItem = {
 }
 
 describe('EditBookingDetailsSheet', () => {
-  it('patches only customer name, phone, and notes', async () => {
+  it('displays read-only customer identity and patches only notes', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockResolvedValue(undefined)
 
@@ -34,89 +34,86 @@ describe('EditBookingDetailsSheet', () => {
       />,
     )
 
-    expect(screen.queryByText('الملعب')).not.toBeInTheDocument()
-    expect(screen.queryByText('السعر')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('رقم الموبايل'))
-      .toHaveAttribute('placeholder', '01X XXX XXXX')
+    // Customer identity is displayed read-only
+    expect(screen.getByText('أحمد علي')).toBeInTheDocument()
+    expect(screen.getByText('+201012345678')).toBeInTheDocument()
+    expect(screen.getByText('بيانات العميل (للقراءة فقط)')).toBeInTheDocument()
 
-    const nameInput = screen.getByLabelText('اسم العميل')
-    await user.clear(nameInput)
-    await user.type(nameInput, 'منى حسن')
-    await user.clear(screen.getByLabelText('ملاحظات'))
-    await user.type(screen.getByLabelText('ملاحظات'), 'ملاحظة جديدة')
-    await user.click(screen.getByRole('button', { name: 'حفظ البيانات' }))
+    // No customer edit inputs exist
+    expect(screen.queryByLabelText('اسم العميل')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('رقم الموبايل')).not.toBeInTheDocument()
+
+    // Notes editing works
+    const notesInput = screen.getByLabelText('ملاحظات')
+    expect(notesInput).toHaveValue('ملاحظة قديمة')
+    await user.clear(notesInput)
+    await user.type(notesInput, 'ملاحظة جديدة محدثة')
+
+    await user.click(screen.getByRole('button', { name: 'حفظ الملاحظات' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
-      customer_name: 'منى حسن',
-      customer_phone: '+201012345678',
-      notes: 'ملاحظة جديدة',
+      notes: 'ملاحظة جديدة محدثة',
     })
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('customer_name')
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('customer_phone')
     expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('court')
-    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('start_time')
-    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('status')
   })
 
-  it('preserves raw unformatted phone while editing and normalizes to E.164 on submit', async () => {
+  it('shows validation error when notes field error is provided', () => {
+    render(
+      <EditBookingDetailsSheet
+        booking={booking}
+        error={null}
+        fieldErrors={{ notes: [{ message: 'الملاحظات طويلة جدًا', code: 'max_length' }] }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('الملاحظات طويلة جدًا')).toBeInTheDocument()
+  })
+
+  it('displays general error message when provided', () => {
+    render(
+      <EditBookingDetailsSheet
+        booking={booking}
+        error="حدث خطأ في الخادم"
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('حدث خطأ في الخادم')).toBeInTheDocument()
+  })
+
+  it('prompts for unsaved changes when closing with modified notes', async () => {
     const user = userEvent.setup()
-    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const onClose = vi.fn()
 
     render(
       <EditBookingDetailsSheet
         booking={booking}
         error={null}
         isSubmitting={false}
-        onClose={vi.fn()}
-        onSubmit={onSubmit}
+        onClose={onClose}
+        onSubmit={vi.fn()}
       />,
     )
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
-    })
+    const notesInput = screen.getByLabelText('ملاحظات')
+    await user.type(notesInput, ' تعديل إضافي')
 
-    const phoneInput = screen.getByLabelText('رقم الموبايل')
-    expect(phoneInput).toHaveValue('+201012345678')
+    const closeButton = screen.getByRole('button', { name: 'إغلاق' })
+    await user.click(closeButton)
 
-    await user.clear(phoneInput)
-    await user.type(phoneInput, '+20 12 9999 8888')
+    expect(
+      screen.getByText('عندك تعديلات لسه متحفظتش.'),
+    ).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
 
-    // Remains raw during editing
-    expect(phoneInput).toHaveValue('+20 12 9999 8888')
-
-    await user.click(screen.getByRole('button', { name: 'حفظ البيانات' }))
-
-    expect(onSubmit).toHaveBeenCalledWith({
-      customer_name: 'أحمد علي',
-      customer_phone: '+201299998888',
-      notes: 'ملاحظة قديمة',
-    })
-  })
-
-  it('blocks invalid phone numbers on submit', async () => {
-    const user = userEvent.setup()
-    const onSubmit = vi.fn().mockResolvedValue(undefined)
-
-    render(
-      <EditBookingDetailsSheet
-        booking={booking}
-        error={null}
-        isSubmitting={false}
-        onClose={vi.fn()}
-        onSubmit={onSubmit}
-      />,
-    )
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
-    })
-
-    const phoneInput = screen.getByLabelText('رقم الموبايل')
-    await user.clear(phoneInput)
-    await user.type(phoneInput, '010123')
-
-    await user.click(screen.getByRole('button', { name: 'حفظ البيانات' }))
-
-    expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByText('رقم الموبايل غير صحيح')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'اخرج من غير حفظ' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

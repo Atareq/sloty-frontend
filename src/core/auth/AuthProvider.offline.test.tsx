@@ -14,13 +14,20 @@ import {
   getSelectedClubSlug,
   saveSelectedClubSlug,
 } from './selectedClubStorage'
+import type { CurrentUserProfile } from './auth.types'
+import { listClubs } from '../../features/clubs/clubsApi'
 import { useAuth } from './useAuth'
 
 vi.mock('./authApi', () => ({
   fetchCurrentUserProfile: vi.fn(),
 }))
 
+vi.mock('../../features/clubs/clubsApi', () => ({
+  listClubs: vi.fn(),
+}))
+
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
+const mockedListClubs = vi.mocked(listClubs)
 const scope = { userId: 1, clubSlug: 'demo-football-club' }
 const booking: Booking = {
   id: 1,
@@ -36,7 +43,7 @@ const booking: Booking = {
   next_recurring_booking_id: null,
 }
 
-const profile = {
+const profile: CurrentUserProfile = {
   id: 1,
   username: 'staff-user',
   email: 'staff@example.com',
@@ -44,22 +51,8 @@ const profile = {
   last_name: 'علي',
   phone_number: null,
   is_active: true,
-  is_platform_admin: false,
+  profile_role: 'STAFF',
   account_created_by: null,
-  requires_club_selection: false,
-  memberships: [
-    {
-      id: 10,
-      role: 'STAFF' as const,
-      club: {
-        id: 1,
-        slug: 'demo-football-club',
-        name: 'Demo Football Club',
-        is_active: true,
-      },
-      court: { id: 3, name: 'Court 1' },
-    },
-  ],
 }
 
 function LogoutHarness() {
@@ -92,7 +85,7 @@ function ColdStartHarness() {
     isAuthenticated,
     role,
     selectedClubSlug,
-    selectedMembership,
+    accessibleCourts,
   } = useAuth()
 
   return (
@@ -100,7 +93,7 @@ function ColdStartHarness() {
       <p>{isAuthenticated ? 'operational' : 'anonymous'}</p>
       <p>{currentUser?.username ?? 'logged-out'}</p>
       <p>{selectedClubSlug ?? 'no-club'}</p>
-      <p>{selectedMembership?.court?.name ?? 'no-court'}</p>
+      <p>{accessibleCourts[0]?.name ?? 'no-court'}</p>
       <p>{role ?? 'no-role'}</p>
     </div>
   )
@@ -124,6 +117,21 @@ describe('AuthProvider explicit logout IndexedDB integration', () => {
   it('clears sensitive local rows before clearing auth and leaves no data for another user scope', async () => {
     const user = userEvent.setup()
     mockedFetchCurrentUserProfile.mockResolvedValueOnce(profile)
+    mockedListClubs.mockResolvedValueOnce({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: 1,
+          slug: 'demo-football-club',
+          name: 'Demo Football Club',
+          city: 'ASSIUT',
+          is_active: true,
+          created: '2026-08-01T00:00:00Z',
+        },
+      ],
+    })
     await offlineRepositories.replaceBookingsSnapshot(
       scope,
       [booking],
@@ -162,8 +170,33 @@ describe('AuthProvider explicit logout IndexedDB integration', () => {
     await offlineRepositories.saveOfflineContext({
       scope,
       displayName: 'أحمد علي',
-      isPlatformAdmin: false,
-      membership: profile.memberships[0],
+      role: 'STAFF',
+      selectedClubSlug: 'demo-football-club',
+      accessibleClubs: [
+        {
+          id: 1,
+          slug: 'demo-football-club',
+          name: 'Demo Football Club',
+          city: 'ASSIUT',
+          is_active: true,
+        },
+      ],
+      accessibleCourts: [
+        {
+          id: 3,
+          club: 1,
+          name: 'Court 1',
+          sport_type: 'FOOTBALL',
+          default_price: '300.00',
+          minimum_deposit: '100.00',
+          cancellation_refund_notice_days: 3,
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 2,
+        },
+      ],
+      selectedCourtId: 3,
       lastVerifiedAt: '2026-09-04T10:00:00.000Z',
     })
 

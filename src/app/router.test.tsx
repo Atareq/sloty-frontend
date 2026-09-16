@@ -46,7 +46,7 @@ describe('router settings routes', () => {
     const routeElement = getProtectedChildRoute('/settings')
 
     expect(routeElement?.type).toBe(RoleRoute)
-    expect(routeElement?.props.allowedRoles).toEqual(['OWNER', 'MANAGER'])
+    expect(routeElement?.props.allowedRoles).toEqual(['OWNER'])
     expect(routeElement?.props.children.type).toBe(SettingsHubPage)
   })
 
@@ -74,7 +74,7 @@ describe('router platform admin users routes', () => {
     const routeElement = getProtectedChildRoute('/admin/users')
 
     expect(routeElement?.type).toBe(RoleRoute)
-    expect(routeElement?.props.allowedRoles).toEqual(['PLATFORM_ADMIN'])
+    expect(routeElement?.props.allowedRoles).toEqual(['ADMIN'])
     expect(routeElement?.props.children.type).toBe(AdminUsersPage)
   })
 
@@ -82,7 +82,7 @@ describe('router platform admin users routes', () => {
     const routeElement = getProtectedChildRoute('/admin/users/new')
 
     expect(routeElement?.type).toBe(RoleRoute)
-    expect(routeElement?.props.allowedRoles).toEqual(['PLATFORM_ADMIN'])
+    expect(routeElement?.props.allowedRoles).toEqual(['ADMIN'])
     expect(routeElement?.props.children.type).toBe(AdminUserFormPage)
   })
 
@@ -90,7 +90,7 @@ describe('router platform admin users routes', () => {
     const routeElement = getProtectedChildRoute('/admin/users/:userId')
 
     expect(routeElement?.type).toBe(RoleRoute)
-    expect(routeElement?.props.allowedRoles).toEqual(['PLATFORM_ADMIN'])
+    expect(routeElement?.props.allowedRoles).toEqual(['ADMIN'])
     expect(routeElement?.props.children.type).toBe(AdminUserDetailsPage)
   })
 })

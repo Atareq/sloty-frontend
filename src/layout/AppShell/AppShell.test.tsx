@@ -78,44 +78,48 @@ function getAuthValue(
   membershipCount = 2,
   options: {
     canManageSettlements?: boolean
-    role?: 'OWNER' | 'MANAGER' | 'STAFF' | 'PLATFORM_ADMIN'
+    role?: 'OWNER' | 'STAFF' | 'ADMIN' | 'PLATFORM_ADMIN'
   } = {},
 ) {
-  const role = options.role ?? 'MANAGER'
-  const membershipRole = role === 'PLATFORM_ADMIN' ? 'OWNER' : role
-  const selectedMembership = {
-    id: 10,
-    role: membershipRole,
-    club: {
-      id: 1,
-      name: 'Demo Football Club',
-      slug: 'demo-football-club',
-      city: 'ASSIUT',
-      is_active: true,
-    },
-    court: role === 'STAFF' ? { id: 7, name: 'ملعب 1' } : null,
-    can_manage_settlements: options.canManageSettlements ?? false,
-    permissions: {
-      can_change_pricing: false,
-      can_manage_working_hours: false,
-      can_manage_settlements: options.canManageSettlements ?? false,
-    },
-  }
-  const memberships = Array.from({ length: membershipCount }, (_, index) => ({
-    ...selectedMembership,
-    id: selectedMembership.id + index,
-    club: {
-      ...selectedMembership.club,
-      id: selectedMembership.club.id + index,
-      slug:
-        index === 0 ? selectedMembership.club.slug : `second-club-${index}`,
-    },
-  }))
-  const isPlatformAdmin = role === 'PLATFORM_ADMIN'
+  const isPlatformAdmin =
+    options.role === 'ADMIN' || options.role === 'PLATFORM_ADMIN'
+  const authRole: 'ADMIN' | 'OWNER' | 'STAFF' = isPlatformAdmin
+    ? 'ADMIN'
+    : options.role === 'STAFF' || options.canManageSettlements === false
+      ? 'STAFF'
+      : 'OWNER'
+  const accessibleClubs = isPlatformAdmin
+    ? []
+    : Array.from({ length: membershipCount }, (_, index) => ({
+        id: 1 + index,
+        name: index === 0 ? 'Demo Football Club' : `Second Club ${index}`,
+        slug: index === 0 ? 'demo-football-club' : `second-club-${index}`,
+        city: 'ASSIUT',
+        is_active: true,
+      }))
+  const selectedClubSlug = isPlatformAdmin ? null : (accessibleClubs[0]?.slug ?? null)
+  const accessibleCourts = isPlatformAdmin
+    ? []
+    : [
+        {
+          id: 7,
+          club: 1,
+          name: 'ملعب 1',
+          sport_type: 'FOOTBALL' as const,
+          default_price: '200.00',
+          minimum_deposit: '50.00',
+          cancellation_refund_notice_days: 1,
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+        },
+      ]
+  const selectedCourtId = isPlatformAdmin ? null : 7
 
   return {
     accessToken: 'token',
-    claims: { user_id: 1, role, name: 'Manager User' },
+    claims: { user_id: 1, role: authRole, name: 'Manager User' },
     currentUser: {
       id: 1,
       username: 'manager-user',
@@ -124,14 +128,14 @@ function getAuthValue(
       last_name: 'أحمد',
       phone_number: null,
       is_active: true,
-      is_platform_admin: isPlatformAdmin,
+      profile_role: authRole,
       account_created_by: null,
-      requires_club_selection: !isPlatformAdmin && membershipCount > 1,
-      memberships: isPlatformAdmin ? [] : memberships,
     },
-    selectedClubSlug: isPlatformAdmin ? null : selectedMembership.club.slug,
-    selectedMembership: isPlatformAdmin ? null : selectedMembership,
-    role,
+    selectedClubSlug,
+    selectedCourtId,
+    accessibleClubs,
+    accessibleCourts,
+    role: authRole,
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,
@@ -139,6 +143,7 @@ function getAuthValue(
     login: vi.fn(),
     logout: vi.fn(),
     selectClub: vi.fn(),
+    selectCourt: vi.fn(),
     clearSelectedClub,
     refreshCurrentUser: vi.fn(),
     setTokens: vi.fn(),
@@ -341,14 +346,6 @@ describe('AppShell', () => {
     renderAppShell()
 
     expect(screen.getAllByText('إدارة الأموال').length)
-      .toBeGreaterThan(0)
-
-    cleanup()
-    mockedUseAuth.mockReturnValue(getAuthValue())
-
-    renderAppShell()
-
-    expect(screen.getAllByText('عهدتي').length)
       .toBeGreaterThan(0)
 
     cleanup()
@@ -853,7 +850,7 @@ describe('AppShell', () => {
     cleanup()
     for (const [path, title] of [
       ['/transactions', 'سجل المعاملات المالية'],
-      ['/settlements', 'عهدتي'],
+      ['/settlements', 'إدارة الأموال'],
       ['/settings', 'الإعدادات'],
     ] as const) {
       renderAppShell(path)
@@ -867,6 +864,12 @@ describe('AppShell', () => {
     renderAppShell('/transactions')
     expect(
       screen.getByRole('heading', { level: 1, name: 'معاملاتي المالية' }),
+    ).toBeInTheDocument()
+    cleanup()
+
+    renderAppShell('/settlements')
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'عهدتي' }),
     ).toBeInTheDocument()
     cleanup()
   })

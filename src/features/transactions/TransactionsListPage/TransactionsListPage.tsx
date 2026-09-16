@@ -716,14 +716,21 @@ function TransactionsFilterForm({
 export function TransactionsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
+  const auth = useAuth()
+  const { currentUser, role, selectedClubSlug, accessibleCourts } = auth
+  const selectedMembership = (auth as { selectedMembership?: any }).selectedMembership
   const { connectivity } = useOfflineSync()
-  const assignedCourtId = getAssignedOperationalCourtId(
-    role,
-    selectedMembership,
-  )
-  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
-  const canChooseCollector = canChooseCourt
+  const courtsOrScope =
+    accessibleCourts && accessibleCourts.length > 0
+      ? accessibleCourts
+      : selectedMembership
+  const canChooseCourt = canChooseOperationalCourt(role, courtsOrScope)
+  const canChooseCollector =
+    role === 'ADMIN' ||
+    role === 'OWNER' ||
+    (role as string) === 'MANAGER' ||
+    (role as string) === 'PLATFORM_ADMIN'
+  const assignedCourtId = getAssignedOperationalCourtId(role, courtsOrScope)
   const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
   const [offlineSearchDraft, setOfflineSearchDraft] = useState('')
   const [offlineSearchQuery, setOfflineSearchQuery] = useState('')
@@ -910,8 +917,26 @@ export function TransactionsListPage() {
     let isActive = true
 
     async function loadFilterOptions(): Promise<void> {
-      if (!selectedClubSlug || isOfflineMode) {
-        setCourtOptions([])
+      const fallbackCourts =
+        accessibleCourts && accessibleCourts.length > 0
+          ? accessibleCourts
+          : selectedMembership?.court
+            ? [selectedMembership.court]
+            : []
+
+      if (!selectedClubSlug || isOfflineMode || !canChooseCourt) {
+        if (fallbackCourts.length > 0) {
+          setCourtOptions(
+            fallbackCourts
+              .filter((court: Court) => court.is_active !== false)
+              .map((court) => ({
+                value: String(court.id),
+                label: court.name,
+              })),
+          )
+        } else {
+          setCourtOptions([])
+        }
         setCollectorOptions([])
         setFilterOptionsError(null)
         return
@@ -932,21 +957,19 @@ export function TransactionsListPage() {
         }
 
         setCourtOptions(
-          canChooseCourt && courtsResponse
+          courtsResponse
             ? courtsResponse.results
                 .filter((court: Court) => court.is_active)
                 .map((court) => ({
                   value: String(court.id),
                   label: court.name,
                 }))
-            : selectedMembership?.court
-              ? [
-                  {
-                    value: String(selectedMembership.court.id),
-                    label: selectedMembership.court.name,
-                  },
-                ]
-              : [],
+            : fallbackCourts
+                .filter((court: Court) => court.is_active !== false)
+                .map((court) => ({
+                  value: String(court.id),
+                  label: court.name,
+                })),
         )
         setCollectorOptions(
           usersResponse
@@ -958,7 +981,18 @@ export function TransactionsListPage() {
         )
       } catch {
         if (isActive) {
-          setCourtOptions([])
+          if (fallbackCourts.length > 0) {
+            setCourtOptions(
+              fallbackCourts
+                .filter((court: Court) => court.is_active !== false)
+                .map((court) => ({
+                  value: String(court.id),
+                  label: court.name,
+                })),
+            )
+          } else {
+            setCourtOptions([])
+          }
           setCollectorOptions([])
           setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
         }
@@ -971,6 +1005,7 @@ export function TransactionsListPage() {
       isActive = false
     }
   }, [
+    accessibleCourts,
     canChooseCollector,
     canChooseCourt,
     isOfflineMode,

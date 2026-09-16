@@ -1,11 +1,14 @@
-import type { CurrentUserMembership } from '../core/auth/auth.types'
+import type { AuthRole } from '../core/auth/auth.types'
 import type { Booking } from '../features/bookings/bookings.types'
+import type { Club } from '../features/clubs/clubs.types'
+import type { Court } from '../features/courts/courts.types'
 import type { BookingSlot } from '../features/schedule/scheduleApi.types'
 import type {
   CurrentCustodySummaryResponse,
   SettlementPreview,
 } from '../features/settlements/settlements.types'
 import type { Transaction } from '../features/transactions/transactions.types'
+
 
 export const OFFLINE_SCHEMA_VERSION = 5
 
@@ -145,12 +148,11 @@ export type BookingIntentRecord = BookingRequestRecord
 
 export interface OfflineContextRecord extends ScopedOfflineRecord {
   display_name: string
-  is_platform_admin: boolean
+  role: AuthRole
   selected_club_slug: string
-  membership_id: number
-  role: CurrentUserMembership['role']
-  assigned_court_id: number | null
-  assigned_court_name: string | null
+  accessible_clubs: Club[]
+  accessible_courts: Court[]
+  selected_court_id: number | null
   last_verified_at: string
   schema_version: number
 }
@@ -158,7 +160,11 @@ export interface OfflineContextRecord extends ScopedOfflineRecord {
 export interface OfflineContextInput {
   scope: OfflineScope
   displayName: string
-  isPlatformAdmin: boolean
-  membership: CurrentUserMembership
+  role: AuthRole
+  selectedClubSlug: string
+  accessibleClubs: Club[]
+  accessibleCourts: Court[]
+  selectedCourtId: number | null
   lastVerifiedAt: string
 }
+

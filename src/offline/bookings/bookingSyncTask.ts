@@ -1,6 +1,4 @@
-import {
-  canChooseOperationalCourt,
-} from '../../core/auth/auth.types'
+import { canChooseOperationalCourt } from '../../core/auth/auth.types'
 import {
   listBookings as defaultListBookings,
 } from '../../features/bookings/bookingsApi'
@@ -47,7 +45,7 @@ function buildCanonicalBookingSyncParams(
   getNow: () => Date,
 ): BookingsQueryParams | null {
   if (
-    !canChooseOperationalCourt(context.role, context.membership) &&
+    !canChooseOperationalCourt(context.role) &&
     context.assignedCourtId === null
   ) {
     return null
@@ -58,8 +56,10 @@ function buildCanonicalBookingSyncParams(
   return {
     date_from: window.dateFrom,
     date_to: window.dateTo,
-    ...(!canChooseOperationalCourt(context.role, context.membership)
-      ? { court: context.assignedCourtId ?? undefined }
+    ...(!canChooseOperationalCourt(context.role) &&
+    context.assignedCourtId !== null &&
+    context.assignedCourtId !== undefined
+      ? { court: context.assignedCourtId }
       : {}),
   }
 }

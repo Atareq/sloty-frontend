@@ -90,6 +90,7 @@ vi.mock('../scheduleApi', () => ({
   previewBookingCancellation: vi.fn(),
   rescheduleBooking: vi.fn(),
   updateBookingCustomer: vi.fn(),
+  updateBookingNotes: vi.fn(),
 }))
 
 vi.mock('../../transactions/transactionsApi', () => ({
@@ -354,38 +355,29 @@ function mockScheduleApiData(): void {
       last_name: 'علي',
       phone_number: null,
       is_active: true,
-      is_platform_admin: false,
+      profile_role: 'STAFF',
       account_created_by: null,
-      requires_club_selection: false,
-      memberships: [
-        {
-          id: 10,
-          role: 'STAFF',
-          club: {
-            id: 1,
-            name: 'نادي النصر',
-            slug: 'nasr-club',
-            city: 'ASSIUT',
-            is_active: true,
-          },
-          court: { id: 7, name: 'ملعب 1' },
-        },
-      ],
     },
     selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role: 'STAFF',
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: { id: 7, name: 'ملعب 1' },
-    },
+    accessibleClubs: [],
+    selectedCourtId: 7,
+    selectCourt: vi.fn(),
     role: 'STAFF',
+    accessibleCourts: [
+      {
+        id: 7,
+        club: 1,
+        name: 'ملعب 1',
+        sport_type: 'FOOTBALL',
+        default_price: '100.00',
+        minimum_deposit: '50.00',
+        cancellation_refund_notice_days: 2,
+        slot_duration_minutes: 60,
+        is_active: true,
+        requires_digital_payment_reference: false,
+        internal_hold_expiry_hours: 2,
+      },
+    ] as never,
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,
@@ -1036,7 +1028,6 @@ describe('SchedulePage', () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
       selectedClubSlug: null,
-      selectedMembership: null,
     })
 
     render(
@@ -2757,18 +2748,6 @@ describe('SchedulePage', () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
       currentUser: null,
-      selectedMembership: {
-        id: 10,
-        role: 'OWNER',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: null,
-      },
       role: 'OWNER',
     })
     mockedListCourts.mockResolvedValueOnce(
@@ -2999,18 +2978,6 @@ describe('SchedulePage', () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
       currentUser: null,
-      selectedMembership: {
-        id: 10,
-        role: 'OWNER',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: null,
-      },
       role: 'OWNER',
     })
     mockedListCourts.mockResolvedValue(
@@ -3594,10 +3561,13 @@ describe('SchedulePage', () => {
     const initialAuth = mockedUseAuth()
     mockedUseAuth.mockReturnValue({
       ...initialAuth,
-      selectedMembership: {
-        ...initialAuth.selectedMembership!,
-        court: { id: 7, name: 'ملعب 1 الرئيسي' },
-      },
+      accessibleCourts: [
+        {
+          ...(initialAuth.accessibleCourts?.[0] ?? {}),
+          id: 7,
+          name: 'ملعب 1 الرئيسي',
+        },
+      ] as never,
     } as unknown as ReturnType<typeof useAuth>)
 
     rerender(

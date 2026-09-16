@@ -15,6 +15,9 @@ import {
   getRefreshToken,
 } from '../../../core/auth/authStorage'
 import { createDevAccessToken } from '../../../core/auth/devAuth'
+import type { CurrentUserProfile } from '../../../core/auth/auth.types'
+import { listClubs } from '../../../features/clubs/clubsApi'
+import { listCourts } from '../../../features/courts/courtsApi'
 import { LoginPage } from './LoginPage'
 
 vi.mock('../../../core/auth/authApi', () => ({
@@ -22,9 +25,19 @@ vi.mock('../../../core/auth/authApi', () => ({
   loginWithPassword: vi.fn(),
 }))
 
+vi.mock('../../../features/clubs/clubsApi', () => ({
+  listClubs: vi.fn(),
+}))
+
+vi.mock('../../../features/courts/courtsApi', () => ({
+  listCourts: vi.fn(),
+}))
+
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 const mockedLoginWithPassword = vi.mocked(loginWithPassword)
-const currentUserProfile = {
+const mockedListClubs = vi.mocked(listClubs)
+const mockedListCourts = vi.mocked(listCourts)
+const currentUserProfile: CurrentUserProfile = {
   id: 1,
   username: 'staff-user',
   email: 'staff@example.com',
@@ -32,22 +45,8 @@ const currentUserProfile = {
   last_name: 'علي',
   phone_number: null,
   is_active: true,
-  is_platform_admin: false,
+  profile_role: 'STAFF',
   account_created_by: { id: 2, name: 'مالك النادي' },
-  requires_club_selection: false,
-  memberships: [
-    {
-      id: 10,
-      role: 'STAFF' as const,
-      club: {
-        id: 1,
-        slug: 'demo-football-club',
-        name: 'Demo Football Club',
-        is_active: true,
-      },
-      court: { id: 3, name: 'Court 1' },
-    },
-  ],
 }
 
 function renderLoginPage() {
@@ -80,6 +79,27 @@ describe('LoginPage', () => {
     clearAuthTokens()
     vi.clearAllMocks()
     mockedFetchCurrentUserProfile.mockResolvedValue(currentUserProfile)
+    mockedListClubs.mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: 1,
+          name: 'نادي النصر',
+          slug: 'nasr-club',
+          city: 'ASSIUT',
+          is_active: true,
+          created: '2026-08-01T00:00:00Z',
+        },
+      ],
+    })
+    mockedListCourts.mockResolvedValue({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
   })
 
   it('renders the Arabic login heading', () => {

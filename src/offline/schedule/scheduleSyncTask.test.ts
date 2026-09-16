@@ -1,41 +1,24 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CurrentUserMembership } from '../../core/auth/auth.types'
+import type { AuthRole } from '../../core/auth/auth.types'
 import type { BookingSlot } from '../../features/schedule/scheduleApi.types'
 import type { ScheduleDaySnapshot } from '../repositories/offlineRepositories'
 import { createOfflineScopeKey } from '../scope/offlineScope'
+import type { OperationalSyncContext } from '../sync/sync.types'
 import { setPreferredScheduleCourt } from './scheduleSyncPreference'
 import { createScheduleSyncTask } from './scheduleSyncTask'
 
-const staffMembership: CurrentUserMembership = {
-  id: 10,
-  role: 'STAFF',
-  club: {
-    id: 1,
-    slug: 'nasr-club',
-    name: 'نادي النصر',
-    is_active: true,
-  },
-  court: { id: 7, name: 'ملعب 1' },
-}
-
-const managerMembership: CurrentUserMembership = {
-  ...staffMembership,
-  id: 11,
-  role: 'MANAGER',
-  court: null,
-}
-
-function createContext(membership = staffMembership) {
+function createContext(
+  role: AuthRole = 'STAFF',
+  court: { id: number; name: string } | null = { id: 7, name: 'ملعب 1' },
+): OperationalSyncContext {
   const scope = { userId: 1, clubSlug: 'nasr-club' }
 
   return {
     ...scope,
     scopeKey: createOfflineScopeKey(scope),
-    role: membership.role,
-    membership,
-    membershipId: membership.id,
-    assignedCourtId: membership.court?.id ?? null,
-    assignedCourtName: membership.court?.name ?? null,
+    role,
+    assignedCourtId: court?.id ?? null,
+    assignedCourtName: court?.name ?? null,
   }
 }
 
@@ -117,7 +100,7 @@ describe('createScheduleSyncTask', () => {
   })
 
   it('orders Manager authorized Courts by selected preference and keeps other Court failures independent', async () => {
-    const context = createContext(managerMembership)
+    const context = createContext('OWNER', null)
     const committedCourts: number[] = []
     const listBookingSlots = vi.fn(async (_clubSlug, params) => {
       if (params.court === 8) {

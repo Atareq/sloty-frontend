@@ -10,12 +10,9 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import {
-  canManageSettlements,
-  type AuthRole,
-  type CurrentUserMembership,
-} from '../../core/auth/auth.types'
-import { auditCopy, appNavCopy } from '../copy/appCopy'
+import type { AuthRole } from '../../core/auth/auth.types'
+import { canManageSettlements } from '../../core/auth/auth.types'
+import { appNavCopy, auditCopy } from '../copy/appCopy'
 
 export interface NavigationItem {
   path: string
@@ -31,26 +28,21 @@ export interface PageHeaderMeta {
   subtitle?: string
 }
 
-const allRoles: AuthRole[] = [
-  'PLATFORM_ADMIN',
-  'OWNER',
-  'MANAGER',
-  'STAFF',
-]
+const allRoles: AuthRole[] = ['ADMIN', 'OWNER', 'STAFF']
 
 /**
  * Single role-based navigation source for desktop and mobile shells.
  *
  * `showInMobile` is retained for route metadata compatibility.
  * `showInPrimaryNav` keeps routable detail pages out of drawer/sidebar chrome.
- * Owner/Manager transaction ledger stays routable but out of primary nav.
+ * Owner transaction ledger stays routable but out of primary nav.
  */
 export const navigationItems: NavigationItem[] = [
   {
     path: '/schedule',
     label: appNavCopy.home,
     icon: CalendarDays,
-    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
+    allowedRoles: ['OWNER', 'STAFF'],
     showInMobile: true,
     showInPrimaryNav: true,
   },
@@ -58,7 +50,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/dashboard',
     label: appNavCopy.followUp,
     icon: LayoutDashboard,
-    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
+    allowedRoles: ['OWNER', 'STAFF'],
     showInMobile: false,
     showInPrimaryNav: false,
   },
@@ -66,7 +58,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/bookings',
     label: appNavCopy.bookings,
     icon: ClipboardList,
-    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
+    allowedRoles: ['OWNER', 'STAFF'],
     showInMobile: true,
     showInPrimaryNav: true,
   },
@@ -74,7 +66,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/transactions',
     label: appNavCopy.transactionsManagement,
     icon: Receipt,
-    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
+    allowedRoles: ['OWNER', 'STAFF'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
@@ -82,7 +74,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/settlements',
     label: appNavCopy.moneyManagement,
     icon: Wallet,
-    allowedRoles: ['OWNER', 'MANAGER', 'STAFF'],
+    allowedRoles: ['OWNER', 'STAFF'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
@@ -98,7 +90,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/settings/courts',
     label: 'إعدادات الملاعب',
     icon: Settings,
-    allowedRoles: ['OWNER', 'MANAGER'],
+    allowedRoles: ['OWNER'],
     showInMobile: false,
     showInPrimaryNav: false,
   },
@@ -106,7 +98,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/settings',
     label: appNavCopy.settings,
     icon: Settings,
-    allowedRoles: ['OWNER', 'MANAGER'],
+    allowedRoles: ['OWNER'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
@@ -122,7 +114,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/admin/clubs',
     label: 'الأندية',
     icon: Building2,
-    allowedRoles: ['PLATFORM_ADMIN'],
+    allowedRoles: ['ADMIN'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
@@ -130,7 +122,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/admin/users',
     label: 'المستخدمون',
     icon: Users,
-    allowedRoles: ['PLATFORM_ADMIN'],
+    allowedRoles: ['ADMIN'],
     showInMobile: false,
     showInPrimaryNav: true,
   },
@@ -138,7 +130,7 @@ export const navigationItems: NavigationItem[] = [
     path: '/admin/settings',
     label: 'إعدادات المنصة',
     icon: Settings,
-    allowedRoles: ['PLATFORM_ADMIN'],
+    allowedRoles: ['ADMIN'],
     showInMobile: false,
     showInPrimaryNav: false,
   },
@@ -188,7 +180,7 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   },
   '/settings/users': {
     title: 'المستخدمون والصلاحيات',
-    subtitle: 'مراجعة أعضاء النادي وصلاحيات المديرين',
+    subtitle: 'مراجعة موظفي النادي',
   },
   '/settings/courts': {
     title: 'إعدادات الملاعب',
@@ -200,7 +192,7 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
   },
   '/admin/users': {
     title: 'إدارة المستخدمين',
-    subtitle: 'إدارة حسابات المنصة وعضويات الأندية',
+    subtitle: 'إدارة حسابات المنصة',
   },
   '/admin/settings': {
     title: 'إعدادات المنصة',
@@ -211,14 +203,13 @@ export const pageHeaderMetaByPath: Record<string, PageHeaderMeta> = {
 export function getNavigationItemsForRole(
   role: AuthRole,
   options: { mobileOnly?: boolean; primaryOnly?: boolean } = {},
-  membership: CurrentUserMembership | null = null,
 ): NavigationItem[] {
   return navigationItems
     .filter((item) =>
       item.allowedRoles.includes(role) &&
       (!options.mobileOnly || item.showInMobile) &&
       (!options.primaryOnly || item.showInPrimaryNav) &&
-      // Owner/Manager ledger stays a secondary destination, not a Burger item.
+      // Owner ledger stays a secondary destination, not a Burger item.
       (item.path !== '/transactions' || role === 'STAFF'),
     )
     .map((item) => {
@@ -226,11 +217,7 @@ export function getNavigationItemsForRole(
         return { ...item, label: appNavCopy.transactionsStaff }
       }
 
-      if (
-        item.path === '/settlements' &&
-        membership &&
-        !canManageSettlements(membership, role)
-      ) {
+      if (item.path === '/settlements' && !canManageSettlements(role)) {
         return { ...item, label: appNavCopy.custodyStaff }
       }
 
@@ -251,7 +238,6 @@ export function getAllNavigationRoles(): AuthRole[] {
 export function getPageHeaderMeta(
   pathname: string,
   role: AuthRole | null = null,
-  membership: CurrentUserMembership | null = null,
 ): PageHeaderMeta {
   if (pathname === '/transactions' && role === 'STAFF') {
     return {
@@ -263,7 +249,7 @@ export function getPageHeaderMeta(
   if (
     pathname === '/settlements' &&
     role &&
-    !canManageSettlements(membership, role)
+    !canManageSettlements(role)
   ) {
     return {
       title: appNavCopy.custodyStaff,
@@ -295,14 +281,14 @@ export function getPageHeaderMeta(
   if (pathname === '/admin/users/new') {
     return {
       title: 'إضافة مستخدم',
-      subtitle: 'استخدم نفس عقد إنشاء الحسابات والعضويات المعتمد في الواجهة',
+      subtitle: 'استخدم نفس عقد إنشاء الحسابات المعتمد في الواجهة',
     }
   }
 
   if (pathname.startsWith('/admin/users/')) {
     return {
       title: 'تفاصيل المستخدم',
-      subtitle: 'تفاصيل الحساب والعضويات كما يرسلها الخادم',
+      subtitle: 'تفاصيل الحساب كما يرسلها الخادم',
     }
   }
 

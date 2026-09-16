@@ -136,26 +136,14 @@ function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
       last_name: 'أحمد',
       phone_number: null,
       is_active: true,
-      is_platform_admin: false,
+      profile_role: 'OWNER',
       account_created_by: null,
-      requires_club_selection: false,
-      memberships: [],
     },
     selectedClubSlug,
-    selectedMembership: selectedClubSlug
-      ? {
-          id: 10,
-          role: 'OWNER',
-          club: {
-            id: 1,
-            name: 'نادي النصر',
-            slug: selectedClubSlug,
-            city: 'ASSIUT',
-            is_active: true,
-          },
-          court: null,
-        }
-      : null,
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role: 'OWNER',
     isAuthenticated: true,
     isLoadingSession: false,
@@ -283,19 +271,8 @@ describe('DashboardPage', () => {
   it('uses staff assigned court without exposing all-courts selection', async () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
-      selectedMembership: {
-        id: 10,
-        role: 'STAFF',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: { id: 3, name: 'ملعب 3' },
-      },
       role: 'STAFF',
+      accessibleCourts: [{ id: 3, name: 'ملعب 3' }] as never,
     })
 
     renderDashboard('/dashboard?shortcut=week&court=4')
@@ -327,27 +304,11 @@ describe('DashboardPage', () => {
     expect(mockedGetCurrentCustodySummary).not.toHaveBeenCalled()
   })
 
-  it('does not expose employee settlement actions to a restricted Manager', async () => {
+  it('does not expose employee settlement actions to Staff', async () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
-      selectedMembership: {
-        id: 10,
-        role: 'MANAGER',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: null,
-        permissions: {
-          can_change_pricing: false,
-          can_manage_working_hours: false,
-          can_manage_settlements: false,
-        },
-      },
-      role: 'MANAGER',
+      role: 'STAFF',
+      accessibleCourts: [{ id: 3, name: 'ملعب 3' }] as never,
     })
 
     renderDashboard()
@@ -360,27 +321,10 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('استلام المبلغ')).not.toBeInTheDocument()
   })
 
-  it('preserves employee custody management for an authorized Manager', async () => {
+  it('preserves employee custody management for an authorized Owner', async () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
-      selectedMembership: {
-        id: 10,
-        role: 'MANAGER',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: null,
-        permissions: {
-          can_change_pricing: false,
-          can_manage_working_hours: false,
-          can_manage_settlements: true,
-        },
-      },
-      role: 'MANAGER',
+      role: 'OWNER',
     })
 
     renderDashboard()
@@ -401,19 +345,8 @@ describe('DashboardPage', () => {
   it('uses a human empty custody state for Staff without settlement actions', async () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
-      selectedMembership: {
-        id: 10,
-        role: 'STAFF',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: { id: 3, name: 'ملعب 3' },
-      },
       role: 'STAFF',
+      accessibleCourts: [{ id: 3, name: 'ملعب 3' }] as never,
     })
     mockedGetSettlementPreview.mockRejectedValueOnce(
       new ApiClientError('No current custody', 409, {

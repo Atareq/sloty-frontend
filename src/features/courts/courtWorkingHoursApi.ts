@@ -1,4 +1,5 @@
 import { apiRequest } from '../../core/api/apiClient'
+import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import { normalizeTimeString } from './components/CourtWorkingHoursSection/courtWorkingHours.helpers'
 import type {
@@ -38,13 +39,24 @@ export function normalizeCourtWorkingHoursResponse(
 /**
  * Loads the weekly recurring working-hours schedule for one court.
  */
-export function getCourtWorkingHours(
+export async function getCourtWorkingHours(
   clubSlug: string,
   courtId: number | string,
 ): Promise<CourtWorkingHoursResponse> {
-  return apiRequest<CourtWorkingHoursApiResponse>(
-    apiEndpoints.clubs.courts.workingHours.detail(clubSlug, courtId),
-  ).then(normalizeCourtWorkingHoursResponse)
+  const response = await apiRequest<
+    CourtWorkingHoursApiResponse | PaginatedResponse<CourtWorkingHoursApiResponse>
+  >(apiEndpoints.clubs.courts.workingHours.detail(clubSlug, courtId))
+
+  const courtData =
+    'results' in response && Array.isArray(response.results)
+      ? response.results[0]
+      : (response as CourtWorkingHoursApiResponse)
+
+  if (!courtData) {
+    throw new Error('لم يتم العثور على ساعات العمل لهذا الملعب')
+  }
+
+  return normalizeCourtWorkingHoursResponse(courtData)
 }
 
 /**

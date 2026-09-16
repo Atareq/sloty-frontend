@@ -23,18 +23,11 @@ describe('offline storage failure safety', () => {
       safelyPersistOfflineContext({
         scope: { userId: 1, clubSlug: 'club-a' },
         displayName: 'اسم حساس',
-        isPlatformAdmin: false,
-        membership: {
-          id: 10,
-          role: 'STAFF',
-          club: {
-            id: 1,
-            slug: 'club-a',
-            name: 'Club A',
-            is_active: true,
-          },
-          court: { id: 7, name: 'ملعب 1' },
-        },
+        role: 'STAFF',
+        selectedClubSlug: 'club-a',
+        accessibleClubs: [{ id: 1, slug: 'club-a', name: 'Club A', city: 'ASSIUT', is_active: true } as never],
+        accessibleCourts: [{ id: 7, name: 'ملعب 1' } as never],
+        selectedCourtId: 7,
         lastVerifiedAt: '2026-08-30T12:00:00.000Z',
       }),
     ).resolves.toBe(false)

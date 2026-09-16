@@ -6,8 +6,6 @@ import type {
   BookingCancellationPreview,
   BookingCompletePayload,
   BookingCreatePayload,
-  BookingCustomerUpdatePayload,
-  BookingCustomerUpdateResponse,
   BookingEndRecurrencePayload,
   BookingListItem,
   BookingListParams,
@@ -17,6 +15,8 @@ import type {
   BookingSlotsRangeParams,
   BookingSlotsResponse,
   BookingNoShowPayload,
+  BookingNotesUpdatePayload,
+  BookingNotesUpdateResponse,
 } from './scheduleApi.types'
 
 function isBookingSlotsRangeParams(
@@ -207,20 +207,25 @@ export function getBookingRecurrenceNext(
  *
  * The PATCH response is not a full Booking. Callers must refetch detail
  * instead of replacing canonical Booking state with this payload.
+ * Updates booking notes only. Customer identity fields are immutable on PATCH.
  */
-export function updateBookingCustomer(
+export function updateBookingNotes(
   clubSlug: string,
   bookingId: number | string,
-  payload: BookingCustomerUpdatePayload,
-): Promise<BookingCustomerUpdateResponse> {
-  return apiRequest<BookingCustomerUpdateResponse>(
+  payload: BookingNotesUpdatePayload,
+): Promise<BookingNotesUpdateResponse> {
+  return apiRequest<BookingNotesUpdateResponse>(
     apiEndpoints.clubs.bookings.detail(clubSlug, bookingId),
     {
       method: 'PATCH',
-      body: payload,
+      body: {
+        notes: payload.notes,
+      },
     },
   )
 }
+
+export const updateBookingCustomer = updateBookingNotes
 
 /**
  * Moves a non-active-recurring HOLD/CONFIRMED booking to a backend-available slot.

@@ -34,6 +34,16 @@ describe('courtWorkingHoursApi', () => {
       court: 7,
       court_name: 'ملعب 1',
       working_hours: [],
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          court: 7,
+          court_name: 'ملعب 1',
+          working_hours: [],
+        },
+      ],
     })
 
     const response = await getCourtWorkingHours('nasr-club', 7)
@@ -42,6 +52,19 @@ describe('courtWorkingHoursApi', () => {
       apiEndpoints.clubs.courts.workingHours.detail('nasr-club', 7),
     )
     expect(response.working_hours).toEqual([])
+  })
+
+  it('throws an error when court working hours results are empty', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await expect(getCourtWorkingHours('nasr-club', 7)).rejects.toThrow(
+      'لم يتم العثور على ساعات العمل لهذا الملعب',
+    )
   })
 
   it('saves the full weekly schedule with PUT to the nested court endpoint', async () => {

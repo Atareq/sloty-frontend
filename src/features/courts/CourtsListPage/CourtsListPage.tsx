@@ -4,6 +4,7 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
+import { formatCourtPrice } from '../courtPricing.helpers'
 import { listCourts } from '../courtsApi'
 import type { Court } from '../courts.types'
 
@@ -117,6 +118,7 @@ export function CourtsListPage() {
                   </p>
                   <p className="text-sm font-bold text-[var(--sloty-text-primary)]">
                     {court.default_price} جنيه
+                    {formatCourtPrice(court)}
                   </p>
                 </div>
                 <span

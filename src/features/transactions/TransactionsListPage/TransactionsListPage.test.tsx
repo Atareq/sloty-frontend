@@ -179,10 +179,10 @@ describe('TransactionsListPage', () => {
       results: [
         {
           id: 15,
-          membership_id: 100,
           username: 'collector',
           first_name: 'أحمد',
           last_name: 'محمد',
+          is_active: true,
           role: 'STAFF',
         },
       ],
@@ -192,44 +192,21 @@ describe('TransactionsListPage', () => {
       claims: { user_id: 1 },
       currentUser: {
         id: 1,
-        username: 'staff-user',
-        email: 'staff@example.com',
+        username: 'owner-user',
+        email: 'owner@example.com',
         first_name: 'أحمد',
         last_name: 'علي',
         phone_number: null,
         is_active: true,
-        is_platform_admin: false,
+        profile_role: 'OWNER',
         account_created_by: null,
-        requires_club_selection: false,
-        memberships: [
-          {
-            id: 10,
-            role: 'MANAGER',
-            club: {
-              id: 1,
-              name: 'نادي النصر',
-              slug: 'nasr-club',
-              city: 'ASSIUT',
-              is_active: true,
-            },
-            court: null,
-          },
-        ],
       },
       selectedClubSlug: 'nasr-club',
-      selectedMembership: {
-        id: 10,
-        role: 'MANAGER',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: null,
-      },
-      role: 'MANAGER',
+      accessibleClubs: [],
+      accessibleCourts: [{ id: 3, name: 'ملعب 1' }] as never,
+      selectedCourtId: null,
+      selectCourt: vi.fn(),
+      role: 'OWNER',
       isAuthenticated: true,
       isLoadingSession: false,
       isTokenExpired: false,
@@ -285,19 +262,8 @@ describe('TransactionsListPage', () => {
   it('keeps staff transactions court-scoped without creator filtering', async () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
-      selectedMembership: {
-        id: 10,
-        role: 'STAFF',
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: 'nasr-club',
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: { id: 3, name: 'ملعب 1' },
-      },
       role: 'STAFF',
+      accessibleCourts: [{ id: 3, name: 'ملعب 1' }] as never,
     })
     mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
 
@@ -333,7 +299,6 @@ describe('TransactionsListPage', () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
       selectedClubSlug: null,
-      selectedMembership: null,
     })
 
     renderTransactionsPage()

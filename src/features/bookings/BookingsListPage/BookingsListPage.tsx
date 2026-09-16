@@ -83,13 +83,13 @@ import {
   markBookingNoShow,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingCustomer,
+  updateBookingNotes,
 } from '../../schedule/scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
   type BookingCompletePayload,
   type BookingCancellationPreview,
-  type BookingCustomerUpdatePayload,
+  type BookingNotesUpdatePayload,
   type BookingReschedulePayload,
 } from '../../schedule/scheduleApi.types'
 import {
@@ -414,13 +414,10 @@ function BookingsFilterForm({
 export function BookingsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
+  const auth = useAuth()
+  const { currentUser, role, selectedClubSlug, accessibleCourts } = auth
+  const selectedMembership = (auth as { selectedMembership?: any }).selectedMembership
   const { connectivity } = useOfflineSync()
-  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
-  const assignedCourtId = getAssignedOperationalCourtId(
-    role,
-    selectedMembership,
-  )
   const [bookings, setBookings] = useState<Booking[]>([])
   const [pagination, setPagination] = useState<PaginationState>({
     count: 0,
@@ -436,10 +433,10 @@ export function BookingsListPage() {
   const [offlineLastSyncAt, setOfflineLastSyncAt] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
-  const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null)
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null)
   const [cancellationPreview, setCancellationPreview] =
     useState<BookingCancellationPreview | null>(null)
+  const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null)
   const [completingBooking, setCompletingBooking] = useState<Booking | null>(null)
   const [
     completingBookingRemainingAmount,
@@ -467,6 +464,12 @@ export function BookingsListPage() {
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [courtRecords, setCourtRecords] = useState<Court[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
+  const courtsOrScope =
+    accessibleCourts && accessibleCourts.length > 0
+      ? accessibleCourts
+      : selectedMembership
+  const canChooseCourt = canChooseOperationalCourt(role, courtsOrScope)
+  const assignedCourtId = getAssignedOperationalCourtId(role, courtsOrScope)
   const urlParams = useMemo(
     () => parseBookingsQueryParams(location.search),
     [location.search],
@@ -587,9 +590,28 @@ export function BookingsListPage() {
     let isActive = true
 
     async function loadCourtOptions(): Promise<void> {
-      if (!selectedClubSlug || !canChooseCourt || isOfflineMode) {
-        setCourtOptions([])
-        setCourtRecords([])
+      const fallbackCourts =
+        accessibleCourts && accessibleCourts.length > 0
+          ? accessibleCourts
+          : selectedMembership?.court
+            ? [selectedMembership.court]
+            : []
+
+      if (!selectedClubSlug || isOfflineMode || !canChooseCourt) {
+        if (fallbackCourts.length > 0) {
+          setCourtRecords(fallbackCourts)
+          setCourtOptions(
+            fallbackCourts
+              .filter((court: Court) => court.is_active !== false)
+              .map((court: Court) => ({
+                value: String(court.id),
+                label: court.name,
+              })),
+          )
+        } else {
+          setCourtOptions([])
+          setCourtRecords([])
+        }
         setFilterOptionsError(null)
         return
       }
@@ -614,8 +636,20 @@ export function BookingsListPage() {
         )
       } catch {
         if (isActive) {
-          setCourtOptions([])
-          setCourtRecords([])
+          if (fallbackCourts.length > 0) {
+            setCourtRecords(fallbackCourts)
+            setCourtOptions(
+              fallbackCourts
+                .filter((court: Court) => court.is_active !== false)
+                .map((court: Court) => ({
+                  value: String(court.id),
+                  label: court.name,
+                })),
+            )
+          } else {
+            setCourtOptions([])
+            setCourtRecords([])
+          }
           setFilterOptionsError('تعذر تحميل خيارات الفلاتر')
         }
       }
@@ -626,7 +660,7 @@ export function BookingsListPage() {
     return () => {
       isActive = false
     }
-  }, [canChooseCourt, isOfflineMode, selectedClubSlug])
+  }, [accessibleCourts, canChooseCourt, isOfflineMode, selectedClubSlug, selectedMembership])
 
   const reloadBookings = useCallback(async (): Promise<void> => {
     const requestGeneration = nextGeneration()
@@ -1202,8 +1236,8 @@ export function BookingsListPage() {
     }
   }
 
-  async function handleUpdateBookingCustomer(
-    payload: BookingCustomerUpdatePayload,
+  async function handleUpdateBookingNotes(
+    payload: BookingNotesUpdatePayload,
   ): Promise<void> {
     if (!selectedClubSlug || !editingBooking || blockOfflineMutation()) {
       return
@@ -1214,15 +1248,15 @@ export function BookingsListPage() {
     setActionFieldErrors(null)
 
     try {
-      await updateBookingCustomer(selectedClubSlug, editingBooking.id, payload)
+      await updateBookingNotes(selectedClubSlug, editingBooking.id, payload)
       const freshBooking = await loadAuthoritativeBookingDetail(editingBooking.id)
       setEditingBooking(null)
       setSelectedBooking(freshBooking)
-      setSuccessMessage('تم تحديث بيانات الحجز')
+      setSuccessMessage('تم تحديث ملاحظات الحجز')
       await reloadBookings()
     } catch (error) {
       setActionError(
-        getApiErrorMessage(error, 'تعذر تحديث بيانات الحجز. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر تحديث ملاحظات الحجز. حاول مرة أخرى'),
       )
       setActionFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -1636,7 +1670,7 @@ export function BookingsListPage() {
             setActionError(null)
             setActionFieldErrors(null)
           }}
-          onSubmit={handleUpdateBookingCustomer}
+          onSubmit={handleUpdateBookingNotes}
         />
       ) : null}
 

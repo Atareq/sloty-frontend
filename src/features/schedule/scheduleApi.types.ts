@@ -90,6 +90,7 @@ export interface BookingCreatePayload {
   court: number
   customer_name: string
   customer_phone: string
+  club_player_id?: number
   start_time: string
   end_time: string
   client_request_id?: string
@@ -199,22 +200,22 @@ export interface BookingEndRecurrencePayload {
   reason?: string
 }
 
-/** PATCH body for customer-data edit. Court, time, status, and recurrence are forbidden. */
-export interface BookingCustomerUpdatePayload {
-  customer_name: string
-  customer_phone: string
+/** PATCH body for booking notes edit. Customer identity, court, time, status, and recurrence are immutable. */
+export interface BookingNotesUpdatePayload {
   notes: string
 }
 
 /**
- * PATCH response contains only the edited customer fields. Refetch Booking
+ * PATCH response contains only the edited notes field. Refetch Booking
  * detail instead of treating this as a full Booking record.
  */
-export interface BookingCustomerUpdateResponse {
-  customer_name: string
-  customer_phone: string
+export interface BookingNotesUpdateResponse {
   notes: string
 }
+
+/** @deprecated Use BookingNotesUpdatePayload. Retained for backwards-compatibility during migration. */
+export type BookingCustomerUpdatePayload = BookingNotesUpdatePayload
+export type BookingCustomerUpdateResponse = BookingNotesUpdateResponse
 
 export interface BookingReschedulePayload {
   court: number

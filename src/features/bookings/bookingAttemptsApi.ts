@@ -20,9 +20,9 @@ function buildBookingAttemptListPath(
     date: params.date,
     date_from: params.date_from,
     date_to: params.date_to,
-    failure_code: params.failure_code,
     outcome: params.outcome,
     page: params.page,
+    requested_source: params.requested_source,
     resolution: params.resolution,
     status: params.status,
   }

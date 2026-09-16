@@ -13,8 +13,6 @@ import { bookingStatusCopy } from '../../../shared/copy/appCopy'
 import {
   canChooseOperationalCourt,
   getAssignedOperationalCourtId,
-  type CurrentUserMembershipClub,
-  type CurrentUserMembershipCourt,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppDateNavigator } from '../../../shared/components/AppDateNavigator/AppDateNavigator'
@@ -75,13 +73,13 @@ import {
   markBookingNoShow,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingCustomer,
+  updateBookingNotes,
 } from '../scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
   type BookingCompletePayload,
   type BookingCancellationPreview,
-  type BookingCustomerUpdatePayload,
+  type BookingNotesUpdatePayload,
   type BookingListItem,
   type BookingReschedulePayload,
 } from '../scheduleApi.types'
@@ -198,7 +196,7 @@ function getSummary(slots: ScheduleBooking[]) {
 }
 
 function getCourtMinimumDeposit(
-  court: Court | CurrentUserMembershipCourt | null,
+  court: Court | { id: number; name: string } | null,
 ): string | null {
   if (!court || !('minimum_deposit' in court)) {
     return null
@@ -266,7 +264,7 @@ function createSlotSnapshotFromAlternative(
  * booking action/details surfaces when the backend includes booking details.
  */
 export function SchedulePage() {
-  const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
+  const { currentUser, role, selectedClubSlug, accessibleCourts } = useAuth()
   const {
     connectivity,
     freshness: operationalFreshness,
@@ -276,13 +274,8 @@ export function SchedulePage() {
   const location = useLocation()
   const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState(formatDateInputValue(new Date()))
-  const selectedClub: CurrentUserMembershipClub | null =
-    selectedMembership?.club ?? null
-  const assignedCourtId = getAssignedOperationalCourtId(
-    role,
-    selectedMembership,
-  )
-  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
+  const canChooseCourt = canChooseOperationalCourt(role, accessibleCourts)
+  const assignedCourtId = getAssignedOperationalCourtId(role, accessibleCourts)
   const [courts, setCourts] = useState<Court[]>([])
   const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null)
   const [slots, setSlots] = useState<ScheduleBooking[]>([])
@@ -398,24 +391,23 @@ export function SchedulePage() {
     })
   }, [isSlotsLoading, settledSlotsDate])
 
-  const assignedCourt = useMemo(
-    () =>
-      selectedMembership?.court
-        ? {
-            id: selectedMembership.court.id,
-            name: selectedMembership.court.name,
-          }
-        : null,
-    [selectedMembership],
-  )
+  const assignedCourt = useMemo(() => {
+    if (accessibleCourts && accessibleCourts.length === 1) {
+      return {
+        id: accessibleCourts[0].id,
+        name: accessibleCourts[0].name,
+      }
+    }
+    return null
+  }, [accessibleCourts])
+
   const selectedCourt = canChooseCourt
-    ? courts.find((court) => court.id === selectedCourtId) ?? null
+    ? courts.find((court) => court.id === selectedCourtId) ?? courts[0] ?? null
     : assignedCourt
   const authorizedIntentCourtIds = useMemo(() => {
     if (!canChooseCourt) {
       return assignedCourtId ? [assignedCourtId] : []
     }
-
     return courts.map((court) => court.id)
   }, [assignedCourtId, canChooseCourt, courts])
   const offlineScope = useMemo(
@@ -762,7 +754,7 @@ export function SchedulePage() {
     const controller = new AbortController()
 
     async function loadSetup(): Promise<void> {
-      if (!selectedClubSlug || !selectedClub) {
+      if (!selectedClubSlug) {
         setCourts([])
         setSelectedCourtId(null)
         setSlots([])
@@ -833,7 +825,7 @@ export function SchedulePage() {
       isActive = false
       controller.abort()
     }
-  }, [assignedCourtId, canChooseCourt, selectedClub, selectedClubSlug])
+  }, [assignedCourtId, canChooseCourt, selectedClubSlug])
 
   async function reloadScheduleSlots(): Promise<void> {
     if (!selectedClubSlug || !selectedCourt) {
@@ -1704,8 +1696,8 @@ export function SchedulePage() {
     }
   }
 
-  async function handleUpdateBookingCustomer(
-    payload: BookingCustomerUpdatePayload,
+  async function handleUpdateBookingNotes(
+    payload: BookingNotesUpdatePayload,
   ): Promise<void> {
     if (!selectedClubSlug || !editingBooking) {
       return
@@ -1720,17 +1712,17 @@ export function SchedulePage() {
     setLifecycleFieldErrors(null)
 
     try {
-      await updateBookingCustomer(selectedClubSlug, editingBooking.id, payload)
+      await updateBookingNotes(selectedClubSlug, editingBooking.id, payload)
       const freshBooking = await refreshCanonicalBooking(editingBooking.id)
       setEditingBooking(null)
       if (freshBooking) {
         setSelectedActionBooking(freshBooking)
       }
-      setSuccessMessage('تم تحديث بيانات الحجز')
+      setSuccessMessage('تم تحديث ملاحظات الحجز')
       await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
-        getApiErrorMessage(error, 'تعذر تحديث بيانات الحجز. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر تحديث ملاحظات الحجز. حاول مرة أخرى'),
       )
       setLifecycleFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -2748,13 +2740,13 @@ export function SchedulePage() {
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
           }}
-          onSubmit={handleUpdateBookingCustomer}
+          onSubmit={handleUpdateBookingNotes}
         />
       ) : null}
 
       {reschedulingBooking && selectedClubSlug ? (
         <RescheduleBookingSheet
-          assignedCourtId={assignedCourtId}
+          assignedCourtId={canChooseCourt ? null : selectedCourtId}
           booking={reschedulingBooking}
           canChooseCourt={canChooseCourt}
           clubSlug={selectedClubSlug}

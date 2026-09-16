@@ -15,7 +15,7 @@ import {
   markBookingNoShow,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingCustomer,
+  updateBookingNotes,
 } from './scheduleApi'
 import {
   BACKEND_BOOKING_STATUSES,
@@ -276,17 +276,13 @@ describe('scheduleApi', () => {
     )
   })
 
-  it('patches customer fields through the booking detail endpoint', async () => {
+  it('patches only notes through the booking detail endpoint', async () => {
     mockedApiRequest.mockResolvedValueOnce({
-      customer_name: 'منى',
-      customer_phone: '+201011111111',
-      notes: '',
+      notes: 'ملاحظة',
     })
 
-    await updateBookingCustomer('nasr-club', 20, {
-      customer_name: 'منى',
-      customer_phone: '+201011111111',
-      notes: '',
+    await updateBookingNotes('nasr-club', 20, {
+      notes: 'ملاحظة',
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
@@ -294,9 +290,7 @@ describe('scheduleApi', () => {
       {
         method: 'PATCH',
         body: {
-          customer_name: 'منى',
-          customer_phone: '+201011111111',
-          notes: '',
+          notes: 'ملاحظة',
         },
       },
     )

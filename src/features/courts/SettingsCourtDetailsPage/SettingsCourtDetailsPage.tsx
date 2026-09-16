@@ -33,7 +33,6 @@ export function SettingsCourtDetailsPage() {
     refreshCurrentUser,
     role,
     selectedClubSlug,
-    selectedMembership,
   } = useAuth()
   const [court, setCourt] = useState<Court | null>(null)
   const [minimumDeposit, setMinimumDeposit] = useState('')
@@ -45,11 +44,8 @@ export function SettingsCourtDetailsPage() {
   const [isSavingPolicy, setIsSavingPolicy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [policyMessage, setPolicyMessage] = useState<string | null>(null)
-  const canEditWorkingHours = canManageWorkingHours(selectedMembership, role)
-  const canEditRefundPolicy = canManageCancellationRefundPolicy(
-    selectedMembership,
-    role,
-  )
+  const canEditWorkingHours = canManageWorkingHours(role)
+  const canEditRefundPolicy = canManageCancellationRefundPolicy(role)
 
   useEffect(() => {
     let isActive = true
@@ -279,22 +275,6 @@ export function SettingsCourtDetailsPage() {
                 <div className="grid items-start gap-x-4 gap-y-4 md:grid-cols-2">
                   <label className="flex flex-col gap-2 text-sm font-semibold">
                     <span>مدة السماح باسترداد العربون</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        className="h-11 flex-1 min-w-0 rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
-                        disabled={!canEditRefundPolicy}
-                        inputMode="numeric"
-                        max="30"
-                        min="0"
-                        onChange={(event) => setRefundNoticeDays(event.target.value)}
-                        placeholder="عدد الأيام"
-                        type="number"
-                        value={refundNoticeDays}
-                      />
-                      <span className="shrink-0 text-sm font-bold text-[var(--sloty-text-muted)]">
-                        أيام
-                      </span>
-                    </div>
                     <input
                       className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15 disabled:opacity-60 sm:text-sm"
                       disabled={!canEditRefundPolicy}

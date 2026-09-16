@@ -10,6 +10,7 @@ import { useAuth } from './useAuth'
  */
 export function AuthLandingRedirect() {
   const {
+    accessibleClubs,
     currentUser,
     isAuthenticated,
     isLoadingSession,
@@ -29,19 +30,19 @@ export function AuthLandingRedirect() {
     return <p className="p-4 text-sm font-semibold">جاري تحميل الجلسة...</p>
   }
 
-  if (currentUser.is_platform_admin) {
+  if (role === 'ADMIN') {
     return <Navigate replace to="/admin/clubs" />
   }
 
-  if (currentUser.memberships.length === 0) {
+  if (accessibleClubs.length === 0) {
     return <Navigate replace to="/no-club-access" />
   }
 
-  if (currentUser.memberships.length === 1 || selectedClubSlug) {
+  if (accessibleClubs.length === 1 || selectedClubSlug) {
     return <Navigate replace to="/schedule" />
   }
 
-  if (currentUser.memberships.length > 1) {
+  if (accessibleClubs.length > 1) {
     return <Navigate replace to="/select-club" />
   }
 

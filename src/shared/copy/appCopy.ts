@@ -27,6 +27,7 @@ export const navigationCopy = {
 export const appNavCopy = navigationCopy
 
 export const roleCopy = {
+  ADMIN: 'مدير المنصة',
   OWNER: 'مالك',
   MANAGER: 'مدير',
   STAFF: 'موظف',

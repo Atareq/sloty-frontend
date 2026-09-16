@@ -156,13 +156,14 @@ function renderLoadingSkeletons() {
  * authoritative booking summaries rather than frontend-derived guesses.
  */
 export function DashboardPage() {
+  const auth = useAuth()
   const {
     claims,
     currentUser,
     role,
     selectedClubSlug,
-    selectedMembership,
-  } = useAuth()
+    accessibleCourts,
+  } = auth
   const location = useLocation()
   const navigate = useNavigate()
   const [summary, setSummary] = useState<DashboardSummaryResponse | null>(null)
@@ -181,12 +182,9 @@ export function DashboardPage() {
   >(null)
   const [currentFinancialRefreshToken, setCurrentFinancialRefreshToken] =
     useState(0)
-  const isStaff = role === 'STAFF' || selectedMembership?.role === 'STAFF'
-  const assignedCourtId = getAssignedOperationalCourtId(
-    role,
-    selectedMembership,
-  )
-  const canChooseCourt = canChooseOperationalCourt(role, selectedMembership)
+  const isStaff = role === 'STAFF'
+  const canChooseCourt = canChooseOperationalCourt(role, accessibleCourts)
+  const assignedCourtId = getAssignedOperationalCourtId(role, accessibleCourts)
   const requestedShortcut = useMemo(
     () => getShortcutFromSearch(location.search),
     [location.search],
@@ -211,12 +209,13 @@ export function DashboardPage() {
   const selectedCourtOption = courts.find(
     (court) => String(court.id) === selectedCourt,
   )
+  const accessibleCourtOption = accessibleCourts?.find(
+    (court) => String(court.id) === selectedCourt,
+  )
   const selectedCourtLabel = selectedCourt
-    ? !canChooseCourt && selectedMembership?.court?.name
-      ? selectedMembership.court.name
-      : selectedCourtOption
-        ? getCourtDisplayName(selectedCourtOption)
-        : `ملعب #${selectedCourt}`
+    ? selectedCourtOption
+      ? getCourtDisplayName(selectedCourtOption)
+      : accessibleCourtOption?.name ?? `ملعب #${selectedCourt}`
     : 'كل الملاعب'
   const linkContext = summary
     ? {
@@ -231,7 +230,7 @@ export function DashboardPage() {
     currentUser,
     claims?.name,
   )
-  const canManageStaffMoney = canManageSettlements(selectedMembership, role)
+  const canManageStaffMoney = canManageSettlements(role)
   const isTodaySummary = activeShortcut === 'today'
   const offlineScope: OfflineScope | null = useMemo(
     () =>

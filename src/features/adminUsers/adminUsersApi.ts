@@ -17,10 +17,6 @@ function buildPlatformUsersQueryString(
     searchParams.set('search', params.search.trim())
   }
 
-  if (params?.account_type) {
-    searchParams.set('account_type', params.account_type)
-  }
-
   if (params?.club) {
     searchParams.set('club', String(params.club))
   }
@@ -31,6 +27,10 @@ function buildPlatformUsersQueryString(
 
   if (params?.is_active !== undefined && params.is_active !== '') {
     searchParams.set('is_active', String(params.is_active))
+  }
+
+  if (params?.page !== undefined) {
+    searchParams.set('page', String(params.page))
   }
 
   const queryString = searchParams.toString()
@@ -55,6 +55,7 @@ function normalizePlatformAdminPayload(
     email: optionalText(payload.email),
     phone_number: optionalText(payload.phone_number),
     is_active: payload.is_active,
+    is_platform_admin: true,
   }
 }
 
@@ -63,6 +64,7 @@ function normalizePlatformAdminPayload(
  *
  * The completed backend owns primary filtering for global users. The frontend
  * keeps filters URL-driven, then sends the supported query params here.
+ * Filters are URL-driven; supported query params follow the /api/v1/users/ schema.
  */
 export function listPlatformUsers(
   params?: PlatformUsersQueryParams,
@@ -78,6 +80,10 @@ export function getPlatformUser(
   return apiRequest<PlatformUser>(apiEndpoints.users.detail(userId))
 }
 
+/**
+ * Creates a new platform admin user via POST /api/v1/users/.
+ * The backend assigns the ADMIN profile_role based on internal rules.
+ */
 export function createPlatformAdmin(
   payload: PlatformAdminUserPayload,
 ): Promise<PlatformUser> {

@@ -47,7 +47,6 @@ export function SettlementDetailPage() {
     refreshCurrentUser,
     role,
     selectedClubSlug,
-    selectedMembership,
   } = useAuth()
   const [settlement, setSettlement] = useState<Settlement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -55,8 +54,8 @@ export function SettlementDetailPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const canSettle = canManageSettlements(selectedMembership, role)
-  const canViewOwn = canViewOwnSettlements(selectedMembership, role)
+  const canSettle = canManageSettlements(role)
+  const canViewOwn = canViewOwnSettlements(role)
   const canMarkSettled = Boolean(
     canSettle &&
       settlement?.status === 'PENDING',

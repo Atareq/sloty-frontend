@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthRole } from '../../../core/auth/auth.types'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
@@ -74,6 +75,7 @@ const currentCustodySummary = {
 }
 
 function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF', canSettle = false) {
+  const effectiveRole: AuthRole = role === 'MANAGER' ? (canSettle ? 'OWNER' : 'STAFF') : role
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
@@ -85,30 +87,15 @@ function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF', canSettle = false) {
       last_name: 'User',
       phone_number: null,
       is_active: true,
-      is_platform_admin: false,
+      profile_role: effectiveRole,
       account_created_by: null,
-      requires_club_selection: false,
-      memberships: [],
     },
     selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role,
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: role === 'STAFF' ? { id: 7, name: 'ملعب 1' } : null,
-      permissions: {
-        can_change_pricing: false,
-        can_manage_working_hours: false,
-        can_manage_settlements: canSettle,
-      },
-    },
-    role,
+    selectedCourtId: null,
+    accessibleClubs: [],
+    accessibleCourts: effectiveRole === 'STAFF' ? ([{ id: 7, name: 'ملعب 1' }] as never) : [],
+    selectCourt: vi.fn(),
+    role: effectiveRole,
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,
@@ -182,10 +169,10 @@ describe('SettlementsHubPage', () => {
       results: [
         {
           id: 15,
-          membership_id: 100,
           username: 'collector',
           first_name: 'أحمد',
           last_name: 'محمد',
+          is_active: true,
           role: 'STAFF',
         },
       ],
@@ -415,10 +402,10 @@ describe('SettlementsHubPage', () => {
       previous: null,
       results: rows.map((row, index) => ({
         id: row.collected_by,
-        membership_id: 200 + index,
         username: `employee-${index + 1}`,
         first_name: 'موظف',
         last_name: String(index + 1),
+        is_active: true,
         role: 'STAFF',
       })),
     })
@@ -609,19 +596,12 @@ describe('SettlementsHubPage', () => {
       {},
     )
     expect(await screen.findByText('تم استلامها سابقًا')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: /نطاق الملعب/ }))
-    await user.click(screen.getByRole('option', { name: 'ملعب 1' }))
-
     await waitFor(() => {
       expect(mockedListSettlements).toHaveBeenLastCalledWith(
         'nasr-club',
         expect.objectContaining({ court: '3' }),
       )
     })
-
-    await user.click(screen.getByRole('button', { name: /نطاق الملعب/ }))
-    await user.click(screen.getByRole('option', { name: 'كل الملاعب' }))
 
     await waitFor(() => {
       expect(mockedListSettlements).toHaveBeenLastCalledWith(
@@ -841,18 +821,18 @@ describe('SettlementsHubPage', () => {
       results: [
         {
           id: 1,
-          membership_id: 99,
           username: 'current-user',
           first_name: 'Current',
           last_name: 'User',
-          role: 'MANAGER',
+          is_active: true,
+          role: 'OWNER',
         },
         {
           id: 15,
-          membership_id: 100,
           username: 'collector',
           first_name: 'أحمد',
           last_name: 'محمد',
+          is_active: true,
           role: 'STAFF',
         },
       ],

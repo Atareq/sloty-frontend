@@ -1,13 +1,18 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import type { UpdateManagerPermissionsPayload } from '../../clubUsers.types'
-import { ManagerPermissionFields } from '../ManagerPermissionFields/ManagerPermissionFields'
+import {
+  ManagerPermissionFields,
+  type ManagerPermissionFieldErrors,
+  type ManagerPermissionFieldName,
+  type ManagerPermissionFieldValues,
+} from '../ManagerPermissionFields/ManagerPermissionFields'
 
 export interface EditManagerPermissionsDialogProps {
-  fieldErrors: Partial<Record<keyof UpdateManagerPermissionsPayload, string>>
+  fieldErrors: ManagerPermissionFieldErrors
   generalError: string | null
   identity: string
-  initialValues: Required<UpdateManagerPermissionsPayload>
+  initialValues: ManagerPermissionFieldValues
   isSubmitting: boolean
   onClose: () => void
   onSubmit: (payload: UpdateManagerPermissionsPayload) => Promise<void>
@@ -26,10 +31,10 @@ export function EditManagerPermissionsDialog({
   onSubmit,
 }: EditManagerPermissionsDialogProps) {
   const stableInitialValues = useMemo(() => initialValues, [initialValues])
-  const [values, setValues] = useState(stableInitialValues)
+  const [values, setValues] = useState<ManagerPermissionFieldValues>(stableInitialValues)
 
   function updateValue(
-    field: keyof UpdateManagerPermissionsPayload,
+    field: ManagerPermissionFieldName,
     value: boolean,
   ): void {
     setValues((current) => ({
@@ -77,17 +82,17 @@ export function EditManagerPermissionsDialog({
         />
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <AppButton disabled={isSubmitting} fullWidth type="submit">
-            حفظ الصلاحيات
-          </AppButton>
           <AppButton
+            className="flex-1"
             disabled={isSubmitting}
-            fullWidth
             onClick={onClose}
             type="button"
             variant="secondary"
           >
             إلغاء
+          </AppButton>
+          <AppButton className="flex-1" disabled={isSubmitting} type="submit">
+            {isSubmitting ? 'جاري الحفظ...' : 'حفظ التغييرات'}
           </AppButton>
         </div>
       </form>

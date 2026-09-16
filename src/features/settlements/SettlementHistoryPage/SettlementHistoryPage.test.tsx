@@ -42,6 +42,7 @@ function mockAuth(options: {
 } = {}) {
   const selectedClubSlug =
     'selectedClubSlug' in options ? options.selectedClubSlug ?? null : 'nasr-club'
+  const role = options.canManageSettlements === false ? 'STAFF' : 'OWNER'
 
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
@@ -54,28 +55,15 @@ function mockAuth(options: {
       last_name: 'User',
       phone_number: null,
       is_active: true,
-      is_platform_admin: false,
+      profile_role: role,
       account_created_by: null,
-      requires_club_selection: false,
-      memberships: [],
     },
     selectedClubSlug,
-    selectedMembership: selectedClubSlug
-      ? {
-          id: 10,
-          role: 'MANAGER',
-          club: {
-            id: 1,
-            name: 'نادي النصر',
-            slug: selectedClubSlug,
-            city: 'ASSIUT',
-            is_active: true,
-          },
-          court: null,
-          can_manage_settlements: options.canManageSettlements ?? true,
-        }
-      : null,
-    role: 'MANAGER',
+    role,
+    selectedCourtId: null,
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectCourt: vi.fn(),
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,

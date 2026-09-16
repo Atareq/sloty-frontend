@@ -254,6 +254,7 @@ export function CourtFormPage() {
 
     if (hasInvalidNumber) {
       setError('السعر ومدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً صحيحة، والحد الأدنى للعربون لا يقل عن صفر')
+      setError('مدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً صحيحة، والحد الأدنى للعربون لا يقل عن صفر')
       setFieldErrors(null)
       return
     }

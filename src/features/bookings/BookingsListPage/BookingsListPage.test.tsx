@@ -17,8 +17,9 @@ import {
   listBookingSlots,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingCustomer,
+  updateBookingNotes,
 } from '../../schedule/scheduleApi'
+import type { AuthRole } from '../../../core/auth/auth.types'
 import { createTransaction } from '../../transactions/transactionsApi'
 import { listBookings } from '../bookingsApi'
 import type { Booking } from '../bookings.types'
@@ -60,6 +61,7 @@ vi.mock('../../schedule/scheduleApi', () => ({
   previewBookingCancellation: vi.fn(),
   rescheduleBooking: vi.fn(),
   updateBookingCustomer: vi.fn(),
+  updateBookingNotes: vi.fn(),
 }))
 
 vi.mock('../../transactions/transactionsApi', () => ({
@@ -79,7 +81,7 @@ const mockedGetBookingRecurrenceNext = vi.mocked(getBookingRecurrenceNext)
 const mockedListBookingSlots = vi.mocked(listBookingSlots)
 const mockedPreviewBookingCancellation = vi.mocked(previewBookingCancellation)
 const mockedRescheduleBooking = vi.mocked(rescheduleBooking)
-const mockedUpdateBookingCustomer = vi.mocked(updateBookingCustomer)
+const mockedUpdateBookingNotes = vi.mocked(updateBookingNotes)
 const mockedCreateTransaction = vi.mocked(createTransaction)
 
 function bookingFixture(
@@ -134,23 +136,8 @@ async function expandQuickShortcuts(
 
 function mockAuth(
   selectedClubSlug: string | null = 'nasr-club',
-  role: 'MANAGER' | 'STAFF' = 'MANAGER',
+  role: AuthRole = 'OWNER',
 ) {
-  const selectedMembership = selectedClubSlug
-    ? {
-        id: 10,
-        role,
-        club: {
-          id: 1,
-          name: 'نادي النصر',
-          slug: selectedClubSlug,
-          city: 'ASSIUT',
-          is_active: true,
-        },
-        court: role === 'STAFF' ? { id: 3, name: 'ملعب 1' } : null,
-      }
-    : null
-
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
@@ -162,14 +149,15 @@ function mockAuth(
       last_name: 'النادي',
       phone_number: '+201000000000',
       is_active: true,
-      is_platform_admin: false,
+      profile_role: role,
       account_created_by: null,
-      requires_club_selection: false,
-      memberships: selectedMembership ? [selectedMembership] : [],
     },
     selectedClubSlug,
-    selectedMembership,
+    accessibleClubs: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role,
+    accessibleCourts: role === 'STAFF' ? ([{ id: 3, name: 'ملعب 1' }] as never) : [],
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,
@@ -1480,7 +1468,7 @@ describe('BookingsListPage', () => {
       .not.toBeInTheDocument()
   })
 
-  it('edits customer fields then refetches booking detail', async () => {
+  it('edits booking notes then refetches booking detail', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const holdBooking = bookingFixture({
       id: 55,
@@ -1497,19 +1485,15 @@ describe('BookingsListPage', () => {
       .mockResolvedValueOnce(paginatedResponse([holdBooking]))
       .mockResolvedValueOnce(paginatedResponse([{
         ...holdBooking,
-        customer_name: 'منى حسن',
         notes: 'ملاحظة جديدة',
       }]))
     mockedGetBooking
       .mockResolvedValueOnce(holdBooking)
       .mockResolvedValueOnce({
         ...holdBooking,
-        customer_name: 'منى حسن',
         notes: 'ملاحظة جديدة',
       })
-    mockedUpdateBookingCustomer.mockResolvedValueOnce({
-      customer_name: 'منى حسن',
-      customer_phone: '+201012345678',
+    mockedUpdateBookingNotes.mockResolvedValueOnce({
       notes: 'ملاحظة جديدة',
     })
 
@@ -1520,17 +1504,13 @@ describe('BookingsListPage', () => {
     await user.click(screen.getByText('••• خيارات أخرى'))
     await user.click(screen.getByRole('button', { name: 'تعديل بيانات الحجز' }))
 
-    const nameInput = await screen.findByLabelText('اسم العميل')
-    await user.clear(nameInput)
-    await user.type(nameInput, 'منى حسن')
-    await user.clear(screen.getByLabelText('ملاحظات'))
-    await user.type(screen.getByLabelText('ملاحظات'), 'ملاحظة جديدة')
-    await user.click(screen.getByRole('button', { name: 'حفظ البيانات' }))
+    const notesInput = await screen.findByLabelText('ملاحظات')
+    await user.clear(notesInput)
+    await user.type(notesInput, 'ملاحظة جديدة')
+    await user.click(screen.getByRole('button', { name: 'حفظ الملاحظات' }))
 
     await waitFor(() => {
-      expect(mockedUpdateBookingCustomer).toHaveBeenCalledWith('nasr-club', 55, {
-        customer_name: 'منى حسن',
-        customer_phone: '+201012345678',
+      expect(mockedUpdateBookingNotes).toHaveBeenCalledWith('nasr-club', 55, {
         notes: 'ملاحظة جديدة',
       })
     })
@@ -1539,7 +1519,7 @@ describe('BookingsListPage', () => {
       { userId: 1, clubSlug: 'nasr-club' },
       expect.objectContaining({
         id: 55,
-        customer_name: 'منى حسن',
+        customer_name: 'أحمد علي',
         notes: 'ملاحظة جديدة',
       }),
       expect.any(String),

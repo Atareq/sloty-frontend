@@ -18,7 +18,7 @@ const mockedApiRequest = vi.mocked(apiRequest)
 
 describe('reportsApi', () => {
   it('gets court usage reports with required and optional filters', async () => {
-    mockedApiRequest.mockResolvedValueOnce({})
+    mockedApiRequest.mockResolvedValueOnce({ results: [{ id: 1 }] } as any)
 
     await getCourtUsageReport('nasr-club', {
       date_from: '2026-07-01',
@@ -37,7 +37,7 @@ describe('reportsApi', () => {
   })
 
   it('does not send payment_method to the court usage report', async () => {
-    mockedApiRequest.mockResolvedValueOnce({})
+    mockedApiRequest.mockResolvedValueOnce({ results: [{ id: 1 }] } as any)
 
     await getCourtUsageReport('nasr-club', {
       date_from: '2026-07-01',
@@ -50,6 +50,17 @@ describe('reportsApi', () => {
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.reports.courtUsage('nasr-club')}?date_from=2026-07-01&date_to=2026-07-15`,
     )
+  })
+
+  it('throws an error when report results are empty', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ count: 0, next: null, previous: null, results: [] })
+
+    await expect(
+      getCourtUsageReport('nasr-club', {
+        date_from: '2026-07-01',
+        date_to: '2026-07-15',
+      }),
+    ).rejects.toThrow('لم يتم العثور على بيانات التقرير للفترة المحددة')
   })
 
   it('keeps court usage status limited to blocking booking states', () => {

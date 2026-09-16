@@ -2,13 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
-  createClubMembership,
-  deleteClubMembership,
+  createClubStaff,
   listClubUsers,
-  updateMembershipActivity,
-  updateManagerPermissions,
+  updateClubUser,
 } from './clubUsersApi'
-import { getMembershipUiState } from './clubUsers.types'
+import { getUserUiState } from './clubUsers.types'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -17,238 +15,87 @@ vi.mock('../../core/api/apiClient', () => ({
 const mockedApiRequest = vi.mocked(apiRequest)
 
 describe('clubUsersApi', () => {
-  it('resolves only active and deactivated membership UI states', () => {
-    expect(getMembershipUiState({ is_active: true })).toBe('ACTIVE')
-    expect(getMembershipUiState({ is_active: false })).toBe('DEACTIVATED')
+  it('resolves active and deactivated user UI states', () => {
+    expect(getUserUiState({ is_active: true })).toBe('ACTIVE')
+    expect(getUserUiState({ is_active: false })).toBe('DEACTIVATED')
+    expect(getUserUiState({})).toBe('ACTIVE')
   })
 
-  it('lists club users through the club-scoped users endpoint', async () => {
+  it('lists club users through users endpoint scoped by club', async () => {
     mockedApiRequest.mockResolvedValueOnce([])
 
     await listClubUsers('nasr-club')
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.users.list('nasr-club'),
+      `${apiEndpoints.users.list}?club=nasr-club`,
     )
   })
 
-  it('builds supported role, court, active, and search filters', async () => {
+  it('builds supported role, active, and search filters', async () => {
     mockedApiRequest.mockResolvedValueOnce([])
 
     await listClubUsers('nasr-club', {
       role: 'STAFF',
-      court: 3,
       is_active: true,
       search: '  ahmed  ',
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.clubs.users.list('nasr-club')}?role=STAFF&court=3&is_active=true&search=ahmed`,
+      `${apiEndpoints.users.list}?club=nasr-club&role=STAFF&is_active=true&search=ahmed`,
     )
   })
 
-  it('patches manager permissions through the membership detail endpoint', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 1 })
+  it('creates club staff user with normalized payload', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 42,
+      username: 'staff-1',
+      first_name: 'أحمد',
+      last_name: 'علي',
+      is_active: true,
+    })
 
-    await updateManagerPermissions('nasr-club', 102, {
-      manager_can_settle_transactions: true,
-      manager_can_change_pricing: false,
-      can_manage_settlements: true,
-      can_change_pricing: true,
-      role: 'MANAGER',
-    } as never)
+    await createClubStaff({
+      username: ' staff-1 ',
+      password: 'password123',
+      first_name: ' أحمد ',
+      last_name: ' علي ',
+      email: ' staff@example.com ',
+      phone_number: ' +201000000000 ',
+    })
 
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.memberships.detail('nasr-club', 102),
-      {
-        method: 'PATCH',
-        body: {
-          manager_can_settle_transactions: true,
-          manager_can_change_pricing: false,
-        },
+    expect(mockedApiRequest).toHaveBeenCalledWith(apiEndpoints.users.list, {
+      method: 'POST',
+      body: {
+        username: 'staff-1',
+        password: 'password123',
+        first_name: 'أحمد',
+        last_name: 'علي',
+        email: 'staff@example.com',
+        phone_number: '+201000000000',
+        is_active: true,
       },
-    )
-    expect(mockedApiRequest).not.toHaveBeenCalledWith(
-      apiEndpoints.clubs.detail('nasr-club'),
-      expect.anything(),
-    )
+    })
   })
 
-  it('patches membership activity without overwriting role, court, or permissions', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 1 })
-
-    await updateMembershipActivity('nasr-club', 102, {
+  it('patches a club user through the detail endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 42,
+      username: 'staff-1',
+      first_name: 'أحمد',
+      last_name: 'علي',
       is_active: false,
-      role: 'MANAGER',
-      court: 7,
-      manager_can_change_pricing: true,
-    } as never)
+    })
+
+    await updateClubUser(42, {
+      is_active: false,
+    })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.memberships.detail('nasr-club', 102),
+      apiEndpoints.users.detail(42),
       {
         method: 'PATCH',
         body: {
           is_active: false,
-        },
-      },
-    )
-  })
-
-  it('permanently removes only the membership resource with DELETE', async () => {
-    mockedApiRequest.mockResolvedValueOnce(undefined)
-
-    await deleteClubMembership('nasr-club', 102)
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.memberships.detail('nasr-club', 102),
-      { method: 'DELETE' },
-    )
-    expect(
-      mockedApiRequest.mock.calls.some(([path]) =>
-        String(path).startsWith('users/'),
-      ),
-    ).toBe(false)
-  })
-
-  it('creates a new manager membership with user and manager permission fields', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 2 })
-
-    await createClubMembership('nasr-club', {
-      user: {
-        username: ' manager ',
-        email: '',
-        password: 'secret123',
-        first_name: ' منى ',
-        last_name: ' مدير ',
-        phone_number: ' +201000000002 ',
-      },
-      role: 'MANAGER',
-      court: 7,
-      manager_can_settle_transactions: true,
-      manager_can_change_pricing: false,
-      can_manage_settlements: true,
-      can_change_pricing: true,
-    } as never)
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.memberships.list('nasr-club'),
-      {
-        method: 'POST',
-        body: {
-          user: {
-            username: 'manager',
-            email: undefined,
-            password: 'secret123',
-            first_name: 'منى',
-            last_name: 'مدير',
-            phone_number: '+201000000002',
-          },
-          role: 'MANAGER',
-          court: null,
-          manager_can_settle_transactions: true,
-          manager_can_change_pricing: false,
-        },
-      },
-    )
-  })
-
-  it('creates an existing manager membership with user_id', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 2 })
-
-    await createClubMembership('nasr-club', {
-      user_id: 55,
-      role: 'MANAGER',
-      manager_can_settle_transactions: false,
-      manager_can_change_pricing: true,
-    })
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.memberships.list('nasr-club'),
-      {
-        method: 'POST',
-        body: {
-          user_id: 55,
-          role: 'MANAGER',
-          court: null,
-          manager_can_settle_transactions: false,
-          manager_can_change_pricing: true,
-        },
-      },
-    )
-  })
-
-  it('creates a staff membership with court and without manager permission fields', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 3 })
-
-    await createClubMembership('nasr-club', {
-      user: {
-        username: 'staff',
-        password: 'secret123',
-        first_name: 'سامي',
-        last_name: 'موظف',
-      },
-      role: 'STAFF',
-      court: 7,
-      manager_can_settle_transactions: true,
-      manager_can_change_pricing: true,
-      can_manage_working_hours: true,
-    } as never)
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.memberships.list('nasr-club'),
-      {
-        method: 'POST',
-        body: {
-          user: {
-            username: 'staff',
-            email: undefined,
-            password: 'secret123',
-            first_name: 'سامي',
-            last_name: 'موظف',
-            phone_number: undefined,
-          },
-          role: 'STAFF',
-          court: 7,
-        },
-      },
-    )
-    expect(mockedApiRequest).not.toHaveBeenCalledWith(
-      apiEndpoints.clubs.detail('nasr-club'),
-      expect.anything(),
-    )
-  })
-
-  it('creates an owner membership without court or manager permission fields', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 4 })
-
-    await createClubMembership('nasr-club', {
-      user: {
-        username: 'owner',
-        password: 'secret123',
-        first_name: 'علي',
-        last_name: 'مالك',
-      },
-      role: 'OWNER',
-      court: 7,
-      manager_can_settle_transactions: true,
-      manager_can_change_pricing: true,
-    } as never)
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.memberships.list('nasr-club'),
-      {
-        method: 'POST',
-        body: {
-          user: {
-            username: 'owner',
-            email: undefined,
-            password: 'secret123',
-            first_name: 'علي',
-            last_name: 'مالك',
-            phone_number: undefined,
-          },
-          role: 'OWNER',
         },
       },
     )

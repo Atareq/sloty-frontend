@@ -10,6 +10,9 @@ export interface Court {
   is_active: boolean
   requires_digital_payment_reference: boolean
   internal_hold_expiry_hours: number
+  pricing_configured?: boolean
+  minimum_slot_price?: string | null
+  maximum_slot_price?: string | null
   notes?: string
 }
 

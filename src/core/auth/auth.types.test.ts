@@ -7,178 +7,71 @@ import {
   canChooseOperationalCourt,
   canViewOwnSettlements,
   getAssignedOperationalCourtId,
-  getActiveMembershipPermissions,
-  resolveMembershipPermissions,
-  type CurrentUserMembership,
+  getDefaultRouteForRole,
 } from './auth.types'
 
-function membership(
-  role: CurrentUserMembership['role'],
-  flags: Partial<CurrentUserMembership> = {},
-): CurrentUserMembership {
-  return {
-    id: 1,
-    role,
-    club: {
-      id: 1,
-      slug: 'nasr-club',
-      name: 'نادي النصر',
-      is_active: true,
-    },
-    court: null,
-    ...flags,
-  }
-}
-
-describe('membership permission helpers', () => {
-  it('defaults membership permissions to false', () => {
-    expect(resolveMembershipPermissions(null)).toEqual({
-      can_change_pricing: false,
-      can_manage_working_hours: false,
-      can_manage_settlements: false,
-    })
-  })
-
-  it('allows platform admins to manage pricing, working hours, and settlements', () => {
-    expect(getActiveMembershipPermissions('PLATFORM_ADMIN', null)).toEqual({
-      can_change_pricing: true,
-      can_manage_working_hours: true,
-      can_manage_settlements: true,
-    })
+describe('role permission helpers', () => {
+  it('allows admins to manage pricing, working hours, and settlements', () => {
+    expect(canManagePricing('ADMIN')).toBe(true)
+    expect(canManageWorkingHours('ADMIN')).toBe(true)
+    expect(canManageSettlements('ADMIN')).toBe(true)
+    expect(canManageCancellationRefundPolicy('ADMIN')).toBe(true)
+    expect(canViewOwnSettlements('ADMIN')).toBe(true)
   })
 
   it('allows owners to manage pricing, working hours, and settlements', () => {
-    const owner = membership('OWNER')
-
-    expect(canManagePricing(owner)).toBe(true)
-    expect(canManageWorkingHours(owner)).toBe(true)
-    expect(canManageSettlements(owner)).toBe(true)
+    expect(canManagePricing('OWNER')).toBe(true)
+    expect(canManageWorkingHours('OWNER')).toBe(true)
+    expect(canManageSettlements('OWNER')).toBe(true)
+    expect(canManageCancellationRefundPolicy('OWNER')).toBe(true)
+    expect(canViewOwnSettlements('OWNER')).toBe(true)
   })
 
-  it('allows managers based on membership flags', () => {
-    const manager = membership('MANAGER', {
-      can_change_pricing: true,
-      can_manage_working_hours: false,
-      can_manage_settlements: true,
-    })
-
-    expect(canManagePricing(manager)).toBe(true)
-    expect(canManageWorkingHours(manager)).toBe(false)
-    expect(canManageSettlements(manager)).toBe(true)
+  it('blocks staff from management permissions but allows viewing own settlements', () => {
+    expect(canManagePricing('STAFF')).toBe(false)
+    expect(canManageWorkingHours('STAFF')).toBe(false)
+    expect(canManageSettlements('STAFF')).toBe(false)
+    expect(canManageCancellationRefundPolicy('STAFF')).toBe(false)
+    expect(canViewOwnSettlements('STAFF')).toBe(true)
   })
 
-  it('keeps cancellation refund policy limited to platform admins and owners', () => {
-    const owner = membership('OWNER')
-    const manager = membership('MANAGER', {
-      can_change_pricing: true,
-      can_manage_working_hours: true,
-      can_manage_settlements: true,
-    })
-    const staff = membership('STAFF')
-
-    expect(canManageCancellationRefundPolicy(null, 'PLATFORM_ADMIN')).toBe(true)
-    expect(canManageCancellationRefundPolicy(owner)).toBe(true)
-    expect(canManageCancellationRefundPolicy(manager)).toBe(false)
-    expect(canManageCancellationRefundPolicy(staff)).toBe(false)
+  it('handles null roles safely', () => {
+    expect(canManagePricing(null)).toBe(false)
+    expect(canManageWorkingHours(null)).toBe(false)
+    expect(canManageSettlements(null)).toBe(false)
+    expect(canManageCancellationRefundPolicy(null)).toBe(false)
+    expect(canViewOwnSettlements(null)).toBe(false)
   })
 
-  it('uses nested membership permissions before legacy top-level fields', () => {
-    const manager = membership('MANAGER', {
-      permissions: {
-        can_change_pricing: false,
-        can_manage_working_hours: true,
-        can_manage_settlements: false,
-      },
-      can_change_pricing: true,
-      can_manage_working_hours: false,
-      can_manage_settlements: true,
-    })
+  it('resolves operational court choice and assigned court correctly', () => {
+    const singleCourt = [{ id: 7, name: 'ملعب 1' }]
+    const multiCourts = [
+      { id: 7, name: 'ملعب 1' },
+      { id: 8, name: 'ملعب 2' },
+    ]
 
-    expect(resolveMembershipPermissions(manager)).toEqual({
-      can_change_pricing: false,
-      can_manage_working_hours: true,
-      can_manage_settlements: false,
-    })
+    // Staff with 1 court: cannot choose, assigned to that court
+    expect(canChooseOperationalCourt('STAFF', singleCourt)).toBe(false)
+    expect(getAssignedOperationalCourtId('STAFF', singleCourt)).toBe(7)
+
+    // Staff with multiple courts: can choose, no single assigned court
+    expect(canChooseOperationalCourt('STAFF', multiCourts)).toBe(true)
+    expect(getAssignedOperationalCourtId('STAFF', multiCourts)).toBeNull()
+
+    // Owner: can always choose, no single assigned court
+    expect(canChooseOperationalCourt('OWNER', singleCourt)).toBe(true)
+    expect(getAssignedOperationalCourtId('OWNER', singleCourt)).toBeNull()
+    expect(canChooseOperationalCourt('OWNER', [])).toBe(true)
+    expect(getAssignedOperationalCourtId('OWNER', [])).toBeNull()
+
+    // Admin: can always choose, no single assigned court
+    expect(canChooseOperationalCourt('ADMIN', [])).toBe(true)
+    expect(getAssignedOperationalCourtId('ADMIN', [])).toBeNull()
   })
 
-  it('supports legacy top-level effective permission fields centrally', () => {
-    const manager = membership('MANAGER', {
-      can_change_pricing: true,
-      can_manage_working_hours: false,
-      can_manage_settlements: true,
-    })
-
-    expect(resolveMembershipPermissions(manager)).toEqual({
-      can_change_pricing: true,
-      can_manage_working_hours: false,
-      can_manage_settlements: true,
-    })
-  })
-
-  it('supports raw manager permission fields only for managers', () => {
-    const manager = membership('MANAGER', {
-      manager_can_change_pricing: true,
-      manager_can_settle_transactions: true,
-    })
-    const staff = membership('STAFF', {
-      manager_can_change_pricing: true,
-      manager_can_settle_transactions: true,
-    })
-
-    expect(resolveMembershipPermissions(manager)).toEqual({
-      can_change_pricing: true,
-      can_manage_working_hours: true,
-      can_manage_settlements: true,
-    })
-    expect(resolveMembershipPermissions(staff)).toEqual({
-      can_change_pricing: false,
-      can_manage_working_hours: false,
-      can_manage_settlements: false,
-    })
-  })
-
-  it('blocks staff from management permissions', () => {
-    const staff = membership('STAFF', {
-      can_change_pricing: true,
-      can_manage_working_hours: true,
-      can_manage_settlements: true,
-    })
-
-    expect(canManagePricing(staff)).toBe(false)
-    expect(canManageWorkingHours(staff)).toBe(false)
-    expect(canManageSettlements(staff)).toBe(false)
-  })
-
-  it('splits own settlement visibility from settlement management', () => {
-    const staff = membership('STAFF')
-    const restrictedManager = membership('MANAGER', {
-      can_manage_settlements: false,
-    })
-    const authorizedManager = membership('MANAGER', {
-      can_manage_settlements: true,
-    })
-    const owner = membership('OWNER')
-
-    expect(canViewOwnSettlements(staff)).toBe(true)
-    expect(canViewOwnSettlements(restrictedManager)).toBe(true)
-    expect(canManageSettlements(staff)).toBe(false)
-    expect(canManageSettlements(restrictedManager)).toBe(false)
-    expect(canManageSettlements(authorizedManager)).toBe(true)
-    expect(canManageSettlements(owner)).toBe(true)
-  })
-
-  it('resolves staff operational court from selected membership only', () => {
-    const staff = membership('STAFF', {
-      court: {
-        id: 7,
-        name: 'ملعب 1',
-      },
-    })
-    const owner = membership('OWNER')
-
-    expect(getAssignedOperationalCourtId('STAFF', staff)).toBe(7)
-    expect(canChooseOperationalCourt('STAFF', staff)).toBe(false)
-    expect(getAssignedOperationalCourtId('OWNER', owner)).toBeNull()
-    expect(canChooseOperationalCourt('OWNER', owner)).toBe(true)
+  it('maps default route per role', () => {
+    expect(getDefaultRouteForRole('ADMIN')).toBe('/admin/clubs')
+    expect(getDefaultRouteForRole('OWNER')).toBe('/schedule')
+    expect(getDefaultRouteForRole('STAFF')).toBe('/schedule')
   })
 })

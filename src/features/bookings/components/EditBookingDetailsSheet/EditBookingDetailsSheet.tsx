@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { Country } from 'react-phone-number-input'
 import {
   getFirstFieldErrorMessage,
 } from '../../../../core/api/apiError.helpers'
@@ -8,15 +7,9 @@ import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
-import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
-import { customerCopy } from '../../../../shared/copy/appCopy'
-import {
-  getCountryFromPhoneNumber,
-  normalizeSlotyPhoneNumber,
-} from '../../../../shared/validation/phone'
 import type {
-  BookingCustomerUpdatePayload,
   BookingListItem,
+  BookingNotesUpdatePayload,
 } from '../../../schedule/scheduleApi.types'
 
 export interface EditBookingDetailsSheetProps {
@@ -25,12 +18,11 @@ export interface EditBookingDetailsSheetProps {
   error: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
   onClose: () => void
-  onSubmit: (payload: BookingCustomerUpdatePayload) => Promise<void>
+  onSubmit: (payload: BookingNotesUpdatePayload) => Promise<void>
 }
 
 /**
- * Edits customer identity only. Court, time, price, status, and recurrence
- * stay outside this form.
+ * Edits booking notes only. Customer identity fields are immutable on backend PATCH.
  */
 export function EditBookingDetailsSheet({
   booking,
@@ -40,28 +32,11 @@ export function EditBookingDetailsSheet({
   onClose,
   onSubmit,
 }: EditBookingDetailsSheetProps) {
-  const [customerName, setCustomerName] = useState(booking.customer_name ?? '')
-  const [selectedCountry, setSelectedCountry] = useState<Country>(() => {
-    return getCountryFromPhoneNumber(booking.customer_phone) ?? 'EG'
-  })
-  const [customerPhone, setCustomerPhone] = useState(
-    booking.customer_phone ?? '',
-  )
   const [notes, setNotes] = useState(booking.notes ?? '')
-  const [validationError, setValidationError] = useState<string | null>(null)
   const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
-  const nameFieldError = getFirstFieldErrorMessage(fieldErrors, 'customer_name')
-  const phoneFieldError =
-    getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
-    getFirstFieldErrorMessage(fieldErrors, 'phone_number')
   const notesFieldError = getFirstFieldErrorMessage(fieldErrors, 'notes')
-  const initialName = (booking.customer_name ?? '').trim()
-  const initialPhone = booking.customer_phone ?? ''
   const initialNotes = booking.notes ?? ''
-  const isDirty =
-    customerName.trim() !== initialName ||
-    customerPhone !== initialPhone ||
-    notes !== initialNotes
+  const isDirty = notes !== initialNotes
 
   function requestClose(): boolean | void {
     if (isDirty) {
@@ -74,93 +49,51 @@ export function EditBookingDetailsSheet({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-
-    const trimmedName = customerName.trim()
-    const trimmedNotes = notes.trim()
-    const trimmedPhone = customerPhone.trim()
-
-    if (!trimmedName || !trimmedPhone) {
-      setValidationError('اسم العميل ورقم الموبايل مطلوبان')
-      return
-    }
-
-    const normalizedPhone = normalizeSlotyPhoneNumber(
-      trimmedPhone,
-      selectedCountry,
-    )
-
-    if (!normalizedPhone) {
-      setValidationError('رقم الموبايل غير صحيح')
-      return
-    }
-
-    setValidationError(null)
     await onSubmit({
-      customer_name: trimmedName,
-      customer_phone: normalizedPhone,
-      notes: trimmedNotes,
+      notes: notes.trim(),
     })
   }
 
   return (
     <>
       <AppSheet
-        ariaLabel="تعديل بيانات الحجز"
+        ariaLabel="تعديل ملاحظات الحجز"
+        isOpen
         onRequestClose={requestClose}
+        title="تعديل ملاحظات الحجز"
       >
-        <form className="p-5 pt-14" onSubmit={(event) => void handleSubmit(event)}>
+        <form className="p-5 pt-14 text-right" onSubmit={(event) => void handleSubmit(event)}>
           <div className="space-y-1">
             <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-              تعديل بيانات الحجز
+              تعديل ملاحظات الحجز
             </h2>
             <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
-              تقدر تعدّل اسم العميل ورقم الموبايل والملاحظات فقط.
+              بيانات العميل غير قابلة للتعديل حفاظاً على دقة السجلات. يمكنك تعديل الملاحظات فقط.
             </p>
           </div>
 
           <div className="mt-5 space-y-4">
-            <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-              <span>{customerCopy.customerName}</span>
-              <input
-                className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-                disabled={isSubmitting}
-                onChange={(event) => setCustomerName(event.target.value)}
-                value={customerName}
-              />
-            </label>
-            {nameFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {nameFieldError}
-              </p>
-            ) : null}
-
-            <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-              <span>{customerCopy.mobileNumber}</span>
-              <SlotyPhoneNumberInput
-                country={selectedCountry}
-                disabled={isSubmitting}
-                error={
-                  validationError === 'رقم الموبايل غير صحيح' ||
-                  Boolean(phoneFieldError)
-                }
-                onChange={setCustomerPhone}
-                onCountryChange={setSelectedCountry}
-                raw
-                value={customerPhone}
-              />
+            <div className="rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3.5 space-y-2">
+              <div className="text-xs font-semibold text-[var(--sloty-text-muted)]">
+                بيانات العميل (للقراءة فقط)
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-bold text-[var(--sloty-text-primary)]">
+                  {booking.customer_name || 'غير محدد'}
+                </span>
+                <span dir="ltr" className="text-xs font-medium text-[var(--sloty-text-muted)]">
+                  {booking.customer_phone || ''}
+                </span>
+              </div>
             </div>
-            {phoneFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {phoneFieldError}
-              </p>
-            ) : null}
 
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>ملاحظات</span>
               <textarea
-                className="sloty-mobile-safe-input min-h-20 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
+                className="sloty-mobile-safe-input min-h-24 w-full resize-none rounded-xl border border-[var(--sloty-border)] bg-white px-3 py-2 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
                 disabled={isSubmitting}
                 onChange={(event) => setNotes(event.target.value)}
+                placeholder="أضف ملاحظات على الحجز..."
                 value={notes}
               />
             </label>
@@ -171,9 +104,9 @@ export function EditBookingDetailsSheet({
             ) : null}
           </div>
 
-          {validationError || error ? (
+          {error ? (
             <p className="mt-4 rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-bold text-[var(--sloty-danger)]">
-              {validationError ?? error}
+              {error}
             </p>
           ) : null}
 
@@ -184,7 +117,7 @@ export function EditBookingDetailsSheet({
               type="submit"
               variant="primary"
             >
-              {isSubmitting ? 'جاري الحفظ...' : 'حفظ البيانات'}
+              {isSubmitting ? 'جاري الحفظ...' : 'حفظ الملاحظات'}
             </AppButton>
           </div>
         </form>

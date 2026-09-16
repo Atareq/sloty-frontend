@@ -1,40 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CurrentUserMembership } from '../../core/auth/auth.types'
+import type { AuthRole } from '../../core/auth/auth.types'
 import type { CurrentCustodySummaryResponse } from '../../features/settlements/settlements.types'
 import type { OperationalSyncContext } from '../sync/sync.types'
 import { createCurrentCustodySyncTask } from './currentCustodySyncTask'
 
-const ownerMembership: CurrentUserMembership = {
-  id: 10,
-  role: 'OWNER',
-  club: {
-    id: 1,
-    slug: 'nasr-club',
-    name: 'نادي النصر',
-    is_active: true,
-  },
-  court: null,
-}
-
-const staffMembership: CurrentUserMembership = {
-  ...ownerMembership,
-  id: 11,
-  role: 'STAFF',
-  court: { id: 7, name: 'ملعب 1' },
-}
-
 function createContext(
-  membership: CurrentUserMembership,
+  role: AuthRole = 'OWNER',
+  court: { id: number; name: string } | null = null,
 ): OperationalSyncContext {
   return {
     userId: 1,
     clubSlug: 'nasr-club',
     scopeKey: 'user:1:club:nasr-club',
-    role: membership.role,
-    membership,
-    membershipId: membership.id,
-    assignedCourtId: membership.court?.id ?? null,
-    assignedCourtName: membership.court?.name ?? null,
+    role,
+    assignedCourtId: court?.id ?? null,
+    assignedCourtName: court?.name ?? null,
   }
 }
 
@@ -73,7 +53,7 @@ describe('current custody sync task', () => {
     })
 
     const result = await task.run({
-      operationalContext: createContext(ownerMembership),
+      operationalContext: createContext('OWNER'),
       trigger: 'online',
       signal: new AbortController().signal,
       startedAt: '2026-09-03T08:00:00.000Z',
@@ -128,7 +108,7 @@ describe('current custody sync task', () => {
     })
 
     await task.run({
-      operationalContext: createContext(staffMembership),
+      operationalContext: createContext('STAFF', { id: 7, name: 'ملعب 1' }),
       trigger: 'online',
       signal: new AbortController().signal,
       startedAt: '2026-09-03T08:00:00.000Z',

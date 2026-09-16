@@ -17,7 +17,7 @@ export function createDevAccessToken(role: AuthRole = 'STAFF'): string {
     user_id: 1,
     role,
     name: 'مستخدم تجريبي',
-    club_id: role === 'PLATFORM_ADMIN' ? undefined : 1,
+    club_id: role === 'ADMIN' ? undefined : 1,
     court_id: role === 'STAFF' ? 1 : undefined,
     exp: Math.floor(Date.now() / 1000) + 60 * 60,
   }

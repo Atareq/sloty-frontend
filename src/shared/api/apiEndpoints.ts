@@ -10,6 +10,7 @@ export const apiEndpoints = {
   auth: {
     token: 'auth/token/',
     refresh: 'auth/token/refresh/',
+    passwordChange: 'auth/password/change/',
     me: 'me/',
   },
   egyptLocations: 'egypt-locations/',

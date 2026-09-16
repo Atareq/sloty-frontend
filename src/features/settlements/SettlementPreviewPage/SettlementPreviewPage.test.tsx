@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthRole } from '../../../core/auth/auth.types'
 import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
@@ -30,7 +31,7 @@ const mockedOfflineRepositories = vi.mocked(offlineRepositories)
 const refreshCurrentUser = vi.fn()
 
 function mockAuth(
-  role: 'OWNER' | 'MANAGER' | 'STAFF' = 'OWNER',
+  role: AuthRole = 'OWNER',
   selectedClubSlug: string | null = 'nasr-club',
 ) {
   mockedUseAuth.mockReturnValue({
@@ -45,28 +46,15 @@ function mockAuth(
           last_name: 'أحمد',
           phone_number: null,
           is_active: true,
-          is_platform_admin: false,
+          profile_role: role,
           account_created_by: null,
-          requires_club_selection: false,
-          memberships: [],
         }
       : null,
     selectedClubSlug,
-    selectedMembership: selectedClubSlug
-      ? {
-          id: 10,
-          role,
-          club: {
-            id: 1,
-            name: 'نادي النصر',
-            slug: selectedClubSlug,
-            city: 'ASSIUT',
-            is_active: true,
-          },
-          court: null,
-          can_manage_settlements: role === 'MANAGER',
-        }
-      : null,
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
     isLoadingSession: false,

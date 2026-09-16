@@ -31,21 +31,10 @@ function mockOwner() {
     claims: { user_id: 1 },
     currentUser: null,
     selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role: 'OWNER',
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: null,
-      can_change_pricing: true,
-      can_manage_working_hours: true,
-      can_manage_settlements: true,
-    },
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role: 'OWNER',
     isAuthenticated: true,
     isLoadingSession: false,
@@ -66,21 +55,11 @@ function mockManagerWithoutPermissions() {
     claims: { user_id: 1 },
     currentUser: null,
     selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role: 'MANAGER',
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: null,
-      can_change_pricing: false,
-      can_manage_working_hours: false,
-    },
-    role: 'MANAGER',
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
+    role: 'STAFF',
     isAuthenticated: true,
     isLoadingSession: false,
     isTokenExpired: false,
@@ -176,21 +155,17 @@ describe('SettingsCourtDetailsPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('checkbox')).toBeDisabled()
 
-    // 5. Cancellation & refund label, unit, dynamic helper
     // 5. Cancellation & refund label, placeholder, dynamic helper
     expect(screen.getByText('مدة السماح باسترداد العربون')).toBeInTheDocument()
     const refundField = screen.getByText('مدة السماح باسترداد العربون').closest('label')
     expect(refundField).not.toBeNull()
-    expect(within(refundField!).getByText('أيام')).toBeInTheDocument()
     const refundInput = refundField?.querySelector('input')
     expect(refundInput).toHaveAttribute('placeholder', 'أيام')
-    expect(within(refundField!).queryByText('أيام')).not.toBeInTheDocument()
     expect(
       within(refundField!).getByText(
         'يحق للعميل استرداد العربون عند الإلغاء قبل موعد الحجز بـ 3 أيام أو أكثر.',
       ),
     ).toBeInTheDocument()
-    const refundInput = refundField?.querySelector('input')
     expect(refundInput).toHaveValue(3)
     expect(refundInput).toBeDisabled()
 

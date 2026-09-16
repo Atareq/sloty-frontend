@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthRole } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
+import type { PaginatedResponse } from '../../../shared/api/api.types'
 import { listCourts } from '../courtsApi'
 import { SettingsCourtsPage } from './SettingsCourtsPage'
 
@@ -16,7 +18,7 @@ vi.mock('../courtsApi', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedListCourts = vi.mocked(listCourts)
 
-function paginatedResponse<T>(results: T[]) {
+function paginatedResponse<T>(results: T[]): PaginatedResponse<T> {
   return {
     count: results.length,
     next: null,
@@ -25,25 +27,16 @@ function paginatedResponse<T>(results: T[]) {
   }
 }
 
-function mockMembership(role: 'OWNER' | 'MANAGER', canManage = false) {
+function mockMembership(role: AuthRole = 'OWNER') {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
     currentUser: null,
     selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role,
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: null,
-      can_manage_working_hours: canManage,
-    },
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
     isLoadingSession: false,
@@ -93,8 +86,8 @@ describe('SettingsCourtsPage', () => {
     expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
   })
 
-  it('shows no-permission for a manager without working-hours or pricing permission', async () => {
-    mockMembership('MANAGER', false)
+  it('shows no-permission for staff without working-hours or pricing permission', async () => {
+    mockMembership('STAFF')
 
     render(
       <MemoryRouter>

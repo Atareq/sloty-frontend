@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthRole } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { SettingsHubPage } from './SettingsHubPage'
 
@@ -10,24 +11,16 @@ vi.mock('../../../core/auth/useAuth', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth)
 
-function mockAuth(role: 'OWNER' | 'MANAGER' = 'OWNER') {
+function mockAuth(role: AuthRole = 'OWNER') {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1, role },
     currentUser: null,
     selectedClubSlug: 'nasr-club',
-    selectedMembership: {
-      id: 10,
-      role,
-      club: {
-        id: 1,
-        name: 'نادي النصر',
-        slug: 'nasr-club',
-        city: 'ASSIUT',
-        is_active: true,
-      },
-      court: null,
-    },
+    accessibleClubs: [],
+    accessibleCourts: [],
+    selectedCourtId: null,
+    selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
     isLoadingSession: false,
@@ -68,7 +61,7 @@ describe('SettingsHubPage', () => {
   })
 
   it('does not show owner-only permission link for non-owner rendering', () => {
-    mockAuth('MANAGER')
+    mockAuth('STAFF')
 
     render(
       <MemoryRouter>

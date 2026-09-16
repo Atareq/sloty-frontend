@@ -13,9 +13,30 @@ vi.mock('../../../core/auth/useAuth', () => ({
 const mockedUseAuth = vi.mocked(useAuth)
 const selectClub = vi.fn()
 
-const authValue = {
+const accessibleClubs = [
+  {
+    id: 1,
+    slug: 'demo-football-club',
+    name: 'Demo Football Club',
+    governorate: 'ASSIUT',
+    city: 'ASSIUT_MARKAZ',
+    address: 'Demo detailed address',
+    is_active: true,
+  },
+  {
+    id: 2,
+    slug: 'second-club',
+    name: 'Second Club',
+    governorate: 'ASSIUT',
+    city: 'ASSIUT_CITY',
+    address: 'Second address',
+    is_active: true,
+  },
+]
+
+const authValue: AuthContextValue = {
   accessToken: 'token',
-  claims: { user_id: 1 },
+  claims: { user_id: 1, role: 'STAFF' as const, name: 'Staff User' },
   currentUser: {
     id: 1,
     username: 'staff-user',
@@ -24,42 +45,13 @@ const authValue = {
     last_name: 'علي',
     phone_number: null,
     is_active: true,
-    is_platform_admin: false,
+    profile_role: 'STAFF' as const,
     account_created_by: null,
-    requires_club_selection: true,
-    memberships: [
-      {
-        id: 10,
-        role: 'STAFF' as const,
-        club: {
-          id: 1,
-          slug: 'demo-football-club',
-          name: 'Demo Football Club',
-          governorate: 'ASSIUT',
-          city: 'ASSIUT_MARKAZ',
-          address: 'Demo detailed address',
-          is_active: true,
-        },
-        court: { id: 3, name: 'Demo A Court 1' },
-      },
-      {
-        id: 11,
-        role: 'MANAGER' as const,
-        club: {
-          id: 2,
-          slug: 'second-club',
-          name: 'Second Club',
-          governorate: 'ASSIUT',
-          city: 'ASSIUT_CITY',
-          address: 'Second address',
-          is_active: true,
-        },
-        court: null,
-      },
-    ],
   },
+  accessibleClubs,
+  accessibleCourts: [],
   selectedClubSlug: null,
-  selectedMembership: null,
+  selectedCourtId: null,
   role: 'STAFF' as const,
   isAuthenticated: true,
   isLoadingSession: false,
@@ -68,10 +60,11 @@ const authValue = {
   login: vi.fn(),
   logout: vi.fn(),
   selectClub,
+  selectCourt: vi.fn(),
   clearSelectedClub: vi.fn(),
   refreshCurrentUser: vi.fn(),
   setTokens: vi.fn(),
-} satisfies AuthContextValue
+}
 
 function renderClubSelectionPage() {
   render(
@@ -90,19 +83,18 @@ describe('ClubSelectionPage', () => {
     mockedUseAuth.mockReturnValue(authValue)
   })
 
-  it('renders multiple membership cards with role and court details', () => {
+  it('renders multiple accessible club cards', () => {
     renderClubSelectionPage()
 
     expect(screen.getByRole('heading', { name: 'اختيار النادي' }))
       .toBeInTheDocument()
     expect(screen.getByText('Demo Football Club')).toBeInTheDocument()
     expect(screen.getByText('Second Club')).toBeInTheDocument()
-    expect(screen.getByText('موظف ملعب')).toBeInTheDocument()
-    expect(screen.getByText('Demo A Court 1')).toBeInTheDocument()
-    expect(screen.getByText('مدير')).toBeInTheDocument()
+    expect(screen.getByText('demo-football-club')).toBeInTheDocument()
+    expect(screen.getByText('second-club')).toBeInTheDocument()
   })
 
-  it('stores the selected club slug and redirects to dashboard', async () => {
+  it('stores the selected club slug and redirects to schedule', async () => {
     const user = userEvent.setup()
 
     renderClubSelectionPage()

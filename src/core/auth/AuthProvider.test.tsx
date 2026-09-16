@@ -7,11 +7,14 @@ import {
   safelyPersistOfflineContext,
   safelyReadOfflineContext,
 } from '../../offline/security/offlineStorageSafety'
+import { listClubs } from '../../features/clubs/clubsApi'
+import { listCourts } from '../../features/courts/courtsApi'
+import type { PaginatedResponse } from '../../shared/api/api.types'
 import { ApiClientError } from '../api/apiClient'
 import { AuthProvider } from './AuthProvider'
 import { fetchCurrentUserProfile } from './authApi'
 import { clearAuthTokens, getAccessToken } from './authStorage'
-import { canManageSettlements } from './auth.types'
+import { canManageSettlements, type CurrentUserProfile } from './auth.types'
 import { createDevAccessToken } from './devAuth'
 import {
   clearSelectedClubSlug,
@@ -24,6 +27,14 @@ vi.mock('./authApi', () => ({
   fetchCurrentUserProfile: vi.fn(),
 }))
 
+vi.mock('../../features/clubs/clubsApi', () => ({
+  listClubs: vi.fn(),
+}))
+
+vi.mock('../../features/courts/courtsApi', () => ({
+  listCourts: vi.fn(),
+}))
+
 vi.mock('../../offline/security/offlineStorageSafety', () => ({
   safelyClearScope: vi.fn(),
   safelyClearUserOperationalData: vi.fn(),
@@ -33,6 +44,8 @@ vi.mock('../../offline/security/offlineStorageSafety', () => ({
 }))
 
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
+const mockedListClubs = vi.mocked(listClubs)
+const mockedListCourts = vi.mocked(listCourts)
 const mockedClearScope = vi.mocked(safelyClearScope)
 const mockedClearUserOperationalData = vi.mocked(
   safelyClearUserOperationalData,
@@ -48,17 +61,19 @@ function AuthProviderHarness() {
     role,
     selectClub,
     selectedClubSlug,
-    selectedMembership,
+    accessibleClubs,
   } = useAuth()
+
+  const activeClub = accessibleClubs.find((c) => c.slug === selectedClubSlug)
 
   return (
     <div>
       <p>{currentUser?.username ?? 'لا يوجد مستخدم'}</p>
       <p>{selectedClubSlug ?? 'لا يوجد نادي محدد'}</p>
-      <p>{selectedMembership?.club.name ?? 'لا توجد عضوية محددة'}</p>
+      <p>{activeClub?.name ?? 'لا يوجد نادي محدد'}</p>
       <p>{role ?? 'لا يوجد دور محدد'}</p>
       <p>
-        {canManageSettlements(selectedMembership, role)
+        {canManageSettlements(role)
           ? 'يمكن إدارة التسويات'
           : 'لا يمكن إدارة التسويات'}
       </p>
@@ -82,6 +97,71 @@ function AuthProviderHarness() {
 }
 
 describe('AuthProvider', () => {
+  function paginated<T>(results: T[]): PaginatedResponse<T> {
+    return {
+      count: results.length,
+      next: null,
+      previous: null,
+      results,
+    }
+  }
+
+  const mockClub1 = {
+    id: 1,
+    slug: 'demo-football-club',
+    name: 'Demo Football Club',
+    city: 'ASSIUT',
+    is_active: true,
+  }
+
+  const mockClub2 = {
+    id: 2,
+    slug: 'second-club',
+    name: 'Second Club',
+    city: 'ASSIUT',
+    is_active: true,
+  }
+
+  const mockCourtsClub1 = [
+    {
+      id: 3,
+      name: 'Court 1',
+      club: 1,
+      sport_type: 'FOOTBALL' as const,
+      default_price: '300.00',
+      minimum_deposit: '100.00',
+      cancellation_refund_notice_days: 3,
+      slot_duration_minutes: 60,
+      is_active: true,
+      requires_digital_payment_reference: false,
+      internal_hold_expiry_hours: 2,
+    },
+  ]
+
+  const staffProfile: CurrentUserProfile = {
+    id: 1,
+    username: 'staff-user',
+    email: 'staff@example.com',
+    first_name: 'أحمد',
+    last_name: 'علي',
+    phone_number: null,
+    is_active: true,
+    profile_role: 'STAFF',
+    account_created_by: null,
+  }
+
+  const ownerProfile: CurrentUserProfile = {
+    id: 1,
+    username: 'owner-user',
+    email: 'owner@example.com',
+    first_name: 'سارة',
+    last_name: 'محمد',
+    phone_number: null,
+    is_active: true,
+    profile_role: 'OWNER',
+    account_created_by: null,
+  }
+
   beforeEach(() => {
     clearAuthTokens()
     clearSelectedClubSlug()
@@ -90,62 +170,14 @@ describe('AuthProvider', () => {
     mockedClearUserOperationalData.mockResolvedValue(true)
     mockedPersistOfflineContext.mockResolvedValue(true)
     mockedReadOfflineContext.mockResolvedValue(null)
+    mockedListClubs.mockResolvedValue(paginated([mockClub1]))
+    mockedListCourts.mockResolvedValue(paginated(mockCourtsClub1))
   })
-
-  const oneMembershipProfile = {
-    id: 1,
-    username: 'staff-user',
-    email: 'staff@example.com',
-    first_name: 'أحمد',
-    last_name: 'علي',
-    phone_number: null,
-    is_active: true,
-    is_platform_admin: false,
-    account_created_by: null,
-    requires_club_selection: false,
-    memberships: [
-      {
-        id: 10,
-        role: 'STAFF' as const,
-        club: {
-          id: 1,
-          slug: 'demo-football-club',
-          name: 'Demo Football Club',
-          is_active: true,
-        },
-        court: { id: 3, name: 'Court 1' },
-      },
-    ],
-  }
-
-  const manyMembershipsProfile = {
-    ...oneMembershipProfile,
-    requires_club_selection: true,
-    memberships: [
-      oneMembershipProfile.memberships[0],
-      {
-        id: 11,
-        role: 'MANAGER' as const,
-        permissions: {
-          can_change_pricing: false,
-          can_manage_working_hours: false,
-          can_manage_settlements: true,
-        },
-        club: {
-          id: 2,
-          slug: 'second-club',
-          name: 'Second Club',
-          is_active: true,
-        },
-        court: null,
-      },
-    ],
-  }
 
   it('clears the current user profile on logout', async () => {
     const user = userEvent.setup()
 
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(oneMembershipProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(staffProfile)
 
     render(
       <AuthProvider>
@@ -166,9 +198,9 @@ describe('AuthProvider', () => {
     expect(screen.getByText('لا يوجد مستخدم')).toBeInTheDocument()
   })
 
-  it('persists only the selected Backend-verified membership context', async () => {
+  it('persists only the selected Backend-verified club context', async () => {
     const user = userEvent.setup()
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(oneMembershipProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(staffProfile)
 
     render(
       <AuthProvider>
@@ -183,8 +215,8 @@ describe('AuthProvider', () => {
         expect.objectContaining({
           scope: { userId: 1, clubSlug: 'demo-football-club' },
           displayName: 'أحمد علي',
-          isPlatformAdmin: false,
-          membership: oneMembershipProfile.memberships[0],
+          role: 'STAFF',
+          selectedClubSlug: 'demo-football-club',
         }),
       )
     })
@@ -199,7 +231,7 @@ describe('AuthProvider', () => {
           finishContextWrite = () => resolve(true)
         }),
     )
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(oneMembershipProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(staffProfile)
 
     render(
       <AuthProvider>
@@ -221,10 +253,11 @@ describe('AuthProvider', () => {
     await waitFor(() => expect(getAccessToken()).toBeNull())
   })
 
-  it('auto-selects the only membership club after profile hydration', async () => {
+  it('auto-selects the only accessible club after profile hydration', async () => {
     const user = userEvent.setup()
 
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(oneMembershipProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(staffProfile)
+    mockedListClubs.mockResolvedValueOnce(paginated([mockClub1]))
 
     render(
       <AuthProvider>
@@ -242,7 +275,8 @@ describe('AuthProvider', () => {
   it('keeps multi-club users unselected unless the stored slug is still valid', async () => {
     const user = userEvent.setup()
 
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(manyMembershipsProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(ownerProfile)
+    mockedListClubs.mockResolvedValueOnce(paginated([mockClub1, mockClub2]))
 
     render(
       <AuthProvider>
@@ -252,15 +286,16 @@ describe('AuthProvider', () => {
 
     await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
 
-    expect(await screen.findByText('staff-user')).toBeInTheDocument()
-    expect(screen.getByText('لا يوجد نادي محدد')).toBeInTheDocument()
+    expect(await screen.findByText('owner-user')).toBeInTheDocument()
+    expect(screen.getAllByText('لا يوجد نادي محدد')).toHaveLength(2)
     expect(getSelectedClubSlug()).toBeNull()
   })
 
-  it('recalculates active membership, role, and permissions when selected club changes', async () => {
+  it('recalculates active club and context when selected club changes', async () => {
     const user = userEvent.setup()
     saveSelectedClubSlug('demo-football-club')
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(manyMembershipsProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(ownerProfile)
+    mockedListClubs.mockResolvedValue(paginated([mockClub1, mockClub2]))
 
     render(
       <AuthProvider>
@@ -271,8 +306,8 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
 
     expect(await screen.findByText('Demo Football Club')).toBeInTheDocument()
-    expect(screen.getByText('STAFF')).toBeInTheDocument()
-    expect(screen.getByText('لا يمكن إدارة التسويات')).toBeInTheDocument()
+    expect(screen.getByText('OWNER')).toBeInTheDocument()
+    expect(screen.getByText('يمكن إدارة التسويات')).toBeInTheDocument()
     await waitFor(() => {
       expect(mockedPersistOfflineContext).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -284,7 +319,7 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'اختيار النادي الثاني' }))
 
     expect(screen.getByText('Second Club')).toBeInTheDocument()
-    expect(screen.getByText('MANAGER')).toBeInTheDocument()
+    expect(screen.getByText('OWNER')).toBeInTheDocument()
     expect(screen.getByText('يمكن إدارة التسويات')).toBeInTheDocument()
     await waitFor(() => {
       expect(mockedPersistOfflineContext).toHaveBeenLastCalledWith(
@@ -297,14 +332,15 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'اختيار النادي الأول' }))
 
     expect(screen.getByText('Demo Football Club')).toBeInTheDocument()
-    expect(screen.getByText('STAFF')).toBeInTheDocument()
-    expect(screen.getByText('لا يمكن إدارة التسويات')).toBeInTheDocument()
+    expect(screen.getByText('OWNER')).toBeInTheDocument()
+    expect(screen.getByText('يمكن إدارة التسويات')).toBeInTheDocument()
   })
 
-  it('clears a stale selected club slug when memberships no longer include it', async () => {
+  it('clears a stale selected club slug when clubs no longer include it', async () => {
     const user = userEvent.setup()
     saveSelectedClubSlug('old-club')
-    mockedFetchCurrentUserProfile.mockResolvedValueOnce(manyMembershipsProfile)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(ownerProfile)
+    mockedListClubs.mockResolvedValueOnce(paginated([mockClub1, mockClub2]))
 
     render(
       <AuthProvider>
@@ -315,7 +351,7 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
 
     await waitFor(() => expect(getSelectedClubSlug()).toBeNull())
-    expect(screen.getByText('لا يوجد نادي محدد')).toBeInTheDocument()
+    expect(screen.getAllByText('لا يوجد نادي محدد')).toHaveLength(2)
   })
 
   it('hydrates the last verified scope when profile refresh cannot reach the backend', async () => {
@@ -331,14 +367,13 @@ describe('AuthProvider', () => {
       user_id: 1,
       club_slug: 'demo-football-club',
       display_name: 'أحمد علي',
-      is_platform_admin: false,
-      selected_club_slug: 'demo-football-club',
-      membership_id: 10,
       role: 'STAFF',
-      assigned_court_id: 3,
-      assigned_court_name: 'Court 1',
+      selected_club_slug: 'demo-football-club',
+      accessible_clubs: [mockClub1],
+      accessible_courts: mockCourtsClub1,
+      selected_court_id: 3,
       last_verified_at: '2026-09-04T10:00:00.000Z',
-      schema_version: 2,
+      schema_version: 5,
     })
 
     render(
@@ -350,7 +385,8 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
 
     expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
-    expect(screen.getAllByText('demo-football-club')).toHaveLength(2)
+    expect(screen.getByText('demo-football-club')).toBeInTheDocument()
+    expect(screen.getByText('Demo Football Club')).toBeInTheDocument()
     expect(screen.getByText('STAFF')).toBeInTheDocument()
     expect(mockedReadOfflineContext).toHaveBeenCalledWith({
       userId: 1,

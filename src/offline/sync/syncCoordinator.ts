@@ -353,7 +353,7 @@ export class OfflineSyncCoordinator {
       throwIfAborted(controller.signal)
 
       let authorizedCourtIds: number[] | undefined
-      if (!canChooseOperationalCourt(context.role, context.membership)) {
+      if (!canChooseOperationalCourt(context.role)) {
         authorizedCourtIds = context.assignedCourtId
           ? [context.assignedCourtId]
           : []

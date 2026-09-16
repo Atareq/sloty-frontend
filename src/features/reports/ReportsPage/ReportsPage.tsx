@@ -332,8 +332,7 @@ export function ReportsPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
-  const canViewReports =
-    role === 'PLATFORM_ADMIN' || role === 'OWNER' || role === 'MANAGER'
+  const canViewReports = role === 'ADMIN' || role === 'OWNER'
 
   useEffect(() => {
     if (!selectedClubSlug || !canViewReports) {

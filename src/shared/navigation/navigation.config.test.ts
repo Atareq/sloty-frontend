@@ -7,23 +7,6 @@ import {
 } from './navigation.config'
 
 describe('navigation config', () => {
-  const membership = {
-    id: 10,
-    role: 'MANAGER' as const,
-    club: {
-      id: 1,
-      slug: 'demo-club',
-      name: 'نادي التجربة',
-      is_active: true,
-    },
-    court: null,
-    permissions: {
-      can_change_pricing: false,
-      can_manage_working_hours: false,
-      can_manage_settlements: false,
-    },
-  }
-
   it('filters staff navigation items by role', () => {
     const staffPaths = getNavigationItemsForRole('STAFF').map(
       (item) => item.path,
@@ -41,33 +24,26 @@ describe('navigation config', () => {
   it('keeps owner-only routes out of staff navigation', () => {
     expect(canRoleAccessPath('STAFF', '/reports')).toBe(false)
     expect(canRoleAccessPath('OWNER', '/reports')).toBe(false)
-    expect(canRoleAccessPath('MANAGER', '/reports')).toBe(false)
     expect(canRoleAccessPath('STAFF', '/transactions')).toBe(true)
     expect(canRoleAccessPath('STAFF', '/settlements')).toBe(true)
     expect(canRoleAccessPath('STAFF', '/settings/users')).toBe(false)
-    expect(canRoleAccessPath('MANAGER', '/settings/users')).toBe(false)
     expect(canRoleAccessPath('OWNER', '/settings/users')).toBe(true)
   })
 
-  it('uses role and effective settlement permission for finance labels', () => {
+  it('uses role for settlement permission labels', () => {
     expect(
-      getNavigationItemsForRole('STAFF', {}, { ...membership, role: 'STAFF' })
+      getNavigationItemsForRole('STAFF')
         .find((item) => item.path === '/transactions')?.label,
     ).toBe('معاملاتي المالية')
     expect(
-      getNavigationItemsForRole('MANAGER', {}, membership)
+      getNavigationItemsForRole('STAFF')
         .find((item) => item.path === '/settlements')?.label,
     ).toBe('عهدتي')
     expect(
-      getNavigationItemsForRole('MANAGER', {}, {
-        ...membership,
-        permissions: {
-          ...membership.permissions,
-          can_manage_settlements: true,
-        },
-      }).find((item) => item.path === '/settlements')?.label,
+      getNavigationItemsForRole('OWNER')
+        .find((item) => item.path === '/settlements')?.label,
     ).toBe('إدارة الأموال')
-    expect(getPageHeaderMeta('/transactions', 'STAFF', membership).title)
+    expect(getPageHeaderMeta('/transactions', 'STAFF').title)
       .toBe('معاملاتي المالية')
   })
 
@@ -91,7 +67,7 @@ describe('navigation config', () => {
     )
   })
 
-  it('can return the three daily mobile footer items for each club role', () => {
+  it('can return the two daily mobile footer items for each club role', () => {
     const expectedMobileLabels = [
       'الرئيسية',
       'سجل الحجوزات',
@@ -99,19 +75,15 @@ describe('navigation config', () => {
     const ownerMobileLabels = getNavigationItemsForRole('OWNER', {
       mobileOnly: true,
     }).map((item) => item.label)
-    const managerMobileLabels = getNavigationItemsForRole('MANAGER', {
-      mobileOnly: true,
-    }).map((item) => item.label)
     const staffMobileLabels = getNavigationItemsForRole('STAFF', {
       mobileOnly: true,
     }).map((item) => item.label)
 
     expect(ownerMobileLabels).toEqual(expectedMobileLabels)
-    expect(managerMobileLabels).toEqual(expectedMobileLabels)
     expect(staffMobileLabels).toEqual(expectedMobileLabels)
   })
 
-  it('keeps the Owner/Manager transaction ledger out of primary Burger navigation', () => {
+  it('keeps the Owner/Staff transaction ledger out of primary Burger navigation', () => {
     expect(
       getNavigationItemsForRole('OWNER', { primaryOnly: true }).some(
         (item) => item.path === '/transactions',
@@ -123,10 +95,8 @@ describe('navigation config', () => {
       ),
     ).toBe(false)
     expect(
-      getNavigationItemsForRole('STAFF', { primaryOnly: true }, {
-        ...membership,
-        role: 'STAFF',
-      }).map((item) => item.label),
+      getNavigationItemsForRole('STAFF', { primaryOnly: true })
+        .map((item) => item.label),
     ).toEqual([
       'الرئيسية',
       'سجل الحجوزات',
@@ -134,10 +104,9 @@ describe('navigation config', () => {
       'عهدتي',
     ])
     expect(
-      getNavigationItemsForRole('STAFF', { primaryOnly: true }, {
-        ...membership,
-        role: 'STAFF',
-      }).some((item) => item.label === 'إدارة الأموال'),
+      getNavigationItemsForRole('STAFF', { primaryOnly: true }).some(
+        (item) => item.label === 'إدارة الأموال',
+      ),
     ).toBe(false)
   })
 
@@ -209,7 +178,7 @@ describe('navigation config', () => {
   it('exposes settings users page metadata', () => {
     expect(getPageHeaderMeta('/settings/users')).toEqual({
       title: 'المستخدمون والصلاحيات',
-      subtitle: 'مراجعة أعضاء النادي وصلاحيات المديرين',
+      subtitle: 'مراجعة موظفي النادي',
     })
   })
 
@@ -260,7 +229,7 @@ describe('navigation config', () => {
     })
     expect(getPageHeaderMeta('/admin/users/new')).toEqual({
       title: 'إضافة مستخدم',
-      subtitle: 'استخدم نفس عقد إنشاء الحسابات والعضويات المعتمد في الواجهة',
+      subtitle: 'استخدم نفس عقد إنشاء الحسابات المعتمد في الواجهة',
     })
   })
 })

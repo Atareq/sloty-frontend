@@ -168,9 +168,9 @@ function LinkedTransactions({
 export function SettlementsHubPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentUser, role, selectedClubSlug, selectedMembership } = useAuth()
-  const canSettle = canManageSettlements(selectedMembership, role)
-  const canViewOwn = canViewOwnSettlements(selectedMembership, role)
+  const { currentUser, role, selectedClubSlug } = useAuth()
+  const canSettle = canManageSettlements(role)
+  const canViewOwn = canViewOwnSettlements(role)
   const isOwnMode = canViewOwn && !canSettle
   const query = useMemo(
     () => parseHubQuery(location.search),
@@ -602,24 +602,6 @@ export function SettlementsHubPage() {
                 }}
                 options={userFilterOptions}
                 value={query.collected_by}
-              />
-              <AppSelect
-                label="نطاق الملعب"
-                onChange={(value) => {
-                  navigate(
-                    {
-                      pathname: location.pathname,
-                      search: getHubSearch({
-                        collected_by: query.collected_by,
-                        court: value,
-                        history: query.history,
-                      }),
-                    },
-                    { replace: false },
-                  )
-                }}
-                options={courtFilterOptions}
-                value={query.court}
               />
             </div>
             <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-[var(--sloty-text-primary)]">

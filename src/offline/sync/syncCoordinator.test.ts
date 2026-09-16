@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CurrentUserMembership } from '../../core/auth/auth.types'
+import type { AuthRole } from '../../core/auth/auth.types'
 import type { Booking } from '../../features/bookings/bookings.types'
 import type { BookingSlot } from '../../features/schedule/scheduleApi.types'
 import type { Transaction } from '../../features/transactions/transactions.types'
@@ -76,33 +76,20 @@ function createBookingRequestResult(
   }
 }
 
-const membership: CurrentUserMembership = {
-  id: 10,
-  role: 'STAFF',
-  club: {
-    id: 1,
-    slug: 'club-a',
-    name: 'Club A',
-    is_active: true,
-  },
-  court: { id: 7, name: 'Court 7' },
-}
-
 function createContext(
   userId: number,
   clubSlug: string,
-  nextMembership: CurrentUserMembership = membership,
+  role: AuthRole = 'STAFF',
+  court: { id: number; name: string } | null = { id: 7, name: 'Court 7' },
 ): OperationalSyncContext {
   const scope = { userId, clubSlug }
 
   return {
     ...scope,
     scopeKey: createOfflineScopeKey(scope),
-    role: nextMembership.role,
-    membership: nextMembership,
-    membershipId: nextMembership.id,
-    assignedCourtId: nextMembership.court?.id ?? null,
-    assignedCourtName: nextMembership.court?.name ?? null,
+    role,
+    assignedCourtId: court?.id ?? null,
+    assignedCourtName: court?.name ?? null,
   }
 }
 
@@ -686,18 +673,7 @@ describe('OfflineSyncCoordinator', () => {
   })
 
   it('resolves authorized courts once per operational sync run and reuses them across tasks', async () => {
-    const ownerMembership: CurrentUserMembership = {
-      id: 20,
-      role: 'OWNER',
-      club: {
-        id: 1,
-        slug: 'club-a',
-        name: 'Club A',
-        is_active: true,
-      },
-      court: null,
-    }
-    const ownerContext = createContext(2, 'club-a', ownerMembership)
+    const ownerContext = createContext(2, 'club-a', 'OWNER', null)
     const resolveAuthorizedCourts = vi.fn(async () => [101, 102])
     let scheduleReceivedCourts: number[] | undefined
 

@@ -1,4 +1,5 @@
 import { apiRequest } from '../../core/api/apiClient'
+import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import {
   buildPathWithQuery,
@@ -12,7 +13,7 @@ import type {
 /**
  * Loads the active backend court-usage analytics contract for ReportsPage.
  */
-export function getCourtUsageReport(
+export async function getCourtUsageReport(
   clubSlug: string,
   params: CourtUsageReportQueryParams,
 ): Promise<CourtUsageReport> {
@@ -27,7 +28,20 @@ export function getCourtUsageReport(
     status: params.status,
   }
 
-  return apiRequest<CourtUsageReport>(
+  const response = await apiRequest<
+    CourtUsageReport | PaginatedResponse<CourtUsageReport>
+  >(
     buildPathWithQuery(apiEndpoints.clubs.reports.courtUsage(clubSlug), query),
   )
+
+  const report =
+    'results' in response && Array.isArray(response.results)
+      ? response.results[0]
+      : (response as CourtUsageReport)
+
+  if (!report) {
+    throw new Error('لم يتم العثور على بيانات التقرير للفترة المحددة')
+  }
+
+  return report
 }

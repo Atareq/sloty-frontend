@@ -1,39 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CurrentUserMembership } from '../../core/auth/auth.types'
+import type { AuthRole } from '../../core/auth/auth.types'
 import type { Transaction } from '../../features/transactions/transactions.types'
 import { createOfflineScopeKey } from '../scope/offlineScope'
+import type { OperationalSyncContext } from '../sync/sync.types'
 import { createTransactionSyncTask } from './transactionSyncTask'
 
-const staffMembership: CurrentUserMembership = {
-  id: 10,
-  role: 'STAFF',
-  club: {
-    id: 1,
-    slug: 'nasr-club',
-    name: 'نادي النصر',
-    is_active: true,
-  },
-  court: { id: 7, name: 'ملعب 1' },
-}
-
-const managerMembership: CurrentUserMembership = {
-  ...staffMembership,
-  id: 11,
-  role: 'MANAGER',
-  court: null,
-}
-
-function createContext(membership = managerMembership) {
+function createContext(
+  role: AuthRole = 'OWNER',
+  court: { id: number; name: string } | null = null,
+): OperationalSyncContext {
   const scope = { userId: 1, clubSlug: 'nasr-club' }
 
   return {
     ...scope,
     scopeKey: createOfflineScopeKey(scope),
-    role: membership.role,
-    membership,
-    membershipId: membership.id,
-    assignedCourtId: membership.court?.id ?? null,
-    assignedCourtName: membership.court?.name ?? null,
+    role,
+    assignedCourtId: court?.id ?? null,
+    assignedCourtName: court?.name ?? null,
   }
 }
 
@@ -109,7 +92,7 @@ describe('createTransactionSyncTask', () => {
     })
 
     await task.run({
-      operationalContext: createContext(staffMembership),
+      operationalContext: createContext('STAFF', { id: 7, name: 'ملعب 1' }),
       trigger: 'manual',
       signal: new AbortController().signal,
       startedAt: '2026-08-30T06:00:00.000Z',
