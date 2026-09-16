@@ -21,6 +21,7 @@ import {
   getBookingNotes,
   hasRemainingAmount,
 } from '../../bookingDisplay.helpers'
+import { useOfflineReadonly } from '../../../../shared/hooks/useOfflineReadonly'
 
 export interface BookingActionSheetProps {
   booking: BookingListItem | null
@@ -73,6 +74,7 @@ export function BookingActionSheet({
 }: BookingActionSheetProps) {
   const [isEndRecurrenceConfirming, setIsEndRecurrenceConfirming] = useState(false)
   const [now, setNow] = useState(() => new Date())
+  const { isOffline, offlineMessage } = useOfflineReadonly()
   const optionsRef = useRef<HTMLDetailsElement>(null)
   const fallbackDate =
     dateValue ?? (booking ? getBookingDateFallback(booking) : null)
@@ -122,7 +124,7 @@ export function BookingActionSheet({
   }
 
   function runPrimaryAction(): void {
-    if (!booking || !presentation?.primaryAction) {
+    if (!booking || !presentation?.primaryAction || isOffline) {
       return
     }
 
@@ -135,7 +137,7 @@ export function BookingActionSheet({
   }
 
   function runSecondaryAction(action: BookingSecondaryAction): void {
-    if (!booking) {
+    if (!booking || isOffline) {
       return
     }
 
@@ -312,12 +314,19 @@ export function BookingActionSheet({
               </p>
             ) : null}
 
+            {isOffline ? (
+              <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                {offlineMessage} (تعديل أو إلغاء أو سداد الحجز يتطلب اتصالاً بالإنترنت)
+              </p>
+            ) : null}
+
             {presentation?.primaryAction ? (
               <AppButton
                 className="mt-5"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isOffline}
                 fullWidth
                 onClick={runPrimaryAction}
+                title={isOffline ? offlineMessage : undefined}
                 type="button"
                 variant="primary"
               >
@@ -328,9 +337,10 @@ export function BookingActionSheet({
             {presentation?.parallelActions.includes('NO_SHOW') ? (
               <AppButton
                 className="mt-3"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isOffline}
                 fullWidth
                 onClick={() => runSecondaryAction('NO_SHOW')}
+                title={isOffline ? offlineMessage : undefined}
                 type="button"
                 variant="secondary"
               >
@@ -360,9 +370,10 @@ export function BookingActionSheet({
                 <div className="space-y-2 border-t border-[var(--sloty-border)] p-3">
                   {presentation.secondaryActions.includes('EDIT_CUSTOMER') ? (
                     <AppButton
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isOffline}
                       fullWidth
                       onClick={() => runSecondaryAction('EDIT_CUSTOMER')}
+                      title={isOffline ? offlineMessage : undefined}
                       type="button"
                       variant="secondary"
                     >
@@ -371,9 +382,10 @@ export function BookingActionSheet({
                   ) : null}
                   {presentation.secondaryActions.includes('RESCHEDULE') ? (
                     <AppButton
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isOffline}
                       fullWidth
                       onClick={() => runSecondaryAction('RESCHEDULE')}
+                      title={isOffline ? offlineMessage : undefined}
                       type="button"
                       variant="secondary"
                     >
@@ -382,9 +394,10 @@ export function BookingActionSheet({
                   ) : null}
                   {presentation.secondaryActions.includes('NO_SHOW') ? (
                     <AppButton
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isOffline}
                       fullWidth
                       onClick={() => runSecondaryAction('NO_SHOW')}
+                      title={isOffline ? offlineMessage : undefined}
                       type="button"
                       variant="secondary"
                     >
@@ -398,9 +411,10 @@ export function BookingActionSheet({
                         className="border-t border-[var(--sloty-border)]"
                       />
                       <AppButton
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || isOffline}
                         fullWidth
                         onClick={() => runSecondaryAction('CANCEL')}
+                        title={isOffline ? offlineMessage : undefined}
                         type="button"
                         variant="danger"
                       >
@@ -443,9 +457,10 @@ export function BookingActionSheet({
               رجوع
             </AppButton>
             <AppButton
-              disabled={isSubmitting}
+              disabled={isSubmitting || isOffline}
               fullWidth
               onClick={() => onEndRecurrence?.(booking)}
+              title={isOffline ? offlineMessage : undefined}
               type="button"
               variant="secondary"
             >

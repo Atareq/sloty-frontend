@@ -2058,7 +2058,7 @@ export function SchedulePage() {
                   <button
                     aria-busy={isManualRefreshRunning}
                     aria-label="تحديث البيانات"
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-current/20 bg-white/75 px-3 py-2 text-sm font-extrabold transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-[var(--sloty-border)] bg-white px-3.5 py-2 text-sm font-black text-[var(--sloty-primary-dark)] shadow-sm transition hover:bg-[var(--sloty-soft-mint)] hover:border-[var(--sloty-primary)]/30 focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30 disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={isManualRefreshRunning}
                     onClick={() => void handleManualScheduleRefresh()}
                     type="button"

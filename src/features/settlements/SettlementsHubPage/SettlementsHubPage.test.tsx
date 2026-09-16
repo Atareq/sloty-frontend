@@ -562,7 +562,6 @@ describe('SettlementsHubPage', () => {
   })
 
   it('sends the selected court for history filtering and removes it for all courts', async () => {
-    const user = userEvent.setup()
     mockAuth('OWNER', true)
     mockedGetCurrentCustodySummary.mockResolvedValueOnce({
       results: [

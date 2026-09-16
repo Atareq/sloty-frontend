@@ -128,6 +128,7 @@ export function AppSheet({
         aria-modal="true"
         className={[
           'relative max-h-[85dvh] w-full overflow-x-hidden overflow-y-auto rounded-t-3xl bg-[var(--sloty-surface)] pb-[max(env(safe-area-inset-bottom),0px)] shadow-2xl md:rounded-3xl',
+          'relative max-h-[85dvh] w-full overflow-x-hidden overflow-y-auto rounded-t-3xl bg-[var(--sloty-surface)] pb-[calc(max(env(safe-area-inset-bottom,0px),1rem)+1.25rem)] shadow-2xl md:pb-6 md:rounded-3xl',
           className,
         ].join(' ')}
         onKeyDown={handleFocusTrap}

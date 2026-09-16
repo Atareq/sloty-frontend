@@ -105,6 +105,11 @@ describe('navigation config', () => {
     ])
     expect(
       getNavigationItemsForRole('STAFF', { primaryOnly: true }).some(
+        (item) => item.path === '/transactions',
+      ),
+    ).toBe(false)
+    expect(
+      getNavigationItemsForRole('STAFF', { primaryOnly: true }).some(
         (item) => item.label === 'إدارة الأموال',
       ),
     ).toBe(false)

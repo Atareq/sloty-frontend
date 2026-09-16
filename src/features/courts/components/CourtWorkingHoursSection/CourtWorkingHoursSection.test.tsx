@@ -652,4 +652,50 @@ describe('CourtWorkingHoursSection', () => {
     expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
     expect(mockedSaveCourtWorkingHours).toHaveBeenCalledTimes(1)
   })
+
+  it('renders 7-day segmented strip and allows switching days via tab pills', async () => {
+    const user = userEvent.setup()
+
+    renderWorkingHoursSection()
+
+    await screen.findByLabelText('اليوم')
+
+    const tablist = screen.getByRole('tablist', { name: 'أيام الأسبوع' })
+    expect(tablist).toBeInTheDocument()
+
+    // Sunday tab
+    const sundayTab = screen.getByRole('tab', { name: 'الأحد' })
+    expect(sundayTab).toBeInTheDocument()
+    expect(sundayTab).toHaveTextContent('أحد')
+    expect(sundayTab).toHaveAttribute('aria-selected', 'false')
+
+    // Click Sunday tab
+    await user.click(sundayTab)
+
+    expect(sundayTab).toHaveAttribute('aria-selected', 'true')
+    // Selected day is Sunday (closed)
+    expect(screen.getByRole('button', { name: 'فتح اليوم' })).toBeInTheDocument()
+    expect(screen.getAllByText('مغلق').length).toBeGreaterThan(0)
+
+    // Saturday tab
+    const saturdayTab = screen.getByRole('tab', { name: 'السبت' })
+    expect(saturdayTab).toHaveTextContent('سبت')
+    await user.click(saturdayTab)
+
+    expect(saturdayTab).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'إغلاق اليوم' })).toBeInTheDocument()
+    expect(screen.getAllByText('مفتوح').length).toBeGreaterThan(0)
+  })
+
+  it('renders period cards with formatted time and price summary badges', async () => {
+    renderWorkingHoursSection()
+
+    await screen.findByLabelText('اليوم')
+
+    // Period 1 is 10:00 - 12:00 at 250.00 EGP
+    expect(screen.getByText('فترة 1')).toBeInTheDocument()
+    expect(
+      screen.getByText('من 10:00 ص إلى 12:00 م · 250.00 ج.م'),
+    ).toBeInTheDocument()
+  })
 })

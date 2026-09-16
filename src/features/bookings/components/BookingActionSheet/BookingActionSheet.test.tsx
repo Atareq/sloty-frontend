@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { OfflineSyncContext } from '../../../../offline/sync/offlineSyncContext'
 import type { BookingListItem } from '../../../schedule/scheduleApi.types'
 import { BookingActionSheet } from './BookingActionSheet'
 
@@ -366,5 +367,58 @@ describe('BookingActionSheet', () => {
     expect(screen.queryByText(/واجهة الخلفية|سيتم إضافته بعد|بعد اعتماد/))
       .not.toBeInTheDocument()
     expect(screen.queryByText('تحرير الموعد')).not.toBeInTheDocument()
+  })
+
+  it('disables mutation actions and displays offline warning when offline', () => {
+    const onAddPayment = vi.fn()
+    const offlineSyncValue = {
+      connectivity: {
+        browserNetwork: 'offline' as const,
+        backendReachability: 'unreachable' as const,
+        lastConnectivityChangeAt: null,
+        lastBrowserEvent: null,
+        eventVersion: 0,
+      },
+      freshness: {
+        ageMs: 0,
+        canCreateNewOfflineRequest: false,
+        isLoading: false,
+        lastSuccessfulOperationalSyncAt: null,
+        level: 'stale_warning' as const,
+        warningText: null,
+      },
+      requestSync: vi.fn(),
+      sync: {
+        status: 'idle' as const,
+        activeScopeKey: null,
+        activeDataset: null,
+        lastRunStartedAt: null,
+        lastRunCompletedAt: null,
+        lastRunResult: null,
+        backendReachability: 'unreachable' as const,
+      },
+    }
+
+    render(
+      <OfflineSyncContext.Provider value={offlineSyncValue}>
+        <BookingActionSheet
+          booking={{ ...baseBooking, status: 'HOLD' }}
+          courtName="ملعب 1"
+          isOpen
+          onAddPayment={onAddPayment}
+          onClose={vi.fn()}
+        />
+      </OfflineSyncContext.Provider>,
+    )
+
+    expect(
+      screen.getByText(/تعديل أو إلغاء أو سداد الحجز يتطلب اتصالاً بالإنترنت/),
+    ).toBeInTheDocument()
+
+    const primaryButton = screen.getByRole('button', {
+      name: 'سجّل العربون وأكّد الحجز',
+    })
+    expect(primaryButton).toBeDisabled()
+    expect(primaryButton).toHaveAttribute('title', 'يحتاج اتصال بالإنترنت')
   })
 })
