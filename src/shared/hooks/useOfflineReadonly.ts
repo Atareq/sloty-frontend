@@ -1,4 +1,6 @@
+import { useContext } from 'react'
 import {
+  OfflineSyncContext,
   useOfflineSync,
 } from '../../offline/sync/offlineSyncContext'
 
@@ -23,7 +25,7 @@ export function useOfflineReadonly(
   let isOffline = false
 
   try {
-    const sync = useOfflineSync()
+    const sync = typeof useOfflineSync === 'function' ? useOfflineSync() : null
     if (sync) {
       isOffline = Boolean(
         sync.connectivity.browserNetwork === 'offline' ||
@@ -31,9 +33,24 @@ export function useOfflineReadonly(
       )
     }
   } catch {
-    // Outside OfflineSyncProvider or in unmocked tests
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      isOffline = true
+    // If outside OfflineSyncProvider or useOfflineSync threw, try useContext directly
+    try {
+      const context =
+        typeof OfflineSyncContext !== 'undefined' && OfflineSyncContext
+          ? useContext(OfflineSyncContext)
+          : null
+      if (context) {
+        isOffline = Boolean(
+          context.connectivity.browserNetwork === 'offline' ||
+            context.connectivity.backendReachability === 'unreachable',
+        )
+      } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        isOffline = true
+      }
+    } catch {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        isOffline = true
+      }
     }
   }
 
@@ -53,3 +70,4 @@ export function useOfflineReadonly(
     },
   }
 }
+
