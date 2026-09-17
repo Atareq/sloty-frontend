@@ -4,6 +4,7 @@ import {
   doPricingPeriodsOverlap,
   getCourtWeekdayFromDate,
   getWeekdayLabel,
+  getWeekdayShortLabel,
   isPricingPeriodAlignedToSlotDuration,
   isTimeAlignedToSlotDuration,
   isTimeRangeOrdered,
@@ -27,6 +28,18 @@ describe('courtWorkingHours.helpers', () => {
         'الأربعاء',
         'الخميس',
         'الجمعة',
+      ])
+    })
+
+    it('maps backend weekdays to short Arabic labels starting from Saturday', () => {
+      expect(weekdays.map((weekday) => getWeekdayShortLabel(weekday))).toEqual([
+        'سبت',
+        'أحد',
+        'اثنين',
+        'ثلاثاء',
+        'أربعاء',
+        'خميس',
+        'جمعة',
       ])
     })
 

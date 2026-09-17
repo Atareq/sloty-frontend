@@ -7,6 +7,7 @@ import {
 
 export interface BookingCardProps {
   booking: ScheduleBooking
+  disabled?: boolean
   onSelect?: (booking: ScheduleBooking) => void
 }
 
@@ -36,10 +37,14 @@ const slotClassesByTone: Record<ScheduleSlotTone, string> = {
  * existing recurring booking or a free slot eligible for weekly recurrence.
  * Customer and money details stay in task sheets.
  */
-export function BookingCard({ booking, onSelect }: BookingCardProps) {
+export function BookingCard({
+  booking,
+  disabled = false,
+  onSelect,
+}: BookingCardProps) {
   const displayStartTime = formatTime12Hour(booking.startTime)
   const presentation = getScheduleSlotPresentation(booking)
-  const isActionable = presentation.isClickable && Boolean(onSelect)
+  const isActionable = !disabled && presentation.isClickable && Boolean(onSelect)
   const canStartRecurring =
     booking.status === 'available' && booking.canStartRecurring === true
   const accessibleLabel = [

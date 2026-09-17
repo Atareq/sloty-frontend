@@ -29,7 +29,6 @@ export function normalizeCourtWorkingHoursResponse(
   return {
     court: response.court,
     court_name: response.court_name,
-    pricing_configured: Boolean(response.pricing_configured),
     working_hours: Array.isArray(response.working_hours)
       ? response.working_hours.map(normalizeWorkingDay)
       : [],

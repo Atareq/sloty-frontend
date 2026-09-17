@@ -3,12 +3,14 @@
 `src/features` owns domain product code: pages, feature components, API wrappers, types, and helpers.
 
 Current active features include auth, dashboard, schedule, bookings, transactions, settlements, clubs, courts, clubUsers, adminUsers, settings, reports, audit, locations, and the unfinished Platform Admin settings placeholder.
+Active features include auth, dashboard, schedule, publicSchedule, bookings, transactions, settlements, clubs, courts, clubUsers, adminUsers, settings, reports, and audit.
 
 Keep feature-specific state and mutations inside the relevant feature folder. Put reusable presentational primitives in `src/shared`.
 
 Do not attach page-level business synchronization listeners for browser
 online/offline or visibility changes. Authenticated operational sync is owned by
 `src/offline/sync` and mounted once from `AppShell`.
+## Guidelines by Domain
 
 Canonical Booking details live in `bookings/components/BookingActionSheet`. Customer edit lives in `EditBookingDetailsSheet`. Non-recurring reschedule lives in `RescheduleBookingSheet`. Virtual `RECURRING_RESERVED` details live in `schedule/components/VirtualRecurringSlotDetailsSheet` because that slot is not a Booking.
 
@@ -58,3 +60,10 @@ Audit Log is read-only business history. List cards use the Audit list response
 for concise summaries and never enrich rows with current entity requests.
 Opening one card may load one Audit detail response into an `AppSheet`; that
 detail also renders only Audit response fields and safe before/after changes.
+- **Schedule (`src/features/schedule/`):** Hosts the operational `SchedulePage`, rolling date strip, and slot board. Uses FE-038 dual-fetch lifecycle with date extending by -1 calendar day. Slot actions open canonical sheets. Offline mode is read-only.
+- **Public Schedule (`src/features/publicSchedule/`):** Standalone unauthenticated view (`/public/.../schedule`). Zero Dexie coupling, truly anonymous network requests (`omitAuth: true`, `skipAuthRefresh: true`), sanitized availability (`AVAILABLE` / `UNAVAILABLE`).
+- **Bookings (`src/features/bookings/`):** Canonical Booking details live in `bookings/components/BookingActionSheet`. Customer edit lives in `EditBookingDetailsSheet`. Non-recurring reschedule lives in `RescheduleBookingSheet`.
+- **Transactions (`src/features/transactions/`):** Immutable financial ledger (`TransactionsListPage`). Payments and refunds are server-authoritative; no financial mutations may occur offline.
+- **Settlements (`src/features/settlements/`):** Cash closing and custody management (`SettlementsHubPage`). Staff view their own custody preview; Owners and Admins view all-employee custody summaries (`unsettled-summary`).
+- **Courts (`src/features/courts/`):** Court management and weekly working hours. Pricing is defined exclusively via `CourtWorkingHourPricePeriod` records per working hour day.
+- **Audit Log (`src/features/audit/`):** Read-only business audit history. Renders audit events and detail differences.

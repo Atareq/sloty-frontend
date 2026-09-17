@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../../../../core/api/apiClient'
 import { useAuth } from '../../../../core/auth/useAuth'
@@ -62,7 +63,6 @@ function setupWorkingHoursApi(): void {
   mockedGetCourtWorkingHours.mockResolvedValue({
     court: 7,
     court_name: 'ملعب 1',
-    pricing_configured: true,
     working_hours: [
       {
         weekday: 5,
@@ -77,34 +77,35 @@ function setupWorkingHoursApi(): void {
       },
     ],
   })
-  mockedSaveCourtWorkingHours.mockResolvedValue({
-    court: 7,
-    court_name: 'ملعب 1',
-    pricing_configured: true,
-    working_hours: [
-      {
-        weekday: 5,
-        pricing_periods: [
-          {
-            starts_at: '10:00',
-            ends_at: '12:00',
-            price: '250.00',
-          },
-        ],
-      },
-    ],
-  })
+  mockedSaveCourtWorkingHours.mockImplementation(
+    async (_club, _courtId, payload) => ({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: payload.working_hours.map((day) => ({
+        weekday: day.weekday,
+        pricing_periods: day.pricing_periods.map((p, idx) => ({
+          id: idx + 1,
+          starts_at: p.starts_at,
+          ends_at: p.ends_at,
+          price: p.price,
+        })),
+      })),
+    }),
+  )
 }
 
-function renderWorkingHoursSection(canEdit = true) {
+function renderWorkingHoursSection(canEdit = true, onBack?: () => void) {
   return render(
-    <CourtWorkingHoursSection
-      canEdit={canEdit}
-      clubSlug="nasr-club"
-      courtId="7"
-      isCreateMode={false}
-      slotDurationMinutes={60}
-    />,
+    <MemoryRouter>
+      <CourtWorkingHoursSection
+        canEdit={canEdit}
+        clubSlug="nasr-club"
+        courtId="7"
+        isCreateMode={false}
+        onBack={onBack}
+        slotDurationMinutes={60}
+      />
+    </MemoryRouter>,
   )
 }
 
@@ -163,7 +164,11 @@ describe('CourtWorkingHoursSection', () => {
   })
 
   it('does not call working-hours endpoint before a new court exists', () => {
-    render(<CourtWorkingHoursSection isCreateMode />)
+    render(
+      <MemoryRouter>
+        <CourtWorkingHoursSection isCreateMode />
+      </MemoryRouter>,
+    )
 
     expect(
       screen.getByText('يمكن ضبط فترات العمل والأسعار بعد إنشاء الملعب'),
@@ -202,7 +207,7 @@ describe('CourtWorkingHoursSection', () => {
 
     await screen.findByLabelText('اليوم')
     await user.click(screen.getByRole('button', { name: 'إغلاق اليوم' }))
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     await waitFor(() => {
       expect(mockedSaveCourtWorkingHours).toHaveBeenCalled()
@@ -264,7 +269,7 @@ describe('CourtWorkingHoursSection', () => {
     fireEvent.change(screen.getByLabelText('فترة العمل 2 السعر'), {
       target: { value: '350' },
     })
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     await waitFor(() => {
       expect(mockedSaveCourtWorkingHours).toHaveBeenCalled()
@@ -302,7 +307,7 @@ describe('CourtWorkingHoursSection', () => {
     fireEvent.change(screen.getByLabelText('فترة العمل 2 السعر'), {
       target: { value: '300' },
     })
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     expect(
       await screen.findByText('حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.'),
@@ -323,7 +328,7 @@ describe('CourtWorkingHoursSection', () => {
     fireEvent.change(screen.getByLabelText('فترة العمل 2 من'), {
       target: { value: '12:00' },
     })
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     await waitFor(() => {
       expect(mockedSaveCourtWorkingHours).toHaveBeenCalledTimes(1)
@@ -339,7 +344,7 @@ describe('CourtWorkingHoursSection', () => {
     fireEvent.change(screen.getByLabelText('فترة العمل 1 السعر'), {
       target: { value: '' },
     })
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     expect(
       await screen.findByText('حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.'),
@@ -359,7 +364,7 @@ describe('CourtWorkingHoursSection', () => {
     fireEvent.change(screen.getByLabelText('فترة العمل 1 السعر'), {
       target: { value: '-1' },
     })
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     expect(
       await screen.findByText('السعر لا يمكن أن يكون أقل من صفر'),
@@ -382,7 +387,7 @@ describe('CourtWorkingHoursSection', () => {
     fireEvent.change(screen.getByLabelText('فترة العمل 1 إلى'), {
       target: { value: '12:00' },
     })
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     expect(
       await screen.findByText('حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.'),
@@ -424,7 +429,7 @@ describe('CourtWorkingHoursSection', () => {
 
     expect(screen.getByText('00:00 تعني نهاية اليوم')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     await waitFor(() => {
       expect(mockedSaveCourtWorkingHours).toHaveBeenCalled()
@@ -484,7 +489,7 @@ describe('CourtWorkingHoursSection', () => {
       target: { value: '12:00' },
     })
     await chooseAppSelectOption(user, screen.getByLabelText('اليوم'), 'السبت')
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     expect(
       await screen.findByText('حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.'),
@@ -528,9 +533,14 @@ describe('CourtWorkingHoursSection', () => {
     })
     await user.click(
       screen.getByRole('button', {
-        name: 'تطبيق مواعيد السبت على باقي أيام الأسبوع',
+        name: /حفظ وتطبيق مواعيد السبت على باقي الأسبوع/,
       }),
     )
+
+    expect(await screen.findByText('تم الحفظ والتطبيق بنجاح')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedSaveCourtWorkingHours).toHaveBeenCalled()
+    })
 
     await chooseAppSelectOption(user, screen.getByLabelText('اليوم'), 'الأحد')
     expect(screen.getByLabelText('فترة العمل 1 من')).toHaveValue('10:00')
@@ -545,7 +555,7 @@ describe('CourtWorkingHoursSection', () => {
     expect(screen.getByLabelText('فترة العمل 2 السعر')).toHaveValue(400)
   })
 
-  it('does not render "إغلاق كل الأيام" and renders guidance text with Saturday apply button', async () => {
+  it('does not render "إغلاق كل الأيام" and renders save-and-apply action block', async () => {
     renderWorkingHoursSection()
 
     await screen.findByLabelText('اليوم')
@@ -560,9 +570,22 @@ describe('CourtWorkingHoursSection', () => {
     expect(screen.queryByText('إغلاق كل الأيام')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', {
-        name: 'تطبيق مواعيد السبت على باقي أيام الأسبوع',
+        name: /حفظ وتطبيق مواعيد السبت على باقي الأسبوع/,
       }),
     ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'يحفظ التعديلات الحالية ويطبق نفس الفترات والأسعار على الأيام الأخرى',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('تطبيق نفس الفترات والأسعار على باقي أيام الأسبوع الستة'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: 'تطبيق مواعيد السبت',
+      }),
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', {
         name: 'نسخ مواعيد السبت لباقي أيام الأسبوع',
@@ -570,18 +593,16 @@ describe('CourtWorkingHoursSection', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('cancel changes restores the last backend-loaded draft', async () => {
+  it('navigates back when clicking the back button', async () => {
     const user = userEvent.setup()
+    const onBack = vi.fn()
 
-    renderWorkingHoursSection()
+    renderWorkingHoursSection(true, onBack)
 
     await screen.findByLabelText('اليوم')
-    fireEvent.change(screen.getByLabelText('فترة العمل 1 السعر'), {
-      target: { value: '999' },
-    })
-    await user.click(screen.getByRole('button', { name: 'إلغاء التغييرات' }))
+    await user.click(screen.getByRole('button', { name: 'رجوع' }))
 
-    expect(screen.getByLabelText('فترة العمل 1 السعر')).toHaveValue(250)
+    expect(onBack).toHaveBeenCalledTimes(1)
   })
 
   it('removing the final period closes that day', async () => {
@@ -602,10 +623,9 @@ describe('CourtWorkingHoursSection', () => {
     renderWorkingHoursSection()
 
     await screen.findByLabelText('اليوم')
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
-    expect(await screen.findByText('تم تحديث مواعيد العمل بنجاح'))
-      .toBeInTheDocument()
+    expect(await screen.findByText('تم الحفظ بنجاح')).toBeInTheDocument()
   })
 
   it('shows backend working-hours field error when save fails', async () => {
@@ -628,7 +648,7 @@ describe('CourtWorkingHoursSection', () => {
     renderWorkingHoursSection()
 
     await screen.findByLabelText('اليوم')
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     expect(await screen.findByText('فترات العمل والأسعار غير صحيحة'))
       .toBeInTheDocument()
@@ -645,11 +665,127 @@ describe('CourtWorkingHoursSection', () => {
     renderWorkingHoursSection()
 
     await screen.findByLabelText('اليوم')
-    await user.click(screen.getByRole('button', { name: 'حفظ مواعيد الأسبوع' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
 
     expect(await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'))
       .toBeInTheDocument()
     expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
     expect(mockedSaveCourtWorkingHours).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies primary green surface style to selected day tab and secondary style to unselected tabs', async () => {
+    renderWorkingHoursSection()
+
+    await screen.findByLabelText('اليوم')
+
+    const saturdayTab = screen.getByRole('tab', { name: 'السبت' })
+    const sundayTab = screen.getByRole('tab', { name: 'الأحد' })
+
+    expect(saturdayTab).toHaveClass('sloty-green-surface-button')
+    expect(sundayTab).not.toHaveClass('sloty-green-surface-button')
+  })
+
+  it('verifies complete removal of obsolete pricing fields and old action buttons', async () => {
+    renderWorkingHoursSection()
+
+    await screen.findByLabelText('اليوم')
+
+    expect(screen.queryByText('pricing_configured')).not.toBeInTheDocument()
+    expect(screen.queryByText('minimum_slot_price')).not.toBeInTheDocument()
+    expect(screen.queryByText('maximum_slot_price')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'إلغاء التغييرات' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'حفظ مواعيد الأسبوع' })).not.toBeInTheDocument()
+  })
+
+  it('renders 7-day segmented strip and allows switching days via tab pills', async () => {
+    const user = userEvent.setup()
+
+    renderWorkingHoursSection()
+
+    await screen.findByLabelText('اليوم')
+
+    const tablist = screen.getByRole('tablist', { name: 'أيام الأسبوع' })
+    expect(tablist).toBeInTheDocument()
+
+    // Sunday tab
+    const sundayTab = screen.getByRole('tab', { name: 'الأحد' })
+    expect(sundayTab).toBeInTheDocument()
+    expect(sundayTab).toHaveTextContent('أحد')
+    expect(sundayTab).toHaveAttribute('aria-selected', 'false')
+
+    // Click Sunday tab
+    await user.click(sundayTab)
+
+    expect(sundayTab).toHaveAttribute('aria-selected', 'true')
+    // Selected day is Sunday (closed)
+    expect(screen.getByRole('button', { name: 'فتح اليوم' })).toBeInTheDocument()
+    expect(screen.getAllByText('مغلق').length).toBeGreaterThan(0)
+
+    // Saturday tab
+    const saturdayTab = screen.getByRole('tab', { name: 'السبت' })
+    expect(saturdayTab).toHaveTextContent('سبت')
+    await user.click(saturdayTab)
+
+    expect(saturdayTab).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'إغلاق اليوم' })).toBeInTheDocument()
+    expect(screen.getAllByText('مفتوح').length).toBeGreaterThan(0)
+  })
+
+  it('renders period cards with formatted time and price summary badges', async () => {
+    renderWorkingHoursSection()
+
+    await screen.findByLabelText('اليوم')
+
+    // Period 1 is 10:00 - 12:00 at 250.00 EGP
+    expect(screen.getByText('فترة 1')).toBeInTheDocument()
+    expect(
+      screen.getByText('من 10:00 ص إلى 12:00 م · 250.00 ج.م'),
+    ).toBeInTheDocument()
+  })
+
+  it('renders the entire save-and-apply block as a clickable button beside the back button', async () => {
+    const user = userEvent.setup()
+    const onBack = vi.fn()
+
+    renderWorkingHoursSection(true, onBack)
+
+    await screen.findByLabelText('اليوم')
+
+    // Verify dynamic day text when Saturday is selected
+    const saveAndApplyButton = screen.getByRole('button', {
+      name: /حفظ وتطبيق مواعيد السبت على باقي الأسبوع/,
+    })
+    expect(saveAndApplyButton).toBeInTheDocument()
+    expect(saveAndApplyButton).toHaveAttribute('type', 'button')
+    expect(saveAndApplyButton).toHaveTextContent(
+      'يحفظ التعديلات الحالية ويطبق نفس الفترات والأسعار على الأيام الأخرى',
+    )
+
+    // Verify back button is beside it
+    const backButton = screen.getByRole('button', { name: 'رجوع' })
+    expect(backButton).toBeInTheDocument()
+    expect(saveAndApplyButton.parentElement).toContainElement(backButton)
+
+    // Switch day to Sunday and verify dynamic label updates
+    await user.click(screen.getByRole('tab', { name: 'الأحد' }))
+    expect(
+      screen.getByRole('button', {
+        name: /حفظ وتطبيق مواعيد الأحد على باقي الأسبوع/,
+      }),
+    ).toBeInTheDocument()
+
+    // Clicking anywhere on the block triggers save and apply
+    await user.click(
+      screen.getByRole('button', {
+        name: /حفظ وتطبيق مواعيد الأحد على باقي الأسبوع/,
+      }),
+    )
+
+    expect(await screen.findByText('تم الحفظ والتطبيق بنجاح')).toBeInTheDocument()
+    expect(mockedSaveCourtWorkingHours).toHaveBeenCalled()
+
+    // Clicking back triggers onBack
+    await user.click(backButton)
+    expect(onBack).toHaveBeenCalledTimes(1)
   })
 })

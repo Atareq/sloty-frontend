@@ -1,16 +1,21 @@
 # Guest Public Schedule Agent Guide (`src/features/publicSchedule/`)
 
 This document governs the unauthenticated Guest Public Schedule feature (`/public/:clubSlug/courts/:courtId/schedule`) in `src/features/publicSchedule/`.
+For the detailed architectural specification, consult [`docs/features/public-schedule.md`](../../../docs/features/public-schedule.md).
 
 ---
 
 ## 1. Feature Responsibilities & Architectural Identity
+## 1. Feature Responsibilities & Identity
 
 - **Same Schedule Product / Experience:** Public Schedule and Authenticated Schedule deliver the same canonical Sloty schedule visual design, layout language, and branding.
+- **Same Schedule Experience:** Delivers the identical Sloty visual design, brand palette, and schedule layout.
 - **Separate Orchestration & Data Contracts:**
   - Public Schedule is rendered by standalone `PublicSchedulePage` outside `AppShell`.
+  - Rendered by standalone `PublicSchedulePage` outside `AppShell`.
   - Driven by the sanitized public availability endpoint.
   - **Zero Dexie / Offline Sync Coupling:** Must **never** read or write to `sloty_local_db` or register with `OfflineSyncCoordinator`.
+  - **Zero Dexie / Offline Sync Coupling:** Never reads or writes to `sloty_local_db` or registers with `OfflineSyncCoordinator`.
   - **Zero Business Mutations:** Guests cannot create bookings, holds, payments, or cancellations.
 
 ---
@@ -27,13 +32,18 @@ This document governs the unauthenticated Guest Public Schedule feature (`/publi
 
 1. **Sanitized States Only:**
    - **`AVAILABLE` → `متاح`:** Clickable slot. Highlights with an attention ring and displays localized booking instructions.
+   - **`AVAILABLE` → `متاح`:** Clickable slot. Highlights and displays booking/contact instructions.
    - **`UNAVAILABLE` → `غير متاح`:** Disabled, non-clickable card.
 2. **Public HOLD & Private State Boundary:**
    - Backend-blocked and private operational states are represented through the sanitized public availability contract only.
    - The public frontend receives only `AVAILABLE` (`متاح`) or `UNAVAILABLE` (`غير متاح`) and never inspects or renders internal booking statuses.
    - Operational `HOLD` (waiting for deposit) is required to surface publicly as `UNAVAILABLE` (`غير متاح`).
+2. **Public HOLD Boundary:**
+   - Operational `HOLD` (waiting for deposit) surfaces publicly as `UNAVAILABLE` (`غير متاح`).
+   - The public frontend receives only `AVAILABLE` or `UNAVAILABLE` and never inspects internal booking statuses.
 3. **Absolute Privacy:**
    - The public view must **never** receive, parse, or display customer names, phone numbers, notes, prices, deposits, payment statuses, or internal booking IDs.
+   - The public view never receives, parses, or displays customer names, phone numbers, notes, prices, deposits, payment statuses, or internal booking IDs.
 
 ---
 
@@ -43,6 +53,8 @@ This document governs the unauthenticated Guest Public Schedule feature (`/publi
 - Navigating to past dates or dates beyond 31 days in the future is prevented by the UI and route guards.
 - Restricts date navigation strictly to **today - 1 through today + 30 inclusive** (32 Egypt-local dates total).
 - Navigating to dates before yesterday (`today - 1`) or beyond 30 days in the future (`today + 30`) is prevented by the UI and route guards.
+- Restricts date navigation strictly to a 32-day window.
+- Navigating to past dates or dates beyond the 32-day window is prevented by the UI and route guards.
 
 ---
 
@@ -60,9 +72,13 @@ This document governs the unauthenticated Guest Public Schedule feature (`/publi
      ```text
      مش من فريق العمل في الملعب؟
      تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.
+   - Uses `navigator.share` on supported platforms, falling back to clipboard copy (`navigator.clipboard.writeText`) on desktop/unsupported environments with instant feedback toast (`تم نسخ رابط الجدول`).
+2. **Login Affordance:**
+   - Provides clear messaging for staff members to navigate to the operational login.
 
      المتابعة كزائر
      ```
    - Tapping `المتابعة كزائر` returns the guest to the public court schedule.
 
 Detailed architectural specification: [`docs/public-schedule-architecture.md`](../../../docs/public-schedule-architecture.md).
+Detailed architectural specification: [`docs/features/public-schedule.md`](../../../docs/features/public-schedule.md).

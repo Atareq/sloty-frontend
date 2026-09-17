@@ -1,8 +1,10 @@
 # Offline Storage Architecture
+# Offline Storage Architecture (`src/offline`)
 
 `src/offline` owns Sloty's versioned IndexedDB foundation. The Service Worker
 owns only the static application shell; structured operational snapshots belong
 here.
+`src/offline` owns Sloty's versioned IndexedDB storage (`sloty_local_db`) and background synchronization.
 
 - Every sensitive row carries a deterministic `user + Club` scope. Schedule
   reads additionally require an explicit Court and date.
@@ -153,7 +155,50 @@ here.
   state is only a hint; Backend reachability comes from real dataset outcomes.
 - Future synchronization must keep bounded windows (Schedule 31 days, Bookings
   7 days, Transactions 7 days) rather than assuming unlimited device storage.
+---
 
 Schedule, recent Booking History, recent Transactions, and Current Custody use
 these repositories for read-only offline rendering. BookingIntent is the only
 offline write; all money and Booking lifecycle mutations remain online-only.
+## 1. Storage Fundamentals
+
+- **IndexedDB Database:** Dexie-managed `sloty_local_db` (current schema: **version 3**).
+- **Scope Partitioning:** Every sensitive record is scoped by `scope_key` derived via `createOfflineScopeKey(userId, clubSlug)`.
+- **Atomic Operations:** Dataset replacements run inside single Dexie transactions, preserving previous snapshots on failure.
+- **Identity Context:** `offline_context` persists only verified `/me` identity hints; never credentials, tokens, or frontend-derived permissions.
+
+---
+
+## 2. Bounded Cache Windows
+
+- **Schedule (`schedule_days`):** Today + 30 Egypt-local days (31-day bounded window) per accessible court.
+- **Bookings (`bookings`):** Past 7 Egypt-local calendar days for the active club scope.
+- **Transactions (`transactions`):** Past 7 Egypt-local calendar days for the active club scope.
+- **Current Custody (`current_custody_snapshots`):** Latest server-authoritative custody payload (`preview` for staff, `unsettled-summary` for owner/admin).
+
+---
+
+## 3. Freshness Policy
+
+Centralized in `src/offline/freshness`:
+- `< 12 hours`: `FRESH` (normal offline operation).
+- `12 - 72 hours`: `STALE` (informational warning banner).
+- `> 72 hours`: `EXPIRED` (cached data preserved for inspection, prompts reconnect).
+
+---
+
+## 4. Synchronization Coordinator (`src/offline/sync`)
+
+- Mounted once at the shell level (`OfflineSyncProvider`).
+- Coalesces duplicate triggers for the same scope key.
+- Fixed sync order: Schedule window → Bookings & Transactions → Current Custody.
+
+---
+
+## 5. Offline Mutation Boundary
+
+- **Offline is Read-Only for Operational Actions:**
+  - Cached schedule slots, bookings, transactions, and custody snapshots can be viewed offline.
+  - Interactive actions that mutate state (creating bookings, recording payments, cancelling, completing, settling) are disabled when offline and require server connectivity.
+
+Detailed specification: [`docs/offline.md`](../../docs/offline.md).

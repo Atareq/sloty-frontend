@@ -133,7 +133,6 @@ export function SettingsCourtDetailsPage() {
       const savedCourt = await updateCourt(selectedClubSlug, courtId, {
         name: court.name,
         sport_type: court.sport_type,
-        default_price: court.default_price,
         minimum_deposit: minimumDeposit,
         cancellation_refund_notice_days: parsedRefundNoticeDays,
         slot_duration_minutes: court.slot_duration_minutes,

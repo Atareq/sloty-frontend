@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
@@ -52,8 +52,7 @@ const mockedListTransactions = vi.mocked(listTransactions)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedListClubUsers = vi.mocked(listClubUsers)
 const defaultFilters = {
-  date_from: '2026-07-13',
-  date_to: '2026-07-20',
+  ordering: '-created',
 }
 
 function paginatedResponse<T>(results: T[]) {
@@ -71,6 +70,25 @@ function renderTransactionsPage(initialEntry = '/transactions') {
       <TransactionsListPage />
     </MemoryRouter>,
   )
+}
+
+async function expandQuickShortcuts(
+  user?: { click: (element: HTMLElement) => Promise<unknown> },
+) {
+  const toggle = await screen.findByRole('button', {
+    name: 'اختصارات البحث السريع',
+  })
+
+  if (toggle.getAttribute('aria-expanded') === 'true') {
+    return
+  }
+
+  if (user) {
+    await user.click(toggle)
+    return
+  }
+
+  fireEvent.click(toggle)
 }
 
 function mockOfflineConnectivity(): void {
@@ -149,7 +167,6 @@ describe('TransactionsListPage', () => {
           club: 1,
           name: 'ملعب 1',
           sport_type: 'football',
-          default_price: '300.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -162,7 +179,6 @@ describe('TransactionsListPage', () => {
           club: 1,
           name: 'ملعب متوقف',
           sport_type: 'football',
-          default_price: '300.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -256,10 +272,19 @@ describe('TransactionsListPage', () => {
       'nasr-club',
       defaultFilters,
     )
-    expect(screen.getByRole('button', { name: 'فلترة' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'اختصارات البحث السريع' }),
+    ).toBeInTheDocument()
+    await expandQuickShortcuts()
+    expect(
+      screen.getByRole('button', { name: 'فلترة المعاملات المالية' }),
+    ).toBeInTheDocument()
   })
 
   it('keeps staff transactions court-scoped without creator filtering', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
       role: 'STAFF',
@@ -269,6 +294,10 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage('/transactions?court=99&created_by=15')
 
+    await expandQuickShortcuts(user)
+    await user.click(
+      await screen.findByRole('button', { name: 'فلترة المعاملات المالية' }),
+    )
     expect((await screen.findAllByText('ملعب 1')).length).toBeGreaterThan(0)
     expect(screen.queryByText('كل الملاعب')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('الموظف المحصل')).not.toBeInTheDocument()
@@ -404,6 +433,7 @@ describe('TransactionsListPage', () => {
       'nasr-club',
       {
         is_cancelled: 'false',
+        ordering: '-created',
         settlement_status: 'unsettled',
       },
     )
@@ -538,8 +568,14 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(await screen.findByText('BANK-51')).toBeInTheDocument()
-    await user.type(screen.getByLabelText('بحث في المعاملات المحفوظة'), 'wallet')
-    vi.advanceTimersByTime(150)
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'بحث في المعاملات المالية',
+    })
+    await user.click(searchInput)
+    await user.type(searchInput, 'wallet')
+    await act(async () => {
+      vi.advanceTimersByTime(350)
+    })
 
     await waitFor(() => {
       expect(screen.queryByText('BANK-51')).not.toBeInTheDocument()
@@ -547,7 +583,10 @@ describe('TransactionsListPage', () => {
     expect(screen.getByText('WALLET-52')).toBeInTheDocument()
     expect(mockedListTransactions).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'مسح البحث' }))
+    await user.clear(searchInput)
+    await act(async () => {
+      vi.advanceTimersByTime(350)
+    })
 
     await waitFor(() => {
       expect(screen.getByText('BANK-51')).toBeInTheDocument()
@@ -590,6 +629,8 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(await screen.findByText(/100\.00 ج\.م/)).toBeInTheDocument()
+    await expandQuickShortcuts(user)
+    await user.click(screen.getByRole('button', { name: 'فلترة المعاملات المالية' }))
     await chooseAppSelectOption(
       user,
       screen.getByLabelText('طريقة الدفع'),
@@ -670,7 +711,7 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     expect(await screen.findByText(/100\.00 ج\.م/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '↑ الأقدم' }))
+    await user.click(screen.getByRole('button', { name: 'ترتيب المعاملات: الأحدث أولاً' }))
 
     await waitFor(() => {
       const amounts = screen
@@ -885,6 +926,10 @@ describe('TransactionsListPage', () => {
   })
 
   it('respects summary redirect filters without adding default dates', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
     mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
 
     renderTransactionsPage(
@@ -899,8 +944,11 @@ describe('TransactionsListPage', () => {
     ).toBeInTheDocument()
     expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
       is_cancelled: 'false',
+      ordering: '-created',
       settlement_status: 'unsettled',
     })
+    await expandQuickShortcuts(user)
+    await user.click(await screen.findByRole('button', { name: 'فلترة المعاملات المالية' }))
     expect(screen.getByLabelText('من تاريخ')).toHaveValue('')
     expect(screen.getByLabelText('إلى تاريخ')).toHaveValue('')
   })
@@ -924,6 +972,7 @@ describe('TransactionsListPage', () => {
 
     expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
       is_cancelled: 'false',
+      ordering: '-created',
     })
     expect(
       screen.queryByRole('button', { name: 'إزالة فلتر لم يتم استلامها' }),
@@ -931,44 +980,6 @@ describe('TransactionsListPage', () => {
     expect(
       screen.getByRole('button', { name: 'إزالة فلتر غير ملغية' }),
     ).toBeInTheDocument()
-  })
-
-  it('applies the unsettled quick filter without adding default dates', async () => {
-    const user = userEvent.setup({
-      advanceTimers: vi.advanceTimersByTime,
-    })
-
-    mockedListTransactions
-      .mockResolvedValueOnce(paginatedResponse([]))
-      .mockResolvedValueOnce(paginatedResponse([]))
-
-    renderTransactionsPage()
-
-    await user.click(await screen.findByRole('button', { name: 'لم يتم استلامها' }))
-
-    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
-      settlement_status: 'unsettled',
-      is_cancelled: 'false',
-    })
-  })
-
-  it('resets pagination when a quick filter changes', async () => {
-    const user = userEvent.setup({
-      advanceTimers: vi.advanceTimersByTime,
-    })
-
-    mockedListTransactions
-      .mockResolvedValueOnce(paginatedResponse([]))
-      .mockResolvedValueOnce(paginatedResponse([]))
-
-    renderTransactionsPage('/transactions?page=3&settlement_status=settled')
-
-    await user.click(await screen.findByRole('button', { name: 'اليوم' }))
-
-    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
-      date_from: '2026-07-20',
-      date_to: '2026-07-20',
-    })
   })
 
   it('opens advanced filters in a filter sheet', async () => {
@@ -980,10 +991,11 @@ describe('TransactionsListPage', () => {
 
     renderTransactionsPage()
 
-    await user.click(await screen.findByRole('button', { name: 'فلترة' }))
+    await expandQuickShortcuts(user)
+    await user.click(await screen.findByRole('button', { name: 'فلترة المعاملات المالية' }))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText('فلترة المعاملات المالية')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'فلترة المعاملات المالية' })).toBeInTheDocument()
     expect(screen.getAllByLabelText('الموظف المحصل')).not.toHaveLength(0)
   })
 
@@ -999,12 +1011,12 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage()
 
     await screen.findByText('مفيش عمليات مالية لسه.')
+    await expandQuickShortcuts(user)
+    await user.click(screen.getByRole('button', { name: 'فلترة المعاملات المالية' }))
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
     await user.clear(screen.getByLabelText('إلى تاريخ'))
     await user.type(screen.getByLabelText('إلى تاريخ'), '2026-07-15')
-    await user.click(screen.getByRole('checkbox', { name: 'تم استلامها' }))
-    await user.click(screen.getByRole('checkbox', { name: 'غير ملغية' }))
     await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'نقدي')
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await chooseAppSelectOption(
@@ -1019,13 +1031,35 @@ describe('TransactionsListPage', () => {
       created_by: '15',
       date_from: '2026-07-01',
       date_to: '2026-07-15',
-      is_cancelled: 'false',
+      ordering: '-created',
       payment_method: 'CASH',
-      settlement_status: 'settled',
     })
   })
 
-  it('maps both or neither transaction state checkboxes to all', async () => {
+  it('keeps receipt and cancellation filters out of the advanced filter sheet', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage()
+
+    await screen.findByText('مفيش عمليات مالية لسه.')
+    await expandQuickShortcuts(user)
+    await user.click(screen.getByRole('button', { name: 'فلترة المعاملات المالية' }))
+
+    expect(screen.queryByText('حالة الاستلام')).not.toBeInTheDocument()
+    expect(screen.queryByText('حالة الإلغاء')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('checkbox', { name: 'تم استلامها' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('checkbox', { name: 'غير ملغية' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('applies independent quick shortcuts for unsettled and cancelled transactions', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -1034,33 +1068,59 @@ describe('TransactionsListPage', () => {
       .mockResolvedValueOnce(paginatedResponse([]))
       .mockResolvedValueOnce(paginatedResponse([]))
       .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
 
     renderTransactionsPage()
 
     await screen.findByText('مفيش عمليات مالية لسه.')
-    await user.clear(screen.getByLabelText('من تاريخ'))
-    await user.clear(screen.getByLabelText('إلى تاريخ'))
-    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+    await expandQuickShortcuts(user)
 
-    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {})
+    const unsettledCheckbox = screen.getByRole('checkbox', {
+      name: 'لم يتم استلامها',
+    })
+    const cancelledCheckbox = screen.getByRole('checkbox', { name: 'ملغية' })
 
-    await user.click(screen.getByRole('checkbox', { name: 'لم يتم استلامها' }))
-    await user.click(screen.getByRole('checkbox', { name: 'تم استلامها' }))
-    await user.click(screen.getByRole('checkbox', { name: 'غير ملغية' }))
-    await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
-    await chooseAppSelectOption(
-      user,
-      screen.getByLabelText('طريقة الدفع'),
-      'نقدي',
-    )
-    await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(
+      screen.queryByRole('checkbox', { name: 'تم استلامها' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('checkbox', { name: 'غير ملغية' }),
+    ).not.toBeInTheDocument()
 
+    await user.click(unsettledCheckbox)
     expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
-      payment_method: 'CASH',
+      ordering: '-created',
+      settlement_status: 'unsettled',
     })
+
+    await user.click(cancelledCheckbox)
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      is_cancelled: 'true',
+      ordering: '-created',
+      settlement_status: 'unsettled',
+    })
+
+    await user.click(unsettledCheckbox)
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      is_cancelled: 'true',
+      ordering: '-created',
+    })
+    expect(mockedListTransactions.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      'settlement_status',
+    )
+
+    await user.click(cancelledCheckbox)
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      ordering: '-created',
+    })
+    expect(mockedListTransactions.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      'is_cancelled',
+    )
   })
 
-  it('maps one checked option from each state group to scalar API values', async () => {
+  it('preserves quick shortcuts when applying advanced filters', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -1069,17 +1129,20 @@ describe('TransactionsListPage', () => {
       .mockResolvedValueOnce(paginatedResponse([]))
       .mockResolvedValueOnce(paginatedResponse([]))
 
-    renderTransactionsPage()
+    renderTransactionsPage(
+      '/transactions?settlement_status=unsettled&is_cancelled=true',
+    )
 
-    await screen.findByText('مفيش عمليات مالية لسه.')
-    await user.clear(screen.getByLabelText('من تاريخ'))
-    await user.clear(screen.getByLabelText('إلى تاريخ'))
-    await user.click(screen.getByRole('checkbox', { name: 'لم يتم استلامها' }))
-    await user.click(screen.getByRole('checkbox', { name: 'ملغية' }))
+    await screen.findByText('مفيش عمليات مالية مطابقة للفلاتر الحالية.')
+    await expandQuickShortcuts(user)
+    await user.click(screen.getByRole('button', { name: 'فلترة المعاملات المالية' }))
+    await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'نقدي')
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))
 
     expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
       is_cancelled: 'true',
+      ordering: '-created',
+      payment_method: 'CASH',
       settlement_status: 'unsettled',
     })
   })
@@ -1098,10 +1161,11 @@ describe('TransactionsListPage', () => {
     expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
       court: '3',
       created_by: '15',
+      ordering: '-created',
     })
   })
 
-  it('resets filters to the default last seven days', async () => {
+  it('resets advanced filters while preserving quick shortcuts', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -1113,19 +1177,153 @@ describe('TransactionsListPage', () => {
     renderTransactionsPage('/transactions?settlement_status=unsettled')
 
     await screen.findByText('مفيش عمليات مالية مطابقة للفلاتر الحالية.')
+    await expandQuickShortcuts(user)
+    expect(screen.getByRole('checkbox', { name: 'لم يتم استلامها' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'فلترة المعاملات المالية' }))
     await user.clear(screen.getByLabelText('من تاريخ'))
     await user.type(screen.getByLabelText('من تاريخ'), '2026-07-01')
-    await user.click(screen.getByRole('checkbox', { name: 'تم استلامها' }))
     await user.click(screen.getByRole('button', { name: 'إعادة ضبط' }))
 
-    expect(screen.getByLabelText('من تاريخ')).toHaveValue('2026-07-13')
-    expect(screen.getByLabelText('إلى تاريخ')).toHaveValue('2026-07-20')
-    expect(screen.getByRole('checkbox', { name: 'لم يتم استلامها' }))
-      .not.toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'تم استلامها' })).not.toBeChecked()
-    expect(mockedListTransactions).toHaveBeenLastCalledWith(
-      'nasr-club',
-      defaultFilters,
+    expect(screen.getByLabelText('من تاريخ')).toHaveValue('')
+    expect(screen.getByLabelText('إلى تاريخ')).toHaveValue('')
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      ordering: '-created',
+      settlement_status: 'unsettled',
+    })
+  })
+
+  it('does not automatically restrict transactions to a date period for any role on page open', async () => {
+    // 1. Owner / Admin role
+    mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
+    const { unmount } = renderTransactionsPage()
+
+    expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
+      ordering: '-created',
+    })
+    expect(screen.queryByRole('button', { name: /إزالة فلتر/ })).not.toBeInTheDocument()
+    unmount()
+
+    // 2. Staff role
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      role: 'STAFF',
+      accessibleCourts: [{ id: 3, name: 'ملعب 1' }] as never,
+    })
+    mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
+    const { unmount: unmountStaff } = renderTransactionsPage()
+
+    expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
+      court: '3',
+      ordering: '-created',
+    })
+    expect(screen.queryByRole('button', { name: /إزالة فلتر/ })).not.toBeInTheDocument()
+    unmountStaff()
+  })
+
+  it('supports toggling ordering between newest and oldest using the shared OrderBy control', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions
+      .mockResolvedValueOnce(paginatedResponse([]))
+      .mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage()
+
+    expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
+      ordering: '-created',
+    })
+
+    const orderButton = screen.getByRole('button', {
+      name: 'ترتيب المعاملات: الأحدث أولاً',
+    })
+    expect(orderButton).toBeInTheDocument()
+
+    await user.click(orderButton)
+
+    expect(mockedListTransactions).toHaveBeenLastCalledWith('nasr-club', {
+      ordering: 'created',
+    })
+    expect(
+      screen.getByRole('button', {
+        name: 'ترتيب المعاملات: الأقدم أولاً',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('renders quick search shortcuts with filter button, allows expanding/collapsing, and auto-collapses on search query', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
+
+    renderTransactionsPage()
+
+    await screen.findByText('مفيش عمليات مالية لسه.')
+
+    const toggle = screen.getByRole('button', {
+      name: 'اختصارات البحث السريع',
+    })
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'بحث في المعاملات المالية',
+    })
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toBeEnabled()
+    expect(
+      screen.queryByRole('button', { name: 'فلترة المعاملات المالية' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('checkbox', { name: 'لم يتم استلامها' }),
+    ).not.toBeInTheDocument()
+
+    // Expand
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('button', { name: 'فلترة المعاملات المالية' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(
+      screen.getByRole('checkbox', { name: 'لم يتم استلامها' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'ملغية' })).toBeInTheDocument()
+
+    // Collapse by clicking again
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      screen.queryByRole('button', { name: 'فلترة المعاملات المالية' }),
+    ).not.toBeInTheDocument()
+
+    // Re-open and type into search -> auto collapses
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    await user.type(searchInput, 'REF-123')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toBeEnabled()
+    expect(searchInput).toHaveValue('REF-123')
+    expect(
+      screen.queryByRole('button', { name: 'فلترة المعاملات المالية' }),
+    ).not.toBeInTheDocument()
+
+    // Can reopen while search input has text
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('button', { name: 'فلترة المعاملات المالية' }),
+    ).toBeInTheDocument()
+
+    // Clicking advanced filter button opens FilterSheet
+    await user.click(
+      screen.getByRole('button', { name: 'فلترة المعاملات المالية' }),
     )
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'فلترة المعاملات المالية' }),
+    ).toBeInTheDocument()
   })
 })

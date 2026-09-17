@@ -2,12 +2,17 @@
 
 This document governs local persistence, freshness evaluation, and background synchronization in `src/offline/**`.
 For PWA infrastructure under `src/pwa/**`, consult root [`AGENTS.md`](../../AGENTS.md), [`docs/offline-architecture.md`](../../docs/offline-architecture.md), and [`src/pwa/README.md`](../../src/pwa/README.md).
+For high-level offline architecture and data contracts, consult [`docs/offline.md`](../../docs/offline.md).
 
 ---
 
 ## 1. Subsystem Responsibilities
 
 - **`src/offline/`:** Owns the Dexie-backed `sloty_local_db` versioned database, scope isolation keys, freshness evaluation, dataset sync adapters, and automated Booking Request synchronization.
+- **`sloty_local_db`:** Owns the Dexie-backed IndexedDB database (version 3).
+- **Scope Isolation:** Enforces deterministic data partitioning by `user:club`.
+- **Freshness Evaluation:** Provides centralized freshness checks for cached datasets.
+- **Sync Coordinator:** Orchestrates background synchronization across schedule, bookings, transactions, and custody.
 
 ---
 
@@ -17,6 +22,7 @@ For PWA infrastructure under `src/pwa/**`, consult root [`AGENTS.md`](../../AGEN
 2. **Deterministic Scoping:** Every sensitive table row must carry `scope_key` produced by `createOfflineScopeKey(userId, clubSlug)`. Never construct raw scope strings or allow unscoped reads.
 3. **Atomic Snapshot Replacement:** Dataset synchronization must execute deletions and insertions within a **single Dexie transaction**. A failed transaction preserves the previous snapshot and does not advance the dataset's `_last_sync_at` timestamp.
 4. **No Sensitive Auth Persistence:** `offline_context` persists only verified `/me` identity hints (user ID, club slug, assigned court, display name). It **must never** store JWT access/refresh tokens, passwords, PINs, or calculated frontend permissions.
+4. **No Sensitive Auth Persistence:** `offline_context` persists only verified `/me` identity hints. It **must never** store JWT access/refresh tokens, passwords, PINs, or calculated frontend permissions.
 5. **Non-Fatal Error Handling:** IndexedDB failures must log generic error codes without exposing customer names, phone numbers, money amounts, or auth credentials. Transient errors must **never** trigger database deletion or recreation.
 
 ---
@@ -30,8 +36,15 @@ For PWA infrastructure under `src/pwa/**`, consult root [`AGENTS.md`](../../AGEN
    3. **Secondary Datasets:** Bookings (`bookingSync.ts`) and Transactions (`transactionSync.ts`) sync in parallel for the previous 7 days.
    4. **Current Custody Sync (`custodySync.ts`):** Pulls fresh backend custody snapshot.
 3. **Single-Flight Coalescing:** Sync tasks coalesce by `scope_key` and `scope_key + dataset`. Concurrent triggers (startup, online, resume, manual) share the running task.
+1. **Centralized Mount:** Synchronization is coordinated by `OfflineSyncCoordinator` and mounted **once** via `OfflineSyncProvider` in `AppShell`. Feature pages must **never** attach their own `online`, `offline`, or `visibilitychange` listeners.
+2. **Dataset Priorities:**
+   1. **Schedule Window Sync:** Refreshes the 31-day bounded slots window.
+   2. **Secondary Datasets:** Bookings and Transactions sync for the previous 7 days.
+   3. **Current Custody Sync:** Pulls fresh backend custody snapshot.
+3. **Single-Flight Coalescing:** Sync tasks coalesce by `scope_key` and `scope_key + dataset`. Concurrent triggers share the running task.
 4. **Scope Cancellation:** When `scope_key` changes (user switches clubs or logs out), previous in-flight sync work is aborted. Late responses for an abandoned scope are discarded.
 5. **Conservative Retry:** If a sync run fails, one delayed retry is scheduled. The coordinator then waits for user actions or lifecycle events (visibility resume, online event, manual trigger). Continuous polling loops are forbidden.
+5. **Conservative Retry:** If a sync run fails, delayed retry is scheduled. Continuous polling loops are forbidden.
 
 ---
 
@@ -43,10 +56,13 @@ For PWA infrastructure under `src/pwa/**`, consult root [`AGENTS.md`](../../AGEN
    - **12 to 72 hours:** `STALE`. Renders informational stale warning banner; offline reads and new Booking Request creation remain available.
    - **> 72 hours:** `EXPIRED`. Preserves cached data and existing requests for review; disables **new** offline Booking Request creation until online sync succeeds.
 3. **Invariants:** The 72-hour rule **never** blocks online booking creation and **never** expires or purges existing local requests whose appointment time has passed.
+   - **12 to 72 hours:** `STALE`. Renders informational stale warning banner; offline reads remain available.
+   - **> 72 hours:** `EXPIRED`. Preserves cached data for review; prompts user to connect to internet to refresh.
 
 ---
 
 ## 5. Offline Booking Requests (`src/offline/bookings/`)
+## 5. Offline Mutation Boundary
 
 1. **Customer Intent Only:** Booking Requests are local customer intent saved when offline (`PENDING_SYNC`). They are **not** Backend Bookings.
 2. **Canonical Normal Synchronization Lifecycle:**
@@ -78,8 +94,12 @@ For PWA infrastructure under `src/pwa/**`, consult root [`AGENTS.md`](../../AGEN
 ```text
 ALLOWED OFFLINE:
 ✓ Saving a Booking Request from an available cached FREE slot (PENDING_SYNC)
+✓ Viewing cached Schedule slots within the 31-day window
+✓ Viewing cached Bookings & Transactions history (past 7 days)
+✓ Viewing cached Current Custody snapshot
 
 FORBIDDEN OFFLINE:
+FORBIDDEN OFFLINE (Requires Server Connectivity):
 ✗ Booking creation API call
 ✗ Payment recording (RecordPaymentSheet)
 ✗ Transaction cancellation
@@ -89,3 +109,4 @@ FORBIDDEN OFFLINE:
 
 Detailed technical specification: [`docs/offline-architecture.md`](../../docs/offline-architecture.md).
 Lifecycle specification: [`docs/booking-request-lifecycle.md`](../../docs/booking-request-lifecycle.md).
+Detailed technical specification: [`docs/offline.md`](../../docs/offline.md).

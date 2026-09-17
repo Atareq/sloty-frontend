@@ -24,6 +24,18 @@ export function addDays(date: Date, days: number): Date {
   return nextDate
 }
 
+/**
+ * Returns the calendar date (YYYY-MM-DD) exactly one calendar day before the given date string.
+ *
+ * Uses noon (12:00:00) instantiation to avoid daylight saving time or midnight drift.
+ */
+export function getPreviousCalendarDate(dateString: string): string {
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(year, month - 1, day, 12, 0, 0)
+
+  return formatDateInputValue(addDays(date, -1))
+}
+
 export function getRollingDateValues(
   startDate = new Date(),
   days = 7,
@@ -163,4 +175,81 @@ export function getLastSevenDaysRange(today = new Date()): {
     date_from: formatDateInputValue(addDays(today, -7)),
     date_to: formatDateInputValue(today),
   }
+}
+
+export interface GlobalFreshnessLabelOptions {
+  timestamp: string | null | undefined
+  isOfflineLike?: boolean
+  isSyncing?: boolean
+  now?: Date
+}
+
+/**
+ * Formats a last-update timestamp for the global header and sync indicators.
+ * Uses Egypt/Cairo timezone. Shows only the time if the timestamp is today in Cairo;
+ * otherwise includes the short day/month date.
+ */
+export function formatCairoLastUpdate(
+  timestamp: string | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (!timestamp) {
+    return null
+  }
+
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const cairoTimeFormatter = new Intl.DateTimeFormat('ar-EG', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Africa/Cairo',
+  })
+  const timeLabel = cairoTimeFormatter.format(date)
+
+  const cairoDateDayFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const isToday =
+    cairoDateDayFormatter.format(date) === cairoDateDayFormatter.format(now)
+
+  if (isToday) {
+    return `آخر تحديث ${timeLabel}`
+  }
+
+  const cairoDateFormatter = new Intl.DateTimeFormat('ar-EG', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'Africa/Cairo',
+  })
+  const dateLabel = cairoDateFormatter.format(date)
+
+  return `آخر تحديث ${dateLabel} · ${timeLabel}`
+}
+
+/**
+ * Derives user-facing freshness copy for the global header sync indicator.
+ */
+export function getGlobalFreshnessLabel({
+  timestamp,
+  isOfflineLike = false,
+  isSyncing = false,
+  now = new Date(),
+}: GlobalFreshnessLabelOptions): string {
+  if (isSyncing) {
+    return 'جاري التحديث...'
+  }
+
+  const formatted = formatCairoLastUpdate(timestamp, now)
+
+  if (!formatted) {
+    return isOfflineLike ? 'بدون إنترنت' : 'بانتظار أول تحديث'
+  }
+
+  return isOfflineLike ? `بدون إنترنت · ${formatted}` : formatted
 }

@@ -42,7 +42,6 @@ describe('RescheduleBookingSheet', () => {
           club: 1,
           name: 'ملعب 1',
           sport_type: 'PADEL',
-          default_price: '250.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 1,
           slot_duration_minutes: 60,

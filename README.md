@@ -1,19 +1,31 @@
 # Sloty Frontend
 
 Sloty is a React frontend for an Arabic-first, RTL-first, mobile-first sports court management product.
+Sloty is a React-based frontend for a sports court management system, starting with football courts in Egypt. It is built as an **Arabic-first, RTL-first, mobile-first** Progressive Web Application (PWA).
 
 This repository is frontend-only. Do not add backend, Django, database, serializer, model, migration, or API implementation changes here.
+This repository contains frontend code only. Zero backend or Django code lives here.
 
 ## Source of truth
+---
 
 1. Current approved local implementation
 2. [`AGENTS.md`](./AGENTS.md) engineering guardrails
 3. Durable product docs under [`docs/`](./docs/): `product-ux-pattern.md`, `product-copy.md`, `interaction-patterns.md`, `ui-reference.md`, `frontend-current-state.md`, `ux-known-gaps.md`
 4. Frontend API wrappers and types under `src/`
+## Tech Stack
 
 `docs/business-analysis.txt`, `docs/documentation.txt`, and `docs/sprints.txt` are historical planning documents. Do not treat them as current frontend architecture.
+- **Framework:** React 19 + TypeScript (strict mode)
+- **Bundler & Build Tool:** Vite
+- **Styling:** Tailwind CSS (Arabic/RTL-first)
+- **Routing:** React Router 8
+- **State & Storage:** Dexie (IndexedDB `sloty_local_db` version 3) + `vite-plugin-pwa`
+- **Testing:** Vitest + Testing Library
+- **Linting & Formatting:** ESLint + Prettier
 
 ## Stack
+---
 
 - React
 - TypeScript
@@ -23,26 +35,46 @@ This repository is frontend-only. Do not add backend, Django, database, serializ
 - ESLint
 - Vitest
 - Testing Library
+## Getting Started
+
+### Prerequisites
+- Node.js (v20+ recommended)
 - npm
 
 ## Commands
 
+### Installation & Development
 ```bash
 nvm use
+# Install dependencies
 npm install
+
+# Start local dev server
 npm run dev
 npm run build
+
+# Run TypeScript check
+npx tsc -b --noEmit
+
+# Run linter
 npm run lint
+
+# Run tests
 npm test
 ```
 
 For watch-mode tests:
+# Run tests in watch mode
+npm run test:watch
 
 ```bash
 npm run test:watch
+# Build for production
+npm run build
 ```
 
 ## Folder ownership
+---
 
 - `src/app` — router and application composition
 - `src/core` — auth, API client, route guards
@@ -51,12 +83,35 @@ npm run test:watch
 - `src/offline` — scoped IndexedDB schema, repositories, cleanup, and verified operational context
 - `src/shared` — reusable primitives, copy, navigation, helpers
 - `src/features` — domain product screens and API wrappers
+## Directory Structure
 
 ## PWA foundation
+```text
+src/
+├── app/          # App setup, React Router configuration, root providers
+├── core/         # Cross-feature infrastructure: auth context, API client, route guards
+├── layout/       # Authenticated AppShell, PageHeader, navigation
+├── shared/       # Domain-agnostic reusable UI primitives, hooks, helpers, copy
+├── features/     # Product feature modules (pages, components, feature API wrappers)
+│   ├── schedule/       # Operational Schedule workspace (/schedule)
+│   ├── publicSchedule/ # Guest Public Schedule (/public/.../schedule)
+│   ├── bookings/       # Bookings list, action sheets, details
+│   ├── transactions/   # Financial transactions ledger, payments
+│   ├── settlements/    # Employee custody & cash settlement hub
+│   ├── courts/         # Court settings, weekly working hours editor
+│   ├── clubs/          # Club onboarding, settings
+│   ├── dashboard/      # Operational metrics dashboard
+│   ├── reports/        # Court usage reports
+│   └── audit/          # Read-only audit log
+├── offline/      # Dexie database (sloty_local_db), sync coordinator, adapters
+└── pwa/          # Service Worker registration, PWA update prompt
+```
 
 Production builds generate an installable standalone PWA with a static app-shell Service Worker. The manifest launches at `/`, allowing the existing role-aware auth redirect to choose `/login`, `/schedule`, `/select-club`, `/no-club-access`, or Platform Admin routes safely.
+---
 
 The Service Worker precaches compiled JS/CSS/HTML, approved static UI images, and PWA icons. It intentionally defines no runtime cache for authenticated APIs or business responses.
+## Documentation & AI Guides
 
 Chromium uses the browser install prompt when available. iOS Safari shows Add-to-Home-Screen instructions. New application versions wait for explicit `تحديث الآن`; discovery never causes an automatic reload.
 
@@ -99,3 +154,12 @@ The Current Custody adapter runs after the read-only operational datasets and pe
 - Keep UI Arabic-first, RTL-first, and mobile-first.
 - Do not invent API contracts or production backend URLs in this frontend.
 - `references/v0-prototype/` is a gitignored visual reference, not production code.
+- **AI Coding Guidelines:** [`AGENTS.md`](./AGENTS.md)
+- **Documentation Index:** [`docs/index.md`](./docs/index.md)
+  - [`docs/architecture.md`](./docs/architecture.md) — Auth session, API client, routing, PWA
+  - [`docs/domain-rules.md`](./docs/domain-rules.md) — Business invariants, ledger, custody, working hours
+  - [`docs/ui-system.md`](./docs/ui-system.md) — Design system, `KEEP IT UNITED`, tokens, components
+  - [`docs/offline.md`](./docs/offline.md) — Dexie schema v3, read-only offline boundary, sync coordinator
+  - [`docs/copy.md`](./docs/copy.md) — Canonical Egyptian-Arabic terminology and labels
+  - [`docs/features/schedule.md`](./docs/features/schedule.md) — Operational schedule architecture
+  - [`docs/features/public-schedule.md`](./docs/features/public-schedule.md) — Public schedule architecture

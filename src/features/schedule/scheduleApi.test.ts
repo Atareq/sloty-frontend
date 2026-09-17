@@ -54,13 +54,31 @@ describe('scheduleApi', () => {
     )
   })
 
-  it('builds booking slots paths for a single day without range params', () => {
+  it('builds booking slots paths extending single day start date by one calendar day', () => {
     expect(
-      buildBookingSlotsPath('nasr-club', { court: 3, date: '2026-07-02' }),
-    ).toBe('clubs/nasr-club/bookings/slots/?court=3&date=2026-07-02')
+      buildBookingSlotsPath('nasr-club', { court: 3, date: '2026-09-17' }),
+    ).toBe(
+      'clubs/nasr-club/bookings/slots/?court=3&date_from=2026-09-16&date_to=2026-09-17',
+    )
   })
 
-  it('builds booking slots paths for a date range without single-day date', () => {
+  it('builds booking slots paths across month boundary', () => {
+    expect(
+      buildBookingSlotsPath('nasr-club', { court: 3, date: '2026-10-01' }),
+    ).toBe(
+      'clubs/nasr-club/bookings/slots/?court=3&date_from=2026-09-30&date_to=2026-10-01',
+    )
+  })
+
+  it('builds booking slots paths across year boundary', () => {
+    expect(
+      buildBookingSlotsPath('nasr-club', { court: 3, date: '2027-01-01' }),
+    ).toBe(
+      'clubs/nasr-club/bookings/slots/?court=3&date_from=2026-12-31&date_to=2027-01-01',
+    )
+  })
+
+  it('builds booking slots paths for a date range extending date_from by one calendar day', () => {
     expect(
       buildBookingSlotsPath('nasr-club', {
         court: 3,
@@ -68,16 +86,16 @@ describe('scheduleApi', () => {
         date_to: '2026-07-09',
       }),
     ).toBe(
-      'clubs/nasr-club/bookings/slots/?court=3&date_from=2026-07-02&date_to=2026-07-09',
+      'clubs/nasr-club/bookings/slots/?court=3&date_from=2026-07-01&date_to=2026-07-09',
     )
   })
 
-  it('lists booking slots through the slots endpoint', async () => {
+  it('lists booking slots through the slots endpoint with extended start date', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       court: 3,
       court_name: 'Court 1',
-      date_from: '2026-07-02',
-      date_to: '2026-07-02',
+      date_from: '2026-09-16',
+      date_to: '2026-09-17',
       slot_duration_minutes: 60,
       message: null,
       slots: [],
@@ -85,11 +103,11 @@ describe('scheduleApi', () => {
 
     await listBookingSlots('nasr-club', {
       court: 3,
-      date: '2026-07-02',
+      date: '2026-09-17',
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.clubs.bookings.slots('nasr-club')}?court=3&date=2026-07-02`,
+      `${apiEndpoints.clubs.bookings.slots('nasr-club')}?court=3&date_from=2026-09-16&date_to=2026-09-17`,
     )
   })
 

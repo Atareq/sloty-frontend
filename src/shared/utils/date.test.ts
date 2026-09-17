@@ -3,8 +3,11 @@ import {
   addDays,
   formatArabicPeriodBound,
   formatArabicPeriodRange,
+  formatCairoLastUpdate,
   formatDateInputValue,
+  getGlobalFreshnessLabel,
   getLastSevenDaysRange,
+  getPreviousCalendarDate,
 } from './date'
 
 describe('date utils', () => {
@@ -44,5 +47,90 @@ describe('date utils', () => {
     expect(period).not.toBeNull()
     expect(period?.startLabel).toContain('الجمعة')
     expect(period?.endLabel).toContain('السبت')
+  })
+
+  it('formats Cairo last update for today and prior days', () => {
+    const todaySimulated = new Date('2026-09-17T15:00:00.000Z')
+    // Same day in Cairo:
+    const sameDay = '2026-09-17T11:30:00.000Z'
+    const todayLabel = formatCairoLastUpdate(sameDay, todaySimulated)
+    expect(todayLabel).toMatch(/^آخر تحديث/)
+    expect(todayLabel).not.toContain('سبتمبر')
+
+    // Prior day in Cairo:
+    const priorDay = '2026-09-15T11:30:00.000Z'
+    const priorLabel = formatCairoLastUpdate(priorDay, todaySimulated)
+    expect(priorLabel).toContain('آخر تحديث')
+    expect(priorLabel).toContain('سبتمبر')
+  })
+
+  it('formats global freshness label with online, offline, and syncing states', () => {
+    const todaySimulated = new Date('2026-09-17T15:00:00.000Z')
+    const timestamp = '2026-09-17T11:30:00.000Z'
+
+    // Syncing:
+    expect(
+      getGlobalFreshnessLabel({
+        timestamp,
+        isSyncing: true,
+        now: todaySimulated,
+      }),
+    ).toBe('جاري التحديث...')
+
+    // Online with timestamp:
+    expect(
+      getGlobalFreshnessLabel({
+        timestamp,
+        isOfflineLike: false,
+        now: todaySimulated,
+      }),
+    ).toMatch(/^آخر تحديث/)
+
+    // Offline with timestamp:
+    expect(
+      getGlobalFreshnessLabel({
+        timestamp,
+        isOfflineLike: true,
+        now: todaySimulated,
+      }),
+    ).toMatch(/^بدون إنترنت · آخر تحديث/)
+
+    // Online without timestamp:
+    expect(
+      getGlobalFreshnessLabel({
+        timestamp: null,
+        isOfflineLike: false,
+      }),
+    ).toBe('بانتظار أول تحديث')
+
+    // Offline without timestamp:
+    expect(
+      getGlobalFreshnessLabel({
+        timestamp: null,
+        isOfflineLike: true,
+      }),
+    ).toBe('بدون إنترنت')
+  })
+
+  describe('getPreviousCalendarDate', () => {
+    it('subtracts one calendar day for a mid-month date', () => {
+      expect(getPreviousCalendarDate('2026-09-17')).toBe('2026-09-16')
+    })
+
+    it('subtracts one calendar day across month boundary', () => {
+      expect(getPreviousCalendarDate('2026-10-01')).toBe('2026-09-30')
+    })
+
+    it('subtracts one calendar day across year boundary', () => {
+      expect(getPreviousCalendarDate('2027-01-01')).toBe('2026-12-31')
+    })
+
+    it('handles leap year February boundary', () => {
+      expect(getPreviousCalendarDate('2024-03-01')).toBe('2024-02-29')
+    })
+
+    it('handles non-leap year February boundary', () => {
+      expect(getPreviousCalendarDate('2025-03-01')).toBe('2025-02-28')
+    })
   })
 })

@@ -43,7 +43,6 @@ const sportTypeValues = sportTypeChoices.map((sport) => sport.value)
 type CourtFormState = {
   name: string
   sport_type: SportType
-  default_price: string
   minimum_deposit: string
   cancellation_refund_notice_days: string
   slot_duration_minutes: string
@@ -56,7 +55,6 @@ type CourtFormState = {
 const initialFormState: CourtFormState = {
   name: '',
   sport_type: 'FOOTBALL',
-  default_price: '',
   minimum_deposit: '',
   cancellation_refund_notice_days: '',
   slot_duration_minutes: '60',
@@ -103,7 +101,6 @@ function buildPayload(formState: CourtFormState): CourtPayload {
   return {
     name: formState.name.trim(),
     sport_type: formState.sport_type,
-    default_price: formState.default_price.trim(),
     minimum_deposit: formState.minimum_deposit.trim(),
     cancellation_refund_notice_days:
       formState.cancellation_refund_notice_days.trim() === ''
@@ -137,10 +134,6 @@ export function CourtFormPage() {
   const [isLoading, setIsLoading] = useState(Boolean(clubSlug && !isCreateMode))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const nameFieldError = getFirstFieldErrorMessage(fieldErrors, 'name')
-  const defaultPriceFieldError = getFirstFieldErrorMessage(
-    fieldErrors,
-    'default_price',
-  )
   const minimumDepositFieldError = getFirstFieldErrorMessage(
     fieldErrors,
     'minimum_deposit',
@@ -179,7 +172,6 @@ export function CourtFormPage() {
           setFormState({
             name: court.name,
             sport_type: toSportType(court.sport_type),
-            default_price: String(court.default_price),
             minimum_deposit: String(court.minimum_deposit),
             cancellation_refund_notice_days:
               court.cancellation_refund_notice_days === null
@@ -234,7 +226,6 @@ export function CourtFormPage() {
       return
     }
 
-    const defaultPrice = Number(formState.default_price)
     const minimumDeposit = Number(formState.minimum_deposit)
     const cancellationRefundNotice =
       formState.cancellation_refund_notice_days.trim() === ''
@@ -243,17 +234,14 @@ export function CourtFormPage() {
     const slotDurationMinutes = Number(formState.slot_duration_minutes)
     const internalHoldExpiryHours = Number(formState.internal_hold_expiry_hours)
     const hasInvalidNumber =
-      !Number.isFinite(defaultPrice) ||
       !Number.isFinite(minimumDeposit) ||
       !Number.isFinite(slotDurationMinutes) ||
       !Number.isFinite(internalHoldExpiryHours) ||
-      defaultPrice <= 0 ||
       minimumDeposit < 0 ||
       slotDurationMinutes <= 0 ||
       internalHoldExpiryHours <= 0
 
     if (hasInvalidNumber) {
-      setError('السعر ومدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً صحيحة، والحد الأدنى للعربون لا يقل عن صفر')
       setError('مدة الحصة وانتهاء الحجز يجب أن تكون أرقاماً صحيحة، والحد الأدنى للعربون لا يقل عن صفر')
       setFieldErrors(null)
       return
@@ -363,23 +351,6 @@ export function CourtFormPage() {
               </div>
 
             </fieldset>
-
-            <label className="space-y-2 text-sm font-semibold">
-              <span>سعر الفترة الواحده</span>
-              <input
-                className={inputClass}
-                inputMode="decimal"
-                onChange={(event) =>
-                  updateField('default_price', event.target.value)
-                }
-                value={formState.default_price}
-              />
-            </label>
-            {defaultPriceFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {defaultPriceFieldError}
-              </p>
-            ) : null}
 
             <label className="space-y-2 text-sm font-semibold">
               <span>الحد الأدنى للعربون</span>

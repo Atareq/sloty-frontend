@@ -241,4 +241,17 @@ describe('BookingListCard', () => {
       screen.queryByText(/آخر تحديث للحالة بواسطة/),
     ).not.toBeInTheDocument()
   })
+
+  it('displays minimum deposit globally when available', () => {
+    render(
+      <BookingListCard
+        booking={confirmedBooking}
+        minimumDeposit="100.00"
+      />,
+    )
+
+    expect(
+      screen.getByText('الحد الأدنى للعربون: 100.00 ج.م'),
+    ).toBeInTheDocument()
+  })
 })

@@ -15,6 +15,16 @@ const weekdayLabels: Record<CourtWeekday, string> = {
   6: 'الأحد',
 }
 
+const shortWeekdayLabels: Record<CourtWeekday, string> = {
+  0: 'اثنين',
+  1: 'ثلاثاء',
+  2: 'أربعاء',
+  3: 'خميس',
+  4: 'جمعة',
+  5: 'سبت',
+  6: 'أحد',
+}
+
 export type TimeBoundaryRole = 'start' | 'end'
 
 export interface TimeBoundaryItem {
@@ -24,6 +34,10 @@ export interface TimeBoundaryItem {
 
 export function getWeekdayLabel(weekday: CourtWeekday): string {
   return weekdayLabels[weekday]
+}
+
+export function getWeekdayShortLabel(weekday: CourtWeekday): string {
+  return shortWeekdayLabels[weekday]
 }
 
 export function getCourtWeekdayFromDate(dateValue: string): CourtWeekday {

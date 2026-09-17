@@ -1,0 +1,162 @@
+# Product Copy
+
+Canonical repeated vocabulary lives in `src/shared/copy/appCopy.ts`.
+Unique feature paragraphs stay local to their respective screens.
+
+Tone: **مصري بسيط ومحترف** (Simple, professional Egyptian Arabic). Explain the employee's next task directly, without exposing technical backend internals.
+
+---
+
+## 1. Navigation
+
+| Destination | Path | Label | Notes |
+| :--- | :--- | :--- | :--- |
+| Schedule (Home) | `/schedule` | `الرئيسية` | Do not use `لوحة التحكم` as the Home label. |
+| Operational Schedule | `/schedule` | `الجدول` | Header / breadcrumb label. |
+| Dashboard | `/dashboard` | `المتابعة` | Operational analytics (secondary nav). |
+| Bookings History | `/bookings` | `سجل الحجوزات` | All historical bookings for selected club. |
+| Staff Ledger | `/transactions` | `معاملاتي المالية` | Nav label for `STAFF` role. |
+| Owner/Admin Ledger | `/transactions` | `سجل المعاملات المالية` | Nav label for `OWNER` and `ADMIN` roles. |
+| Staff Custody | `/settlements` | `عهدتي` | Nav label for `STAFF` role. |
+| Owner/Admin Settlements | `/settlements` | `إدارة الأموال` | Nav label for `OWNER` and `ADMIN` roles. |
+| Staff Balances Section | `/settlements` | `المبالغ مع الموظفين` | Section header inside Settlements hub. |
+| Reports | `/reports` | `التقارير` | Court utilization reports. |
+| Audit Trail | `/audit` | `سجل النشاط` | Append-only business audit history. |
+| Settings | `/settings` | `الإعدادات` | Club settings hub. |
+| Court Settings | `/settings/courts` | `إعدادات الملاعب` | Court setup and working hours editor. |
+
+> [!WARNING]
+> Do not use `عهد الموظفين`, `التحصيلات`, `تحصيلاتي`, or `مبالغ الموظفين` as sidebar/burger destinations.
+> Do not use `التقارير الاستهلاكية للملاعب` as the Reports nav label.
+> Do not alternate Audit with `سجل النشاطات`, `Audit Logs`, or `سجل التدقيق`.
+
+---
+
+## 2. Roles
+
+| Role Key | Arabic Label | Description |
+| :--- | :--- | :--- |
+| `ADMIN` | `مدير المنصة` | Sloty platform administrator with cross-club authority. |
+| `OWNER` | `مالك` | Club owner with full tenant authority across their clubs. |
+| `STAFF` | `موظف` | Club staff member scoped to assigned courts. |
+
+---
+
+## 3. Booking Statuses
+
+| Backend Status | Arabic Label | Meaning / Context |
+| :--- | :--- | :--- |
+| `HOLD` | `بانتظار العربون` | Temporary reservation awaiting deposit confirmation. |
+| `CONFIRMED` | `العربون مدفوع` | Deposit paid; booking confirmed. |
+| `COMPLETED` | `تم اللعب` | Match played and completed. |
+| `CANCELLED` | `ملغي` | Booking cancelled. |
+| `NO_SHOW` | `عدم حضور` | Customer did not show up. |
+| `EXPIRED` | `انتهت المهلة` | Hold duration expired without deposit payment. |
+
+> [!IMPORTANT]
+> Do not use `لم يحضر` or `منتهي` for exact booking statuses (`لم يحضر العميل` is reserved as a no-show cancellation reason).
+
+---
+
+## 4. Slot Statuses
+
+### Operational Schedule (`/schedule`)
+- `FREE`: Slot is open for booking (`متاح`).
+- `UNAVAILABLE`: Court is closed or past slot time (`غير متاح`).
+- `RECURRING_RESERVED`: Virtual future weekly occurrence (`↻ محجوز أسبوعيًا`).
+- `HOLD`, `CONFIRMED`, `COMPLETED`, `CANCELLED`, `NO_SHOW`, `EXPIRED`: Concrete booking slots using booking status labels.
+
+### Guest Public Schedule (`/public/.../schedule`)
+- Sanitized to two guest-facing states only:
+  - Available: `متاح`
+  - Unavailable: `غير متاح`
+- Zero internal status names, customer names, phone numbers, or payment states are ever displayed.
+
+---
+
+## 5. Booking Actions
+
+| Action | Arabic Label | Usage & Styling |
+| :--- | :--- | :--- |
+| Deposit & Confirm | `سجّل العربون وأكّد الحجز` | Primary action on `HOLD` bookings. |
+| Complete | `تم اللعب` | Action on ended, fully-paid `CONFIRMED` bookings. |
+| No Show | `عدم حضور` | Action on ended `CONFIRMED` bookings when customer did not attend. |
+| Collect Remaining | `حصّل [المبلغ]` | Quick payment action when balance is owed. |
+| Cancel Booking | `إلغاء الحجز` | Destructive action; placed at end of `••• خيارات أخرى` menu with danger styling. |
+| Stop Weekly Recurrence | `إيقاف الحجز الأسبوعي` | Outline/secondary styling. Confirmation title: `إيقاف الحجز الأسبوعي؟`. |
+| Edit Booking Details | `تعديل بيانات الحجز` | Opens sheet to edit customer name, phone, or notes. |
+| Reschedule | `تغيير الموعد` | Opens reschedule sheet to select a new slot. |
+| More Options | `••• خيارات أخرى` | Secondary actions menu toggle. |
+
+---
+
+## 6. Financial Ledger & Transactions
+
+| Term | Arabic Label | Usage |
+| :--- | :--- | :--- |
+| Payment | `تحصيل` | Positive inflow transaction. |
+| Refund | `استرداد` | Refund transaction. |
+| Cash | `نقدي` | Payment method `CASH`. |
+| Digital Wallet | `محفظة إلكترونية` | Payment method `DIGITAL_WALLET`. |
+| Bank Transfer | `تحويل بنكي` | Payment method `BANK_TRANSFER`. |
+| Other | `أخرى` | Payment method `OTHER`. |
+| Payment Reference | `مرجع الدفع` | Required for digital wallet / bank transfer if enabled. |
+| Required Deposit | `العربون المطلوب` | Snapshot deposit amount. |
+| Total Price | `إجمالي الحجز` | Total agreed booking price. |
+| Paid Amount | `المدفوع` | Sum of confirmed payments. |
+| Remaining Balance | `المتبقي دلوقتي` | Remaining unpaid balance. |
+
+---
+
+## 7. Current Custody & Settlements
+
+| Concept | Arabic Label | Context |
+| :--- | :--- | :--- |
+| Current Custody | `العهدة الحالية` | Heading for live unsettled cash section. |
+| Custody with Employee | `معاه دلوقتي` | Badge/stat showing collector's current unsettled cash. |
+| Receive Amount | `استلام المبلغ` | Primary CTA to initiate settlement confirmation. |
+| Confirm Settlement | `تأكيد استلام المبلغ` | Modal confirmation CTA. |
+| Settlement Success | `تم استلام المبلغ بنجاح` | Toast on completed settlement. |
+| Settled Previously | `تم استلامها سابقًا` | Toggle/tab for historical settlements. |
+| Empty Custody | `لا توجد مبالغ مستحقة للتسليم حاليًا` | Zero unsettled balance state. |
+| Zero Net Balance | `صافي المبلغ المستحق حاليًا: 0 ج.م` | Displayed when collector has zero balance. |
+| Self Settlement Prohibited | `المبلغ ده خاص بتحصيلاتك، ولازم يستلمه شخص عنده صلاحية الاستلام.` | Warning when a user attempts to settle with themselves. |
+
+> [!WARNING]
+> Do not use `مراجعة العهدة`, `استلام العهدة`, `غير مسوى`, or `عهد الموظفين` in user-facing copy.
+
+---
+
+## 8. Recurring Bookings
+
+| Label | Copy | Context |
+| :--- | :--- | :--- |
+| Weekly Indicator | `↻ حجز أسبوعي` | Chip/badge on weekly recurring bookings. |
+| Virtual Occurrence | `↻ محجوز أسبوعيًا` | Slot badge on future weekly reserved slots. |
+| Checkbox | `ثبّت نفس الموعد كل أسبوع` | Checkbox in booking creation sheet. |
+| Helper Text | `التكرار الأسبوعي بيتأكد ويتحدث من السيرفر.` | Booking creation helper. |
+| Virtual Slot Helper | `المعاد المعروض تكرار مستقبلي من الحجز الأسبوعي، وليس حجزًا جديدًا مستقلًا.` | Bottom sheet explanation on virtual recurrence slots. |
+| Stop Confirm Body | `الحجز الحالي هيفضل زي ما هو، لكن المعاد مش هيتحجز تلقائيًا في الأسابيع الجاية.` | Confirmation dialog message. |
+| Stop Success | `تم إيقاف الحجز الأسبوعي` | Success feedback toast. |
+
+---
+
+## 9. Customer Details
+
+- **Customer Name:** `اسم العميل`
+- **Mobile Number:** `رقم الموبايل`
+- **Phone Placeholder:** `01X XXX XXXX` (display as muted placeholder text, never default input value)
+- **Search Placeholder:** `اسم العميل أو رقم الموبايل`
+
+---
+
+## 10. Settings & Working Hours
+
+- **Section Header:** `إعدادات الملاعب`
+- **Digital Reference Toggle:** `طلب مرجع للدفع الإلكتروني`
+- **Digital Reference Helper:** `عند التفعيل، يجب إدخال مرجع العملية عند الدفع بمحفظة إلكترونية أو تحويل بنكي.`
+- **Add Pricing Period:** `+ إضافة فترة جديدة`
+- **Apply Day to Week:** `حفظ وتطبيق مواعيد [اليوم] على باقي الأسبوع`
+- **Apply Day Helper:** `يحفظ التعديلات الحالية ويطبق نفس الفترات والأسعار على الأيام الأخرى`
+- **Save Validation Error:** `حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.`
+

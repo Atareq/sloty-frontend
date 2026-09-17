@@ -369,7 +369,6 @@ function mockScheduleApiData(): void {
         club: 1,
         name: 'ملعب 1',
         sport_type: 'FOOTBALL',
-        default_price: '100.00',
         minimum_deposit: '50.00',
         cancellation_refund_notice_days: 2,
         slot_duration_minutes: 60,
@@ -396,7 +395,6 @@ function mockScheduleApiData(): void {
         club: 1,
         name: 'ملعب 1',
         sport_type: 'FOOTBALL',
-        default_price: '250.00',
         minimum_deposit: '100.00',
         cancellation_refund_notice_days: 3,
         slot_duration_minutes: 60,
@@ -1217,43 +1215,41 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
-    expect(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
-      .toBeInTheDocument()
-    expect(
-      screen.getByText('هنحاول نأكد الحجز تلقائيًا أول ما الإنترنت يرجع.'),
-    ).toBeInTheDocument()
+    const slotButton = await screen.findByRole('button', { name: '9:00 ص متاح' })
+    expect(slotButton).toBeInTheDocument()
+    expect(slotButton).toBeDisabled()
+    expect(slotButton).toHaveClass('cursor-not-allowed')
 
-    await user.type(screen.getByLabelText('اسم العميل'), 'عميل أوفلاين')
-    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
-    await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
-
-    await waitFor(() => {
-      expect(mockedOfflineRepositories.saveBookingIntent).toHaveBeenCalledWith(
-        { userId: 1, clubSlug: 'nasr-club' },
-        expect.objectContaining({
-          court_id: 7,
-          requested_date: today,
-          requested_start: `${today}T09:00:00`,
-          requested_end: `${today}T10:00:00`,
-          customer_name: 'عميل أوفلاين',
-          customer_phone: '+201012345678',
-          notes: null,
-          requested_recurring: false,
-          status: 'PENDING_SYNC',
-          resolved_booking_id: null,
-        }),
-      )
-    })
-    expect(mockedCreateBooking).not.toHaveBeenCalled()
-    expect(await screen.findByText('✓ تم حفظ طلب الحجز')).toBeInTheDocument()
-    expect(screen.queryByText('✓ تم حجز الموعد بنجاح')).not.toBeInTheDocument()
+    await user.click(slotButton)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('احفظ طلب الحجز')).not.toBeInTheDocument()
   })
 
-  it('saves requested weekly recurrence in a local Booking Request when offline eligibility is true', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+  it('shows pre-slots last updated freshness status in both online and offline modes', async () => {
     const today = getEgyptDateValue()
     const baseSync = mockedUseOfflineSync()
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      court_id: 7,
+      date: today,
+      message: null,
+      slots: defaultSlots(),
+      synced_at: '2026-07-20T01:00:00.000Z',
+    })
+
+    // Online mode
+    const { unmount } = render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText(/آخر تحديث/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'اختار المعاد' })).toBeInTheDocument()
+    unmount()
+
+    // Offline mode
     mockedUseOfflineSync.mockReturnValue({
       ...baseSync,
       connectivity: {
@@ -1262,74 +1258,39 @@ describe('SchedulePage', () => {
         backendReachability: 'unreachable',
       },
     })
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText(/بدون إنترنت · آخر تحديث/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'اختار المعاد' })).toBeInTheDocument()
+  })
+
+  it('renders green primary Submit button in review requests section header row and calls sync', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const today = getEgyptDateValue()
+    const baseSync = mockedUseOfflineSync()
     mockedListBookingSlots.mockResolvedValueOnce(
-      makeSlotsResponse([
-        makeSlot({
-          start_time: '09:00',
-          end_time: '10:00',
-          can_start_recurring: true,
-        }),
-      ]),
+      makeSlotsResponse(defaultSlots()),
     )
-    mockedOfflineRepositories.readScheduleDay.mockResolvedValue({
-      scope_key: 'user:1:club:nasr-club',
-      user_id: 1,
-      club_slug: 'nasr-club',
-      court_id: 7,
-      date: today,
-      message: null,
-      slots: [
-        makeSlot({
-          start_time: '09:00',
-          end_time: '10:00',
-          can_start_recurring: true,
-        }),
-      ],
-      synced_at: '2026-07-20T01:00:00.000Z',
+    const intent = makeBookingIntent({
+      local_id: 'intent-review-1',
+      status: 'NEEDS_REVIEW',
+      review_reason: 'SLOT_UNAVAILABLE',
     })
+    mockedOfflineRepositories.getBookingIntentsForCourts.mockResolvedValue([intent])
 
-    render(
-      <MemoryRouter>
-        <SchedulePage />
-      </MemoryRouter>,
-    )
-
-    await user.click(
-      await screen.findByRole('button', {
-        name: '9:00 ص متاح متاح للتثبيت أسبوعيًا',
-      }),
-    )
-    await user.click(
-      screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
-    )
-    await user.type(screen.getByLabelText('اسم العميل'), 'عميل أسبوعي')
-    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
-    await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
-
-    await waitFor(() => {
-      expect(mockedOfflineRepositories.saveBookingIntent).toHaveBeenCalledWith(
-        { userId: 1, clubSlug: 'nasr-club' },
-        expect.objectContaining({
-          requested_recurring: true,
-          status: 'PENDING_SYNC',
-        }),
-      )
-    })
-    expect(mockedCreateBooking).not.toHaveBeenCalled()
-  })
-
-  it('waits for the BookingIntent IndexedDB write before showing offline save success', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    const today = getEgyptDateValue()
-    const saveIntent = createDeferred<void>()
-    const baseSync = mockedUseOfflineSync()
+    const requestSync = vi.fn(async () => ({
+      status: 'idle' as const,
+      completedAt: null,
+      error: null,
+      syncedBookings: 0,
+      failedBookings: 0,
+    }))
     mockedUseOfflineSync.mockReturnValue({
       ...baseSync,
-      connectivity: {
-        ...baseSync.connectivity,
-        browserNetwork: 'offline',
-        backendReachability: 'unreachable',
-      },
+      requestSync: requestSync as unknown as ReturnType<typeof useOfflineSync>['requestSync'],
     })
     mockedOfflineRepositories.readScheduleDay.mockResolvedValue({
       scope_key: 'user:1:club:nasr-club',
@@ -1341,9 +1302,6 @@ describe('SchedulePage', () => {
       slots: defaultSlots(),
       synced_at: '2026-07-20T01:00:00.000Z',
     })
-    mockedOfflineRepositories.saveBookingIntent.mockReturnValueOnce(
-      saveIntent.promise,
-    )
 
     render(
       <MemoryRouter>
@@ -1351,19 +1309,58 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
-    await user.type(screen.getByLabelText('اسم العميل'), 'عميل أوفلاين')
-    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
-    await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
+    expect(await screen.findByText('طلب حجز محتاج مراجعة')).toBeInTheDocument()
+    const submitButton = screen.getByRole('button', { name: 'إرسال' })
+    expect(submitButton).toBeInTheDocument()
+    expect(submitButton).toBeEnabled()
+    expect(submitButton).toHaveClass('sloty-green-surface-button')
 
-    expect(screen.queryByText('✓ تم حفظ طلب الحجز')).not.toBeInTheDocument()
-
-    saveIntent.resolve()
-    expect(await screen.findByText('✓ تم حفظ طلب الحجز')).toBeInTheDocument()
+    const initialCalls = requestSync.mock.calls.length
+    await user.click(submitButton)
+    expect(requestSync.mock.calls.length).toBe(initialCalls + 1)
   })
 
-  it('keeps the offline request form open with customer input when IndexedDB save fails', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+  it('disables review request Submit button when offline', async () => {
+    const today = getEgyptDateValue()
+    const baseSync = mockedUseOfflineSync()
+    mockedUseOfflineSync.mockReturnValue({
+      ...baseSync,
+      connectivity: {
+        ...baseSync.connectivity,
+        browserNetwork: 'offline',
+        backendReachability: 'unreachable',
+      },
+    })
+    const intent = makeBookingIntent({
+      local_id: 'intent-review-2',
+      status: 'NEEDS_REVIEW',
+      review_reason: 'SLOT_UNAVAILABLE',
+    })
+    mockedOfflineRepositories.getBookingIntentsForCourts.mockResolvedValue([intent])
+    mockedOfflineRepositories.readScheduleDay.mockResolvedValue({
+      scope_key: 'user:1:club:nasr-club',
+      user_id: 1,
+      club_slug: 'nasr-club',
+      court_id: 7,
+      date: today,
+      message: null,
+      slots: defaultSlots(),
+      synced_at: '2026-07-20T01:00:00.000Z',
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('طلب حجز محتاج مراجعة')).toBeInTheDocument()
+    const submitButton = screen.getByRole('button', { name: 'إرسال' })
+    expect(submitButton).toBeInTheDocument()
+    expect(submitButton).toBeDisabled()
+  })
+
+  it('disables slot interaction when offline while keeping slot data visible', async () => {
     const today = getEgyptDateValue()
     const baseSync = mockedUseOfflineSync()
     mockedUseOfflineSync.mockReturnValue({
@@ -1384,9 +1381,6 @@ describe('SchedulePage', () => {
       slots: defaultSlots(),
       synced_at: '2026-07-20T01:00:00.000Z',
     })
-    mockedOfflineRepositories.saveBookingIntent.mockRejectedValueOnce(
-      new DOMException('quota exceeded', 'QuotaExceededError'),
-    )
 
     render(
       <MemoryRouter>
@@ -1394,64 +1388,8 @@ describe('SchedulePage', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
-    await user.type(screen.getByLabelText('اسم العميل'), 'عميل أوفلاين')
-    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
-    await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
-
-    expect(await screen.findByText(/تعذر إنشاء الحجز/)).toBeInTheDocument()
-    expect(screen.queryByText('✓ تم حفظ طلب الحجز')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('اسم العميل')).toHaveValue('عميل أوفلاين')
-  })
-
-  it('blocks only new local offline BookingIntent creation when freshness is older than 72 hours', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    const today = getEgyptDateValue()
-    const baseSync = mockedUseOfflineSync()
-    mockedUseOfflineSync.mockReturnValue({
-      ...baseSync,
-      connectivity: {
-        ...baseSync.connectivity,
-        browserNetwork: 'offline',
-        backendReachability: 'unreachable',
-      },
-      freshness: {
-        ageMs: 73 * 60 * 60 * 1000,
-        canCreateNewOfflineRequest: false,
-        isLoading: false,
-        lastSuccessfulOperationalSyncAt: '2026-07-16T01:00:00.000Z',
-        level: 'creation_restricted',
-        warningText:
-          'آخر اتصال بـ Sloty كان من أكتر من 3 أيام.\nتقدر تشوف البيانات المحفوظة، لكن لازم تتصل بالإنترنت قبل تسجيل طلبات حجز جديدة.',
-      },
-    })
-    mockedOfflineRepositories.readScheduleDay.mockResolvedValue({
-      scope_key: 'user:1:club:nasr-club',
-      user_id: 1,
-      club_slug: 'nasr-club',
-      court_id: 7,
-      date: today,
-      message: null,
-      slots: defaultSlots(),
-      synced_at: '2026-07-20T01:00:00.000Z',
-    })
-
-    render(
-      <MemoryRouter>
-        <SchedulePage />
-      </MemoryRouter>,
-    )
-
-    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
-    await user.type(screen.getByLabelText('اسم العميل'), 'عميل أوفلاين')
-    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
-    await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
-
-    expect(
-      await screen.findByText(/آخر اتصال بـ Sloty كان من أكتر من 3 أيام/),
-    ).toBeInTheDocument()
-    expect(mockedOfflineRepositories.saveBookingIntent).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('اسم العميل')).toHaveValue('عميل أوفلاين')
+    const slotButton = await screen.findByRole('button', { name: '9:00 ص متاح' })
+    expect(slotButton).toBeDisabled()
   })
 
   it('keeps a pending Booking Request visible without auto-syncing or manual booking in Task 4', async () => {
@@ -2757,7 +2695,6 @@ describe('SchedulePage', () => {
           club: 1,
           name: 'ملعب 1',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -2770,7 +2707,6 @@ describe('SchedulePage', () => {
           club: 1,
           name: 'ملعب 2',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -2987,7 +2923,6 @@ describe('SchedulePage', () => {
           club: 1,
           name: 'ملعب 1',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -3000,7 +2935,6 @@ describe('SchedulePage', () => {
           club: 1,
           name: 'ملعب 2',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -3256,7 +3190,6 @@ describe('SchedulePage', () => {
           club: 1,
           name: 'ملعب 1',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -3269,7 +3202,6 @@ describe('SchedulePage', () => {
           club: 1,
           name: 'ملعب 2',
           sport_type: 'FOOTBALL',
-          default_price: '250.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,

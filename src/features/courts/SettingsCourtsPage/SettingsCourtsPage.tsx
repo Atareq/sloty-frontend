@@ -5,7 +5,6 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { formatCourtPrice } from '../courtPricing.helpers'
 import { listCourts } from '../courtsApi'
 import type { Court } from '../courts.types'
 
@@ -97,10 +96,6 @@ export function SettingsCourtsPage() {
                 <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
                   {court.name}
                 </h2>
-                <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                  {court.default_price} جنيه
-                  {formatCourtPrice(court)}
-                </p>
                 <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
                   الحد الأدنى للعربون: {court.minimum_deposit} جنيه
                 </p>

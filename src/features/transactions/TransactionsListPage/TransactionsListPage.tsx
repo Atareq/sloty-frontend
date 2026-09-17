@@ -13,12 +13,15 @@ import {
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppPagination } from '../../../shared/components/AppPagination/AppPagination'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { AppSheet } from '../../../shared/components/AppSheet/AppSheet'
 import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
 import { LiveSearchField } from '../../../shared/components/LiveSearchField/LiveSearchField'
+import { OrderBy, type SortDirection } from '../../../shared/components/OrderBy/OrderBy'
+import { QuickSearchShortcuts } from '../../../shared/components/QuickSearchShortcuts/QuickSearchShortcuts'
 import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
 import { financeCopy, navigationCopy } from '../../../shared/copy/appCopy'
 import type { OfflineScope } from '../../../offline/offline.types'
@@ -26,7 +29,6 @@ import {
   getOfflineTransactionsView,
   type OfflineTransactionViewParams,
 } from '../../../offline/transactions/offlineTransactionFilters'
-import { getTransactionSyncWindow } from '../../../offline/transactions/transactionSyncWindow'
 import { getScheduleFreshnessLabel } from '../../../offline/schedule/scheduleFreshness'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
 import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
@@ -38,8 +40,6 @@ import {
 } from '../../bookings/bookingDisplay.helpers'
 import {
   formatArabicDateTime,
-  formatDateInputValue,
-  getLastSevenDaysRange,
 } from '../../../shared/utils/date'
 import { formatMoneyAmount } from '../../../shared/utils/money'
 import { toQueryObject } from '../../../shared/utils/queryParams'
@@ -51,7 +51,7 @@ import { notifyCurrentFinancialStateChanged } from '../../settlements/currentFin
 import { CancelTransactionSheet } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import type { CancelTransactionValues } from '../components/CancelTransactionSheet/CancelTransactionSheet'
 import { cancelTransaction, getTransaction, listTransactions } from '../transactionsApi'
-import { getSinglePairValue } from '../transactionFilters.helpers'
+import { getTransactionCancelState } from '../transactionFilters.helpers'
 import type {
   PaymentMethod,
   Transaction,
@@ -70,9 +70,7 @@ interface FilterState {
   created_by: string
   date_from: string
   date_to: string
-  is_cancelled: Array<'false' | 'true'>
   payment_method: PaymentMethod | ''
-  settlement_status: TransactionSettlementStatus[]
 }
 
 interface FilterOption {
@@ -92,23 +90,20 @@ const transactionFilterKeys = [
   'date_from',
   'date_to',
   'is_cancelled',
+  'ordering',
   'page',
   'payment_method',
+  'search',
   'settlement_status',
 ] as const
 
-const chipFilterKeys = transactionFilterKeys.filter((key) => key !== 'page')
+const chipFilterKeys = transactionFilterKeys.filter(
+  (key) => key !== 'page' && key !== 'ordering' && key !== 'search',
+)
 
 function createDefaultQueryParams(): TransactionQueryParams {
-  return getLastSevenDaysRange()
-}
-
-function createOfflineDefaultQueryParams(): TransactionQueryParams {
-  const syncWindow = getTransactionSyncWindow()
-
   return {
-    date_from: syncWindow.dateFrom,
-    date_to: syncWindow.dateTo,
+    ordering: '-created',
   }
 }
 
@@ -124,6 +119,11 @@ function parseTransactionQueryParams(search: string): TransactionQueryParams {
     const value = queryObject[key]
 
     if (!value) {
+      return
+    }
+
+    if (key === 'ordering' || key === 'search') {
+      params[key] = value as never
       return
     }
 
@@ -157,6 +157,10 @@ function parseTransactionQueryParams(search: string): TransactionQueryParams {
 
 function hasTransactionFilters(params: TransactionQueryParams): boolean {
   return transactionFilterKeys.some((key) => {
+    if (key === 'ordering' || key === 'page') {
+      return false
+    }
+
     const value = params[key]
 
     return value !== undefined && value !== ''
@@ -170,14 +174,7 @@ function filterStateFromParams(params: TransactionQueryParams): FilterState {
       params.created_by === undefined ? '' : String(params.created_by),
     date_from: params.date_from ?? '',
     date_to: params.date_to ?? '',
-    is_cancelled:
-      params.is_cancelled === undefined
-        ? []
-        : [String(params.is_cancelled) as 'false' | 'true'],
     payment_method: params.payment_method ?? '',
-    settlement_status: params.settlement_status
-      ? [params.settlement_status]
-      : [],
   }
 }
 
@@ -187,13 +184,7 @@ function paramsFromFilterState(filters: FilterState): TransactionQueryParams {
     ...(filters.created_by ? { created_by: filters.created_by } : {}),
     ...(filters.date_from ? { date_from: filters.date_from } : {}),
     ...(filters.date_to ? { date_to: filters.date_to } : {}),
-    ...(getSinglePairValue(filters.is_cancelled) !== undefined
-      ? { is_cancelled: getSinglePairValue(filters.is_cancelled) }
-      : {}),
     ...(filters.payment_method ? { payment_method: filters.payment_method } : {}),
-    ...(getSinglePairValue(filters.settlement_status) !== undefined
-      ? { settlement_status: getSinglePairValue(filters.settlement_status) }
-      : {}),
   }
 }
 
@@ -529,16 +520,6 @@ function TransactionsFilterForm({
     }))
   }
 
-  function toggleFilterValue<Value extends string>(
-    values: Value[],
-    value: Value,
-    checked: boolean,
-  ): Value[] {
-    return checked
-      ? Array.from(new Set([...values, value]))
-      : values.filter((item) => item !== value)
-  }
-
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     onApply(filters)
@@ -601,60 +582,6 @@ function TransactionsFilterForm({
         />
       </label>
 
-      <FilterCheckboxGroup
-        className="md:col-span-2 xl:col-span-1"
-        label="حالة الاستلام"
-        onChange={(key, checked) =>
-          updateFilter(
-            'settlement_status',
-            toggleFilterValue(
-              filters.settlement_status,
-              key as TransactionSettlementStatus,
-              checked,
-            ),
-          )
-        }
-        options={[
-          {
-            key: 'unsettled',
-            label: 'لم يتم استلامها',
-            checked: filters.settlement_status.includes('unsettled'),
-          },
-          {
-            key: 'settled',
-            label: 'تم استلامها',
-            checked: filters.settlement_status.includes('settled'),
-          },
-        ]}
-      />
-
-      <FilterCheckboxGroup
-        className="md:col-span-2 xl:col-span-1"
-        label="حالة الإلغاء"
-        onChange={(key, checked) =>
-          updateFilter(
-            'is_cancelled',
-            toggleFilterValue(
-              filters.is_cancelled,
-              key as 'false' | 'true',
-              checked,
-            ),
-          )
-        }
-        options={[
-          {
-            key: 'false',
-            label: 'غير ملغية',
-            checked: filters.is_cancelled.includes('false'),
-          },
-          {
-            key: 'true',
-            label: 'ملغية',
-            checked: filters.is_cancelled.includes('true'),
-          },
-        ]}
-      />
-
       <AppSelect
         label="طريقة الدفع"
         onChange={(value) =>
@@ -697,8 +624,14 @@ function TransactionsFilterForm({
           disabled={isLoading}
           fullWidth
           onClick={() => {
+            setFilters({
+              court: '',
+              created_by: '',
+              date_from: '',
+              date_to: '',
+              payment_method: '',
+            })
             onReset()
-            onClose?.()
           }}
           type="button"
           variant="secondary"
@@ -718,12 +651,14 @@ export function TransactionsListPage() {
   const navigate = useNavigate()
   const auth = useAuth()
   const { currentUser, role, selectedClubSlug, accessibleCourts } = auth
-  const selectedMembership = (auth as { selectedMembership?: any }).selectedMembership
+  const selectedMembership = (auth as { selectedMembership?: { court?: Court | null } }).selectedMembership
   const { connectivity } = useOfflineSync()
   const courtsOrScope =
     accessibleCourts && accessibleCourts.length > 0
       ? accessibleCourts
-      : selectedMembership
+      : selectedMembership?.court
+        ? [selectedMembership.court]
+        : []
   const canChooseCourt = canChooseOperationalCourt(role, courtsOrScope)
   const canChooseCollector =
     role === 'ADMIN' ||
@@ -731,15 +666,18 @@ export function TransactionsListPage() {
     (role as string) === 'MANAGER' ||
     (role as string) === 'PLATFORM_ADMIN'
   const assignedCourtId = getAssignedOperationalCourtId(role, courtsOrScope)
-  const [usesUnfilteredEmptyUrl, setUsesUnfilteredEmptyUrl] = useState(false)
-  const [offlineSearchDraft, setOfflineSearchDraft] = useState('')
   const [offlineSearchQuery, setOfflineSearchQuery] = useState('')
-  const [offlineSearchResetToken, setOfflineSearchResetToken] = useState(0)
   const [offlineSort, setOfflineSort] = useState<'newest' | 'oldest'>('newest')
+  const [pagination, setPagination] = useState({
+    count: 0,
+    hasNext: false,
+    hasPrevious: false,
+  })
   const urlParams = useMemo(
     () => parseTransactionQueryParams(location.search),
     [location.search],
   )
+
   const isOfflineMode =
     connectivity.browserNetwork === 'offline' ||
     connectivity.backendReachability === 'unreachable'
@@ -766,45 +704,30 @@ export function TransactionsListPage() {
     return staffParams
   }, [canChooseCourt, urlParams])
   const urlHasTransactionFilters = hasTransactionFilters(scopedUrlParams)
-  const effectiveParams = useMemo(() => {
-    const fixedCourtParams =
+  const effectiveParams = useMemo<TransactionQueryParams>(() => {
+    const fixedCourtParams: TransactionQueryParams =
       !canChooseCourt && assignedCourtId
         ? { court: String(assignedCourtId) }
         : {}
 
-    if (urlHasTransactionFilters) {
-      return {
-        ...scopedUrlParams,
-        ...fixedCourtParams,
-      }
-    }
+    const baseParams = urlHasTransactionFilters
+      ? scopedUrlParams
+      : createDefaultQueryParams()
 
     return {
-      ...(usesUnfilteredEmptyUrl ? {} : createDefaultQueryParams()),
+      ...baseParams,
       ...fixedCourtParams,
+      ordering: scopedUrlParams.ordering || '-created',
     }
   }, [
     assignedCourtId,
     canChooseCourt,
     urlHasTransactionFilters,
     scopedUrlParams,
-    usesUnfilteredEmptyUrl,
   ])
-  const offlineBaseParams = useMemo(
-    () =>
-      isOfflineMode && !urlHasTransactionFilters && !usesUnfilteredEmptyUrl
-        ? createOfflineDefaultQueryParams()
-        : effectiveParams,
-    [
-      effectiveParams,
-      isOfflineMode,
-      urlHasTransactionFilters,
-      usesUnfilteredEmptyUrl,
-    ],
-  )
   const initialFilters = useMemo(
-    () => filterStateFromParams(offlineBaseParams),
-    [offlineBaseParams],
+    () => filterStateFromParams(effectiveParams),
+    [effectiveParams],
   )
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -825,6 +748,10 @@ export function TransactionsListPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [searchDraft, setSearchDraft] = useState(
+    isOfflineMode ? offlineSearchQuery : (urlParams.search ?? ''),
+  )
+
   const [courtOptions, setCourtOptions] = useState<FilterOption[]>([])
   const [collectorOptions, setCollectorOptions] = useState<FilterOption[]>([])
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(null)
@@ -884,7 +811,7 @@ export function TransactionsListPage() {
     const offlineView = getOfflineTransactionsView(
       cachedTransactions,
       {
-        ...offlineBaseParams,
+        ...effectiveParams,
         search: offlineSearchQuery,
         sort: offlineSort,
       } satisfies OfflineTransactionViewParams,
@@ -898,6 +825,7 @@ export function TransactionsListPage() {
     }
 
     setTransactions(offlineView.transactions)
+    setPagination({ count: 0, hasNext: false, hasPrevious: false })
     setError(null)
     setMessage(
       fallbackError
@@ -907,7 +835,7 @@ export function TransactionsListPage() {
 
     return true
   }, [
-    offlineBaseParams,
+    effectiveParams,
     offlineScope,
     offlineSearchQuery,
     offlineSort,
@@ -1018,6 +946,7 @@ export function TransactionsListPage() {
   ): Promise<void> {
     if (!selectedClubSlug) {
       setTransactions([])
+      setPagination({ count: 0, hasNext: false, hasPrevious: false })
       return
     }
 
@@ -1026,6 +955,11 @@ export function TransactionsListPage() {
       nextParams,
     )
     setTransactions(transactionsResponse.results)
+    setPagination({
+      count: transactionsResponse.count,
+      hasNext: Boolean(transactionsResponse.next),
+      hasPrevious: Boolean(transactionsResponse.previous),
+    })
   }
 
   useEffect(() => {
@@ -1034,6 +968,7 @@ export function TransactionsListPage() {
     async function loadTransactions(): Promise<void> {
       if (!selectedClubSlug) {
         setTransactions([])
+        setPagination({ count: 0, hasNext: false, hasPrevious: false })
         setError(null)
         setMessage('اختر ناديًا أولًا لعرض المعاملات المالية')
         setIsLoading(false)
@@ -1058,6 +993,11 @@ export function TransactionsListPage() {
 
         if (isActive) {
           setTransactions(transactionsResponse.results)
+          setPagination({
+            count: transactionsResponse.count,
+            hasNext: Boolean(transactionsResponse.next),
+            hasPrevious: Boolean(transactionsResponse.previous),
+          })
           setOfflineLastSyncAt(null)
         }
       } catch (error) {
@@ -1076,6 +1016,7 @@ export function TransactionsListPage() {
           }
 
           setTransactions([])
+          setPagination({ count: 0, hasNext: false, hasPrevious: false })
           setError(
             getApiErrorMessage(
               error,
@@ -1106,7 +1047,17 @@ export function TransactionsListPage() {
   ])
 
   function handleApplyFilters(nextFilters: FilterState): void {
-    const nextParams = paramsFromFilterState(nextFilters)
+    const nextParams: TransactionQueryParams = {
+      ...paramsFromFilterState(nextFilters),
+      ...(urlParams.settlement_status
+        ? { settlement_status: urlParams.settlement_status }
+        : {}),
+      ...(urlParams.is_cancelled !== undefined && urlParams.is_cancelled !== ''
+        ? { is_cancelled: urlParams.is_cancelled }
+        : {}),
+      ...(urlParams.search ? { search: urlParams.search } : {}),
+      ordering: urlParams.ordering ?? '-created',
+    }
     delete nextParams.page
     if (!canChooseCourt) {
       delete nextParams.court
@@ -1114,7 +1065,6 @@ export function TransactionsListPage() {
     }
     const nextSearch = getTransactionSearch(nextParams)
 
-    setUsesUnfilteredEmptyUrl(!nextSearch)
     navigate(
       {
         pathname: location.pathname,
@@ -1123,9 +1073,27 @@ export function TransactionsListPage() {
       { replace: false },
     )
   }
+  const sortDirection: SortDirection = isOfflineMode
+    ? offlineSort === 'oldest'
+      ? 'asc'
+      : 'desc'
+    : urlParams.ordering === 'created'
+      ? 'asc'
+      : 'desc'
 
-  function applyQuickParams(nextParams: TransactionQueryParams): void {
-    setUsesUnfilteredEmptyUrl(false)
+  function handleSortDirectionChange(nextDirection: SortDirection): void {
+    if (isOfflineMode) {
+      setOfflineSort(nextDirection === 'asc' ? 'oldest' : 'newest')
+      return
+    }
+
+    const nextOrdering = nextDirection === 'asc' ? 'created' : '-created'
+    const nextParams: TransactionQueryParams = {
+      ...urlParams,
+      ordering: nextOrdering,
+    }
+    delete nextParams.page
+
     navigate(
       {
         pathname: location.pathname,
@@ -1135,38 +1103,51 @@ export function TransactionsListPage() {
     )
   }
 
-  function handleQuickLastSevenDays(): void {
-    applyQuickParams(
-      isOfflineMode ? createOfflineDefaultQueryParams() : createDefaultQueryParams(),
-    )
-  }
-
-  function handleQuickToday(): void {
-    const today = formatDateInputValue(new Date())
-
-    applyQuickParams({
-      date_from: today,
-      date_to: today,
-    })
-  }
-
-  function handleQuickUnsettled(): void {
-    applyQuickParams({
-      settlement_status: 'unsettled',
-      is_cancelled: 'false',
-    })
-  }
-
   function handleResetFilters(): void {
-    const defaultParams = isOfflineMode
-      ? createOfflineDefaultQueryParams()
-      : createDefaultQueryParams()
+    const nextParams: TransactionQueryParams = {
+      ...(urlParams.settlement_status
+        ? { settlement_status: urlParams.settlement_status }
+        : {}),
+      ...(urlParams.is_cancelled !== undefined && urlParams.is_cancelled !== ''
+        ? { is_cancelled: urlParams.is_cancelled }
+        : {}),
+      ...(urlParams.search ? { search: urlParams.search } : {}),
+      ordering: urlParams.ordering ?? '-created',
+    }
 
-    setUsesUnfilteredEmptyUrl(false)
     navigate(
       {
         pathname: location.pathname,
-        search: getTransactionSearch(defaultParams),
+        search: getTransactionSearch(nextParams),
+      },
+      { replace: false },
+    )
+  }
+
+  function handlePrimaryFilter(key: string, checked: boolean): void {
+    const nextParams = { ...scopedUrlParams }
+    delete nextParams.page
+
+    if (key === 'unsettled') {
+      if (checked) {
+        nextParams.settlement_status = 'unsettled'
+      } else {
+        delete nextParams.settlement_status
+      }
+    }
+
+    if (key === 'cancelled') {
+      if (checked) {
+        nextParams.is_cancelled = 'true'
+      } else {
+        delete nextParams.is_cancelled
+      }
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getTransactionSearch(nextParams),
       },
       { replace: false },
     )
@@ -1180,11 +1161,54 @@ export function TransactionsListPage() {
 
     const nextSearch = getTransactionSearch(nextParams)
 
-    setUsesUnfilteredEmptyUrl(!nextSearch)
     navigate(
       {
         pathname: location.pathname,
         search: nextSearch,
+      },
+      { replace: false },
+    )
+  }
+
+  const handleSearch = useCallback(
+    (value: string): void => {
+      if (isOfflineMode) {
+        setOfflineSearchQuery(value)
+        return
+      }
+
+      const nextParams = { ...scopedUrlParams }
+      delete nextParams.page
+      if (value) {
+        nextParams.search = value
+      } else {
+        delete nextParams.search
+      }
+
+      navigate(
+        {
+          pathname: location.pathname,
+          search: getTransactionSearch(nextParams),
+        },
+        { replace: true },
+      )
+    },
+    [isOfflineMode, location.pathname, navigate, scopedUrlParams],
+  )
+
+  function handlePageChange(nextPage: number): void {
+    const nextParams = { ...scopedUrlParams }
+
+    if (nextPage <= 1) {
+      delete nextParams.page
+    } else {
+      nextParams.page = String(nextPage)
+    }
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: getTransactionSearch(nextParams),
       },
       { replace: false },
     )
@@ -1221,16 +1245,6 @@ export function TransactionsListPage() {
     } finally {
       setIsCancelSubmitting(false)
     }
-  }
-
-  const handleOfflineSearch = useCallback((value: string): void => {
-    setOfflineSearchQuery(value)
-  }, [])
-
-  function handleClearOfflineSearch(): void {
-    setOfflineSearchDraft('')
-    setOfflineSearchQuery('')
-    setOfflineSearchResetToken((currentToken) => currentToken + 1)
   }
 
   async function loadAuthoritativeTransactionDetail(
@@ -1307,20 +1321,64 @@ export function TransactionsListPage() {
           {navigationCopy.ledgerBackToMoney}
         </Link>
       ) : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full sm:max-w-md">
+          <LiveSearchField
+            aria-label="بحث في المعاملات المالية"
+            debounceMs={120}
+            key={isOfflineMode ? 'offline-search' : 'online-search'}
+            label="بحث في المعاملات المالية"
+            onDraftChange={setSearchDraft}
+            onSearch={handleSearch}
+            placeholder={
+              isOfflineMode
+                ? 'مرجع الدفع أو اسم/رقم العميل'
+                : 'مرجع الدفع أو اسم/ الموظف أو رقم العميل '
+            }
+            value={isOfflineMode ? offlineSearchQuery : (scopedUrlParams.search ?? '')}
+          />
+        </div>
+      </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <AppButton onClick={handleQuickLastSevenDays} type="button" variant="secondary">
-          آخر 7 أيام
-        </AppButton>
-        <AppButton onClick={handleQuickToday} type="button" variant="secondary">
-          اليوم
-        </AppButton>
-        <AppButton onClick={handleQuickUnsettled} type="button" variant="secondary">
-          لم يتم استلامها
-        </AppButton>
-        <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
-          فلترة
-        </AppButton>
+      <div className="flex flex-wrap items-start justify-between gap-2.5">
+        <div className="min-w-0 flex-1">
+          <QuickSearchShortcuts
+            searchQuery={searchDraft}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <FilterCheckboxGroup
+                className="min-w-0 flex-1"
+                label="مراجعة سريعة"
+                onChange={handlePrimaryFilter}
+                options={[
+                  {
+                    key: 'unsettled',
+                    label: 'لم يتم استلامها',
+                    checked: effectiveParams.settlement_status === 'unsettled',
+                  },
+                  {
+                    key: 'cancelled',
+                    label: 'ملغية',
+                    checked: String(effectiveParams.is_cancelled) === 'true',
+                  },
+                ]}
+              />
+              <AppButton onClick={() => setIsFilterSheetOpen(true)} type="button">
+                فلترة المعاملات المالية
+              </AppButton>
+            </div>
+          </QuickSearchShortcuts>
+        </div>
+
+        <OrderBy
+          ariaLabelPrefix="ترتيب المعاملات"
+          ascendingLabel="الأقدم أولاً"
+          className="mt-1 shrink-0"
+          compact
+          descendingLabel="الأحدث أولاً"
+          onChange={handleSortDirectionChange}
+          value={sortDirection}
+        />
       </div>
 
       {isOfflineMode ? (
@@ -1333,44 +1391,6 @@ export function TransactionsListPage() {
             سجل المعاملات المعروض محدود بآخر ٧ أيام محفوظة على الجهاز. البحث
             دون إنترنت يستخدم مرجع الدفع وبيانات العميل المحفوظة من الخادم.
           </p>
-
-          <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
-            <LiveSearchField
-              aria-label="بحث في المعاملات المحفوظة"
-              debounceMs={120}
-              key={`offline-transaction-search-${offlineSearchResetToken}`}
-              label="بحث محفوظ"
-              onDraftChange={setOfflineSearchDraft}
-              onSearch={handleOfflineSearch}
-              placeholder="مرجع الدفع أو اسم/رقم العميل"
-              value={offlineSearchQuery}
-            />
-            <div className="flex shrink-0 gap-2">
-              <AppButton
-                onClick={() => setOfflineSort('newest')}
-                type="button"
-                variant={offlineSort === 'newest' ? 'primary' : 'secondary'}
-              >
-                ↓ الأحدث
-              </AppButton>
-              <AppButton
-                onClick={() => setOfflineSort('oldest')}
-                type="button"
-                variant={offlineSort === 'oldest' ? 'primary' : 'secondary'}
-              >
-                ↑ الأقدم
-              </AppButton>
-              {offlineSearchDraft || offlineSearchQuery ? (
-                <AppButton
-                  onClick={handleClearOfflineSearch}
-                  type="button"
-                  variant="secondary"
-                >
-                  مسح البحث
-                </AppButton>
-              ) : null}
-            </div>
-          </div>
         </AppCard>
       ) : null}
 
@@ -1380,19 +1400,6 @@ export function TransactionsListPage() {
         </p>
       ) : null}
 
-      <AppCard className="hidden md:block">
-        <TransactionsFilterForm
-          canChooseCollector={canChooseCollector}
-          canChooseCourt={canChooseCourt}
-          collectorOptions={collectorOptions}
-          courtOptions={courtOptions}
-          initialFilters={initialFilters}
-          isLoading={isLoading}
-          key={`desktop-${getTransactionSearch(effectiveParams) || 'empty-filters'}`}
-          onApply={handleApplyFilters}
-          onReset={handleResetFilters}
-        />
-      </AppCard>
 
       <FilterSheet
         isOpen={isFilterSheetOpen}
@@ -1503,76 +1510,84 @@ export function TransactionsListPage() {
                     transaction.booking_start_time,
                     transaction.booking_end_time,
                   )
-                : createdLabel
+                : null
             const transactionType = getTransactionType(transaction)
             const isRefund = isRefundTransaction(transaction)
-            const canCancel =
-              !isOfflineMode &&
-              !isRefund &&
-              transaction.is_cancelled !== true &&
-              transaction.is_settled !== true &&
-              (!currentUser?.id || !createdById || currentUser.id === createdById)
+            const cancelState = getTransactionCancelState(transaction, {
+              role,
+              currentUserId: currentUser?.id,
+              isOffline: isOfflineMode,
+            })
 
             return (
-              <AppCard className="space-y-3" key={transaction.id}>
-                <div className="space-y-1">
-                  {bookingDateLabel ? (
-                    <p className="text-base font-bold text-[var(--sloty-text-primary)]">
-                      {bookingDateLabel}
-                    </p>
-                  ) : null}
-                  {bookingSlotLabel ? (
-                    <p className="text-sm font-semibold text-[var(--sloty-text-primary)]">
-                      {bookingSlotLabel}
-                    </p>
-                  ) : null}
-                  <p className="text-lg font-bold text-[var(--sloty-primary-dark)]">
-                    {formatMoneyAmount(transaction.amount, { suffix: 'ج.م' })} ·{' '}
-                    {paymentMethodLabels[transaction.payment_method]}
-                  </p>
-                  {collectorName ? (
-                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
-                      {financeCopy.collectedBy}: {collectorName}
-                    </p>
-                  ) : null}
-                  {transaction.court_name ? (
-                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
-                      {transaction.court_name}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    <span
-                      className={[
-                        'rounded-full px-3 py-1 text-xs font-semibold',
-                        isRefund
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
-                      ].join(' ')}
-                    >
-                      {transactionTypeLabels[transactionType]}
-                    </span>
-                    {transaction.is_cancelled ? (
-                      <span className="rounded-full bg-[var(--sloty-danger-soft)] px-3 py-1 text-xs font-semibold text-[var(--sloty-danger)]">
-                        ملغية
+              <AppCard className="flex flex-col justify-between gap-3 min-w-0 break-words" key={transaction.id}>
+                <div className="space-y-3 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      {createdLabel ? (
+                        <p className="text-xs font-semibold text-[var(--sloty-text-muted)]">
+                          اتسجلت: {createdLabel}
+                        </p>
+                      ) : null}
+                      <p className="mt-0.5 text-lg font-bold text-[var(--sloty-primary-dark)]">
+                        {formatMoneyAmount(transaction.amount, { suffix: 'ج.م' })} ·{' '}
+                        {paymentMethodLabels[transaction.payment_method]}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-1.5 shrink-0">
+                      <span
+                        className={[
+                          'rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                          isRefund
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-[var(--sloty-soft-mint)] text-[var(--sloty-primary-dark)]',
+                        ].join(' ')}
+                      >
+                        {transactionTypeLabels[transactionType]}
                       </span>
-                    ) : null}
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                      {transaction.is_settled ? 'تم استلامها' : 'لم يتم استلامها'}
-                    </span>
-                </div>
-
-                {transaction.payment_method !== 'CASH' &&
-                transaction.payment_reference ? (
-                  <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm">
-                    <p className="font-medium text-[var(--sloty-text-muted)]">
-                      {financeCopy.paymentReference}
-                    </p>
-                    <p className="mt-1 font-semibold text-[var(--sloty-text-primary)]">
-                      {transaction.payment_reference}
-                    </p>
+                      {transaction.is_cancelled ? (
+                        <span className="rounded-full bg-[var(--sloty-danger-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--sloty-danger)]">
+                          ملغية
+                        </span>
+                      ) : null}
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                        {transaction.is_settled ? 'تم استلامها' : 'لم يتم استلامها'}
+                      </span>
+                    </div>
                   </div>
-                ) : null}
+
+                  <div className="space-y-1 text-sm">
+                    {bookingDateLabel || bookingSlotLabel ? (
+                      <p className="font-semibold text-[var(--sloty-text-primary)]">
+                        <span className="font-bold">موعد الحجز: </span>
+                        {bookingDateLabel}
+                        {bookingSlotLabel ? ` (${bookingSlotLabel})` : ''}
+                      </p>
+                    ) : null}
+                    {collectorName ? (
+                      <p className="font-medium text-[var(--sloty-text-muted)]">
+                        {financeCopy.collectedBy}: {collectorName}
+                      </p>
+                    ) : null}
+                    {transaction.court_name ? (
+                      <p className="font-medium text-[var(--sloty-text-muted)]">
+                        {transaction.court_name}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {transaction.payment_method !== 'CASH' &&
+                  transaction.payment_reference ? (
+                    <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 text-sm break-all">
+                      <p className="font-medium text-[var(--sloty-text-muted)]">
+                        {financeCopy.paymentReference}
+                      </p>
+                      <p className="mt-1 font-semibold text-[var(--sloty-text-primary)]">
+                        {transaction.payment_reference}
+                      </p>
+                    </div>
+                  ) : null}
+
                   {transaction.cancellation_reason ? (
                     <div className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2">
                       <p className="font-semibold text-[var(--sloty-danger)]">
@@ -1583,34 +1598,54 @@ export function TransactionsListPage() {
                       </p>
                     </div>
                   ) : null}
+                </div>
 
-                {canCancel ? (
+                <div className="space-y-2 pt-1">
+                  {!cancelState.isHidden ? (
+                    <div title={cancelState.disabledReason}>
+                      <AppButton
+                        aria-disabled={!cancelState.canCancel}
+                        disabled={!cancelState.canCancel}
+                        fullWidth
+                        onClick={() => {
+                          if (!cancelState.canCancel) return
+                          setCancelTarget(transaction)
+                          setCancelError(null)
+                          setCancelFieldErrors(null)
+                        }}
+                        variant="danger"
+                      >
+                        إلغاء التحصيل
+                      </AppButton>
+                    </div>
+                  ) : null}
                   <AppButton
                     fullWidth
                     onClick={() => {
-                      setCancelTarget(transaction)
-                      setCancelError(null)
-                      setCancelFieldErrors(null)
+                      void handleSelectTransaction(transaction)
                     }}
-                    variant="danger"
+                    type="button"
+                    variant="secondary"
                   >
-                    إلغاء التحصيل
+                    عرض التفاصيل
                   </AppButton>
-                ) : null}
-                <AppButton
-                  fullWidth
-                  onClick={() => {
-                    void handleSelectTransaction(transaction)
-                  }}
-                  type="button"
-                  variant="secondary"
-                >
-                  عرض التفاصيل
-                </AppButton>
+                </div>
               </AppCard>
             )
           })}
         </section>
+      ) : null}
+
+      {!isOfflineMode && pagination.count > 0 ? (
+        <div className="pt-2">
+          <AppPagination
+            currentPage={Number(urlParams.page ?? '1')}
+            hasNext={pagination.hasNext}
+            hasPrevious={pagination.hasPrevious}
+            onPageChange={handlePageChange}
+            totalCount={pagination.count}
+          />
+        </div>
       ) : null}
       </ResultRefreshRegion>
 

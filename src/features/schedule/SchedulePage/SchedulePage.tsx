@@ -284,7 +284,7 @@ export function SchedulePage() {
   const [isSetupLoading, setIsSetupLoading] = useState(true)
   const [isSlotsLoading, setIsSlotsLoading] = useState(false)
   const [isSlotsRefreshing, setIsSlotsRefreshing] = useState(false)
-  const [scheduleSource, setScheduleSource] = useState<'backend' | 'cache' | null>(null)
+  const [, setScheduleSource] = useState<'backend' | 'cache' | null>(null)
   const [cacheSyncedAt, setCacheSyncedAt] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
   const [selectedActionBooking, setSelectedActionBooking] =
@@ -689,7 +689,7 @@ export function SchedulePage() {
         return false
       }
 
-      applyScheduleResponse(response, 'backend', null)
+      applyScheduleResponse(response, 'backend', syncedAt)
 
       if (
         options.persistIfInsideWindow &&
@@ -1890,6 +1890,10 @@ export function SchedulePage() {
   }
 
   async function handleSelectSlot(slot: ScheduleBooking): Promise<void> {
+    if (isOfflineLike) {
+      return
+    }
+
     setSuccessMessage(null)
     setSelectedActionBooking(null)
     setCreateError(null)
@@ -2038,7 +2042,7 @@ export function SchedulePage() {
           <h2 className="text-lg font-extrabold text-[var(--sloty-text-primary)]">
             اختار المعاد
           </h2>
-          {scheduleSource === 'cache' && freshness ? (
+          {freshness ? (
             <div
               className={[
                 'rounded-2xl border px-3 py-2 text-sm font-bold',
@@ -2058,7 +2062,7 @@ export function SchedulePage() {
                   <button
                     aria-busy={isManualRefreshRunning}
                     aria-label="تحديث البيانات"
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-current/20 bg-white/75 px-3 py-2 text-sm font-extrabold transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-[var(--sloty-border)] bg-white px-3.5 py-2 text-sm font-black text-[var(--sloty-primary-dark)] shadow-sm transition hover:bg-[var(--sloty-soft-mint)] hover:border-[var(--sloty-primary)]/30 focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30 disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={isManualRefreshRunning}
                     onClick={() => void handleManualScheduleRefresh()}
                     type="button"
@@ -2204,6 +2208,7 @@ export function SchedulePage() {
                       {amSlots.map((booking) => (
                         <BookingCard
                           booking={booking}
+                          disabled={isOfflineLike}
                           key={booking.id}
                           onSelect={(slot) => void handleSelectSlot(slot)}
                         />
@@ -2248,6 +2253,7 @@ export function SchedulePage() {
                       {pmSlots.map((booking) => (
                         <BookingCard
                           booking={booking}
+                          disabled={isOfflineLike}
                           key={booking.id}
                           onSelect={(slot) => void handleSelectSlot(slot)}
                         />
@@ -2311,6 +2317,14 @@ export function SchedulePage() {
                     راجع الطلبات
                   </AppButton>
                 ) : null}
+                <AppButton
+                  disabled={isOfflineLike || sync.status === 'syncing'}
+                  onClick={() => void requestSyncRef.current()}
+                  type="button"
+                  variant="primary"
+                >
+                  إرسال
+                </AppButton>
               </div>
 
               {intentError ? (

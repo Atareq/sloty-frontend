@@ -2,12 +2,15 @@
 
 This file is the canonical documentation index and navigation map for the Sloty React frontend repository.
 Always consult this index to determine which documents govern the subsystem or feature you are modifying.
+This file is the central navigation router for the Sloty React frontend documentation.
+Consult this index to determine which document governs your engineering task.
 
 ---
 
 ## 1. Source of Truth & Precedence Semantics
 
 When engineering in this repository, clearly distinguish between **instruction precedence** (how agents and engineers must operate) and **implementation truth** (what the system currently does):
+When engineering in this repository, resolve conflicts using this strict precedence hierarchy:
 
 ### A. Engineering Instruction Precedence
 Governs engineering conduct, non-negotiable boundaries, safety rules, and architectural constraints:
@@ -17,6 +20,15 @@ Governs engineering conduct, non-negotiable boundaries, safety rules, and archit
    - Guest Public Schedule: [`src/features/publicSchedule/AGENTS.md`](../src/features/publicSchedule/AGENTS.md) (governs `src/features/publicSchedule/**`).
 2. **Current Durable Architecture Specifications** (under `docs/`).
 3. **Current Durable Product & UX Specifications** (under `docs/`).
+```text
+Code + Tests + Active OpenAPI Contracts
+                  ↓
+          Root AGENTS.md
+                  ↓
+         Scoped Feature Guides
+                  ↓
+       Target Architecture Docs (docs/)
+```
 
 ### B. Implementation & Architecture Truth
 When determining factual system behavior, what features exist, and how contracts behave:
@@ -25,6 +37,9 @@ When determining factual system behavior, what features exist, and how contracts
 3. **Current APIs & Contracts Actually Consumed:** Live endpoint contracts consumed by the frontend.
 4. **Current Durable Architecture & Product Documentation:** High-level architectural specifications.
 5. **Historical / Reference Documentation:** Context only; never authoritative over current code.
+- **Code, Tests, and Live APIs** are the single source of truth for **active behavior**.
+- If any documentation statement conflicts with active implementation, **the code wins**.
+- Update documentation to match code reality rather than forcing code regressions to match stale docs.
 
 > [!IMPORTANT]
 > A stale domain statement in documentation must **never** force current approved code back to old behavior. When code and documentation diverge on approved behavior, update the documentation to match code reality.
@@ -32,10 +47,13 @@ When determining factual system behavior, what features exist, and how contracts
 ---
 
 ## 2. Current Durable Documents
+## 2. Core Documentation Map
 
 These documents represent the active, authoritative source of truth for the Sloty frontend. They are actively maintained and reflect actual code behavior.
+All active documentation is organized into focused, single-responsibility guides:
 
 | Document | Scope & Purpose | Governs |
+| Document | Purpose & Scope | Key Topics |
 | :--- | :--- | :--- |
 | [`AGENTS.md`](../AGENTS.md) | Root repository instructions & guardrails | Global boundaries, stack, worktree safety, frontend-only rule, instruction hierarchy |
 | [`docs/offline-architecture.md`](offline-architecture.md) | Offline storage, PWA, and sync architecture | Dexie `sloty_local_db`, scope isolation, freshness, sync coordinator, bounded cache windows |
@@ -51,10 +69,18 @@ These documents represent the active, authoritative source of truth for the Slot
 | [`src/offline/AGENTS.md`](../src/offline/AGENTS.md) | Scoped instructions for `src/offline/` | Database tables, scope isolation, dataset sync priorities, storage safety (governs `src/offline/**` only) |
 | [`src/features/schedule/AGENTS.md`](../src/features/schedule/AGENTS.md) | Scoped instructions for operational schedule | Request lifecycle, date strip, slot rendering, booking actions, operational closing |
 | [`src/features/publicSchedule/AGENTS.md`](../src/features/publicSchedule/AGENTS.md) | Scoped instructions for guest public schedule | Anonymous access, sanitized availability states, privacy boundaries, share link |
+| [`architecture.md`](./architecture.md) | Frontend system architecture & contracts | Auth session (`currentUser`, `selectedClubSlug`, `selectedCourtId`), API client, routing, AppShell, PWA service worker |
+| [`domain-rules.md`](./domain-rules.md) | Business invariants & domain rules | Bookings lifecycle, financial ledger, custody & settlements, working hours pricing periods |
+| [`ui-system.md`](./ui-system.md) | Design system & UI patterns | `KEEP IT UNITED`, single `PageHeader`, `AppSheet`, design tokens, search/filter/order-by/pagination patterns |
+| [`offline.md`](./offline.md) | Offline storage & sync boundaries | Read-only offline model, Dexie `sloty_local_db` schema v3, bounded windows, offline safety |
+| [`copy.md`](./copy.md) | Canonical Arabic terminology | Standardized Egyptian-Arabic labels, statuses, actions, financial vocabulary, error messages |
+| [`features/schedule.md`](./features/schedule.md) | Operational Schedule workspace (`/schedule`) | FE-038 dual-fetch lifecycle, date navigation, slot query filter, AM/PM split, operational closing |
+| [`features/public-schedule.md`](./features/public-schedule.md) | Guest Public Schedule (`/public/.../schedule`) | Anonymous API contract, sanitized availability (`متاح` / `غير متاح`), absolute customer privacy, 32-day window |
 
 ---
 
 ## 3. Historical & Planning Documents
+## 3. Task-Based Routing Guide
 
 The following documents contain historical context, initial planning notes, or previous sprint backlogs. They must **not** be treated as authoritative sources of current frontend architecture or API contracts.
 
@@ -101,3 +127,14 @@ Use this guide to quickly locate the relevant documents for your current enginee
 1. Read [`docs/frontend-current-state.md`](frontend-current-state.md#settlements) for current settlement and current-custody behavior.
 2. Read [`docs/offline-architecture.md`](offline-architecture.md#7-offline-current-custody-snapshot-rules) for custody snapshot caching rules.
 3. Consult root [`AGENTS.md`](../AGENTS.md) for settlement permissions and immutable transaction constraints.
+| If you are working on... | Read these documents first |
+| :--- | :--- |
+| **Authentication, session, role guards, or API client** | [`architecture.md`](./architecture.md) |
+| **Booking lifecycle, deposits, holds, or rescheduling** | [`domain-rules.md`](./domain-rules.md) · [`copy.md`](./copy.md) |
+| **Payments, refunds, ledger, or custody & settlements** | [`domain-rules.md`](./domain-rules.md) · [`copy.md`](./copy.md) |
+| **Courts, working hours, or court pricing periods** | [`domain-rules.md`](./domain-rules.md) |
+| **UI layout, styling, sheets, headers, or buttons** | [`ui-system.md`](./ui-system.md) |
+| **Arabic text, labels, status badges, or toasts** | [`copy.md`](./copy.md) |
+| **Offline behavior, Dexie database, or Service Worker** | [`offline.md`](./offline.md) · [`architecture.md`](./architecture.md) |
+| **Operational Schedule (`/schedule`)** | [`features/schedule.md`](./features/schedule.md) · [`ui-system.md`](./ui-system.md) |
+| **Guest Public Schedule (`/public/.../schedule`)** | [`features/public-schedule.md`](./features/public-schedule.md) |

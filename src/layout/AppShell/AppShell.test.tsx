@@ -106,7 +106,6 @@ function getAuthValue(
           club: 1,
           name: 'ملعب 1',
           sport_type: 'FOOTBALL' as const,
-          default_price: '200.00',
           minimum_deposit: '50.00',
           cancellation_refund_notice_days: 1,
           slot_duration_minutes: 60,
@@ -355,8 +354,7 @@ describe('AppShell', () => {
 
     expect(screen.getAllByText('عهدتي').length)
       .toBeGreaterThan(0)
-    expect(screen.getAllByText('معاملاتي المالية').length)
-      .toBeGreaterThan(0)
+    expect(screen.queryByText('معاملاتي المالية')).not.toBeInTheDocument()
     expect(screen.queryByText('إدارة الأموال')).not.toBeInTheDocument()
 
     cleanup()
@@ -591,8 +589,8 @@ describe('AppShell', () => {
       .not.toBeInTheDocument()
     expect(within(dialog).getByRole('link', { name: 'سجل الحجوزات' }))
       .toBeInTheDocument()
-    expect(within(dialog).getByRole('link', { name: 'معاملاتي المالية' }))
-      .toBeInTheDocument()
+    expect(within(dialog).queryByRole('link', { name: 'معاملاتي المالية' }))
+      .not.toBeInTheDocument()
     expect(within(dialog).getByRole('link', { name: 'عهدتي' }))
       .toBeInTheDocument()
     expect(within(dialog).getByText('ملعب 1')).toBeInTheDocument()
@@ -1115,5 +1113,24 @@ describe('AppShell', () => {
         name: 'مشاركة الجدول',
       }),
     ).toBeInTheDocument()
+  })
+
+  it('does not render last update time or request update action in the page header', () => {
+    mockedUseAuth.mockReturnValue(getAuthValue())
+
+    render(
+      <MemoryRouter initialEntries={['/schedule']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route element={<div>محتوى الصفحة</div>} path="/schedule" />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.queryByText(/آخر تحديث/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'طلب تحديث الآن' }),
+    ).not.toBeInTheDocument()
   })
 })

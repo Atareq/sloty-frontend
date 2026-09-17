@@ -16,6 +16,7 @@ import {
 } from './selectedClubStorage'
 import type { CurrentUserProfile } from './auth.types'
 import { listClubs } from '../../features/clubs/clubsApi'
+import { listCourts } from '../../features/courts/courtsApi'
 import { useAuth } from './useAuth'
 
 vi.mock('./authApi', () => ({
@@ -26,8 +27,13 @@ vi.mock('../../features/clubs/clubsApi', () => ({
   listClubs: vi.fn(),
 }))
 
+vi.mock('../../features/courts/courtsApi', () => ({
+  listCourts: vi.fn(),
+}))
+
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 const mockedListClubs = vi.mocked(listClubs)
+const mockedListCourts = vi.mocked(listCourts)
 const scope = { userId: 1, clubSlug: 'demo-football-club' }
 const booking: Booking = {
   id: 1,
@@ -104,6 +110,7 @@ describe('AuthProvider explicit logout IndexedDB integration', () => {
     clearAuthTokens()
     clearSelectedClubSlug()
     vi.clearAllMocks()
+    mockedListCourts.mockResolvedValue({ count: 0, next: null, previous: null, results: [] })
     slotyLocalDatabase.close()
     await slotyLocalDatabase.delete()
     await slotyLocalDatabase.open()
@@ -131,6 +138,12 @@ describe('AuthProvider explicit logout IndexedDB integration', () => {
           created: '2026-08-01T00:00:00Z',
         },
       ],
+    })
+    mockedListCourts.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
     })
     await offlineRepositories.replaceBookingsSnapshot(
       scope,
@@ -187,7 +200,6 @@ describe('AuthProvider explicit logout IndexedDB integration', () => {
           club: 1,
           name: 'Court 1',
           sport_type: 'FOOTBALL',
-          default_price: '300.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,

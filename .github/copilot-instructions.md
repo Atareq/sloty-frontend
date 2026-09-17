@@ -1,12 +1,17 @@
 # GitHub Copilot & Coding Agent Instructions
+# Sloty Frontend Agent & Copilot Instructions
 
 This repository is the Sloty React frontend. It is frontend-only and must never contain backend, Django, database, serializer, model, migration, or API implementation changes.
+This repository contains the **Sloty frontend** only (React 19 + TypeScript + Vite + Tailwind CSS).
 
 ---
 
 ## 1. Source of Truth & Precedence
+## 1. Quick Navigation & Authority
 
 Clearly distinguish between instruction precedence (how agents must operate) and implementation truth (what the system currently does):
+- **Global Agent Instructions & Guardrails:** Read [`AGENTS.md`](../AGENTS.md) first.
+- **Central Documentation Index:** Read [`docs/index.md`](../docs/index.md) to locate the authoritative guide for any domain, feature, or subsystem.
 
 ### Instruction Precedence:
 1. **Root Guide:** Always read [`AGENTS.md`](../AGENTS.md) first for global architecture, boundaries, and conventions.
@@ -15,6 +20,17 @@ Clearly distinguish between instruction precedence (how agents must operate) and
    - Operational Schedule: [`src/features/schedule/AGENTS.md`](../src/features/schedule/AGENTS.md) (governs `src/features/schedule/**`).
    - Guest Public Schedule: [`src/features/publicSchedule/AGENTS.md`](../src/features/publicSchedule/AGENTS.md) (governs `src/features/publicSchedule/**`).
 3. **Documentation Index:** Consult [`docs/index.md`](../docs/index.md) to locate the exact durable specification for your task.
+### Source-of-Truth Hierarchy
+```text
+Code + Tests + Active OpenAPI Contracts
+                  ↓
+          Root AGENTS.md
+                  ↓
+         Scoped Feature Guides
+                  ↓
+       Target Architecture Docs (docs/)
+```
+Code and tests are authoritative for current system behavior. If documentation conflicts with active approved code, the code wins.
 
 ### Implementation Truth:
 1. Current approved local working tree
@@ -28,6 +44,7 @@ A stale domain statement in documentation must **never** force current approved 
 ---
 
 ## 2. Core Architecture Specifications
+## 2. Core Non-Negotiable Rules
 
 - **Offline Storage & PWA:** [`docs/offline-architecture.md`](../docs/offline-architecture.md)
 - **Schedule (FE-038 Dual-Fetch):** [`docs/schedule-architecture.md`](../docs/schedule-architecture.md)
@@ -55,3 +72,9 @@ A stale domain statement in documentation must **never** force current approved 
 - **Design System Integrity:** Use canonical primitives (`AppSheet`, `PageHeader`, `AppSelect`, `AppCard`, `AppButton`). Never create duplicate visual components or parallel prototype variants.
 - **Offline Writes:** Saving a Booking Request from an available cached FREE slot is the **only** offline operational write. All other business mutations require internet.
 - **Schedule Architecture:** Same Schedule product experience and brand identity across surfaces, with separate orchestration surfaces and data contracts (Guest read-only sanitized public view vs Staff/Owner operational workspace).
+1. **Frontend Only:** Never touch backend files, Django code, migrations, or backend settings.
+2. **Worktree Safety:** Never run destructive git commands (`git reset --hard`, `git checkout .`, `git restore .`, `git clean`, `git stash`). Preserve all uncommitted user modifications.
+3. **Arabic-First, RTL-First, Mobile-First:** Design and build for mobile screens first; enhance responsively for tablet/desktop (`sm:`, `md:`, `lg:`).
+4. **Unified Design System (`KEEP IT UNITED`):** Use canonical primitives (`AppSheet`, `PageHeader`, `AppCard`, `AppButton`). Never create rogue or duplicate components.
+5. **Offline Boundary:** Offline mode is read-only for operational actions. Operational mutations (booking creation, holds, payments, cancellations, completions, settlements) require server connectivity.
+6. **Backend Authority:** Backend enforces permissions and validation. The frontend adapts UI visibility according to authenticated roles (`ADMIN`, `OWNER`, `STAFF`).

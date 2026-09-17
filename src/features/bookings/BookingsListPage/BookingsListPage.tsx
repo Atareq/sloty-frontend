@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { AppPagination } from '../../../shared/components/AppPagination/AppPagination'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { FilterCheckboxGroup } from '../../../shared/components/FilterCheckboxGroup/FilterCheckboxGroup'
 import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
@@ -416,7 +417,7 @@ export function BookingsListPage() {
   const navigate = useNavigate()
   const auth = useAuth()
   const { currentUser, role, selectedClubSlug, accessibleCourts } = auth
-  const selectedMembership = (auth as { selectedMembership?: any }).selectedMembership
+  const selectedMembership = (auth as { selectedMembership?: { court?: Court | null } }).selectedMembership
   const { connectivity } = useOfflineSync()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [pagination, setPagination] = useState<PaginationState>({
@@ -467,7 +468,9 @@ export function BookingsListPage() {
   const courtsOrScope =
     accessibleCourts && accessibleCourts.length > 0
       ? accessibleCourts
-      : selectedMembership
+      : selectedMembership?.court
+        ? [selectedMembership.court]
+        : []
   const canChooseCourt = canChooseOperationalCourt(role, courtsOrScope)
   const assignedCourtId = getAssignedOperationalCourtId(role, courtsOrScope)
   const urlParams = useMemo(
@@ -1462,6 +1465,10 @@ export function BookingsListPage() {
               <BookingListCard
                 booking={booking}
                 key={booking.id}
+                minimumDeposit={
+                  courtRecords.find((court) => court.id === booking.court)
+                    ?.minimum_deposit ?? null
+                }
                 onSelect={(booking) => {
                   void handleSelectBooking(booking)
                 }}
@@ -1469,36 +1476,15 @@ export function BookingsListPage() {
             ))}
           </section>
 
-          {pagination.hasNext || pagination.hasPrevious ? (
-            <nav
-              aria-label="صفحات سجل الحجوزات"
-              className="flex items-center justify-center gap-3"
-            >
-              <AppButton
-                disabled={!pagination.hasPrevious}
-                onClick={() => handlePageChange(
-                  Math.max(1, Number(effectiveParams.page || 1) - 1),
-                )}
-                type="button"
-                variant="secondary"
-              >
-                السابق
-              </AppButton>
-              <span className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                صفحة {effectiveParams.page || 1} · {pagination.count} حجز
-              </span>
-              <AppButton
-                disabled={!pagination.hasNext}
-                onClick={() => handlePageChange(
-                  Number(effectiveParams.page || 1) + 1,
-                )}
-                type="button"
-                variant="secondary"
-              >
-                التالي
-              </AppButton>
-            </nav>
-          ) : null}
+          <AppPagination
+            ariaLabel="صفحات سجل الحجوزات"
+            currentPage={Number(effectiveParams.page || 1)}
+            hasNext={pagination.hasNext}
+            hasPrevious={pagination.hasPrevious}
+            itemLabel="حجز"
+            onPageChange={(page) => handlePageChange(page)}
+            totalCount={pagination.count}
+          />
         </>
       ) : null}
       </ResultRefreshRegion>

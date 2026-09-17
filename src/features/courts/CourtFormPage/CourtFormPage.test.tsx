@@ -26,7 +26,6 @@ describe('CourtFormPage', () => {
       club: 1,
       name: 'ملعب النخيل',
       sport_type: 'FOOTBALL',
-      default_price: '300',
       minimum_deposit: '100',
       cancellation_refund_notice_days: 3,
       slot_duration_minutes: 60,
@@ -57,9 +56,9 @@ describe('CourtFormPage', () => {
     const refundField = screen.getByText('سياسة استرداد التأمين').closest('label')
     expect(within(refundField!).getByText('أيام')).toBeInTheDocument()
     expect(screen.queryByText('internal_hold_expiry_hours')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('سعر الفترة الواحده')).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('اسم الملعب'), 'ملعب النخيل')
-    await user.type(screen.getByLabelText('سعر الفترة الواحده'), '300')
     await user.type(screen.getByLabelText(/الحد الأدنى للعربون/), '100')
     await user.type(screen.getByLabelText(/سياسة استرداد التأمين/), '3')
     expect(

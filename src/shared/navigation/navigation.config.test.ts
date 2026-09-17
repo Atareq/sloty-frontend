@@ -100,9 +100,13 @@ describe('navigation config', () => {
     ).toEqual([
       'الرئيسية',
       'سجل الحجوزات',
-      'معاملاتي المالية',
       'عهدتي',
     ])
+    expect(
+      getNavigationItemsForRole('STAFF', { primaryOnly: true }).some(
+        (item) => item.path === '/transactions',
+      ),
+    ).toBe(false)
     expect(
       getNavigationItemsForRole('STAFF', { primaryOnly: true }).some(
         (item) => item.label === 'إدارة الأموال',

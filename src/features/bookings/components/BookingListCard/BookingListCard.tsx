@@ -10,22 +10,29 @@ import type { Booking } from '../../bookings.types'
 
 interface BookingListCardProps {
   booking: Booking
+  minimumDeposit?: string | null
   onSelect?: (booking: Booking) => void
 }
 
 /** Compact history row; full operational context belongs to BookingActionSheet. */
-export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
+export function BookingListCard({
+  booking,
+  minimumDeposit,
+  onSelect,
+}: BookingListCardProps) {
   const isClickable = Boolean(onSelect)
   const isRecurring = booking.is_recurring
   const notes = getBookingNotes(booking)
   const hasRemainingAmount = Number(booking.remaining_amount) > 0
+  const effectiveMinimumDeposit =
+    minimumDeposit ?? (booking as { minimum_deposit?: string | null }).minimum_deposit
 
   const content = (
-    <AppCard className="h-full space-y-3">
-      <div className="flex items-start justify-between gap-3">
+    <AppCard className="flex flex-col justify-between space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="truncate text-base font-bold text-[var(--sloty-text-primary)]">
+            <p className="break-words text-base font-bold text-[var(--sloty-text-primary)]">
               {booking.customer_name || 'عميل بدون اسم'}
             </p>
             {isRecurring ? (
@@ -39,13 +46,13 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
             ) : null}
           </div>
           <p
-            className="mt-1 text-sm font-medium text-[var(--sloty-text-muted)]"
+            className="mt-1 break-words text-sm font-medium text-[var(--sloty-text-muted)]"
             dir={booking.customer_phone ? 'ltr' : undefined}
           >
             {booking.customer_phone || 'بدون رقم موبايل'}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex flex-wrap shrink-0 items-center gap-1.5">
           <StatusChip status={booking.status} />
           {hasRemainingAmount ? (
             <span className="rounded-md border border-[var(--sloty-balance-due-border)] bg-[var(--sloty-balance-due-soft)] px-1.5 py-0.5 text-xs font-bold text-[var(--sloty-balance-due)]">
@@ -55,17 +62,22 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
         </div>
       </div>
 
-      <p className="text-sm font-bold text-[var(--sloty-primary-dark)]">
+      <p className="break-words text-sm font-bold text-[var(--sloty-primary-dark)]">
         {formatBookingDateTimeRangeWithWeekday(
           booking.start_time,
           booking.end_time,
         )}
       </p>
-      <p className="text-sm font-semibold text-[var(--sloty-text-muted)]">
+      <p className="break-words text-sm font-semibold text-[var(--sloty-text-muted)]">
         {getBookingCourtLabel(booking)}
       </p>
-      {booking.last_status_changed_by_name ? (
+      {effectiveMinimumDeposit ? (
         <p className="text-xs font-semibold text-[var(--sloty-text-muted)]">
+          الحد الأدنى للعربون: {formatMoneyAmount(effectiveMinimumDeposit, { suffix: 'ج.م' })}
+        </p>
+      ) : null}
+      {booking.last_status_changed_by_name ? (
+        <p className="break-words text-xs font-semibold text-[var(--sloty-text-muted)]">
           آخر تحديث للحالة بواسطة: {booking.last_status_changed_by_name}
         </p>
       ) : null}
@@ -87,7 +99,7 @@ export function BookingListCard({ booking, onSelect }: BookingListCardProps) {
     return (
       <button
         aria-label={`مراجعة حجز ${booking.customer_name || 'العميل'}`}
-        className="block h-full w-full rounded-2xl text-right transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30"
+        className="block w-full rounded-2xl text-right transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30"
         onClick={() => onSelect(booking)}
         type="button"
       >

@@ -129,8 +129,13 @@ export const settingsCopy = {
   requireDigitalPaymentReferenceHelper:
     'عند التفعيل، يجب إدخال مرجع العملية عند الدفع بمحفظة إلكترونية أو تحويل بنكي.',
   addPricingPeriod: '+ إضافة فترة جديدة',
+  saveAndApplyDayToRest: (weekdayLabel: string) =>
+    `حفظ وتطبيق مواعيد ${weekdayLabel} على باقي الأسبوع`,
+  saveAndApplyDayHelper:
+    'يحفظ التعديلات الحالية ويطبق نفس الفترات والأسعار على الأيام الأخرى',
   copyDayToRest: (weekdayLabel: string) =>
     `تطبيق مواعيد ${weekdayLabel} على باقي أيام الأسبوع`,
+  copyDayAction: (weekdayLabel: string) => `تطبيق مواعيد ${weekdayLabel}`,
   workingHoursSaveSummary:
     'حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.',
   confirmPassword: 'تأكيد كلمة المرور',

@@ -25,11 +25,7 @@ import { AppSuccessNotice } from '../../shared/components/AppSuccessNotice/AppSu
 import { roleCopy } from '../../shared/copy/appCopy'
 import { appRoutes } from '../../shared/navigation/appRoutes'
 import { getAuthenticatedUserDisplayName } from '../../shared/utils/displayNames'
-import {
-  getNavigationItemsForRole,
-  getPageHeaderMeta,
-  type NavigationItem,
-} from '../../shared/navigation/navigation.config'
+import { getNavigationItemsForRole, getPageHeaderMeta, type NavigationItem } from '../../shared/navigation/navigation.config'
 import { RouteScrollReset } from '../RouteScrollReset'
 import { AppViewModeContext, type ViewMode } from './AppShell.viewMode'
 
@@ -130,6 +126,14 @@ function OfflineFreshnessNotice() {
  * drawer/account menu, desktop navigation, and global mobile booking action.
  */
 export function AppShell() {
+  return (
+    <OfflineSyncProvider>
+      <AppShellInner />
+    </OfflineSyncProvider>
+  )
+}
+
+function AppShellInner() {
   const {
     accessibleClubs,
     accessibleCourts,
@@ -378,12 +382,10 @@ export function AppShell() {
                   onDismiss={clearFlashMessage}
                 />
               ) : null}
-              <OfflineSyncProvider>
-                <OfflineFreshnessNotice />
-                <AppViewModeContext.Provider value={viewMode}>
-                  <Outlet />
-                </AppViewModeContext.Provider>
-              </OfflineSyncProvider>
+              <OfflineFreshnessNotice />
+              <AppViewModeContext.Provider value={viewMode}>
+                <Outlet />
+              </AppViewModeContext.Provider>
             </div>
           </main>
         </div>

@@ -25,15 +25,10 @@ import {
   buildPathWithQuery,
   type QueryParamValue,
 } from '../../../shared/utils/buildPathWithQuery'
-import {
-  getClubUserDisplayName,
-  getCourtDisplayName,
-} from '../../../shared/utils/displayNames'
+import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
-import { listCourts } from '../../courts/courtsApi'
-import type { Court } from '../../courts/courts.types'
 import {
   getCurrentCustodySummary,
   getSettlementPreview,
@@ -177,7 +172,6 @@ export function SettlementsHubPage() {
     [location.search],
   )
   const [users, setUsers] = useState<ClubUser[]>([])
-  const [courts, setCourts] = useState<Court[]>([])
   const [isLoadingFilters, setIsLoadingFilters] = useState(false)
   const [filterOptionsError, setFilterOptionsError] = useState<string | null>(
     null,
@@ -207,14 +201,6 @@ export function SettlementsHubPage() {
     () => users.filter((user) => user.id !== currentUser?.id),
     [currentUser?.id, users],
   )
-  const selectedCourt = courts.find(
-    (court) => String(court.id) === query.court,
-  )
-  const selectedCourtLabel = query.court
-    ? selectedCourt
-      ? getCourtDisplayName(selectedCourt)
-      : `ملعب #${query.court}`
-    : 'كل الملاعب'
   const offlineScope: OfflineScope | null = useMemo(
     () =>
       currentUser?.id && selectedClubSlug
@@ -266,35 +252,6 @@ export function SettlementsHubPage() {
     }
   }, [canSettle, hasAccess, selectedClubSlug])
 
-  useEffect(() => {
-    let isActive = true
-
-    async function loadCourts(): Promise<void> {
-      if (!hasAccess || !selectedClubSlug || !canSettle) {
-        setCourts([])
-        return
-      }
-
-      try {
-        const response = await listCourts(selectedClubSlug)
-
-        if (isActive) {
-          setCourts(response.results)
-        }
-      } catch {
-        if (isActive) {
-          setCourts([])
-          setFilterOptionsError('تعذر تحميل بعض خيارات التصفية')
-        }
-      }
-    }
-
-    void loadCourts()
-
-    return () => {
-      isActive = false
-    }
-  }, [canSettle, hasAccess, selectedClubSlug])
 
   useEffect(() => {
     let isActive = true
@@ -536,16 +493,6 @@ export function SettlementsHubPage() {
     ...(query.collected_by &&
     !reviewableUsers.some((user) => String(user.id) === query.collected_by)
       ? [{ value: query.collected_by, label: 'موظف محدد' }]
-      : []),
-  ]
-  const courtFilterOptions = [
-    { value: '', label: 'كل الملاعب' },
-    ...courts.map((court) => ({
-      value: String(court.id),
-      label: getCourtDisplayName(court),
-    })),
-    ...(query.court && !selectedCourt
-      ? [{ value: query.court, label: selectedCourtLabel }]
       : []),
   ]
 

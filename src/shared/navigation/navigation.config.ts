@@ -68,7 +68,7 @@ export const navigationItems: NavigationItem[] = [
     icon: Receipt,
     allowedRoles: ['OWNER', 'STAFF'],
     showInMobile: false,
-    showInPrimaryNav: true,
+    showInPrimaryNav: false,
   },
   {
     path: '/settlements',
@@ -208,9 +208,7 @@ export function getNavigationItemsForRole(
     .filter((item) =>
       item.allowedRoles.includes(role) &&
       (!options.mobileOnly || item.showInMobile) &&
-      (!options.primaryOnly || item.showInPrimaryNav) &&
-      // Owner ledger stays a secondary destination, not a Burger item.
-      (item.path !== '/transactions' || role === 'STAFF'),
+      (!options.primaryOnly || (item.showInPrimaryNav && item.path !== '/transactions'))
     )
     .map((item) => {
       if (item.path === '/transactions' && role === 'STAFF') {

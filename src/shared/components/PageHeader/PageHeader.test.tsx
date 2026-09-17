@@ -138,6 +138,54 @@ describe('PageHeader', () => {
     expect(onHomeClick).toHaveBeenCalledTimes(1)
   })
 
+  it('maintains aligned responsive grid structure with clear spacing between burger and Sloty branding', () => {
+    const { container } = render(
+      <PageHeader
+        clubName="Demo Club"
+        showMenuButton
+        title="الجدول"
+      />,
+    )
+
+    const controlsGrid = container.querySelector(
+      '.sloty-page-header-controls > div',
+    )
+    const contextGrid = container.querySelector(
+      '.sloty-page-header-context > div',
+    )
+
+    expect(controlsGrid).toHaveClass(
+      'mx-auto',
+      'grid',
+      'w-full',
+      'max-w-7xl',
+      'grid-cols-[auto_minmax(0,1fr)_auto]',
+      'items-start',
+      'gap-3',
+      'sm:gap-4',
+      'md:gap-5',
+      'lg:gap-6',
+      'px-4',
+      'sm:px-6',
+      'lg:px-8',
+    )
+    expect(contextGrid).toHaveClass(
+      'mx-auto',
+      'grid',
+      'w-full',
+      'max-w-7xl',
+      'grid-cols-[auto_minmax(0,1fr)_auto]',
+      'items-start',
+      'gap-3',
+      'sm:gap-4',
+      'md:gap-5',
+      'lg:gap-6',
+      'px-4',
+      'sm:px-6',
+      'lg:px-8',
+    )
+  })
+
   it('wraps long page identity in the middle column without sharing action groups', () => {
     const { container } = render(
       <PageHeader

@@ -18,7 +18,7 @@ const mockedApiRequest = vi.mocked(apiRequest)
 
 describe('reportsApi', () => {
   it('gets court usage reports with required and optional filters', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ results: [{ id: 1 }] } as any)
+    mockedApiRequest.mockResolvedValueOnce({ results: [{ id: 1 }] } as never)
 
     await getCourtUsageReport('nasr-club', {
       date_from: '2026-07-01',
@@ -37,7 +37,7 @@ describe('reportsApi', () => {
   })
 
   it('does not send payment_method to the court usage report', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ results: [{ id: 1 }] } as any)
+    mockedApiRequest.mockResolvedValueOnce({ results: [{ id: 1 }] } as never)
 
     await getCourtUsageReport('nasr-club', {
       date_from: '2026-07-01',

@@ -1,6 +1,7 @@
 import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
+import { getPreviousCalendarDate } from '../../shared/utils/date'
 import type {
   BookingCancelPayload,
   BookingCancellationPreview,
@@ -46,10 +47,11 @@ export function buildBookingSlotsPath(
   searchParams.set('court', String(params.court))
 
   if (isBookingSlotsRangeParams(params)) {
-    searchParams.set('date_from', params.date_from)
+    searchParams.set('date_from', getPreviousCalendarDate(params.date_from))
     searchParams.set('date_to', params.date_to)
   } else {
-    searchParams.set('date', params.date)
+    searchParams.set('date_from', getPreviousCalendarDate(params.date))
+    searchParams.set('date_to', params.date)
   }
 
   return `${apiEndpoints.clubs.bookings.slots(clubSlug)}?${searchParams.toString()}`

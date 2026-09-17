@@ -12,7 +12,6 @@ const mockedApiRequest = vi.mocked(apiRequest)
 const courtPayload = {
   name: 'ملعب 1',
   sport_type: 'FOOTBALL',
-  default_price: '250.00',
   minimum_deposit: '100.00',
   cancellation_refund_notice_days: 3,
   slot_duration_minutes: 60,

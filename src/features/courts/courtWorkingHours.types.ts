@@ -15,7 +15,6 @@ export interface CourtWorkingDay {
 export interface CourtWorkingHoursResponse {
   court: number
   court_name: string
-  pricing_configured: boolean
   working_hours: CourtWorkingDay[]
 }
 
@@ -33,7 +32,6 @@ export interface CourtWorkingDayPayload {
 export interface CourtWorkingHoursApiResponse {
   court: number
   court_name: string
-  pricing_configured?: boolean
   working_hours?: CourtWorkingDay[]
 }
 

@@ -103,3 +103,6 @@ export function SortOrderToggle({
     </button>
   )
 }
+
+export const OrderBy = SortOrderToggle
+export const OrderByButton = SortOrderToggle

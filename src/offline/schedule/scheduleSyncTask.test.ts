@@ -124,9 +124,9 @@ describe('createScheduleSyncTask', () => {
       listBookingSlots,
       listCourts: vi.fn(async () => ({
         results: [
-          { id: 7, club: 1, name: 'ملعب 7', sport_type: 'FOOTBALL', default_price: '250.00', minimum_deposit: '100.00', cancellation_refund_notice_days: 3, slot_duration_minutes: 60, is_active: true, requires_digital_payment_reference: false, internal_hold_expiry_hours: 12 },
-          { id: 8, club: 1, name: 'ملعب 8', sport_type: 'FOOTBALL', default_price: '250.00', minimum_deposit: '100.00', cancellation_refund_notice_days: 3, slot_duration_minutes: 60, is_active: true, requires_digital_payment_reference: false, internal_hold_expiry_hours: 12 },
-          { id: 9, club: 1, name: 'ملعب 9', sport_type: 'FOOTBALL', default_price: '250.00', minimum_deposit: '100.00', cancellation_refund_notice_days: 3, slot_duration_minutes: 60, is_active: true, requires_digital_payment_reference: false, internal_hold_expiry_hours: 12 },
+          { id: 7, club: 1, name: 'ملعب 7', sport_type: 'FOOTBALL', minimum_deposit: '100.00', cancellation_refund_notice_days: 3, slot_duration_minutes: 60, is_active: true, requires_digital_payment_reference: false, internal_hold_expiry_hours: 12 },
+          { id: 8, club: 1, name: 'ملعب 8', sport_type: 'FOOTBALL', minimum_deposit: '100.00', cancellation_refund_notice_days: 3, slot_duration_minutes: 60, is_active: true, requires_digital_payment_reference: false, internal_hold_expiry_hours: 12 },
+          { id: 9, club: 1, name: 'ملعب 9', sport_type: 'FOOTBALL', minimum_deposit: '100.00', cancellation_refund_notice_days: 3, slot_duration_minutes: 60, is_active: true, requires_digital_payment_reference: false, internal_hold_expiry_hours: 12 },
         ],
       })),
       repositories: {

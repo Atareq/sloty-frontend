@@ -99,7 +99,6 @@ describe('courtWorkingHoursApi', () => {
     const response = normalizeCourtWorkingHoursResponse({
       court: 7,
       court_name: 'ملعب 1',
-      pricing_configured: true,
       working_hours: [
         {
           weekday: 5,
@@ -119,7 +118,6 @@ describe('courtWorkingHoursApi', () => {
       ],
     })
 
-    expect(response.pricing_configured).toBe(true)
     expect(response.working_hours).toEqual([
       {
         weekday: 5,

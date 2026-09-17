@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { BookingListItem } from '../../../schedule/scheduleApi.types'
@@ -104,6 +104,7 @@ describe('EditBookingDetailsSheet', () => {
 
     const notesInput = screen.getByLabelText('ملاحظات')
     await user.type(notesInput, ' تعديل إضافي')
+    fireEvent.change(notesInput, { target: { value: 'ملاحظة قديمة معدلة' } })
 
     const closeButton = screen.getByRole('button', { name: 'إغلاق' })
     await user.click(closeButton)
@@ -111,6 +112,11 @@ describe('EditBookingDetailsSheet', () => {
     expect(
       screen.getByText('عندك تعديلات لسه متحفظتش.'),
     ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        screen.getByText('عندك تعديلات لسه متحفظتش.'),
+      ).toBeInTheDocument()
+    })
     expect(onClose).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'اخرج من غير حفظ' }))

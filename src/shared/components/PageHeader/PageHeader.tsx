@@ -20,7 +20,7 @@ export interface PageHeaderProps {
 }
 
 const headerGridClassName =
-  'mx-auto grid w-full max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 sm:gap-4'
+  'mx-auto grid w-full max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 sm:gap-4 md:gap-5 lg:gap-6 px-4 sm:px-6 lg:px-8'
 
 /**
  * Canonical Sloty page header.
@@ -68,7 +68,7 @@ export function PageHeader({
     >
       {hasPersistentControls ? (
         <div className="sloty-page-header-controls sticky top-0 z-40">
-          <div className={`${headerGridClassName} px-4 pt-4 sm:px-6 sm:pt-5`}>
+          <div className={`${headerGridClassName} pt-4 sm:pt-5`}>
             <div
               className="flex min-h-11 min-w-11 shrink-0 items-start justify-center"
               data-page-header-actions="start"
@@ -120,13 +120,13 @@ export function PageHeader({
       <div
         aria-hidden={isCollapsed}
         className={[
-          'sloty-green-surface sloty-page-header-context rounded-b-3xl px-4 pb-5 pt-4 text-white shadow-[var(--sloty-shadow)] sm:px-6 sm:pt-5',
+          'sloty-green-surface sloty-page-header-context rounded-b-3xl text-white shadow-[var(--sloty-shadow)]',
           hasPersistentControls ? 'sloty-page-header-context-under-controls' : '',
         ].join(' ')}
         data-page-header-context=""
         inert={isCollapsed ? true : undefined}
       >
-        <div className={headerGridClassName}>
+        <div className={`${headerGridClassName} pb-5 pt-4 sm:pb-6 sm:pt-5`}>
           <div
             aria-hidden="true"
             className="min-h-11 min-w-11 shrink-0"

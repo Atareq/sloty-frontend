@@ -187,7 +187,6 @@ describe('SettlementsHubPage', () => {
           club: 1,
           name: 'ملعب 1',
           sport_type: 'FOOTBALL',
-          default_price: '300.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -200,7 +199,6 @@ describe('SettlementsHubPage', () => {
           club: 1,
           name: 'ملعب 2',
           sport_type: 'FOOTBALL',
-          default_price: '300.00',
           minimum_deposit: '100.00',
           cancellation_refund_notice_days: 3,
           slot_duration_minutes: 60,
@@ -239,7 +237,6 @@ describe('SettlementsHubPage', () => {
     expect(
       screen.getByText('المبالغ الموجودة مع الموظفين حاليًا'),
     ).toBeInTheDocument()
-    expect(screen.getAllByText('كل الملاعب').length).toBeGreaterThan(0)
     expect(await screen.findByText('أحمد محمد')).toBeInTheDocument()
     expect(
       screen.getByText('المبلغ المستحق للتسليم: 1,250.00 ج.م'),
@@ -561,55 +558,6 @@ describe('SettlementsHubPage', () => {
     expect(mockedGetSettlementPreview).not.toHaveBeenCalled()
   })
 
-  it('sends the selected court for history filtering and removes it for all courts', async () => {
-    const user = userEvent.setup()
-    mockAuth('OWNER', true)
-    mockedGetCurrentCustodySummary.mockResolvedValueOnce({
-      results: [
-        {
-          ...currentCustodySummary.results[0],
-          net_amount: '1000.00',
-          total_amount: '1000.00',
-          booking_payments: '1000.00',
-          booking_refunds: '0.00',
-          totals_by_payment_method: {
-            CASH: '700.00',
-            DIGITAL_WALLET: '300.00',
-          },
-        },
-      ],
-    })
-    mockedListSettlements.mockResolvedValue({
-      count: 0,
-      next: null,
-      previous: null,
-      results: [],
-    })
-
-    renderHub('/settlements?history=true')
-
-    expect(
-      await screen.findByText('المبلغ المستحق للتسليم: 1,000.00 ج.م'),
-    ).toBeInTheDocument()
-    expect(mockedGetCurrentCustodySummary).toHaveBeenCalledWith(
-      'nasr-club',
-      {},
-    )
-    expect(await screen.findByText('تم استلامها سابقًا')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(mockedListSettlements).toHaveBeenLastCalledWith(
-        'nasr-club',
-        expect.objectContaining({ court: '3' }),
-      )
-    })
-
-    await waitFor(() => {
-      expect(mockedListSettlements).toHaveBeenLastCalledWith(
-        'nasr-club',
-        expect.not.objectContaining({ court: expect.anything() }),
-      )
-    })
-  })
 
   it('loads a selected employee preview without court scope and no current period block', async () => {
     mockAuth('MANAGER', true)
