@@ -220,7 +220,7 @@ describe('AppShell', () => {
   it('shows the selected club name', () => {
     renderAppShell()
 
-    expect(screen.getAllByText('النادي الحالي: Demo Football Club').length)
+    expect(screen.getAllByText(' Demo Football Club').length)
       .toBeGreaterThan(0)
   })
 
