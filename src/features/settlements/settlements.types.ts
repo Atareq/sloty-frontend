@@ -28,6 +28,7 @@ export interface SettlementPreviewTransaction {
   created?: string
 }
 
+/** Preview/create identity follows the current Backend `collected_by` contract. */
 export interface SettlementPreview extends CurrentCustodyRecord {
   club: number
   court?: number | null
@@ -50,6 +51,7 @@ export interface SettlementPreviewQueryParams {
   page?: number | string
 }
 
+/** Grouped `unsettled-summary` identity. Do not add `collected_by` here. */
 export interface CurrentCustodySummaryRow extends CurrentCustodyRecord {
   user: number
   user_name: string

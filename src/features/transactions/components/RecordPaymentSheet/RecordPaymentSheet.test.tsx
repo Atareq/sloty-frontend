@@ -259,6 +259,95 @@ describe('RecordPaymentSheet', () => {
     expect(screen.getByLabelText('أدخل مرجع العملية')).toHaveAttribute('aria-invalid', 'true')
   })
 
+  it('displays Arabic PAYMENT_REFERENCE_REQUIRED error once in banner, marks field invalid, and never exposes English text', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error="مرجع الدفع مطلوب لهذا الملعب."
+        errorCode="PAYMENT_REFERENCE_REQUIRED"
+        fieldErrors={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الدفع'),
+      'محفظة إلكترونية',
+    )
+
+    // English message must NOT appear
+    expect(
+      screen.queryByText('Payment reference is required for this court.'),
+    ).not.toBeInTheDocument()
+
+    // Arabic message appears exactly once in the card/general banner area
+    const errorMatches = screen.getAllByText('مرجع الدفع مطلوب لهذا الملعب.')
+    expect(errorMatches).toHaveLength(1)
+
+    // Payment reference label receives the shared invalid/error styling
+    const labelSpan = screen.getByText('مرجع الدفع')
+    expect(labelSpan).toHaveClass('text-[var(--sloty-danger)]')
+
+    // Payment reference input is marked aria-invalid
+    const referenceInput = screen.getByLabelText('أدخل مرجع العملية')
+    expect(referenceInput).toHaveAttribute('aria-invalid', 'true')
+
+    // No duplicate sentence rendered under the input
+    expect(referenceInput.parentElement?.parentElement?.querySelector('p')).toBeNull()
+  })
+
+  it('handles PAYMENT_REFERENCE_REQUIRED when passed as fieldErrors without duplicating message under input', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error="مرجع الدفع مطلوب لهذا الملعب."
+        fieldErrors={{
+          payment_reference: [
+            {
+              code: 'PAYMENT_REFERENCE_REQUIRED',
+              message: 'Payment reference is required for this court.',
+            },
+          ],
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الدفع'),
+      'محفظة إلكترونية',
+    )
+
+    // English message must NOT appear
+    expect(
+      screen.queryByText('Payment reference is required for this court.'),
+    ).not.toBeInTheDocument()
+
+    // Arabic message appears exactly once in the banner
+    const errorMatches = screen.getAllByText('مرجع الدفع مطلوب لهذا الملعب.')
+    expect(errorMatches).toHaveLength(1)
+
+    // Payment reference input is marked aria-invalid
+    const referenceInput = screen.getByLabelText('أدخل مرجع العملية')
+    expect(referenceInput).toHaveAttribute('aria-invalid', 'true')
+
+    // Payment reference label receives invalid styling
+    const labelSpan = screen.getByText('مرجع الدفع')
+    expect(labelSpan).toHaveClass('text-[var(--sloty-danger)]')
+
+    // No duplicate sentence rendered under the input
+    expect(referenceInput.parentElement?.parentElement?.querySelector('p')).toBeNull()
+  })
 
   it('shows minimum deposit guidance without blocking local validation', () => {
     render(

@@ -609,7 +609,7 @@ function TransactionsFilterForm({
 
       {canChooseCollector ? (
         <AppSelect
-          label="الموظف المحصل"
+          label={financeCopy.collector}
           onChange={(value) => updateFilter('created_by', value)}
           options={collectorFilterOptions}
           value={filters.created_by}

@@ -209,7 +209,7 @@ export function SettlementDetailPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                  الموظف
+                  {financeCopy.collector}
                 </p>
                 <h2 className="mt-1 text-2xl font-black text-[var(--sloty-text-primary)]">
                   {getSettlementCollectorName(settlement)}

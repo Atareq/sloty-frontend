@@ -2706,6 +2706,57 @@ describe('SchedulePage', () => {
     })
   })
 
+  it('translates PAYMENT_REFERENCE_REQUIRED in the Booking card payment flow to Arabic without exposing English', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    mockedCreateTransaction.mockRejectedValueOnce(
+      new ApiClientError('Payment reference is required for this court.', 400, {
+        code: 'PAYMENT_REFERENCE_REQUIRED',
+      }),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    // Open booking card
+    await user.click(await screen.findByRole('button', { name: '6:00 ص بانتظار العربون' }))
+    // Open payment flow
+    await user.click(
+      screen.getByRole('button', { name: 'سجّل العربون وأكّد الحجز' }),
+    )
+    await user.type(screen.getByLabelText('المبلغ'), '100')
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الدفع'),
+      'محفظة إلكترونية',
+    )
+    await user.click(screen.getByRole('button', { name: 'تسجيل العربون' }))
+
+    // English message must NOT appear
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Payment reference is required for this court.'),
+      ).not.toBeInTheDocument()
+    })
+
+    // Arabic message appears once
+    const errorMatches = screen.getAllByText('مرجع الدفع مطلوب لهذا الملعب.')
+    expect(errorMatches).toHaveLength(1)
+
+    // Label is in shared error state
+    expect(screen.getByText('مرجع الدفع')).toHaveClass('text-[var(--sloty-danger)]')
+
+    // Input is marked invalid
+    const referenceInput = screen.getByLabelText('أدخل مرجع العملية')
+    expect(referenceInput).toHaveAttribute('aria-invalid', 'true')
+
+    // No duplicate inline sentence below input
+    expect(referenceInput.parentElement?.parentElement?.querySelector('p')).toBeNull()
+  })
+
   it('reloads backend slots after cancel, complete, and no-show actions', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedListBookingSlots.mockResolvedValue(

@@ -48,7 +48,10 @@ request may render that exact snapshot with freshness copy. Do not reconstruct
 custody from cached Transactions, and do not treat no cached snapshot as zero.
 
 Settlement preview is a fresh Backend snapshot, not a frozen grouped-summary
-copy. Settlement creation posts only `{ collected_by, court?, notes? }`; the
+copy. `unsettled-summary` rows use `user` / `user_name`. Preview/create keep
+`collected_by` / `collected_by_name` because that is the current Backend
+contract. Collector UI copy is `المحصل`. Settlement creation posts only
+`{ collected_by, court?, notes? }`; the
 Backend rechecks the candidate transactions and either closes them or returns a
 structured stale/empty code. After payment, refund-producing cancellation,
 transaction cancellation, settlement creation, or settlement status changes,

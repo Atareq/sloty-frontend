@@ -1,4 +1,5 @@
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
+import { financeCopy } from '../../../../shared/copy/appCopy'
 import { getCurrentCustodyPresentation } from '../../currentCustodyPresentation'
 import type { SettlementPreview } from '../../settlements.types'
 
@@ -25,7 +26,7 @@ export function SettlementPreviewSummary({
       <dl className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3">
           <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
-            {mode === 'staff' ? 'الموظف' : 'المحصل'}
+            {financeCopy.collector}
           </dt>
           <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
             {preview.collected_by_name}

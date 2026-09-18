@@ -300,7 +300,7 @@ describe('TransactionsListPage', () => {
     )
     expect((await screen.findAllByText('ملعب 1')).length).toBeGreaterThan(0)
     expect(screen.queryByText('كل الملاعب')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('الموظف المحصل')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('المحصل')).not.toBeInTheDocument()
     expect(mockedListCourts).not.toHaveBeenCalled()
     expect(mockedListClubUsers).not.toHaveBeenCalled()
     await waitFor(() => {
@@ -996,7 +996,7 @@ describe('TransactionsListPage', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'فلترة المعاملات المالية' })).toBeInTheDocument()
-    expect(screen.getAllByLabelText('الموظف المحصل')).not.toHaveLength(0)
+    expect(screen.getAllByLabelText('المحصل')).not.toHaveLength(0)
   })
 
   it('applies selected filters through the URL query params', async () => {
@@ -1021,7 +1021,7 @@ describe('TransactionsListPage', () => {
     await chooseAppSelectOption(user, screen.getByLabelText('الملعب'), 'ملعب 1')
     await chooseAppSelectOption(
       user,
-      screen.getByLabelText('الموظف المحصل'),
+      screen.getByLabelText('المحصل'),
       'أحمد محمد',
     )
     await user.click(screen.getByRole('button', { name: 'تطبيق الفلاتر' }))

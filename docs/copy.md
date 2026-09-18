@@ -112,6 +112,8 @@ Tone: **مصري بسيط ومحترف** (Simple, professional Egyptian Arabic).
 
 | Concept | Arabic Label | Context |
 | :--- | :--- | :--- |
+| Collector | `المحصل` | Label for OWNER or STAFF collector identity. Do not use `الموظف المحصل`. |
+| Collector required | `تعذر تحديد المحصل لهذه التسوية.` | Confirm error when preview/create has no collector ID. |
 | Current Custody | `العهدة الحالية` | Heading for live unsettled cash section. |
 | Custody with Employee | `معاه دلوقتي` | Badge/stat showing collector's current unsettled cash. |
 | Receive Amount | `استلام المبلغ` | Primary CTA to initiate settlement confirmation. |

@@ -238,6 +238,11 @@ describe('SettlementsHubPage', () => {
       screen.getByText('المبالغ الموجودة مع الموظفين حاليًا'),
     ).toBeInTheDocument()
     expect(await screen.findByText('أحمد محمد')).toBeInTheDocument()
+    expect(screen.getAllByText('المحصل').length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: 'استلام المبلغ' })).toHaveAttribute(
+      'href',
+      '/settlements/preview?collected_by=15',
+    )
     expect(
       screen.getByText('المبلغ المستحق للتسليم: 1,250.00 ج.م'),
     ).toBeInTheDocument()

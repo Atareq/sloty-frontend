@@ -109,6 +109,7 @@ export const financeCopy = {
   amountsNeedingReceipt: 'مبالغ محتاجة استلام',
   previouslyReceived: 'تم استلامها سابقًا',
   allEmployees: 'كل الموظفين',
+  /** Collector may be OWNER or STAFF. Never use `الموظف المحصل`. */
   collector: 'المحصل',
   collectorRequired: 'تعذر تحديد المحصل لهذه التسوية.',
   financialLedgerLink: 'عرض سجل المعاملات المالية',

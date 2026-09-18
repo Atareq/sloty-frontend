@@ -331,6 +331,8 @@ describe('DashboardPage', () => {
     expect(
       await screen.findByText('المبالغ الموجودة مع الموظفين حاليًا'),
     ).toBeInTheDocument()
+    expect(screen.getByText('المحصل')).toBeInTheDocument()
+    expect(screen.getByText('أحمد المحصل')).toBeInTheDocument()
     expect(screen.getByText('استلام المبلغ')).toHaveAttribute(
       'href',
       '/settlements/preview?collected_by=15',

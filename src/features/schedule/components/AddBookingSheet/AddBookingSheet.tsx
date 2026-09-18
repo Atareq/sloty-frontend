@@ -24,8 +24,8 @@ import { listClubPlayers } from '../../../players/playersApi'
 import {
   arePhoneNumbersMatching,
   getClubPlayerPhone,
+  type ClubPlayer,
 } from '../../../players/players.types'
-import type { ClubPlayer } from '../../../players/players.types'
 
 export interface AddBookingSheetValues {
   customer_name: string

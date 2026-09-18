@@ -10,6 +10,7 @@ import { getCurrentCustodyPresentation } from '../../currentCustodyPresentation'
 import {
   settlementPaymentMethodLabels,
   type CurrentCustodyRecord,
+  type CurrentCustodySummaryRow,
   type SettlementPaymentMethod,
 } from '../../settlements.types'
 
@@ -20,22 +21,23 @@ const paymentMethods: SettlementPaymentMethod[] = [
   'OTHER',
 ]
 
-interface CurrentCustodyDisplayRecord extends CurrentCustodyRecord {
-  user?: number
-  user_name?: string
-  can_approve?: boolean
-  is_self?: boolean
-}
-
-interface CurrentCustodySectionProps {
+interface CurrentCustodySectionBaseProps {
   court?: number | string
   error?: string | null
   isLoading?: boolean
-  mode: 'staff' | 'management'
-  records: CurrentCustodyDisplayRecord[]
   showTitle?: boolean
   snapshotLabel?: string | null
 }
+
+type CurrentCustodySectionProps =
+  | (CurrentCustodySectionBaseProps & {
+      mode: 'staff'
+      records: CurrentCustodyRecord[]
+    })
+  | (CurrentCustodySectionBaseProps & {
+      mode: 'management'
+      records: CurrentCustodySummaryRow[]
+    })
 
 export function CurrentCustodyValue({
   record,
@@ -170,51 +172,60 @@ export function CurrentCustodySection({
               : undefined
           }
         >
-          {records.map((record) => (
-            <AppCard
-              className="space-y-4"
-              key={record.user ?? 'own-custody'}
-            >
-              {mode === 'management' && record.user_name ? (
-                <div className="space-y-0.5">
+          {mode === 'management'
+            ? records.map((record) => (
+                <AppCard className="space-y-4" key={record.user}>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                      {financeCopy.collector}
+                    </p>
+                    <p className="text-base font-black text-[var(--sloty-text-primary)]">
+                      {record.user_name}
+                    </p>
+                  </div>
+
+                  <CurrentCustodyValue record={record} />
+
                   <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                    المحصل
+                    {record.transaction_count} معاملات
                   </p>
-                  <p className="text-base font-black text-[var(--sloty-text-primary)]">
-                    {record.user_name}
+
+                  <CurrentCustodyPaymentBreakdown
+                    totals={record.totals_by_payment_method}
+                  />
+
+                  {record.can_approve ? (
+                    <Link
+                      className="sloty-green-surface-button inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--sloty-primary-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)] focus:ring-offset-2"
+                      to={buildPathWithQuery('/settlements/preview', {
+                        collected_by: record.user,
+                        court,
+                      })}
+                    >
+                      {financeCopy.receiveAmount}
+                    </Link>
+                  ) : null}
+
+                  {record.is_self && !record.can_approve ? (
+                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
+                      {financeCopy.selfPreviewDenied}
+                    </p>
+                  ) : null}
+                </AppCard>
+              ))
+            : records.map((record, index) => (
+                <AppCard className="space-y-4" key={`own-custody-${index}`}>
+                  <CurrentCustodyValue record={record} />
+
+                  <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                    {record.transaction_count} معاملات
                   </p>
-                </div>
-              ) : null}
 
-              <CurrentCustodyValue record={record} />
-
-              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                {record.transaction_count} معاملات
-              </p>
-
-              <CurrentCustodyPaymentBreakdown
-                totals={record.totals_by_payment_method}
-              />
-
-              {mode === 'management' && record.can_approve && record.user !== undefined ? (
-                <Link
-                  className="sloty-green-surface-button inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--sloty-primary-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)] focus:ring-offset-2"
-                  to={buildPathWithQuery('/settlements/preview', {
-                    collected_by: record.user,
-                    court,
-                  })}
-                >
-                  {financeCopy.receiveAmount}
-                </Link>
-              ) : null}
-
-              {mode === 'management' && record.is_self && !record.can_approve ? (
-                <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
-                  {financeCopy.selfPreviewDenied}
-                </p>
-              ) : null}
-            </AppCard>
-          ))}
+                  <CurrentCustodyPaymentBreakdown
+                    totals={record.totals_by_payment_method}
+                  />
+                </AppCard>
+              ))}
         </div>
       ) : null}
     </section>

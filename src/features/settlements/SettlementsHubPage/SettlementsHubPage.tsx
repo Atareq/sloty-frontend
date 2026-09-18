@@ -651,6 +651,9 @@ export function SettlementsHubPage() {
         currentPreview.transaction_count > 0 ? (
           <AppCard className="space-y-4">
             <div>
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                {financeCopy.collector}
+              </p>
               <p className="text-lg font-bold text-[var(--sloty-text-primary)]">
                 {currentPreview.collected_by_name}
               </p>

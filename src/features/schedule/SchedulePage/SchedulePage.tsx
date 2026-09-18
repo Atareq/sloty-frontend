@@ -306,6 +306,7 @@ export function SchedulePage() {
   )
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [paymentErrorCode, setPaymentErrorCode] = useState<string | null>(null)
   const [paymentFieldErrors, setPaymentFieldErrors] = useState<Record<
     string,
     ApiFieldError[]
@@ -1857,6 +1858,7 @@ export function SchedulePage() {
 
     setIsPaymentSubmitting(true)
     setPaymentError(null)
+    setPaymentErrorCode(null)
     setPaymentFieldErrors(null)
 
     try {
@@ -1888,6 +1890,7 @@ export function SchedulePage() {
     } catch (error) {
       const errorCode = getApiErrorCode(error)
 
+      setPaymentErrorCode(errorCode)
       setPaymentError(
         errorCode === FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT
           ? getApiErrorMessage(
@@ -2709,6 +2712,7 @@ export function SchedulePage() {
             remainingAmount: paymentBooking.remaining_amount,
           }}
           error={paymentError}
+          errorCode={paymentErrorCode}
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
           minimumDepositHint={getCourtMinimumDeposit(selectedCourt)}
@@ -2716,6 +2720,7 @@ export function SchedulePage() {
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
+            setPaymentErrorCode(null)
             setPaymentFieldErrors(null)
           }}
           onSubmit={handleRecordPayment}
