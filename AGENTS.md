@@ -160,6 +160,7 @@ Run targeted validation commands before reporting completion:
 - All endpoints are centralized in `src/shared/api/apiEndpoints.ts`. Never hardcode API URL strings in feature code.
 - `apiRequest()` automatically sends `Accept-Language: ar` and attaches the Bearer token unless `omitAuth: true` is passed.
 - Token refresh runs once on 401s; concurrent requests share the in-flight refresh. Login and refresh paths never trigger refresh.
+- Admin shell diagnostics use `GET /api/system/version/` (`apiEndpoints.systemVersion`) once per session via `src/core/system/`. FE release/commit come only from `src/core/config/buildInfo.ts` (`VITE_APP_RELEASE`, `VITE_COMMIT_SHA`) — never hardcode production versions in UI.
 
 ### Coding Style & Refactoring
 - **Refactor in Place:** Do not introduce parallel `V2`, `New`, or wizard variants for existing pages, sheets, or flows.
