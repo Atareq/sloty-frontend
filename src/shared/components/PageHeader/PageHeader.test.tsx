@@ -76,7 +76,7 @@ describe('PageHeader', () => {
     const controls = header.querySelector('.sloty-page-header-controls')
 
     expect(screen.getByText('Sloty')).toBeInTheDocument()
-    expect(screen.getByText(' Demo Football Club'))
+    expect(screen.getByText('Demo Football Club'))
       .toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'الرئيسية' }))
       .toBeInTheDocument()
@@ -306,7 +306,7 @@ describe('PageHeader', () => {
     expect(header).toHaveAttribute('data-header-scroll-state', 'expanded')
     expect(screen.getByRole('heading', { level: 1, name: 'سجل الحجوزات' }))
       .toBeInTheDocument()
-    expect(screen.getByText(' نادي النصر')).toBeInTheDocument()
+    expect(screen.getByText('نادي النصر')).toBeInTheDocument()
   })
 
   it('restores expanded context when resetKey changes at the top', async () => {

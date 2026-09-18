@@ -28,6 +28,10 @@ import {
   type AddBookingSheetValues,
 } from '../components/AddBookingSheet/AddBookingSheet'
 import {
+  buildRecurringUnavailableNotice,
+  type RecurringUnavailableNotice,
+} from '../recurringUnavailableNotice'
+import {
   BookingRequestCustomerEditSheet,
   type BookingRequestCustomerEditValues,
 } from '../components/BookingRequestCustomerEditSheet/BookingRequestCustomerEditSheet'
@@ -342,6 +346,8 @@ export function SchedulePage() {
     VisibleBookingIntentAlternative[]
   >([])
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [recurringUnavailableNotice, setRecurringUnavailableNotice] =
+    useState<RecurringUnavailableNotice | null>(null)
   const [manualRefreshError, setManualRefreshError] = useState<string | null>(
     null,
   )
@@ -1253,6 +1259,15 @@ export function SchedulePage() {
       setSuccessMessage('✓ تم حجز الموعد بنجاح')
     } catch (error) {
       const errorCode = getApiErrorCode(error)
+
+      if (errorCode === 'RECURRING_UNAVAILABLE') {
+        setCreateError(null)
+        setCreateFieldErrors(null)
+        setRecurringUnavailableNotice(
+          buildRecurringUnavailableNotice(getApiErrorDetails(error)),
+        )
+        return
+      }
 
       setCreateError(
         getApiErrorMessage(
@@ -2522,6 +2537,16 @@ export function SchedulePage() {
         <AppSuccessNotice
           message={successMessage}
           onDismiss={() => setSuccessMessage(null)}
+        />
+      ) : null}
+
+      {recurringUnavailableNotice ? (
+        <AppSuccessNotice
+          message={recurringUnavailableNotice.message}
+          onDismiss={() => setRecurringUnavailableNotice(null)}
+          timeoutMs={5000}
+          title={recurringUnavailableNotice.title}
+          tone="warning"
         />
       ) : null}
 

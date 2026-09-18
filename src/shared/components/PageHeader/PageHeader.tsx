@@ -135,7 +135,7 @@ export function PageHeader({
             <p className="truncate text-base font-black">Sloty</p>
             {clubName ? (
               <p className="break-words text-xs font-bold leading-5 text-white/75">
-                 {clubName}
+                {clubName}
               </p>
             ) : null}
             <div className="space-y-1 pt-1">

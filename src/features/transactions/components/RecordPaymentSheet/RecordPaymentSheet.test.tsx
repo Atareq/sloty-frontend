@@ -263,7 +263,9 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
-    expect(screen.getByText('العربون المطلوب')).toBeInTheDocument()
+    expect(
+      screen.getByText(/أقل عربون تقدر تسجل بيه/, { selector: 'p' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('100.00 ج.م')).toBeInTheDocument()
   })
 })

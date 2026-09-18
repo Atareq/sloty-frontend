@@ -65,11 +65,13 @@ All active documentation is organized into focused, single-responsibility guides
 | [`docs/interaction-patterns.md`](interaction-patterns.md) | Screen & component interaction guidelines | Action sheets, detail sheets, drawers, modals, filter flows, search behaviors |
 | [`docs/product-copy.md`](product-copy.md) | Canonical Egyptian-Arabic terminology | Standardized Arabic labels, status badges, finance terminology, error phrasing |
 | [`docs/ui-reference.md`](ui-reference.md) | Visual design tokens & design system | Sloty green brand palette, surface tokens, border radius, typography, component styling |
+| [`docs/frontend-ci-cd.md`](frontend-ci-cd.md) | Production CI/CD and static publication | GitHub Actions, FE GitHub Releases, `scripts/deploy-sloty-frontend`, Nginx static publish |
 | [`docs/ux-known-gaps.md`](ux-known-gaps.md) | Intentional UX gaps & deferred work | Documented deliberate simplifications and backlog tracking |
 | [`src/offline/AGENTS.md`](../src/offline/AGENTS.md) | Scoped instructions for `src/offline/` | Database tables, scope isolation, dataset sync priorities, storage safety (governs `src/offline/**` only) |
 | [`src/features/schedule/AGENTS.md`](../src/features/schedule/AGENTS.md) | Scoped instructions for operational schedule | Request lifecycle, date strip, slot rendering, booking actions, operational closing |
 | [`src/features/publicSchedule/AGENTS.md`](../src/features/publicSchedule/AGENTS.md) | Scoped instructions for guest public schedule | Anonymous access, sanitized availability states, privacy boundaries, share link |
 | [`architecture.md`](./architecture.md) | Frontend system architecture & contracts | Auth session (`currentUser`, `selectedClubSlug`, `selectedCourtId`), API client, routing, AppShell, PWA service worker |
+| [`frontend-ci-cd.md`](./frontend-ci-cd.md) | Production CI/CD and static publication | GitHub Actions, FE GitHub Releases, `scripts/deploy-sloty-frontend`, Nginx static publish |
 | [`domain-rules.md`](./domain-rules.md) | Business invariants & domain rules | Bookings lifecycle, financial ledger, custody & settlements, working hours pricing periods |
 | [`ui-system.md`](./ui-system.md) | Design system & UI patterns | `KEEP IT UNITED`, single `PageHeader`, `AppSheet`, design tokens, search/filter/order-by/pagination patterns |
 | [`offline.md`](./offline.md) | Offline storage & sync boundaries | Read-only offline model, Dexie `sloty_local_db` schema v3, bounded windows, offline safety |
@@ -138,3 +140,4 @@ Use this guide to quickly locate the relevant documents for your current enginee
 | **Offline behavior, Dexie database, or Service Worker** | [`offline.md`](./offline.md) · [`architecture.md`](./architecture.md) |
 | **Operational Schedule (`/schedule`)** | [`features/schedule.md`](./features/schedule.md) · [`ui-system.md`](./ui-system.md) |
 | **Guest Public Schedule (`/public/.../schedule`)** | [`features/public-schedule.md`](./features/public-schedule.md) |
+| **Production CI/CD, GitHub Releases, or VPS static publish** | [`frontend-ci-cd.md`](./frontend-ci-cd.md) · [`architecture.md`](./architecture.md) |

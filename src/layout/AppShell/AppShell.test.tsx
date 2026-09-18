@@ -4,6 +4,8 @@ import { useState, type ReactNode } from 'react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../core/auth/useAuth'
+import { getFrontendBuildInfo } from '../../core/config/buildInfo'
+import { useBackendBuildInfo } from '../../core/system/useBackendBuildInfo'
 import { PageActions } from '../../shared/components/PageActions/PageActions'
 import { AppSheet } from '../../shared/components/AppSheet/AppSheet'
 import { HEADER_COLLAPSE_END_PX } from '../../shared/hooks/usePageHeaderScroll'
@@ -47,11 +49,40 @@ vi.mock('../../offline/sync/OfflineSyncProvider', () => ({
   OfflineSyncProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
-vi.mock('../../offline/sync/offlineSyncContext', () => ({
-  useOfflineSync: () => offlineSyncContextValue,
+vi.mock('../../offline/sync/offlineSyncContext', async () => {
+  const { createContext } = await import('react')
+
+  return {
+    useOfflineSync: () => offlineSyncContextValue,
+    OfflineSyncContext: createContext(offlineSyncContextValue),
+  }
+})
+
+vi.mock('../../core/system/useBackendBuildInfo', () => ({
+  useBackendBuildInfo: vi.fn(() => ({
+    backendBuildInfo: null,
+    isLoaded: true,
+  })),
 }))
 
+vi.mock('../../core/config/buildInfo', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../core/config/buildInfo')
+  >('../../core/config/buildInfo')
+
+  return {
+    ...actual,
+    getFrontendBuildInfo: vi.fn(() => ({
+      release: 'v0.4.0',
+      commit: 'a13c92e34abcdef',
+      shortCommit: 'a13c92e',
+    })),
+  }
+})
+
 const mockedUseAuth = vi.mocked(useAuth)
+const mockedUseBackendBuildInfo = vi.mocked(useBackendBuildInfo)
+const mockedGetFrontendBuildInfo = vi.mocked(getFrontendBuildInfo)
 const clearSelectedClub = vi.fn()
 
 function SheetHarness() {
@@ -189,6 +220,15 @@ function renderAppShell(
 describe('AppShell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockedUseBackendBuildInfo.mockReturnValue({
+      backendBuildInfo: null,
+      isLoaded: true,
+    })
+    mockedGetFrontendBuildInfo.mockReturnValue({
+      release: 'v0.4.0',
+      commit: 'a13c92e34abcdef',
+      shortCommit: 'a13c92e',
+    })
     offlineSyncContextValue.connectivity.browserNetwork = 'likely_online'
     offlineSyncContextValue.connectivity.backendReachability = 'reachable'
     offlineSyncContextValue.freshness.ageMs = 60 * 60 * 1000
@@ -220,8 +260,7 @@ describe('AppShell', () => {
   it('shows the selected club name', () => {
     renderAppShell()
 
-    expect(screen.getAllByText(' Demo Football Club').length)
-      .toBeGreaterThan(0)
+    expect(screen.getAllByText(/Demo Football Club/).length).toBeGreaterThan(0)
   })
 
   it('shows one offline freshness warning in the shell when cached data is stale', () => {
@@ -571,6 +610,132 @@ describe('AppShell', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'إدارة الأندية' }))
       .toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'إضافة نادي' })).toHaveLength(1)
+  })
+
+  it('shows FE and API build info in the admin burger footer below logout', async () => {
+    const user = userEvent.setup()
+
+    mockedUseAuth.mockReturnValue(getAuthValue(0, { role: 'ADMIN' }))
+    mockedUseBackendBuildInfo.mockReturnValue({
+      backendBuildInfo: {
+        service: 'sloty-backend',
+        release: 'v0.7.0',
+        commit: '91bd3aa28ef00',
+        shortCommit: '91bd3aa',
+      },
+      isLoaded: true,
+    })
+
+    renderAppShell('/admin/clubs')
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    const dialog = screen.getByRole('dialog')
+    const logout = within(dialog).getByRole('button', { name: 'تسجيل الخروج' })
+    const buildInfo = within(dialog).getByLabelText('معلومات الإصدار')
+
+    expect(logout).toBeInTheDocument()
+    expect(buildInfo).toHaveTextContent('FE  v0.4.0 · a13c92e', {
+      normalizeWhitespace: false,
+    })
+    expect(buildInfo).toHaveTextContent('API v0.7.0 · 91bd3aa', {
+      normalizeWhitespace: false,
+    })
+    expect(buildInfo).toHaveClass('select-text')
+    expect(
+      logout.compareDocumentPosition(buildInfo) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('shows FE and API build info in the admin desktop sidebar footer', () => {
+    window.localStorage.setItem('sloty:view-mode', 'desktop')
+    mockedUseAuth.mockReturnValue(getAuthValue(0, { role: 'ADMIN' }))
+    mockedUseBackendBuildInfo.mockReturnValue({
+      backendBuildInfo: {
+        service: 'sloty-backend',
+        release: 'v0.7.0',
+        commit: '91bd3aa28ef00',
+        shortCommit: '91bd3aa',
+      },
+      isLoaded: true,
+    })
+
+    renderAppShell('/admin/clubs')
+
+    expect(screen.queryByRole('button', { name: 'فتح القائمة' })).not.toBeInTheDocument()
+    const logout = screen.getByRole('button', { name: 'تسجيل الخروج' })
+    const buildInfo = screen.getByLabelText('معلومات الإصدار')
+    expect(buildInfo).toHaveTextContent('FE  v0.4.0 · a13c92e', {
+      normalizeWhitespace: false,
+    })
+    expect(buildInfo).toHaveTextContent('API v0.7.0 · 91bd3aa', {
+      normalizeWhitespace: false,
+    })
+    expect(
+      logout.compareDocumentPosition(buildInfo) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(mockedUseBackendBuildInfo).toHaveBeenCalledWith(true)
+  })
+
+  it('shows API — in the admin menu when version metadata fails without a global error', async () => {
+    const user = userEvent.setup()
+
+    mockedUseAuth.mockReturnValue(getAuthValue(0, { role: 'ADMIN' }))
+    mockedUseBackendBuildInfo.mockReturnValue({
+      backendBuildInfo: null,
+      isLoaded: true,
+    })
+
+    renderAppShell('/admin/clubs')
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    const dialog = screen.getByRole('dialog')
+
+    const buildInfo = within(dialog).getByLabelText('معلومات الإصدار')
+    expect(buildInfo).toHaveTextContent('FE  v0.4.0 · a13c92e', {
+      normalizeWhitespace: false,
+    })
+    expect(buildInfo).toHaveTextContent('API —', { normalizeWhitespace: false })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'إدارة الأندية' }))
+      .toBeInTheDocument()
+  })
+
+  it('still renders the admin shell when frontend build env is missing', async () => {
+    const user = userEvent.setup()
+    mockedGetFrontendBuildInfo.mockReturnValue({
+      release: 'dev',
+      commit: 'local',
+      shortCommit: 'local',
+    })
+    mockedUseAuth.mockReturnValue(getAuthValue(0, { role: 'ADMIN' }))
+
+    renderAppShell('/admin/clubs')
+
+    expect(screen.getByRole('heading', { level: 1, name: 'إدارة الأندية' }))
+      .toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    const buildInfo = within(screen.getByRole('dialog')).getByLabelText(
+      'معلومات الإصدار',
+    )
+    expect(buildInfo).toHaveTextContent('FE  dev · local', {
+      normalizeWhitespace: false,
+    })
+  })
+
+  it('does not show build info for club staff menus', async () => {
+    const user = userEvent.setup()
+
+    mockedUseAuth.mockReturnValue(getAuthValue(1, { role: 'STAFF' }))
+
+    renderAppShell()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).queryByLabelText('معلومات الإصدار')).not.toBeInTheDocument()
+    expect(mockedUseBackendBuildInfo).toHaveBeenCalledWith(false)
   })
 
   it('keeps staff menu limited to allowed operational links and account actions', async () => {

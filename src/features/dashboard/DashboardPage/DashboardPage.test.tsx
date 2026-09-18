@@ -266,7 +266,7 @@ describe('DashboardPage', () => {
       .toBeInTheDocument()
   })
 
-  it('uses staff assigned court without exposing all-courts selection', async () => {
+  it('scopes staff dashboard to accessibleCourts without multi-court selection', async () => {
     mockedUseAuth.mockReturnValue({
       ...mockedUseAuth(),
       role: 'STAFF',
@@ -275,14 +275,13 @@ describe('DashboardPage', () => {
 
     renderDashboard('/dashboard?shortcut=week&court=4')
 
-    expect(await screen.findByText('مساء الخير يا محمد')).toBeInTheDocument()
+    expect(await screen.findByText('العهدة الحالية')).toBeInTheDocument()
     expect(screen.getByText(/ملعب 3/)).toBeInTheDocument()
     expect(screen.queryByText('نطاق الملعب')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'كل الملاعب' }))
       .not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'ملعب #4' }))
       .not.toBeInTheDocument()
-    expect(screen.getByText('العهدة الحالية')).toBeInTheDocument()
     expect(
       screen.getByText('المبلغ المستحق للتسليم: 1,250.00 ج.م'),
     ).toBeInTheDocument()
@@ -652,7 +651,7 @@ describe('DashboardPage', () => {
   it('puts the accurate daily operational summary before secondary analytics', async () => {
     renderDashboard()
 
-    expect(await screen.findByText('مساء الخير يا محمد')).toBeInTheDocument()
+    expect(await screen.findByText('النهاردة')).toBeInTheDocument()
     const dailySection = screen.getByText('النهاردة').closest('section')
     const analyticsSection = screen.getByText('متابعة وأرقام').closest('section')
 

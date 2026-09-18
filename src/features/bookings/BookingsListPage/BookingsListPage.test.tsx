@@ -29,9 +29,14 @@ vi.mock('../../../core/auth/useAuth', () => ({
   useAuth: vi.fn(),
 }))
 
-vi.mock('../../../offline/sync/offlineSyncContext', () => ({
-  useOfflineSync: vi.fn(),
-}))
+vi.mock('../../../offline/sync/offlineSyncContext', async () => {
+  const { createContext } = await import('react')
+
+  return {
+    useOfflineSync: vi.fn(),
+    OfflineSyncContext: createContext(null),
+  }
+})
 
 vi.mock('../../../offline/repositories/offlineRepositories', () => ({
   offlineRepositories: {

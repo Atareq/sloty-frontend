@@ -104,3 +104,13 @@ same behavior → same shared component
   - `SearchInput`, `FilterSheet`, `OrderByControl`, `AppPagination` for lists.
 - For complete UI specifications, see [`docs/ui-system.md`](ui-system.md).
 
+---
+
+## 6. Production CI/CD
+
+Production is a static Vite build served by Nginx from `/var/www/sloty/frontend`. GitHub Actions on `master` deploys the exact merge SHA via [`scripts/deploy-sloty-frontend`](../scripts/deploy-sloty-frontend). There is no Node production process.
+
+Build metadata is compiled in at build time (`VITE_APP_RELEASE`, `VITE_COMMIT_SHA`) and displayed through [`src/core/config/buildInfo.ts`](../src/core/config/buildInfo.ts) and [`src/shared/components/BuildInfo/`](../src/shared/components/BuildInfo/). Backend version remains a separate `GET /api/system/version/` read.
+
+See [`docs/frontend-ci-cd.md`](frontend-ci-cd.md) for the release and publish contract.
+

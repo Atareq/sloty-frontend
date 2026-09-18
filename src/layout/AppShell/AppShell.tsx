@@ -6,6 +6,7 @@ import {
   type AuthRole,
 } from '../../core/auth/auth.types'
 import { useAuth } from '../../core/auth/useAuth'
+import { useBackendBuildInfo } from '../../core/system/useBackendBuildInfo'
 import { LogoutConfirmationSheet } from '../../features/auth/LogoutConfirmationSheet/LogoutConfirmationSheet'
 import { OfflineSyncProvider } from '../../offline/sync/OfflineSyncProvider'
 import { useOfflineSync } from '../../offline/sync/offlineSyncContext'
@@ -18,6 +19,7 @@ import {
   useAppOverlayRegistration,
   useHasActiveAppSheet,
 } from '../../shared/components/AppSheet/appSheetOverlay'
+import { AdminBuildInfoFooter } from '../../shared/components/BuildInfo/BuildInfo'
 import { NewBookingFAB } from '../../shared/components/NewBookingFAB/NewBookingFAB'
 import { PageHeader } from '../../shared/components/PageHeader/PageHeader'
 import { PageHeaderActionContext } from '../../shared/components/PageHeader/pageHeaderActionContext'
@@ -189,6 +191,9 @@ function AppShellInner() {
   const canChangeClub = (accessibleClubs?.length ?? 0) > 1
   const flashMessage = getFlashMessage(location.state)
   const isDrawerAllowed = shouldShowMobileMenu
+  const isAdmin = role === 'ADMIN'
+  const { backendBuildInfo, isLoaded: isBackendBuildInfoLoaded } =
+    useBackendBuildInfo(isAdmin)
   const isBookingRoute = ['/dashboard', '/bookings'].includes(
     location.pathname,
   )
@@ -342,6 +347,12 @@ function AppShellInner() {
               <LogOut aria-hidden="true" className="h-4 w-4" />
               <span>تسجيل الخروج</span>
             </button>
+            {isAdmin ? (
+              <AdminBuildInfoFooter
+                backendBuildInfo={backendBuildInfo}
+                showApiUnavailable={isBackendBuildInfoLoaded}
+              />
+            ) : null}
           </section>
         ) : null}
       </aside>
@@ -480,6 +491,12 @@ function AppShellInner() {
                 <LogOut aria-hidden="true" className="h-4 w-4" />
                 <span>تسجيل الخروج</span>
               </button>
+              {isAdmin ? (
+                <AdminBuildInfoFooter
+                  backendBuildInfo={backendBuildInfo}
+                  showApiUnavailable={isBackendBuildInfoLoaded}
+                />
+              ) : null}
             </section>
           </aside>
         </div>

@@ -101,7 +101,7 @@ Tone: **مصري بسيط ومحترف** (Simple, professional Egyptian Arabic).
 | Bank Transfer | `تحويل بنكي` | Payment method `BANK_TRANSFER`. |
 | Other | `أخرى` | Payment method `OTHER`. |
 | Payment Reference | `مرجع الدفع` | Required for digital wallet / bank transfer if enabled. |
-| Required Deposit | `العربون المطلوب` | Snapshot deposit amount. |
+| Required Deposit | ` أقل عربون تقدر تسجل بيه` | Snapshot deposit amount. |
 | Total Price | `إجمالي الحجز` | Total agreed booking price. |
 | Paid Amount | `المدفوع` | Sum of confirmed payments. |
 | Remaining Balance | `المتبقي دلوقتي` | Remaining unpaid balance. |
@@ -136,6 +136,8 @@ Tone: **مصري بسيط ومحترف** (Simple, professional Egyptian Arabic).
 | Checkbox | `ثبّت نفس الموعد كل أسبوع` | Checkbox in booking creation sheet. |
 | Helper Text | `التكرار الأسبوعي بيتأكد ويتحدث من السيرفر.` | Booking creation helper. |
 | Virtual Slot Helper | `المعاد المعروض تكرار مستقبلي من الحجز الأسبوعي، وليس حجزًا جديدًا مستقلًا.` | Bottom sheet explanation on virtual recurrence slots. |
+| Online Recurring Unavailable Title | `التثبيت الأسبوعي مش متاح` | Floating amber warning title for `RECURRING_UNAVAILABLE` on online create. |
+| Online Recurring Unavailable Body | `فيه حجز متعارض يوم {local datetime}` / `فيه حجز متعارض في أحد الأسابيع الجاية.` | ~5s floating warning; keep Add Booking sheet open; never show `conflicting_booking_id`; do not add to Needs Review. |
 | Stop Confirm Body | `الحجز الحالي هيفضل زي ما هو، لكن المعاد مش هيتحجز تلقائيًا في الأسابيع الجاية.` | Confirmation dialog message. |
 | Stop Success | `تم إيقاف الحجز الأسبوعي` | Success feedback toast. |
 

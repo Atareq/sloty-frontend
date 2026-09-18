@@ -1,8 +1,5 @@
 import { useContext } from 'react'
-import {
-  OfflineSyncContext,
-  useOfflineSync,
-} from '../../offline/sync/offlineSyncContext'
+import { OfflineSyncContext } from '../../offline/sync/offlineSyncContext'
 
 export interface OfflineReadonlyState {
   isOffline: boolean
@@ -22,41 +19,15 @@ export interface OfflineReadonlyState {
 export function useOfflineReadonly(
   customMessage = 'يحتاج اتصال بالإنترنت',
 ): OfflineReadonlyState {
-  let isOffline = false
-
-  try {
-    const sync = typeof useOfflineSync === 'function' ? useOfflineSync() : null
-    if (sync) {
-      isOffline = Boolean(
-        sync.connectivity.browserNetwork === 'offline' ||
-          sync.connectivity.backendReachability === 'unreachable',
-      )
-    }
-  } catch {
-    // If outside OfflineSyncProvider or useOfflineSync threw, try useContext directly
-    try {
-      const context =
-        typeof OfflineSyncContext !== 'undefined' && OfflineSyncContext
-          ? useContext(OfflineSyncContext)
-          : null
-      if (context) {
-        isOffline = Boolean(
-          context.connectivity.browserNetwork === 'offline' ||
-            context.connectivity.backendReachability === 'unreachable',
-        )
-      } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        isOffline = true
-      }
-    } catch {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        isOffline = true
-      }
-    }
-  }
-
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    isOffline = true
-  }
+  const sync = useContext(OfflineSyncContext)
+  const isOfflineFromSync = Boolean(
+    sync &&
+      (sync.connectivity.browserNetwork === 'offline' ||
+        sync.connectivity.backendReachability === 'unreachable'),
+  )
+  const isOfflineFromBrowser =
+    typeof navigator !== 'undefined' && !navigator.onLine
+  const isOffline = isOfflineFromSync || isOfflineFromBrowser
 
   return {
     isOffline,
@@ -70,4 +41,3 @@ export function useOfflineReadonly(
     },
   }
 }
-

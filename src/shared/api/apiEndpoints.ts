@@ -13,6 +13,11 @@ export const apiEndpoints = {
     passwordChange: 'auth/password/change/',
     me: 'me/',
   },
+  /**
+   * Resolves to `/api/system/version/` from the `/api/v1/` API base URL.
+   * This system metadata route lives beside v1, not under it.
+   */
+  systemVersion: '../system/version/',
   egyptLocations: 'egypt-locations/',
   clubs: {
     list: 'clubs/',

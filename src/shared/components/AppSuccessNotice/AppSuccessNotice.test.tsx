@@ -34,4 +34,34 @@ describe('AppSuccessNotice', () => {
     expect(firstDismiss).not.toHaveBeenCalled()
     expect(secondDismiss).toHaveBeenCalledTimes(1)
   })
+
+  it('supports warning tone with title and a longer timeout', () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn()
+
+    render(
+      <AppSuccessNotice
+        message="فيه حجز متعارض في أحد الأسابيع الجاية."
+        onDismiss={onDismiss}
+        timeoutMs={5000}
+        title="التثبيت الأسبوعي مش متاح"
+        tone="warning"
+      />,
+    )
+
+    const notice = screen.getByRole('status')
+    expect(notice).toHaveTextContent('التثبيت الأسبوعي مش متاح')
+    expect(notice).toHaveTextContent('فيه حجز متعارض في أحد الأسابيع الجاية.')
+    expect(notice).toHaveClass('bg-amber-50')
+
+    act(() => {
+      vi.advanceTimersByTime(4999)
+    })
+    expect(onDismiss).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
 })

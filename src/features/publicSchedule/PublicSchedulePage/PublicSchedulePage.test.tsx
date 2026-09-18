@@ -74,7 +74,7 @@ describe('PublicSchedulePage', () => {
 
     expect(await screen.findByRole('heading', { name: 'ملعب النجوم' }))
       .toBeInTheDocument()
-    expect(screen.getByText(' النادي الأهلي')).toBeInTheDocument()
+    expect(screen.getByText('النادي الأهلي')).toBeInTheDocument()
 
     // 2 available slots, 2 unavailable slots
     const availableSlots = screen.getAllByRole('button', {

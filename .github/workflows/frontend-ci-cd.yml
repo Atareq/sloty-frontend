@@ -1,0 +1,156 @@
+name: Frontend CI/CD
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - master
+
+  push:
+    branches:
+      - dev
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate deployment Bash syntax
+        run: |
+          bash -n scripts/deploy-sloty-frontend
+          bash -n scripts/lib/frontend-release.sh
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+  prepare-release:
+    name: Prepare Production Release
+    needs: test
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      release_tag: ${{ steps.calc.outputs.release_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Calculate next release version
+        id: calc
+        run: |
+          git fetch --tags
+          # shellcheck source=scripts/lib/frontend-release.sh
+          source scripts/lib/frontend-release.sh
+          RELEASE_TAG="$(resolve_production_release_tag "$GITHUB_SHA")"
+          echo "Next release: $RELEASE_TAG"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy Production
+    needs:
+      - test
+      - prepare-release
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure SSH
+        env:
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ vars.PROD_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PROD_SSH_KEY" > ~/.ssh/sloty_github_actions
+          chmod 600 ~/.ssh/sloty_github_actions
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy production
+        env:
+          PROD_HOST: ${{ vars.PROD_HOST }}
+          PROD_USER: ${{ vars.PROD_USER }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+        run: |
+          ssh \
+            -i ~/.ssh/sloty_github_actions \
+            -o IdentitiesOnly=yes \
+            "$PROD_USER@$PROD_HOST" \
+            "sudo /srv/sloty/frontend/scripts/deploy-sloty-frontend ${{ github.sha }} ${RELEASE_TAG}"
+
+  release:
+    name: Create Production Release
+    needs:
+      - prepare-release
+      - deploy
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          git fetch --tags
+          # shellcheck source=scripts/lib/frontend-release.sh
+          source scripts/lib/frontend-release.sh
+
+          STATUS="$(release_tag_sha_status "$RELEASE_TAG" "$COMMIT_SHA")"
+          if [ "$STATUS" = "match" ]; then
+            echo "GitHub release $RELEASE_TAG already points at $COMMIT_SHA."
+            exit 0
+          fi
+          if [ "$STATUS" = "conflict" ]; then
+            echo "Refusing to move existing release $RELEASE_TAG to $COMMIT_SHA." >&2
+            exit 1
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --target "$COMMIT_SHA" \
+            --title "Sloty Frontend $RELEASE_TAG" \
+            --generate-notes

@@ -105,7 +105,9 @@ describe('CompleteBookingConfirmSheet', () => {
       .toBeInTheDocument()
     expect(screen.getByText('سعر الحجز')).toBeInTheDocument()
     expect(screen.getByText('350.00 جنيه')).toBeInTheDocument()
-    expect(screen.getByText('العربون المطلوب')).toBeInTheDocument()
+    expect(
+      screen.getByText(/أقل عربون تقدر تسجل بيه/, { selector: 'p' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('150.00 جنيه')).toBeInTheDocument()
     expect(screen.queryByText('2026-09-01')).not.toBeInTheDocument()
   })

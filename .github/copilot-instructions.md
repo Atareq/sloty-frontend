@@ -60,6 +60,7 @@ A stale domain statement in documentation must **never** force current approved 
 - **Component Interactions:** [`docs/interaction-patterns.md`](../docs/interaction-patterns.md)
 - **Canonical Arabic Terminology:** [`docs/product-copy.md`](../docs/product-copy.md)
 - **Design System & Tokens:** [`docs/ui-reference.md`](../docs/ui-reference.md)
+- **Production CI/CD:** [`docs/frontend-ci-cd.md`](../docs/frontend-ci-cd.md)
 - **Documented Gaps:** [`docs/ux-known-gaps.md`](../docs/ux-known-gaps.md)
 
 ---

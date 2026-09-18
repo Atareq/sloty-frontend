@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addDays,
+  formatArabicConflictMoment,
   formatArabicPeriodBound,
   formatArabicPeriodRange,
   formatCairoLastUpdate,
@@ -27,6 +28,14 @@ describe('date utils', () => {
       date_from: '2026-07-14',
       date_to: '2026-07-21',
     })
+  })
+
+  it('formats a local conflict moment without year for recurring feedback', () => {
+    const label = formatArabicConflictMoment('2026-09-25T11:00:00+00:00')
+
+    expect(label).toContain('سبتمبر')
+    expect(label).toContain('،')
+    expect(label).not.toMatch(/٢٠٢٦|2026/)
   })
 
   it('formats a Cairo business period bound with weekday, date, and time', () => {
