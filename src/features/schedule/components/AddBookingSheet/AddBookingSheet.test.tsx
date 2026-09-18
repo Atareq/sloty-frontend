@@ -385,6 +385,9 @@ describe('AddBookingSheet', () => {
       />,
     )
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
     await user.type(
       screen.getByRole('combobox', { name: 'اسم اللاعب' }),
       'أحمد علي',
@@ -740,7 +743,16 @@ describe('AddBookingSheet', () => {
       {
         id: 77,
         display_name: 'كابتن محمود',
-        phone_number: '01012345678',
+        player_number: 7,
+        player_profile: {
+          id: 707,
+          phone_number: '01012345678',
+          full_name: 'كابتن محمود',
+          verified: true,
+          has_account: true,
+          created_at: '2026-09-01T12:00:00Z',
+          updated_at: '2026-09-01T12:00:00Z',
+        },
         last_used_at: '2026-09-17T18:00:00Z',
       },
     ])
@@ -797,13 +809,31 @@ describe('AddBookingSheet', () => {
       {
         id: 101,
         display_name: 'طارق الأحدث',
-        phone_number: '01012345678',
+        player_number: 1,
+        player_profile: {
+          id: 1001,
+          phone_number: '01012345678',
+          full_name: 'طارق الأحدث',
+          verified: true,
+          has_account: true,
+          created_at: '2026-09-01T12:00:00Z',
+          updated_at: '2026-09-01T12:00:00Z',
+        },
         last_used_at: '2026-09-17T20:00:00Z',
       },
       {
         id: 102,
         display_name: 'طارق الأقدم',
-        phone_number: '01012345678',
+        player_number: 2,
+        player_profile: {
+          id: 1002,
+          phone_number: '01012345678',
+          full_name: 'طارق الأقدم',
+          verified: false,
+          has_account: false,
+          created_at: '2026-09-01T12:00:00Z',
+          updated_at: '2026-09-01T12:00:00Z',
+        },
         last_used_at: '2026-08-10T14:00:00Z',
       },
     ])
@@ -863,7 +893,17 @@ describe('AddBookingSheet', () => {
       {
         id: 55,
         display_name: 'علي حسن',
-        phone_number: '01012345678',
+        player_number: 5,
+        player_profile: {
+          id: 505,
+          phone_number: '01012345678',
+          full_name: 'علي حسن',
+          verified: true,
+          has_account: false,
+          created_at: '2026-09-01T12:00:00Z',
+          updated_at: '2026-09-01T12:00:00Z',
+        },
+        last_used_at: '2026-09-12T10:00:00Z',
       },
     ])
 
@@ -945,5 +985,32 @@ describe('AddBookingSheet', () => {
       is_recurring: false,
       notes: undefined,
     })
+  })
+
+  it('displays club_player_id backend field error under player input', () => {
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error="يرجى مراجعة البيانات المدخلة."
+        fieldErrors={{
+          club_player_id: [
+            {
+              code: 'BOOKING_CLUB_PLAYER_PHONE_MISMATCH',
+              message: 'رقم الموبايل لا يطابق اللاعب المختار.',
+            },
+          ],
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    expect(
+      screen.getByText('رقم الموبايل لا يطابق اللاعب المختار.'),
+    ).toBeInTheDocument()
   })
 })

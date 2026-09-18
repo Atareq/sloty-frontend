@@ -25,6 +25,14 @@ export async function listClubPlayers(
     searchParams.set('order_by', params.order_by)
   }
 
+  if (params?.page) {
+    searchParams.set('page', String(params.page))
+  }
+
+  if (params?.page_size) {
+    searchParams.set('page_size', String(params.page_size))
+  }
+
   const queryString = searchParams.toString()
   const path = `${apiEndpoints.clubs.players.list(clubSlug)}${queryString ? `?${queryString}` : ''}`
 
