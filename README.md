@@ -163,3 +163,4 @@ The Current Custody adapter runs after the read-only operational datasets and pe
   - [`docs/copy.md`](./docs/copy.md) — Canonical Egyptian-Arabic terminology and labels
   - [`docs/features/schedule.md`](./docs/features/schedule.md) — Operational schedule architecture
   - [`docs/features/public-schedule.md`](./docs/features/public-schedule.md) — Public schedule architecture
+  - [`docs/frontend-ci-cd.md`](./docs/frontend-ci-cd.md) — Production CI/CD and static publication

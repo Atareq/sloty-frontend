@@ -11,9 +11,9 @@ For the detailed architectural specification, consult [`docs/features/schedule.m
 - **Slot Board:** Renders daily court slots split into morning (`مواعيد الصباح`) and evening (`مواعيد المساء`) containers.
 - **Date Navigation:** Integrates `AppDateNavigator` for rolling 7-day strip and calendar picker navigation.
 - **Action Workflows:** Hosts `AddBookingSheet`, `BookingActionSheet`, and `VirtualRecurringSlotDetailsSheet`.
-- **Operational Closing:** Renders `حجوزات تحتاج إغلاق` for today only (max 3 items).
 - **Operational Closing:** Renders `حجوزات تحتاج إغلاق` for today only (max 3 items, excluding `FREE` slots).
 - **Public Schedule Share:** Injects `مشاركة الجدول` into `PageHeader` top-left action area for the viewed Court.
+- **Online recurring reject:** `RECURRING_UNAVAILABLE` on create shows a ~5s amber floating warning (`AppSuccessNotice` tone=`warning`) and keeps `AddBookingSheet` open. Do **not** route this online case into `طلبات حجز محتاجة مراجعة`.
 
 ---
 

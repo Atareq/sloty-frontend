@@ -139,6 +139,9 @@ src/
 ├── features/     # Product modules (schedule, bookings, transactions, settlements, etc.)
 ├── offline/      # Dexie sloty_local_db, sync coordinator, adapters
 └── pwa/          # Service Worker registration, install prompts, update dialogs
+
+scripts/          # Production deploy + release helpers (CI/CD)
+tests/deploy/     # Workflow and deploy-script contract tests
 ```
 
 ---
@@ -160,7 +163,17 @@ Run targeted validation commands before reporting completion:
 - All endpoints are centralized in `src/shared/api/apiEndpoints.ts`. Never hardcode API URL strings in feature code.
 - `apiRequest()` automatically sends `Accept-Language: ar` and attaches the Bearer token unless `omitAuth: true` is passed.
 - Token refresh runs once on 401s; concurrent requests share the in-flight refresh. Login and refresh paths never trigger refresh.
-- Admin shell diagnostics use `GET /api/system/version/` (`apiEndpoints.systemVersion`) once per session via `src/core/system/`. FE release/commit come only from `src/core/config/buildInfo.ts` (`VITE_APP_RELEASE`, `VITE_COMMIT_SHA`) — never hardcode production versions in UI.
+- Admin shell diagnostics use `GET /api/system/version/` (`apiEndpoints.systemVersion`) once per session via `src/core/system/`. FE release/commit come only from `src/core/config/buildInfo.ts` (`VITE_APP_RELEASE`, `VITE_COMMIT_SHA`) — never hardcode production versions in UI. ADMIN burger and desktop sidebar reuse `AdminBuildInfoFooter` below logout.
+
+### Production CI/CD
+- Workflow: [`.github/workflows/frontend-ci-cd.yml`](.github/workflows/frontend-ci-cd.yml). PR/push to `dev` and PR to `master` run Test only. Production jobs (`prepare-release`, `deploy`, `release`) run only when `github.event_name == push` and `github.ref == refs/heads/master`.
+- Canonical executable is [`scripts/deploy-sloty-frontend`](scripts/deploy-sloty-frontend). Production CI runs `sudo /srv/sloty/frontend/scripts/deploy-sloty-frontend <SHA> <TAG>`. Never install a `/usr/local/sbin` copy.
+- The deploy script discovers the git root from its own path, then copies itself plus [`scripts/lib/frontend-release.sh`](scripts/lib/frontend-release.sh) into `/tmp` and re-execs that snapshot before `git checkout --detach`.
+- Node version authority is [`.nvmrc`](.nvmrc). CI and production deploy must use `npm ci` from `package-lock.json`, never `npm install`.
+- Frontend GitHub Releases are independent of Backend. Tags `vMAJOR.MINOR.PATCH` are calculated once in [`scripts/lib/frontend-release.sh`](scripts/lib/frontend-release.sh); `package.json` `version` is not the authority. Same SHA reuses the existing tag; a tag on a different SHA is a hard failure.
+- Production builds inject `VITE_APP_RELEASE` and `VITE_COMMIT_SHA`. Vite already consumes `.env.production` for `VITE_API_BASE_URL` through [`src/shared/config/api.ts`](src/shared/config/api.ts).
+- Publish the complete `dist/` tree to `/var/www/sloty/frontend` with `rsync -a --delete`. Do not start a Node server, restart Nginx, or touch Backend.
+- Durable contract: [`docs/frontend-ci-cd.md`](docs/frontend-ci-cd.md).
 
 ### Coding Style & Refactoring
 - **Refactor in Place:** Do not introduce parallel `V2`, `New`, or wizard variants for existing pages, sheets, or flows.
@@ -181,6 +194,7 @@ Run targeted validation commands before reporting completion:
 | **Interaction Patterns** | — | [`docs/interaction-patterns.md`](docs/interaction-patterns.md) |
 | **Arabic Copy Standards** | — | [`docs/product-copy.md`](docs/product-copy.md) |
 | **UI Design System** | — | [`docs/ui-reference.md`](docs/ui-reference.md) |
+| **Production CI/CD** | — | [`docs/frontend-ci-cd.md`](docs/frontend-ci-cd.md) |
 
 ---
 

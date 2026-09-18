@@ -60,7 +60,7 @@ export const bookingActionCopy = {
   completedWithRemaining:
     'حجز تم اللعب به مبلغ متبقي — يحتاج مراجعة مالية',
   notes: 'ملاحظات',
-  requiredDeposit: 'العربون المطلوب',
+  requiredDeposit: 'أقل عربون تقدر تسجل بيه ',
   bookingTotal: 'إجمالي الحجز',
   paidAmount: 'المدفوع',
   remainingNowLabel: 'المتبقي دلوقتي',
@@ -78,6 +78,10 @@ export const recurringCopy = {
   stopWeeklyConfirmBody:
     'الحجز الحالي هيفضل زي ما هو، لكن المعاد مش هيتحجز تلقائيًا في الأسابيع الجاية.',
   stopWeeklySuccess: 'تم إيقاف الحجز الأسبوعي',
+  unavailableTitle: 'التثبيت الأسبوعي مش متاح',
+  unavailableConflict: (whenLabel: string) =>
+    `فيه حجز متعارض يوم ${whenLabel}`,
+  unavailableFallback: 'فيه حجز متعارض في أحد الأسابيع الجاية.',
 } as const
 
 export const customerCopy = {

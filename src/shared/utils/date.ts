@@ -100,6 +100,49 @@ export function formatArabicDateTime(value: string | null | undefined): string |
   }).format(date)
 }
 
+/**
+ * Formats a future conflict timestamp for recurring-unavailable feedback.
+ *
+ * Uses the browser local timezone and returns a compact Arabic label such as
+ * `الجمعة 25 سبتمبر، 2:00 م`.
+ */
+export function formatArabicConflictMoment(
+  value: string | null | undefined,
+): string | null {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const parts = new Intl.DateTimeFormat('ar-EG', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'long',
+    weekday: 'long',
+  }).formatToParts(date)
+  const weekday = parts.find((part) => part.type === 'weekday')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const hour = parts.find((part) => part.type === 'hour')?.value
+  const minute = parts.find((part) => part.type === 'minute')?.value
+  const dayPeriod = parts.find((part) => part.type === 'dayPeriod')?.value
+  const dateLabel = [weekday, day, month].filter(Boolean).join(' ')
+  const timeLabel = [hour, minute].filter(Boolean).join(':')
+  const timeWithPeriod = [timeLabel, dayPeriod].filter(Boolean).join(' ')
+
+  if (!dateLabel || !timeWithPeriod) {
+    return null
+  }
+
+  return `${dateLabel}، ${timeWithPeriod}`
+}
+
 const cairoPeriodFormatter = new Intl.DateTimeFormat('ar-EG', {
   day: 'numeric',
   hour: 'numeric',

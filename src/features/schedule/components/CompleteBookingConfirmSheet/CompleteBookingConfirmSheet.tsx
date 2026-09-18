@@ -259,7 +259,7 @@ export function CompleteBookingConfirmSheet({
             </div>
             <div>
               <p className="font-bold text-[var(--sloty-text-muted)]">
-                العربون المطلوب
+                 أقل عربون تقدر تسجل بيه
               </p>
               <p
                 className="mt-1 font-black text-[var(--sloty-text-primary)]"

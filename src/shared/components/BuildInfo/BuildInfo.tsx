@@ -37,11 +37,22 @@ export function BuildInfo({
   return (
     <div
       aria-label="معلومات الإصدار"
-      className="select-text space-y-0.5 break-all font-mono text-[11px] leading-4 text-[var(--sloty-text-muted)]"
+      className="min-w-0 select-text space-y-0.5 overflow-x-hidden break-all font-mono text-[11px] leading-4 text-[var(--sloty-text-muted)]"
       dir="ltr"
     >
       <p>{feLine}</p>
       {apiLine ? <p>{apiLine}</p> : null}
+    </div>
+  )
+}
+
+/**
+ * Shared Admin menu footer used by the mobile burger and desktop sidebar.
+ */
+export function AdminBuildInfoFooter(props: BuildInfoProps) {
+  return (
+    <div className="mt-3 min-w-0 overflow-x-hidden border-t border-[var(--sloty-border)] pt-3">
+      <BuildInfo {...props} />
     </div>
   )
 }

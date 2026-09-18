@@ -8,7 +8,8 @@
       "vite/client",
       "vite-plugin-pwa/client",
       "vitest/globals",
-      "@testing-library/jest-dom"
+      "@testing-library/jest-dom",
+      "node"
     ],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
@@ -27,5 +28,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BuildInfo } from './BuildInfo'
+import { AdminBuildInfoFooter, BuildInfo } from './BuildInfo'
 
 vi.mock('../../../core/config/buildInfo', async () => {
   const actual = await vi.importActual<
@@ -41,6 +41,8 @@ describe('BuildInfo', () => {
     expect(root).toHaveTextContent('API v0.7.0 · 91bd3aa', {
       normalizeWhitespace: false,
     })
+    expect(root).toHaveClass('select-text')
+    expect(root).toHaveClass('overflow-x-hidden')
   })
 
   it('shows API — when backend metadata is unavailable', () => {
@@ -61,5 +63,24 @@ describe('BuildInfo', () => {
       normalizeWhitespace: false,
     })
     expect(root.textContent ?? '').not.toContain('API')
+  })
+
+  it('wraps the same BuildInfo for shared Admin menu footers', () => {
+    const { container } = render(
+      <AdminBuildInfoFooter
+        backendBuildInfo={{
+          service: 'sloty-backend',
+          release: 'v0.7.0',
+          commit: '91bd3aa28ef00',
+          shortCommit: '91bd3aa',
+        }}
+      />,
+    )
+
+    expect(container.firstElementChild).toHaveClass('overflow-x-hidden')
+    expect(screen.getByLabelText('معلومات الإصدار')).toHaveTextContent(
+      'FE  v0.4.0 · a13c92e',
+      { normalizeWhitespace: false },
+    )
   })
 })

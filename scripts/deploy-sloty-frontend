@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+# Canonical production deploy entrypoint for the Sloty frontend.
+#
+# Usage:
+#   deploy-sloty-frontend <COMMIT_SHA> <RELEASE_TAG>
+#
+# Builds a static Vite bundle and publishes dist/ to Nginx.
+# This script must never start a Node server, restart Nginx, or touch Backend.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/frontend-release.sh
+source "${SCRIPT_DIR}/lib/frontend-release.sh"
+
+COMMIT_SHA="${1:-}"
+RELEASE_TAG="${2:-}"
+
+SLOTY_EXPECTED_ORIGIN="${SLOTY_EXPECTED_ORIGIN:-https://github.com/Atareq/sloty-frontend.git}"
+SLOTY_MASTER_REF="${SLOTY_MASTER_REF:-origin/master}"
+SLOTY_FRONTEND_PUBLISH_DIR="${SLOTY_FRONTEND_PUBLISH_DIR:-/var/www/sloty/frontend}"
+SLOTY_PUBLIC_URL="${SLOTY_PUBLIC_URL:-https://sloty.baronlearning.com/}"
+SLOTY_HEALTH_ATTEMPTS="${SLOTY_HEALTH_ATTEMPTS:-10}"
+SLOTY_HEALTH_RETRY_SLEEP="${SLOTY_HEALTH_RETRY_SLEEP:-1}"
+
+discover_sloty_frontend_dir() {
+  git -C "${1:-$SCRIPT_DIR}" rev-parse --show-toplevel
+}
+
+configure_repo_paths() {
+  SLOTY_FRONTEND_DIR="${SLOTY_FRONTEND_DIR:-$(discover_sloty_frontend_dir)}"
+  SLOTY_FRONTEND_PACKAGE_JSON="${SLOTY_FRONTEND_DIR}/package.json"
+  SLOTY_FRONTEND_LOCKFILE="${SLOTY_FRONTEND_DIR}/package-lock.json"
+  SLOTY_FRONTEND_DIST_DIR="${SLOTY_FRONTEND_DIR}/dist"
+  SLOTY_FRONTEND_DIST_INDEX="${SLOTY_FRONTEND_DIST_DIR}/index.html"
+  SLOTY_FRONTEND_NVMRC="${SLOTY_FRONTEND_DIR}/.nvmrc"
+}
+
+cleanup_deploy_snapshot() {
+  if [[ -n "${SLOTY_DEPLOY_SNAPSHOT_DIR:-}" && -d "${SLOTY_DEPLOY_SNAPSHOT_DIR}" ]]; then
+    rm -rf "${SLOTY_DEPLOY_SNAPSHOT_DIR}"
+  fi
+}
+
+snapshot_and_reexec() {
+  local repo_root snapshot_dir
+
+  if [[ "${SLOTY_DEPLOY_RUNNING_FROM_SNAPSHOT:-}" == "1" ]]; then
+    trap cleanup_deploy_snapshot EXIT
+    return 0
+  fi
+
+  repo_root="$(discover_sloty_frontend_dir)"
+  SLOTY_FRONTEND_DIR="${SLOTY_FRONTEND_DIR:-$repo_root}"
+  snapshot_dir="$(mktemp -d "${TMPDIR:-/tmp}/sloty-frontend-deploy.XXXXXX")"
+  mkdir -p "${snapshot_dir}/lib"
+  cp "${repo_root}/scripts/deploy-sloty-frontend" "${snapshot_dir}/deploy-sloty-frontend"
+  cp "${repo_root}/scripts/lib/frontend-release.sh" "${snapshot_dir}/lib/frontend-release.sh"
+  chmod +x "${snapshot_dir}/deploy-sloty-frontend"
+
+  if [[ -n "${SLOTY_DEPLOY_SNAPSHOT_TRACE:-}" ]]; then
+    printf '%s\n' "$snapshot_dir" >> "$SLOTY_DEPLOY_SNAPSHOT_TRACE"
+  fi
+
+  export SLOTY_DEPLOY_RUNNING_FROM_SNAPSHOT=1
+  export SLOTY_DEPLOY_SNAPSHOT_DIR="$snapshot_dir"
+  export SLOTY_FRONTEND_DIR
+  exec "${snapshot_dir}/deploy-sloty-frontend" "$@"
+  echo "Failed to exec snapshot deploy script." >&2
+  rm -rf "$snapshot_dir"
+  return 1
+}
+
+run_stage() {
+  local stage="$1"
+  shift
+
+  if [[ "${SLOTY_DEPLOY_FAIL_STAGE:-}" == "$stage" ]]; then
+    echo "Deploy stage failed: ${stage}" >&2
+    return 1
+  fi
+
+  if [[ -n "${SLOTY_DEPLOY_STUB_DIR:-}" ]]; then
+    local stub="${SLOTY_DEPLOY_STUB_DIR}/${stage}"
+    if [[ -x "$stub" ]]; then
+      "$stub"
+    fi
+    return 0
+  fi
+
+  "$@"
+}
+
+normalize_git_origin() {
+  local url="${1:-}"
+  url="${url%.git}"
+  url="${url%/}"
+  case "$url" in
+    git@github.com:*)
+      url="github.com/${url#git@github.com:}"
+      ;;
+    ssh://git@github.com/*)
+      url="github.com/${url#ssh://git@github.com/}"
+      ;;
+    https://github.com/*)
+      url="github.com/${url#https://github.com/}"
+      ;;
+    http://github.com/*)
+      url="github.com/${url#http://github.com/}"
+      ;;
+  esac
+  printf '%s\n' "$url"
+}
+
+origins_equivalent() {
+  [[ "$(normalize_git_origin "$1")" == "$(normalize_git_origin "$2")" ]]
+}
+
+lockfile_checksum() {
+  sha256sum "$SLOTY_FRONTEND_LOCKFILE" | awk '{print $1}'
+}
+
+deploy_worktree() {
+  if [[ -n "$(git -C "$SLOTY_FRONTEND_DIR" status --porcelain)" ]]; then
+    echo "Refusing to deploy: production worktree has unexpected changes." >&2
+    git -C "$SLOTY_FRONTEND_DIR" status --porcelain >&2
+    return 1
+  fi
+}
+
+deploy_origin() {
+  local actual
+  actual="$(git -C "$SLOTY_FRONTEND_DIR" remote get-url origin)"
+  if ! origins_equivalent "$actual" "$SLOTY_EXPECTED_ORIGIN"; then
+    echo "Unexpected git origin: ${actual}" >&2
+    echo "Expected: ${SLOTY_EXPECTED_ORIGIN}" >&2
+    return 1
+  fi
+}
+
+deploy_fetch() {
+  git -C "$SLOTY_FRONTEND_DIR" fetch origin --prune
+}
+
+deploy_verify() {
+  git -C "$SLOTY_FRONTEND_DIR" cat-file -e "${COMMIT_SHA}^{commit}"
+}
+
+deploy_ancestor() {
+  if ! git -C "$SLOTY_FRONTEND_DIR" merge-base --is-ancestor \
+    "$COMMIT_SHA" "$SLOTY_MASTER_REF"; then
+    echo "Refusing to deploy ${COMMIT_SHA}: not an ancestor of ${SLOTY_MASTER_REF}." >&2
+    return 1
+  fi
+}
+
+deploy_checkout() {
+  git -C "$SLOTY_FRONTEND_DIR" checkout --detach "$COMMIT_SHA"
+}
+
+deploy_verify_node() {
+  if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    echo "Node.js and npm are required on PATH for production builds." >&2
+    return 1
+  fi
+
+  if [[ ! -f "$SLOTY_FRONTEND_NVMRC" ]]; then
+    echo "Missing Node version authority: ${SLOTY_FRONTEND_NVMRC}" >&2
+    return 1
+  fi
+
+  local required actual
+  required="$(tr -d '[:space:]' < "$SLOTY_FRONTEND_NVMRC")"
+  required="${required#v}"
+  required="${required%%.*}"
+  actual="$(node -p "process.versions.node.split('.')[0]")"
+
+  if [[ "$actual" != "$required" ]]; then
+    echo "Wrong Node major version: ${actual}" >&2
+    echo "expected=${required} from .nvmrc" >&2
+    return 1
+  fi
+}
+
+deploy_install() {
+  if [[ ! -f "$SLOTY_FRONTEND_LOCKFILE" ]]; then
+    echo "package-lock.json is required for npm ci." >&2
+    return 1
+  fi
+  if [[ ! -f "$SLOTY_FRONTEND_PACKAGE_JSON" ]]; then
+    echo "package.json is required for npm ci." >&2
+    return 1
+  fi
+
+  local before after
+  before="$(lockfile_checksum)"
+  (
+    cd "$SLOTY_FRONTEND_DIR"
+    npm ci
+  )
+  after="$(lockfile_checksum)"
+  if [[ "$before" != "$after" ]]; then
+    echo "npm ci mutated package-lock.json; refusing to continue." >&2
+    return 1
+  fi
+}
+
+deploy_build() {
+  (
+    cd "$SLOTY_FRONTEND_DIR"
+    export VITE_APP_RELEASE="$RELEASE_TAG"
+    export VITE_COMMIT_SHA="$COMMIT_SHA"
+    npm run build
+  )
+}
+
+deploy_validate_dist() {
+  if [[ ! -d "$SLOTY_FRONTEND_DIST_DIR" ]]; then
+    echo "Build output missing: dist/" >&2
+    echo "Published site was not changed." >&2
+    return 1
+  fi
+  if [[ ! -f "$SLOTY_FRONTEND_DIST_INDEX" ]]; then
+    echo "Build output missing: dist/index.html" >&2
+    echo "Published site was not changed." >&2
+    return 1
+  fi
+}
+
+deploy_publish() {
+  local dest="${SLOTY_FRONTEND_PUBLISH_DIR%/}"
+  local src="${SLOTY_FRONTEND_DIST_DIR}"
+
+  if [[ -z "$dest" || "$dest" == "/" || "$dest" == "/var/www" ]]; then
+    echo "Refusing to publish to unsafe destination: ${dest}" >&2
+    return 1
+  fi
+  if ! command -v rsync >/dev/null 2>&1; then
+    echo "rsync is required to publish static files." >&2
+    return 1
+  fi
+
+  mkdir -p "$dest"
+  rsync -a --delete "${src}/" "${dest}/"
+}
+
+deploy_health() {
+  local attempt http_code
+  http_code="000"
+  for attempt in $(seq 1 "$SLOTY_HEALTH_ATTEMPTS"); do
+    http_code="$(
+      curl \
+        --silent \
+        --show-error \
+        --max-time 10 \
+        --output /dev/null \
+        --write-out "%{http_code}" \
+        "$SLOTY_PUBLIC_URL" || true
+    )"
+    http_code="${http_code:-000}"
+    if [[ "$http_code" == "200" ]]; then
+      return 0
+    fi
+    if [[ "$attempt" -lt "$SLOTY_HEALTH_ATTEMPTS" ]]; then
+      sleep "$SLOTY_HEALTH_RETRY_SLEEP"
+    fi
+  done
+  echo "Public site check failed: expected HTTP 200 from ${SLOTY_PUBLIC_URL}, got ${http_code}." >&2
+  return 1
+}
+
+main() {
+  configure_repo_paths
+  validate_frontend_release_args "$COMMIT_SHA" "$RELEASE_TAG"
+
+  run_stage worktree deploy_worktree
+  run_stage origin deploy_origin
+  run_stage fetch deploy_fetch
+  run_stage verify deploy_verify
+  run_stage ancestor deploy_ancestor
+  run_stage checkout deploy_checkout
+  run_stage node deploy_verify_node
+  run_stage install deploy_install
+  run_stage build deploy_build
+  run_stage validate deploy_validate_dist
+  run_stage publish deploy_publish
+  run_stage health deploy_health
+}
+
+if [[ "${SLOTY_DEPLOY_SOURCE_ONLY:-}" == "1" ]]; then
+  configure_repo_paths
+elif [[ "${SLOTY_DEPLOY_RUNNING_FROM_SNAPSHOT:-}" == "1" ]]; then
+  trap cleanup_deploy_snapshot EXIT
+  main
+else
+  validate_frontend_release_args "$COMMIT_SHA" "$RELEASE_TAG"
+  snapshot_and_reexec "$@"
+fi

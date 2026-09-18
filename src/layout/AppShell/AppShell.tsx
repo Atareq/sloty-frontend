@@ -19,7 +19,7 @@ import {
   useAppOverlayRegistration,
   useHasActiveAppSheet,
 } from '../../shared/components/AppSheet/appSheetOverlay'
-import { BuildInfo } from '../../shared/components/BuildInfo/BuildInfo'
+import { AdminBuildInfoFooter } from '../../shared/components/BuildInfo/BuildInfo'
 import { NewBookingFAB } from '../../shared/components/NewBookingFAB/NewBookingFAB'
 import { PageHeader } from '../../shared/components/PageHeader/PageHeader'
 import { PageHeaderActionContext } from '../../shared/components/PageHeader/pageHeaderActionContext'
@@ -348,12 +348,10 @@ function AppShellInner() {
               <span>تسجيل الخروج</span>
             </button>
             {isAdmin ? (
-              <div className="mt-3 border-t border-[var(--sloty-border)] pt-3">
-                <BuildInfo
-                  backendBuildInfo={backendBuildInfo}
-                  showApiUnavailable={isBackendBuildInfoLoaded}
-                />
-              </div>
+              <AdminBuildInfoFooter
+                backendBuildInfo={backendBuildInfo}
+                showApiUnavailable={isBackendBuildInfoLoaded}
+              />
             ) : null}
           </section>
         ) : null}
@@ -494,12 +492,10 @@ function AppShellInner() {
                 <span>تسجيل الخروج</span>
               </button>
               {isAdmin ? (
-                <div className="mt-3 border-t border-[var(--sloty-border)] pt-3">
-                  <BuildInfo
-                    backendBuildInfo={backendBuildInfo}
-                    showApiUnavailable={isBackendBuildInfoLoaded}
-                  />
-                </div>
+                <AdminBuildInfoFooter
+                  backendBuildInfo={backendBuildInfo}
+                  showApiUnavailable={isBackendBuildInfoLoaded}
+                />
               ) : null}
             </section>
           </aside>

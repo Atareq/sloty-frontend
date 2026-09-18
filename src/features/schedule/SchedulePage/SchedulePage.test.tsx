@@ -57,9 +57,14 @@ vi.mock('../../../core/auth/useAuth', () => ({
   useAuth: vi.fn(),
 }))
 
-vi.mock('../../../offline/sync/offlineSyncContext', () => ({
-  useOfflineSync: vi.fn(),
-}))
+vi.mock('../../../offline/sync/offlineSyncContext', async () => {
+  const { createContext } = await import('react')
+
+  return {
+    useOfflineSync: vi.fn(),
+    OfflineSyncContext: createContext(null),
+  }
+})
 
 vi.mock('../../../offline/repositories/offlineRepositories', () => ({
   offlineRepositories: {
@@ -2161,6 +2166,61 @@ describe('SchedulePage', () => {
     await waitFor(() => {
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('shows a 5-second floating warning for online RECURRING_UNAVAILABLE without Needs Review', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookingSlots.mockResolvedValueOnce(makeSlotsResponse([
+      makeSlot({
+        start_time: '09:00',
+        end_time: '10:00',
+        can_start_recurring: true,
+      }),
+    ]))
+    mockedCreateBooking.mockRejectedValueOnce(
+      new ApiClientError(
+        'The selected recurring booking pattern is not available.',
+        409,
+        {
+          code: 'RECURRING_UNAVAILABLE',
+          details: {
+            conflict_type: 'FUTURE_CONFLICT',
+            first_conflict_start: '2026-09-25T11:00:00+00:00',
+            conflicting_booking_id: 5,
+          },
+        },
+      ),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: '9:00 ص متاح متاح للتثبيت أسبوعيًا',
+      }),
+    )
+    await user.click(
+      screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
+    )
+    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    const notice = await screen.findByRole('status')
+    expect(notice).toHaveTextContent('التثبيت الأسبوعي مش متاح')
+    expect(notice).toHaveTextContent(/فيه حجز متعارض يوم /)
+    expect(notice).toHaveTextContent('سبتمبر')
+    expect(notice).toHaveClass('bg-amber-50')
+    expect(notice).not.toHaveTextContent('conflicting_booking_id')
+    expect(
+      screen.queryByText('The selected recurring booking pattern is not available.'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByText('طلبات حجز محتاجة مراجعة')).not.toBeInTheDocument()
   })
 
   it('uses the stable slot-unavailable code and refreshes the scoped board', async () => {
