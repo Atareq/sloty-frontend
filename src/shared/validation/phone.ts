@@ -1,6 +1,16 @@
 import { isValidPhoneNumber, parsePhoneNumber } from 'react-phone-number-input'
 import type { Country } from 'react-phone-number-input'
 
+export type PhoneValidationError = 'REQUIRED' | 'INVALID_PHONE'
+
+export interface PhoneValidationOptions {
+  required?: boolean
+}
+
+export type PhoneValidationResult =
+  | { valid: true; error: null }
+  | { valid: false; error: PhoneValidationError }
+
 /**
  * Extracts the country code from an existing phone string (e.g. initial E.164 values).
  * Used purely as an initialization helper for form country selectors.
@@ -50,6 +60,50 @@ export function normalizeSlotyPhoneNumber(
   return null
 }
 
+function hasPhoneValue(value: string | undefined | null): value is string {
+  return Boolean(value && value.trim())
+}
+
+function isValidPhoneValue(
+  value: string,
+  country?: Country,
+): boolean {
+  if (country) {
+    return normalizeSlotyPhoneNumber(value, country) !== null
+  }
+
+  return Boolean(isValidPhoneNumber(value.trim()))
+}
+
+/**
+ * Shared phone-number validator. Returns a stable error code, never UI copy.
+ *
+ * Empty values are valid unless `required` is true. Present values are checked
+ * with the existing phone library: country context when provided, otherwise
+ * E.164 `isValidPhoneNumber`.
+ */
+export function validatePhoneNumber(
+  value: string | undefined | null,
+  country?: Country,
+  options: PhoneValidationOptions = {},
+): PhoneValidationResult {
+  const required = options.required === true
+
+  if (!hasPhoneValue(value)) {
+    if (required) {
+      return { valid: false, error: 'REQUIRED' }
+    }
+
+    return { valid: true, error: null }
+  }
+
+  if (!isValidPhoneValue(value, country)) {
+    return { valid: false, error: 'INVALID_PHONE' }
+  }
+
+  return { valid: true, error: null }
+}
+
 /**
  * Validates Sloty phone values.
  * Backward compatible: if country is omitted, validates raw value as E.164 (legacy behavior).
@@ -59,11 +113,5 @@ export function isValidSlotyPhoneNumber(
   value: string | undefined | null,
   country?: Country,
 ): boolean {
-  if (!value) {
-    return false
-  }
-  if (country) {
-    return normalizeSlotyPhoneNumber(value, country) !== null
-  }
-  return Boolean(isValidPhoneNumber(value))
+  return validatePhoneNumber(value, country, { required: true }).valid
 }

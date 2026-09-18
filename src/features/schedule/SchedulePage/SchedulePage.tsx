@@ -306,6 +306,7 @@ export function SchedulePage() {
   )
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [paymentErrorCode, setPaymentErrorCode] = useState<string | null>(null)
   const [paymentFieldErrors, setPaymentFieldErrors] = useState<Record<
     string,
     ApiFieldError[]
@@ -1248,6 +1249,7 @@ export function SchedulePage() {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
+        ...(values.club_player_id ? { club_player_id: values.club_player_id } : {}),
         start_time: startTime,
         end_time: endTime,
         is_recurring: values.is_recurring,
@@ -1856,6 +1858,7 @@ export function SchedulePage() {
 
     setIsPaymentSubmitting(true)
     setPaymentError(null)
+    setPaymentErrorCode(null)
     setPaymentFieldErrors(null)
 
     try {
@@ -1887,6 +1890,7 @@ export function SchedulePage() {
     } catch (error) {
       const errorCode = getApiErrorCode(error)
 
+      setPaymentErrorCode(errorCode)
       setPaymentError(
         errorCode === FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT
           ? getApiErrorMessage(
@@ -2556,6 +2560,7 @@ export function SchedulePage() {
       selectedCourt ? (
         <AddBookingSheet
           canStartRecurring={selectedSlot.canStartRecurring}
+          clubSlug={selectedClubSlug}
           courtName={selectedCourt.name}
           dateLabel={selectedDateLabel}
           endTime={selectedSlot.endTime}
@@ -2707,6 +2712,7 @@ export function SchedulePage() {
             remainingAmount: paymentBooking.remaining_amount,
           }}
           error={paymentError}
+          errorCode={paymentErrorCode}
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
           minimumDepositHint={getCourtMinimumDeposit(selectedCourt)}
@@ -2714,6 +2720,7 @@ export function SchedulePage() {
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
+            setPaymentErrorCode(null)
             setPaymentFieldErrors(null)
           }}
           onSubmit={handleRecordPayment}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Copy, Moon } from 'lucide-react'
+import { CheckCheck, Copy, Moon } from 'lucide-react'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
@@ -244,6 +244,13 @@ export function CourtWorkingHoursSection({
     Partial<Record<CourtWeekday, Record<string, string>>>
   >({})
   const [successToast, setSuccessToast] = useState<string | null>(null)
+  /**
+   * True after the user has successfully applied the current day's schedule
+   * to all other weekdays. Drives the inline completion badge on the action
+   * button. Resets automatically when the user edits any working-hours field
+   * (via `resetMessages`, already called inside `updateDraft`).
+   */
+  const [appliedToWeek, setAppliedToWeek] = useState(false)
 
   const weeklyPayload = useMemo(
     () => weekdays.map((weekday) => buildDayPayload(drafts[weekday])),
@@ -295,6 +302,7 @@ export function CourtWorkingHoursSection({
   function resetMessages(): void {
     setError(null)
     setSuccessToast(null)
+    setAppliedToWeek(false)
   }
 
   function updateDraft(
@@ -407,7 +415,11 @@ export function CourtWorkingHoursSection({
       {} as Record<CourtWeekday, WorkingDayDraft>,
     )
 
-    await handleSave(nextDrafts, 'تم الحفظ والتطبيق بنجاح')
+    const succeeded = await handleSave(nextDrafts, 'تم الحفظ والتطبيق بنجاح')
+
+    if (succeeded) {
+      setAppliedToWeek(true)
+    }
   }
 
   function handleBack(): void {
@@ -823,10 +835,18 @@ export function CourtWorkingHoursSection({
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--sloty-border)] bg-white text-[var(--sloty-primary)] shadow-2xs transition group-hover:bg-[var(--sloty-soft-mint)]">
               <Copy className="h-5 w-5" />
             </div>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <span className="block text-sm font-black text-[var(--sloty-primary)] transition group-hover:text-[var(--sloty-primary-dark)]">
-                {settingsCopy.saveAndApplyDayToRest(getWeekdayLabel(selectedWeekday))}
-              </span>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="block text-sm font-black text-[var(--sloty-primary)] transition group-hover:text-[var(--sloty-primary-dark)]">
+                  {settingsCopy.saveAndApplyDayToRest(getWeekdayLabel(selectedWeekday))}
+                </span>
+                {appliedToWeek ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sloty-soft-mint)] px-2 py-0.5 text-[11px] font-bold text-[var(--sloty-primary)]">
+                    <CheckCheck className="h-3 w-3" aria-hidden="true" />
+                    تم التطبيق على باقي أيام الأسبوع
+                  </span>
+                ) : null}
+              </div>
               <span className="block text-xs text-[var(--sloty-text-muted)] leading-relaxed">
                 {settingsCopy.saveAndApplyDayHelper}
               </span>

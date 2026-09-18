@@ -34,7 +34,10 @@ import {
   getSettlementPreview,
 } from '../../settlements/settlementsApi'
 import { subscribeCurrentFinancialStateChanged } from '../../settlements/currentFinancialStateInvalidation'
-import type { CurrentCustodyRecord } from '../../settlements/settlements.types'
+import type {
+  CurrentCustodyRecord,
+  CurrentCustodySummaryRow,
+} from '../../settlements/settlements.types'
 import { BookingStatusBreakdown } from '../components/BookingStatusBreakdown/BookingStatusBreakdown'
 import { MoneySummarySection } from '../components/MoneySummarySection/MoneySummarySection'
 import { NeedsActionSection } from '../components/NeedsActionSection/NeedsActionSection'
@@ -172,9 +175,9 @@ export function DashboardPage() {
   const [courts, setCourts] = useState<Court[]>([])
   const [isCourtsLoading, setIsCourtsLoading] = useState(false)
   const [courtOptionsError, setCourtOptionsError] = useState<string | null>(null)
-  const [custodyRecords, setCustodyRecords] = useState<CurrentCustodyRecord[]>(
-    [],
-  )
+  const [custodyRecords, setCustodyRecords] = useState<
+    CurrentCustodySummaryRow[] | CurrentCustodyRecord[]
+  >([])
   const [isCustodyLoading, setIsCustodyLoading] = useState(false)
   const [custodyError, setCustodyError] = useState<string | null>(null)
   const [custodySnapshotSyncedAt, setCustodySnapshotSyncedAt] = useState<
@@ -604,12 +607,20 @@ export function DashboardPage() {
         </AppCard>
       ) : null}
 
-      {isStaff || canManageStaffMoney ? (
+      {isStaff ? (
         <CurrentCustodySection
           error={custodyError}
           isLoading={isCustodyLoading}
-          mode={isStaff ? 'staff' : 'management'}
+          mode="staff"
           records={custodyRecords}
+          snapshotLabel={custodySnapshotLabel}
+        />
+      ) : canManageStaffMoney ? (
+        <CurrentCustodySection
+          error={custodyError}
+          isLoading={isCustodyLoading}
+          mode="management"
+          records={custodyRecords as CurrentCustodySummaryRow[]}
           snapshotLabel={custodySnapshotLabel}
         />
       ) : null}

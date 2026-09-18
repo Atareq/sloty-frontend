@@ -1,9 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AddBookingSheet } from './AddBookingSheet'
+import { getPhoneValidationMessage } from '../../../../shared/copy/phoneValidation'
+import { listClubPlayers } from '../../../players/playersApi'
+
+vi.mock('../../../players/playersApi', () => ({
+  listClubPlayers: vi.fn(),
+}))
+
+const mockedListClubPlayers = vi.mocked(listClubPlayers)
 
 describe('AddBookingSheet', () => {
+  afterEach(() => {
+    document.documentElement.lang = 'ar'
+  })
   it('requires customer name and phone before submit', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
@@ -30,7 +41,7 @@ describe('AddBookingSheet', () => {
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
     expect(
-      screen.getByText('اسم العميل ورقم الموبايل مطلوبان'),
+      screen.getByText('اسم العميل مطلوب'),
     ).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
   })
@@ -100,7 +111,10 @@ describe('AddBookingSheet', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
     })
-    await user.type(screen.getByLabelText('اسم العميل'), '  أحمد علي  ')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      '  أحمد علي  ',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -184,7 +198,10 @@ describe('AddBookingSheet', () => {
     ).toBeInTheDocument()
 
     await user.click(recurringCheckbox)
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
 
@@ -245,7 +262,10 @@ describe('AddBookingSheet', () => {
         name: /ثبّت نفس الموعد كل أسبوع/,
       }),
     )
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -337,12 +357,78 @@ describe('AddBookingSheet', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
     })
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
-    expect(screen.getByText('رقم الموبايل غير صحيح')).toBeInTheDocument()
+    expect(screen.getByText(getPhoneValidationMessage('INVALID_PHONE'))).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('requires a mobile number using the shared Arabic validation copy', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(screen.getByText(getPhoneValidationMessage('REQUIRED'))).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('shows English phone validation copy when the application language is en', async () => {
+    document.documentElement.lang = 'en'
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'Ahmed',
+    )
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+    expect(screen.getByText('Mobile number is required')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+    expect(screen.getByText('Enter a valid mobile number')).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    document.documentElement.lang = 'ar'
   })
 
   it('shows backend field errors for customer name and phone', () => {
@@ -399,14 +485,19 @@ describe('AddBookingSheet', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
     })
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد',
+    )
     await user.click(screen.getByRole('button', { name: 'إغلاق' }))
 
     expect(screen.getByText('عندك تعديلات لسه متحفظتش.')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'كمل التعديل' }))
-    expect(screen.getByLabelText('اسم العميل')).toHaveValue('أحمد')
+    expect(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+    ).toHaveValue('أحمد')
 
     await user.click(screen.getByRole('button', { name: 'إغلاق' }))
     await user.click(screen.getByRole('button', { name: 'اخرج من غير حفظ' }))
@@ -462,7 +553,10 @@ describe('AddBookingSheet', () => {
       expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
     })
 
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -495,7 +589,10 @@ describe('AddBookingSheet', () => {
       expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
     })
 
-    await user.type(screen.getByLabelText('اسم العميل'), 'طارق')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'طارق',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '+20 10 1234 5678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -529,7 +626,10 @@ describe('AddBookingSheet', () => {
     })
 
     const phoneInput = screen.getByLabelText('رقم الموبايل')
-    await user.type(screen.getByLabelText('اسم العميل'), 'سالم')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'سالم',
+    )
     await user.type(phoneInput, '0501234567')
 
     // Change country to Saudi Arabia
@@ -574,7 +674,10 @@ describe('AddBookingSheet', () => {
       expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
     })
 
-    await user.type(screen.getByLabelText('اسم العميل'), 'عميل أوفلاين')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'عميل أوفلاين',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'احفظ طلب الحجز' }))
 
@@ -624,6 +727,221 @@ describe('AddBookingSheet', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       customer_name: 'أحمد',
       customer_phone: '+201112345678',
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('debounces phone lookup and defaults to results[0].display_name with club_player_id', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    mockedListClubPlayers.mockResolvedValueOnce([
+      {
+        id: 77,
+        display_name: 'كابتن محمود',
+        phone_number: '01012345678',
+        last_used_at: '2026-09-17T18:00:00Z',
+      },
+    ])
+
+    render(
+      <AddBookingSheet
+        clubSlug="barcelona-fc"
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    const phoneInput = screen.getByLabelText('رقم الموبايل')
+    await user.type(phoneInput, '01012345678')
+
+    await waitFor(() => {
+      expect(mockedListClubPlayers).toHaveBeenCalledWith('barcelona-fc', {
+        search: '01012345678',
+        order_by: '-last_used_at',
+      })
+    })
+
+    const nameCombobox = screen.getByRole('combobox', { name: 'اسم اللاعب' })
+    await waitFor(() => {
+      expect(nameCombobox).toHaveValue('كابتن محمود')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'كابتن محمود',
+      customer_phone: '+201012345678',
+      club_player_id: 77,
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('allows selecting an older saved player name from dropdown', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    mockedListClubPlayers.mockResolvedValueOnce([
+      {
+        id: 101,
+        display_name: 'طارق الأحدث',
+        phone_number: '01012345678',
+        last_used_at: '2026-09-17T20:00:00Z',
+      },
+      {
+        id: 102,
+        display_name: 'طارق الأقدم',
+        phone_number: '01012345678',
+        last_used_at: '2026-08-10T14:00:00Z',
+      },
+    ])
+
+    render(
+      <AddBookingSheet
+        clubSlug="barcelona-fc"
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      ).toHaveValue('طارق الأحدث')
+    })
+
+    // Open dropdown and pick older player name
+    await user.click(
+      screen.getByRole('button', { name: 'عرض قائمة اللاعبين' }),
+    )
+    await user.click(screen.getByText('طارق الأقدم'))
+
+    expect(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+    ).toHaveValue('طارق الأقدم')
+
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'طارق الأقدم',
+      customer_phone: '+201012345678',
+      club_player_id: 102,
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('clears club_player_id if phone is edited to a non-matching number', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    mockedListClubPlayers.mockResolvedValueOnce([
+      {
+        id: 55,
+        display_name: 'علي حسن',
+        phone_number: '01012345678',
+      },
+    ])
+
+    render(
+      <AddBookingSheet
+        clubSlug="barcelona-fc"
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    const phoneInput = screen.getByLabelText('رقم الموبايل')
+    await user.type(phoneInput, '01012345678')
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      ).toHaveValue('علي حسن')
+    })
+
+    // Change phone to non-matching number
+    await user.clear(phoneInput)
+    await user.type(phoneInput, '01099999999')
+
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'علي حسن',
+      customer_phone: '+201099999999',
+      club_player_id: undefined,
+      is_recurring: false,
+      notes: undefined,
+    })
+  })
+
+  it('submits brand-new custom name freely without club_player_id', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <AddBookingSheet
+        clubSlug="barcelona-fc"
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد كابتن مخصص',
+    )
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'أحمد كابتن مخصص',
+      customer_phone: '+201012345678',
+      club_player_id: undefined,
       is_recurring: false,
       notes: undefined,
     })

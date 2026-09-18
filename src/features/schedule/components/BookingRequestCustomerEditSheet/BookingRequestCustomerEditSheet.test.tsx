@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { BookingIntentRecord } from '../../../../offline/offline.types'
 import { BookingRequestCustomerEditSheet } from './BookingRequestCustomerEditSheet'
+import { getPhoneValidationMessage } from '../../../../shared/copy/phoneValidation'
 
 const mockRequest: BookingIntentRecord = {
   local_id: 'local-req-123',
@@ -129,7 +130,7 @@ describe('BookingRequestCustomerEditSheet', () => {
     await user.click(screen.getByRole('button', { name: 'حفظ التعديل' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByText('رقم الموبايل غير صحيح')).toBeInTheDocument()
+    expect(screen.getByText(getPhoneValidationMessage('INVALID_PHONE'))).toBeInTheDocument()
   })
 
   it('uses selected country as parsing context for local numbers', async () => {

@@ -9,10 +9,8 @@ export type SettlementPaymentMethod = PaymentMethod
 /** Settlement rows use the same backend payment-method contract as transactions. */
 export const settlementPaymentMethodLabels = paymentMethodLabels
 
-/** Shared Backend fields that describe one collector's current custody. */
+/** Shared Backend fields that describe custody financial totals. */
 export interface CurrentCustodyRecord {
-  collected_by: number
-  collected_by_name: string
   transaction_count: number
   net_amount: string
   totals_by_payment_method: Partial<Record<SettlementPaymentMethod, string>>
@@ -30,10 +28,13 @@ export interface SettlementPreviewTransaction {
   created?: string
 }
 
+/** Preview/create identity follows the current Backend `collected_by` contract. */
 export interface SettlementPreview extends CurrentCustodyRecord {
   club: number
   court?: number | null
   court_name?: string | null
+  collected_by: number
+  collected_by_name: string
   is_self_preview: boolean
   can_approve: boolean
   approval_required: boolean
@@ -50,7 +51,10 @@ export interface SettlementPreviewQueryParams {
   page?: number | string
 }
 
+/** Grouped `unsettled-summary` identity. Do not add `collected_by` here. */
 export interface CurrentCustodySummaryRow extends CurrentCustodyRecord {
+  user: number
+  user_name: string
   period_start: string
   period_end: string
   total_amount: string

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Country } from 'react-phone-number-input'
 import {
@@ -9,23 +9,34 @@ import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
+import { customerCopy } from '../../../../shared/copy/appCopy'
+import { getPhoneValidationMessage } from '../../../../shared/copy/phoneValidation'
 import {
   getCountryFromPhoneNumber,
   normalizeSlotyPhoneNumber,
+  validatePhoneNumber,
 } from '../../../../shared/validation/phone'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
 import { formatTime12Hour } from '../../scheduleBoard.helpers'
-import { customerCopy } from '../../../../shared/copy/appCopy'
+import { PlayerCombobox } from '../../../players/components/PlayerCombobox/PlayerCombobox'
+import { listClubPlayers } from '../../../players/playersApi'
+import {
+  arePhoneNumbersMatching,
+  getClubPlayerPhone,
+  type ClubPlayer,
+} from '../../../players/players.types'
 
 export interface AddBookingSheetValues {
   customer_name: string
   customer_phone: string
+  club_player_id?: number
   is_recurring: boolean
   notes?: string
 }
 
 export interface AddBookingSheetProps {
+  clubSlug?: string | null
   courtName: string
   dateLabel: string
   startTime: string
@@ -71,6 +82,7 @@ function getRecurringBlockedMessage(
  */
 export function AddBookingSheet({
   canStartRecurring = null,
+  clubSlug = undefined,
   courtName,
   dateLabel,
   endTime,
@@ -99,6 +111,11 @@ export function AddBookingSheet({
   const [customerPhone, setCustomerPhone] = useState(
     initialValues?.customer_phone ?? '',
   )
+  const [selectedPlayer, setSelectedPlayer] = useState<ClubPlayer | null>(null)
+  const [playerOptions, setPlayerOptions] = useState<ClubPlayer[]>([])
+  const [isSearchingPlayers, setIsSearchingPlayers] = useState(false)
+  const phoneSearchTimeoutRef = useRef<number | null>(null)
+
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isDiscardPromptOpen, setIsDiscardPromptOpen] = useState(false)
@@ -142,6 +159,78 @@ export function AddBookingSheet({
     customerPhone !== initialPhone ||
     notes !== initialNotes
 
+  // Clean up pending debounce search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (phoneSearchTimeoutRef.current) {
+        window.clearTimeout(phoneSearchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  function handlePhoneChange(newPhone: string) {
+    setCustomerPhone(newPhone)
+
+    // Clear selected player if phone no longer matches the selected player
+    if (selectedPlayer) {
+      const playerPhone = getClubPlayerPhone(selectedPlayer)
+      if (!arePhoneNumbersMatching(newPhone, playerPhone, selectedCountry)) {
+        setSelectedPlayer(null)
+      }
+    }
+
+    if (phoneSearchTimeoutRef.current) {
+      window.clearTimeout(phoneSearchTimeoutRef.current)
+    }
+
+    const trimmedPhone = newPhone.trim()
+    if (!clubSlug || trimmedPhone.length < 3) {
+      setPlayerOptions([])
+      setIsSearchingPlayers(false)
+      return
+    }
+
+    setIsSearchingPlayers(true)
+    phoneSearchTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        const results = await listClubPlayers(clubSlug, {
+          search: trimmedPhone,
+          order_by: '-last_used_at',
+        })
+        setPlayerOptions(results)
+        if (results.length > 0) {
+          // Default to latest used player name from Backend
+          setCustomerName(results[0].display_name)
+          setSelectedPlayer(results[0])
+        }
+      } catch {
+        setPlayerOptions([])
+      } finally {
+        setIsSearchingPlayers(false)
+      }
+    }, 300)
+  }
+
+  function handleNameChange(newName: string) {
+    setCustomerName(newName)
+    if (selectedPlayer && selectedPlayer.display_name !== newName) {
+      setSelectedPlayer(null)
+    }
+  }
+
+  function handleSelectPlayer(player: ClubPlayer) {
+    setSelectedPlayer(player)
+    setCustomerName(player.display_name)
+    const playerPhone = getClubPlayerPhone(player)
+    if (playerPhone) {
+      setCustomerPhone(playerPhone)
+      const country = getCountryFromPhoneNumber(playerPhone)
+      if (country) {
+        setSelectedCountry(country)
+      }
+    }
+  }
+
   function requestClose(): boolean | void {
     if (isDirty) {
       setIsDiscardPromptOpen(true)
@@ -156,20 +245,29 @@ export function AddBookingSheet({
 
     const trimmedName = customerName.trim()
     const trimmedNotes = notes.trim()
-    const trimmedPhone = customerPhone.trim()
+    const phoneValidation = validatePhoneNumber(
+      customerPhone,
+      selectedCountry,
+      { required: true },
+    )
 
-    if (!trimmedName || !trimmedPhone) {
-      setValidationError('اسم العميل ورقم الموبايل مطلوبان')
+    if (!trimmedName) {
+      setValidationError(customerCopy.customerNameRequired)
+      return
+    }
+
+    if (!phoneValidation.valid) {
+      setValidationError(getPhoneValidationMessage(phoneValidation.error))
       return
     }
 
     const normalizedPhone = normalizeSlotyPhoneNumber(
-      trimmedPhone,
+      customerPhone,
       selectedCountry,
     )
 
     if (!normalizedPhone) {
-      setValidationError('رقم الموبايل غير صحيح')
+      setValidationError(getPhoneValidationMessage('INVALID_PHONE'))
       return
     }
 
@@ -178,6 +276,15 @@ export function AddBookingSheet({
     const values: AddBookingSheetValues = {
       customer_name: trimmedName,
       customer_phone: normalizedPhone,
+      club_player_id:
+        selectedPlayer &&
+        arePhoneNumbersMatching(
+          customerPhone,
+          getClubPlayerPhone(selectedPlayer),
+          selectedCountry,
+        )
+          ? selectedPlayer.id
+          : undefined,
       is_recurring: isRecurring,
       notes: trimmedNotes || undefined,
     }
@@ -215,21 +322,6 @@ export function AddBookingSheet({
           </div>
 
           <div className="mt-5 space-y-4">
-            <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-              <span>{customerCopy.customerName}</span>
-              <input
-                className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20"
-                disabled={isSubmitting}
-                onChange={(event) => setCustomerName(event.target.value)}
-                value={customerName}
-              />
-            </label>
-            {nameFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {nameFieldError}
-              </p>
-            ) : null}
-
             <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>{customerCopy.mobileNumber}</span>
 
@@ -237,10 +329,10 @@ export function AddBookingSheet({
                 country={selectedCountry}
                 disabled={isSubmitting}
                 error={
-                  validationError === 'رقم الموبايل غير صحيح' ||
+                  validationError === getPhoneValidationMessage('INVALID_PHONE') ||
                   Boolean(phoneFieldError)
                 }
-                onChange={setCustomerPhone}
+                onChange={handlePhoneChange}
                 onCountryChange={setSelectedCountry}
                 raw
                 value={customerPhone}
@@ -249,6 +341,25 @@ export function AddBookingSheet({
             {phoneFieldError ? (
               <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
                 {phoneFieldError}
+              </p>
+            ) : null}
+
+            <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+              <span>{customerCopy.playerName}</span>
+              <PlayerCombobox
+                clubSlug={clubSlug}
+                disabled={isSubmitting}
+                error={Boolean(nameFieldError)}
+                isLoading={isSearchingPlayers}
+                onChange={handleNameChange}
+                onSelectPlayer={handleSelectPlayer}
+                playerOptions={playerOptions}
+                value={customerName}
+              />
+            </label>
+            {nameFieldError ? (
+              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
+                {nameFieldError}
               </p>
             ) : null}
 

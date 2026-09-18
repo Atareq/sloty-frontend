@@ -54,7 +54,7 @@ export function AppSuccessNotice({
     <div
       aria-live="polite"
       className={[
-        'fixed left-4 top-4 z-[70] max-w-sm whitespace-pre-line rounded-2xl border px-4 py-3 text-sm shadow-[var(--sloty-shadow)]',
+        'fixed left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-[70] max-w-[calc(100vw-2rem)] whitespace-pre-line rounded-2xl border px-4 py-3 text-sm shadow-[var(--sloty-shadow)] sm:max-w-sm',
         toneClassName[tone],
       ].join(' ')}
       role="status"

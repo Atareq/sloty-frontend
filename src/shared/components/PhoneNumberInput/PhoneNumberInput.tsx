@@ -6,6 +6,7 @@ import {
 } from 'react-phone-number-input'
 import type { Country, Value } from 'react-phone-number-input'
 import { AppSelect } from '../AppSelect/AppSelect'
+import { customerCopy } from '../../copy/appCopy'
 
 export interface SlotyPhoneNumberInputBaseProps {
   defaultCountry?: Country
@@ -48,10 +49,14 @@ const countries = getCountries()
  * In `raw: true` mode, it uses a native `<input type="tel">` that keeps user
  * or Safari AutoFill input stable without live formatting rewrites, while the
  * parent owns the selected country as parsing context.
+ *
+ * Validation stays in the parent form via `validatePhoneNumber()` and
+ * `getPhoneValidationMessage()`. This primitive only owns input UX and
+ * country context; it does not emit localized error text.
  */
 export function SlotyPhoneNumberInput(props: SlotyPhoneNumberInputProps) {
   const {
-    ariaLabel = 'رقم الموبايل',
+    ariaLabel = customerCopy.mobileNumber,
     defaultCountry = 'EG',
     disabled = false,
     error = false,

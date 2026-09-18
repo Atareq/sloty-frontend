@@ -450,6 +450,7 @@ export function BookingsListPage() {
   )
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [paymentErrorCode, setPaymentErrorCode] = useState<string | null>(null)
   const [paymentFieldErrors, setPaymentFieldErrors] = useState<Record<
     string,
     ApiFieldError[]
@@ -999,6 +1000,7 @@ export function BookingsListPage() {
 
     setIsPaymentSubmitting(true)
     setPaymentError(null)
+    setPaymentErrorCode(null)
     setPaymentFieldErrors(null)
 
     try {
@@ -1028,6 +1030,7 @@ export function BookingsListPage() {
     } catch (error) {
       const errorCode = getApiErrorCode(error)
 
+      setPaymentErrorCode(errorCode)
       setPaymentError(
         errorCode === FIRST_PAYMENT_BELOW_MINIMUM_DEPOSIT
           ? getApiErrorMessage(
@@ -1579,6 +1582,7 @@ export function BookingsListPage() {
             remainingAmount: paymentBooking.remaining_amount,
           }}
           error={paymentError}
+          errorCode={paymentErrorCode}
           fieldErrors={paymentFieldErrors}
           isSubmitting={isPaymentSubmitting}
           minimumDepositHint={
@@ -1591,6 +1595,7 @@ export function BookingsListPage() {
           onClose={() => {
             setPaymentBooking(null)
             setPaymentError(null)
+            setPaymentErrorCode(null)
             setPaymentFieldErrors(null)
           }}
           onSubmit={handleRecordPayment}

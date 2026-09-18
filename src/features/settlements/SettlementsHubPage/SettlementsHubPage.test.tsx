@@ -54,8 +54,8 @@ const mockedOfflineRepositories = vi.mocked(offlineRepositories)
 const currentCustodySummary = {
   results: [
     {
-      collected_by: 15,
-      collected_by_name: 'أحمد محمد',
+      user: 15,
+      user_name: 'أحمد محمد',
       period_start: '2026-08-15T10:00:00Z',
       period_end: '2026-08-16T11:00:00Z',
       transaction_count: 3,
@@ -238,6 +238,11 @@ describe('SettlementsHubPage', () => {
       screen.getByText('المبالغ الموجودة مع الموظفين حاليًا'),
     ).toBeInTheDocument()
     expect(await screen.findByText('أحمد محمد')).toBeInTheDocument()
+    expect(screen.getAllByText('المحصل').length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: 'استلام المبلغ' })).toHaveAttribute(
+      'href',
+      '/settlements/preview?collected_by=15',
+    )
     expect(
       screen.getByText('المبلغ المستحق للتسليم: 1,250.00 ج.م'),
     ).toBeInTheDocument()
@@ -387,8 +392,8 @@ describe('SettlementsHubPage', () => {
     mockAuth('OWNER', true)
     const rows = Array.from({ length: 30 }, (_, index) => ({
       ...currentCustodySummary.results[0],
-      collected_by: index + 10,
-      collected_by_name: `موظف ${index + 1}`,
+      user: index + 10,
+      user_name: `موظف ${index + 1}`,
       net_amount: `${100 + index}.00`,
       total_amount: `${100 + index}.00`,
     }))
@@ -398,7 +403,7 @@ describe('SettlementsHubPage', () => {
       next: null,
       previous: null,
       results: rows.map((row, index) => ({
-        id: row.collected_by,
+        id: row.user,
         username: `employee-${index + 1}`,
         first_name: 'موظف',
         last_name: String(index + 1),

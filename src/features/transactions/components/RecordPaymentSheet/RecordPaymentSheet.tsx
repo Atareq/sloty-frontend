@@ -2,12 +2,15 @@ import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   getFirstFieldErrorMessage,
+  PAYMENT_REFERENCE_REQUIRED_CODE,
+  PAYMENT_REFERENCE_REQUIRED_MESSAGE,
 } from '../../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../../core/api/apiClient'
 import { AppButton } from '../../../../shared/components/AppButton/AppButton'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
+import { FormField } from '../../../../shared/components/FormField/FormField'
 import {
   bookingActionCopy,
   financeCopy,
@@ -38,6 +41,7 @@ export interface RecordPaymentSheetProps {
   bookingId: number | string
   bookingMoney?: RecordPaymentBookingMoney | null
   error: string | null
+  errorCode?: string | null
   fieldErrors?: Record<string, ApiFieldError[]> | null
   isSubmitting: boolean
   minimumDepositHint?: string | null
@@ -52,45 +56,53 @@ function hasMoneyValue(value: string | number | null | undefined): boolean {
 
 function createFallbackUuid(): string {
   return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (value) => {
-    const numericValue = Number(value)
-    const randomNibble = Math.floor(Math.random() * 16)
+    const numeric = Number(value)
+    const random = crypto.getRandomValues(new Uint8Array(1))[0] & 15
 
-    return (numericValue ^ (randomNibble >> (numericValue / 4))).toString(16)
+    return (numeric ^ (random >> (numeric / 4))).toString(16)
   })
 }
 
 function createPaymentClientRequestId(): string {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : createFallbackUuid()
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID()
+  }
+
+  return createFallbackUuid()
 }
 
-function createPaymentBusinessKey(values: {
+function createPaymentBusinessKey({
+  amount,
+  bookingId,
+  notes,
+  paymentMethod,
+  reference,
+}: {
   amount: string
   bookingId: number | string
   notes?: string
   paymentMethod: PaymentMethod
   reference?: string
 }): string {
-  return JSON.stringify({
-    booking: String(values.bookingId),
-    amount: values.amount,
-    payment_method: values.paymentMethod,
-    payment_reference: values.reference ?? '',
-    notes: values.notes ?? '',
-  })
+  return [bookingId, amount, paymentMethod, reference ?? '', notes ?? ''].join(
+    ':',
+  )
 }
 
 /**
- * Presentational payment-recording form for HOLD or confirmed bookings.
+ * Record payment sheet (deposit or remaining collection).
  *
- * It gathers the financial input only; the parent owns API calls and reloads so
- * this sheet can remain reusable from booking details or future transaction UI.
+ * It provides local validation for the positive amount and delegates API mutation
+ * errors to the parent surface.
  */
 export function RecordPaymentSheet({
   bookingId,
   bookingMoney = null,
   error,
+  errorCode = null,
   fieldErrors = null,
   isSubmitting,
   minimumDepositHint = null,
@@ -115,9 +127,24 @@ export function RecordPaymentSheet({
   const referenceFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'reference') ??
     getFirstFieldErrorMessage(fieldErrors, 'payment_reference')
+  const isReferenceRequired =
+    errorCode === PAYMENT_REFERENCE_REQUIRED_CODE ||
+    fieldErrors?.reference?.some(
+      (e) => e.code === PAYMENT_REFERENCE_REQUIRED_CODE,
+    ) ||
+    fieldErrors?.payment_reference?.some(
+      (e) => e.code === PAYMENT_REFERENCE_REQUIRED_CODE,
+    ) ||
+    error === PAYMENT_REFERENCE_REQUIRED_MESSAGE
+
+  const isReferenceInvalid = Boolean(referenceFieldError) || Boolean(isReferenceRequired)
   const displayedAmountError = amountFieldError ?? amountValidationError
   const bannerError =
-    error && error !== displayedAmountError ? error : null
+    error && error !== displayedAmountError
+      ? error
+      : isReferenceRequired && !displayedAmountError
+        ? PAYMENT_REFERENCE_REQUIRED_MESSAGE
+        : null
   const showPaymentReference = paymentMethod !== 'CASH'
   const isDirty =
     amount.length > 0 ||
@@ -147,23 +174,29 @@ export function RecordPaymentSheet({
       return
     }
 
-    if (Number.isNaN(numericAmount) || numericAmount <= 0) {
-      setAmountValidationError(validationCopy.amountPositive)
-      return
-    }
+    if (paymentPurpose === 'deposit') {
+      const backendMinimumDeposit =
+        minimumDepositHint !== null &&
+        minimumDepositHint !== undefined &&
+        Number.isFinite(Number(minimumDepositHint)) &&
+        Number(minimumDepositHint) >= 0
+          ? Number(minimumDepositHint)
+          : 0
 
-    if (paymentPurpose === 'deposit' && minimumDepositHint) {
-      const minimumDeposit = Number(minimumDepositHint)
+      if (Number.isNaN(numericAmount) || numericAmount < backendMinimumDeposit) {
+        const minimumLabel =
+          minimumDepositHint && backendMinimumDeposit > 0
+            ? formatMoneyAmount(minimumDepositHint, { suffix: 'ج.م' })
+            : formatMoneyAmount('0.00', { suffix: 'ج.م' })
 
-      if (
-        !Number.isNaN(minimumDeposit) &&
-        numericAmount < minimumDeposit
-      ) {
         setAmountValidationError(
-          validationCopy.firstPaymentMinimum(
-            formatMoneyAmount(minimumDepositHint, { suffix: 'ج.م' }),
-          ),
+          validationCopy.firstPaymentMinimum(minimumLabel),
         )
+        return
+      }
+    } else {
+      if (Number.isNaN(numericAmount) || numericAmount <= 0) {
+        setAmountValidationError(validationCopy.amountPositive)
         return
       }
     }
@@ -312,22 +345,19 @@ export function RecordPaymentSheet({
           />
 
           {showPaymentReference ? (
-            <>
-              <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-                <span>{financeCopy.paymentReference}</span>
-                <input
-                  className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
-                  disabled={isSubmitting}
-                  onChange={(event) => setReference(event.target.value)}
-                  value={reference}
-                />
-              </label>
-              {referenceFieldError ? (
-                <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                  {referenceFieldError}
-                </p>
-              ) : null}
-            </>
+            <FormField
+              error={isReferenceInvalid}
+              label={financeCopy.paymentReference}
+            >
+              <input
+                aria-invalid={isReferenceInvalid ? true : undefined}
+                aria-label="أدخل مرجع العملية"
+                className="h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-white px-3 text-base font-semibold text-[var(--sloty-text-primary)] outline-none focus:border-[var(--sloty-primary)] focus:ring-2 focus:ring-[var(--sloty-primary)]/20 sm:text-sm"
+                disabled={isSubmitting}
+                onChange={(event) => setReference(event.target.value)}
+                value={reference}
+              />
+            </FormField>
           ) : null}
 
           <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">

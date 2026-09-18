@@ -64,4 +64,21 @@ describe('AppSuccessNotice', () => {
     })
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
+
+  it('maintains physical top-left position, safe-area top offset, and mobile containment', () => {
+    render(
+      <AppSuccessNotice
+        message="تم الحفظ بنجاح"
+        onDismiss={vi.fn()}
+      />,
+    )
+
+    const notice = screen.getByRole('status')
+    expect(notice).toHaveClass('fixed')
+    expect(notice).toHaveClass('left-4')
+    expect(notice).toHaveClass('top-[calc(env(safe-area-inset-top,0px)+1rem)]')
+    expect(notice).toHaveClass('z-[70]')
+    expect(notice).toHaveClass('max-w-[calc(100vw-2rem)]')
+    expect(notice).toHaveClass('sm:max-w-sm')
+  })
 })

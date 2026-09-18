@@ -217,7 +217,7 @@ describe('RecordPaymentSheet', () => {
     expect(screen.getByText(description)).toBeInTheDocument()
   })
 
-  it('shows backend field errors near amount and reference fields', async () => {
+  it('shows amount field error inline but keeps reference error only in banner', async () => {
     const user = userEvent.setup()
 
     render(
@@ -246,8 +246,107 @@ describe('RecordPaymentSheet', () => {
 
     await chooseAppSelectOption(user, screen.getByLabelText('طريقة الدفع'), 'محفظة إلكترونية')
 
+    // Amount error renders inline
     expect(screen.getByText('المبلغ أكبر من المتبقي')).toBeInTheDocument()
-    expect(screen.getByText('مرجع الدفع مطلوب')).toBeInTheDocument()
+
+    // Banner error is present
+    expect(screen.getByText('يرجى مراجعة البيانات المدخلة.')).toBeInTheDocument()
+
+    // Reference field error must NOT appear as inline text below the input
+    expect(screen.queryByText('مرجع الدفع مطلوب')).not.toBeInTheDocument()
+
+    // Reference input is marked invalid
+    expect(screen.getByLabelText('أدخل مرجع العملية')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('displays Arabic PAYMENT_REFERENCE_REQUIRED error once in banner, marks field invalid, and never exposes English text', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error="مرجع الدفع مطلوب لهذا الملعب."
+        errorCode="PAYMENT_REFERENCE_REQUIRED"
+        fieldErrors={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الدفع'),
+      'محفظة إلكترونية',
+    )
+
+    // English message must NOT appear
+    expect(
+      screen.queryByText('Payment reference is required for this court.'),
+    ).not.toBeInTheDocument()
+
+    // Arabic message appears exactly once in the card/general banner area
+    const errorMatches = screen.getAllByText('مرجع الدفع مطلوب لهذا الملعب.')
+    expect(errorMatches).toHaveLength(1)
+
+    // Payment reference label receives the shared invalid/error styling
+    const labelSpan = screen.getByText('مرجع الدفع')
+    expect(labelSpan).toHaveClass('text-[var(--sloty-danger)]')
+
+    // Payment reference input is marked aria-invalid
+    const referenceInput = screen.getByLabelText('أدخل مرجع العملية')
+    expect(referenceInput).toHaveAttribute('aria-invalid', 'true')
+
+    // No duplicate sentence rendered under the input
+    expect(referenceInput.parentElement?.parentElement?.querySelector('p')).toBeNull()
+  })
+
+  it('handles PAYMENT_REFERENCE_REQUIRED when passed as fieldErrors without duplicating message under input', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error="مرجع الدفع مطلوب لهذا الملعب."
+        fieldErrors={{
+          payment_reference: [
+            {
+              code: 'PAYMENT_REFERENCE_REQUIRED',
+              message: 'Payment reference is required for this court.',
+            },
+          ],
+        }}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await chooseAppSelectOption(
+      user,
+      screen.getByLabelText('طريقة الدفع'),
+      'محفظة إلكترونية',
+    )
+
+    // English message must NOT appear
+    expect(
+      screen.queryByText('Payment reference is required for this court.'),
+    ).not.toBeInTheDocument()
+
+    // Arabic message appears exactly once in the banner
+    const errorMatches = screen.getAllByText('مرجع الدفع مطلوب لهذا الملعب.')
+    expect(errorMatches).toHaveLength(1)
+
+    // Payment reference input is marked aria-invalid
+    const referenceInput = screen.getByLabelText('أدخل مرجع العملية')
+    expect(referenceInput).toHaveAttribute('aria-invalid', 'true')
+
+    // Payment reference label receives invalid styling
+    const labelSpan = screen.getByText('مرجع الدفع')
+    expect(labelSpan).toHaveClass('text-[var(--sloty-danger)]')
+
+    // No duplicate sentence rendered under the input
+    expect(referenceInput.parentElement?.parentElement?.querySelector('p')).toBeNull()
   })
 
   it('shows minimum deposit guidance without blocking local validation', () => {
@@ -267,5 +366,81 @@ describe('RecordPaymentSheet', () => {
       screen.getByText(/أقل عربون تقدر تسجل بيه/, { selector: 'p' }),
     ).toBeInTheDocument()
     expect(screen.getByText('100.00 ج.م')).toBeInTheDocument()
+  })
+
+  it('allows zero deposit when backend minimum deposit requirement is zero', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        minimumDepositHint="0.00"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        paymentPurpose="deposit"
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '0' },
+    })
+    await user.click(screen.getByRole('button', { name: 'تسجيل العربون' }))
+
+    expect(
+      screen.queryByText('المبلغ يجب أن يكون أكبر من صفر'),
+    ).not.toBeInTheDocument()
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: '0',
+      }),
+    )
+  })
+
+  it('validates entered deposit against backend minimum deposit without showing amountPositive error', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <RecordPaymentSheet
+        bookingId={10}
+        error={null}
+        isSubmitting={false}
+        minimumDepositHint="100.00"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        paymentPurpose="deposit"
+      />,
+    )
+
+    // Entering 0 when minimum is 100
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '0' },
+    })
+    await user.click(screen.getByRole('button', { name: 'تسجيل العربون' }))
+
+    // Must NOT show "المبلغ يجب أن يكون أكبر من صفر"
+    expect(
+      screen.queryByText('المبلغ يجب أن يكون أكبر من صفر'),
+    ).not.toBeInTheDocument()
+    // Must show minimum deposit validation message
+    expect(
+      screen.getByText('الدفعة الأولى لازم تكون على الأقل 100.00 ج.م.'),
+    ).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    // Entering amount satisfying minimum deposit
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '100' },
+    })
+    await user.click(screen.getByRole('button', { name: 'تسجيل العربون' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: '100',
+      }),
+    )
   })
 })

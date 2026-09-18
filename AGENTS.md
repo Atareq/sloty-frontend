@@ -179,6 +179,8 @@ Run targeted validation commands before reporting completion:
 - **Refactor in Place:** Do not introduce parallel `V2`, `New`, or wizard variants for existing pages, sheets, or flows.
 - **Educational Comments & JSDoc:** Add clear JSDoc explanations to services, hooks, reusable components, and API modules. Avoid noisy comments that restate obvious syntax.
 - **Strict Typing:** Always define explicit interfaces and avoid `any`.
+- **Phone numbers:** All phone fields use `SlotyPhoneNumberInput` plus `validatePhoneNumber()` in `src/shared/validation/phone.ts`. Localized validation copy comes from `getPhoneValidationMessage()` / `phoneValidationCopy`. Do not add page-specific phone regexes or hardcoded Arabic/English phone errors. Backend field errors still flow through the existing API error helpers.
+- **Settlements identity:** `unsettled-summary` rows use `user` / `user_name`. Preview and create keep Backend `collected_by` / `collected_by_name`. Collector UI copy is `المحصل`.
 
 ---
 

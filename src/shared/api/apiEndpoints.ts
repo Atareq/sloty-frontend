@@ -74,6 +74,9 @@ export const apiEndpoints = {
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/memberships/${id}/`,
     },
+    players: {
+      list: (clubSlug: string) => `clubs/${clubSlug}/players/`,
+    },
     reports: {
       courtUsage: (clubSlug: string) =>
         `clubs/${clubSlug}/reports/court-usage/`,

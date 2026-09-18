@@ -134,6 +134,22 @@ describe('AdminUserFormPage', () => {
     expect(mockedCreatePlatformAdmin).not.toHaveBeenCalled()
   })
 
+  it('validates optional phone numbers with the shared message', async () => {
+    const testUser = userEvent.setup()
+
+    renderPage()
+
+    await testUser.type(screen.getByLabelText('الاسم الأول'), 'منى')
+    await testUser.type(screen.getByLabelText('اسم المستخدم'), 'admin')
+    await testUser.type(screen.getByLabelText('كلمة المرور'), 'secret123')
+    await testUser.type(screen.getByLabelText('تأكيد كلمة المرور'), 'secret123')
+    await testUser.type(screen.getByLabelText('رقم الموبايل'), '01012')
+    await testUser.click(screen.getByRole('button', { name: 'حفظ المستخدم' }))
+
+    expect(screen.getByText('رقم الموبايل غير صحيح')).toBeInTheDocument()
+    expect(mockedCreatePlatformAdmin).not.toHaveBeenCalled()
+  })
+
   it('maps duplicate username field errors to Arabic', async () => {
     const testUser = userEvent.setup()
 

@@ -78,9 +78,29 @@ describe('api error helpers', () => {
     ['NEXT_RECURRING_SLOT_UNAVAILABLE', 'الموعد الأسبوع القادم مش متاح. تقدر تكمل الحجز وتوقف التكرار.'],
     ['SELF_SETTLEMENT_APPROVAL_FORBIDDEN', 'مينفعش تسوي عهدتك بنفسك.'],
     ['NO_UNSETTLED_TRANSACTIONS', 'مفيش مبلغ للموظف ده دلوقتي.'],
+    ['PAYMENT_REFERENCE_REQUIRED', 'مرجع الدفع مطلوب لهذا الملعب.'],
   ])('maps stable code %s without parsing backend message text', (code, message) => {
     expect(
-      getApiErrorMessage(new ApiClientError('English backend message', 409, { code })),
+      getApiErrorMessage(new ApiClientError('Payment reference is required for this court.', 400, { code })),
     ).toBe(message)
+  })
+
+  it('maps PAYMENT_REFERENCE_REQUIRED in fieldErrors when code is VALIDATION_ERROR', () => {
+    const errorWithField = new ApiClientError('Payment reference is required for this court.', 400, {
+      code: 'VALIDATION_ERROR',
+      fieldErrors: {
+        payment_reference: [
+          {
+            code: 'PAYMENT_REFERENCE_REQUIRED',
+            message: 'Payment reference is required for this court.',
+          },
+        ],
+      },
+    })
+
+    expect(getApiErrorMessage(errorWithField)).toBe('مرجع الدفع مطلوب لهذا الملعب.')
+    expect(
+      getFirstFieldErrorMessage(getApiFieldErrors(errorWithField), 'payment_reference'),
+    ).toBe('مرجع الدفع مطلوب لهذا الملعب.')
   })
 })

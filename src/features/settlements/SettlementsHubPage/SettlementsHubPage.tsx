@@ -651,6 +651,9 @@ export function SettlementsHubPage() {
         currentPreview.transaction_count > 0 ? (
           <AppCard className="space-y-4">
             <div>
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                {financeCopy.collector}
+              </p>
               <p className="text-lg font-bold text-[var(--sloty-text-primary)]">
                 {currentPreview.collected_by_name}
               </p>
@@ -686,7 +689,9 @@ export function SettlementsHubPage() {
             ) : null}
             <LinkedTransactions
               count={currentPreview.transaction_count}
-              isExpanded={expandedKey === `preview-${currentPreview.collected_by}`}
+              isExpanded={
+                expandedKey === `preview-${currentPreview.collected_by}`
+              }
               onToggle={() =>
                 setExpandedKey((current) =>
                   current === `preview-${currentPreview.collected_by}`

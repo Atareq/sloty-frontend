@@ -11,7 +11,8 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
-import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
+import { getPhoneValidationMessage } from '../../../shared/copy/phoneValidation'
+import { validatePhoneNumber } from '../../../shared/validation/phone'
 import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
 import { findGovernorateByCode } from '../../locations/egyptLocations.helpers'
 import type { EgyptLocationsResponse } from '../../locations/egyptLocations.types'
@@ -187,11 +188,10 @@ export function ClubFormPage() {
       return
     }
 
-    if (
-      formState.phone_number &&
-      !isValidSlotyPhoneNumber(formState.phone_number)
-    ) {
-      setError('رقم هاتف النادي غير صحيح')
+    const phoneValidation = validatePhoneNumber(formState.phone_number)
+
+    if (!phoneValidation.valid) {
+      setError(getPhoneValidationMessage(phoneValidation.error))
       setFieldErrors(null)
       return
     }
@@ -331,7 +331,7 @@ export function ClubFormPage() {
               <span>رقم الهاتف</span>
               <SlotyPhoneNumberInput
                 error={
-                  error === 'رقم هاتف النادي غير صحيح' ||
+                  error === getPhoneValidationMessage('INVALID_PHONE') ||
                   Boolean(phoneFieldError)
                 }
                 disabled={isSubmitting}

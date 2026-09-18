@@ -9,8 +9,9 @@ import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { PasswordField } from '../../../shared/components/PasswordField/PasswordField'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { settingsCopy } from '../../../shared/copy/appCopy'
+import { getPhoneValidationMessage } from '../../../shared/copy/phoneValidation'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
-import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
+import { validatePhoneNumber } from '../../../shared/validation/phone'
 import {
   getAdminUserErrorMessage,
   getAdminUserFieldErrors,
@@ -56,8 +57,10 @@ function validate(values: FormValues): FormErrors {
     errors.username = 'اسم المستخدم مطلوب'
   }
 
-  if (values.phone_number && !isValidSlotyPhoneNumber(values.phone_number)) {
-    errors.phone_number = 'أدخل رقم هاتف صحيح'
+  const phoneValidation = validatePhoneNumber(values.phone_number)
+
+  if (!phoneValidation.valid) {
+    errors.phone_number = getPhoneValidationMessage(phoneValidation.error)
   }
 
   if (!values.password) {

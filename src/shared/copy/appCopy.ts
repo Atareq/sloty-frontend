@@ -86,6 +86,12 @@ export const recurringCopy = {
 
 export const customerCopy = {
   customerName: 'اسم العميل',
+  customerNameRequired: 'اسم العميل مطلوب',
+  playerName: 'اسم اللاعب',
+  playerNamePlaceholder: 'اختر اسمًا محفوظًا أو اكتب اسمًا جديدًا',
+  lastUsed: 'آخر استخدام',
+  noSavedPlayers: 'مفيش لاعب محفوظ بالبيانات دي',
+  searching: 'جاري البحث...',
   mobileNumber: 'رقم الموبايل',
   /** Server `search` currently covers customer name and phone. Notes are a Backend gap. */
   customerOrMobileSearch: 'اسم العميل أو رقم الموبايل',
@@ -103,7 +109,9 @@ export const financeCopy = {
   amountsNeedingReceipt: 'مبالغ محتاجة استلام',
   previouslyReceived: 'تم استلامها سابقًا',
   allEmployees: 'كل الموظفين',
-  collector: 'الموظف المحصل',
+  /** Collector may be OWNER or STAFF. Never use `الموظف المحصل`. */
+  collector: 'المحصل',
+  collectorRequired: 'تعذر تحديد المحصل لهذه التسوية.',
   financialLedgerLink: 'عرض سجل المعاملات المالية',
   collectedBy: 'حصّلها',
   receivedBy: 'تم الاستلام بواسطة',

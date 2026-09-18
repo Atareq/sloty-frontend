@@ -501,7 +501,7 @@ describe('CourtWorkingHoursSection', () => {
     expect(mockedSaveCourtWorkingHours).not.toHaveBeenCalled()
   })
 
-  it('copies Saturday periods to all days and keeps copied rows independent', async () => {
+  it('copies Saturday periods to all days, keeps copied rows independent, and shows inline completion badge', async () => {
     const user = userEvent.setup()
 
     renderWorkingHoursSection()
@@ -519,6 +519,11 @@ describe('CourtWorkingHoursSection', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'إغلاق كل الأيام' }),
+    ).not.toBeInTheDocument()
+
+    // Badge must not appear before the action is triggered
+    expect(
+      screen.queryByText('تم التطبيق على باقي أيام الأسبوع'),
     ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '+ إضافة فترة جديدة' }))
@@ -542,6 +547,11 @@ describe('CourtWorkingHoursSection', () => {
       expect(mockedSaveCourtWorkingHours).toHaveBeenCalled()
     })
 
+    // Inline completion badge must appear after successful apply
+    expect(
+      screen.getByText('تم التطبيق على باقي أيام الأسبوع'),
+    ).toBeInTheDocument()
+
     await chooseAppSelectOption(user, screen.getByLabelText('اليوم'), 'الأحد')
     expect(screen.getByLabelText('فترة العمل 1 من')).toHaveValue('10:00')
     expect(screen.getByLabelText('فترة العمل 2 السعر')).toHaveValue(400)
@@ -550,6 +560,11 @@ describe('CourtWorkingHoursSection', () => {
       target: { value: '450' },
     })
     expect(screen.getByLabelText('فترة العمل 2 السعر')).toHaveValue(450)
+
+    // Badge must disappear after any edit
+    expect(
+      screen.queryByText('تم التطبيق على باقي أيام الأسبوع'),
+    ).not.toBeInTheDocument()
 
     await chooseAppSelectOption(user, screen.getByLabelText('اليوم'), 'السبت')
     expect(screen.getByLabelText('فترة العمل 2 السعر')).toHaveValue(400)

@@ -117,7 +117,7 @@ describe('SettlementDetailPage', () => {
   it('renders collected-by settlement detail with display-only backend period', async () => {
     renderPage()
 
-    expect(await screen.findByText('الموظف')).toBeInTheDocument()
+    expect(await screen.findByText('المحصل')).toBeInTheDocument()
     expect(screen.getAllByText('Ahmed Staff')).not.toHaveLength(0)
     expect(screen.getByText('2,000.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('Shift settlement')).toBeInTheDocument()
