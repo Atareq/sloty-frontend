@@ -1787,7 +1787,10 @@ describe('SchedulePage', () => {
     await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
     expect(screen.getByText('السعر 350.00 جنيه')).toBeInTheDocument()
 
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -2073,7 +2076,10 @@ describe('SchedulePage', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -2112,7 +2118,10 @@ describe('SchedulePage', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
-    await user.type(screen.getByLabelText('اسم العميل'), 'عميل جديد')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'عميل جديد',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -2146,7 +2155,10 @@ describe('SchedulePage', () => {
     await user.click(
       screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
     )
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -2206,7 +2218,10 @@ describe('SchedulePage', () => {
     await user.click(
       screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
     )
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
@@ -2238,7 +2253,10 @@ describe('SchedulePage', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
-    await user.type(screen.getByLabelText('اسم العميل'), 'أحمد علي')
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
     await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 

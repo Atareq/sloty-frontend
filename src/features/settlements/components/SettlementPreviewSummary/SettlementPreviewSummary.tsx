@@ -25,7 +25,7 @@ export function SettlementPreviewSummary({
       <dl className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-3">
           <dt className="text-xs font-bold text-[var(--sloty-text-muted)]">
-            {mode === 'staff' ? 'الموظف' : 'الموظف المحصل'}
+            {mode === 'staff' ? 'الموظف' : 'المحصل'}
           </dt>
           <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
             {preview.collected_by_name}

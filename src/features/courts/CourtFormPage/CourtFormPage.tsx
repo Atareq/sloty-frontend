@@ -299,19 +299,22 @@ export function CourtFormPage() {
           </p>
         ) : (
           <form className="grid gap-4 lg:grid-cols-2" onSubmit={handleSubmit}>
-            <label className="space-y-2 text-sm font-semibold">
-              <span>اسم الملعب</span>
-              <input
-                className={inputClass}
-                onChange={(event) => updateField('name', event.target.value)}
-                value={formState.name}
-              />
-            </label>
-            {nameFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {nameFieldError}
-              </p>
-            ) : null}
+            {/* اسم الملعب */}
+            <div>
+              <label className="space-y-2 text-sm font-semibold">
+                <span>اسم الملعب</span>
+                <input
+                  className={inputClass}
+                  onChange={(event) => updateField('name', event.target.value)}
+                  value={formState.name}
+                />
+              </label>
+              {nameFieldError ? (
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                  {nameFieldError}
+                </p>
+              ) : null}
+            </div>
 
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">
@@ -352,99 +355,114 @@ export function CourtFormPage() {
 
             </fieldset>
 
-            <label className="space-y-2 text-sm font-semibold">
-              <span>الحد الأدنى للعربون</span>
-              <input
-                className={inputClass}
-                inputMode="decimal"
-                onChange={(event) =>
-                  updateField('minimum_deposit', event.target.value)
-                }
-                value={formState.minimum_deposit}
-              />
-              <span className="block text-xs font-normal text-gray-500">
-                أقل عربون مطلوب لتأكيد الحجز.
-              </span>
-            </label>
-            {minimumDepositFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {minimumDepositFieldError}
-              </p>
-            ) : null}
-
-            <label className="space-y-2 text-sm font-semibold">
-              <span>سياسة استرداد التأمين</span>
-              <div className="flex items-center gap-2">
+            {/* الحد الأدنى للعربون — zero is a valid business value */}
+            <div>
+              <label className="space-y-2 text-sm font-semibold">
+                <span>الحد الأدنى للعربون</span>
                 <input
                   className={inputClass}
-                  inputMode="numeric"
-                  max="30"
+                  inputMode="decimal"
                   min="0"
                   onChange={(event) =>
-                    updateField(
-                      'cancellation_refund_notice_days',
-                      event.target.value,
-                    )
+                    updateField('minimum_deposit', event.target.value)
                   }
-                  placeholder="عدد الأيام"
                   type="number"
-                  value={formState.cancellation_refund_notice_days}
+                  value={formState.minimum_deposit}
                 />
-                <span className="shrink-0 text-sm font-bold text-gray-500">
-                  أيام
+                <span className="block text-xs font-normal text-gray-500">
+                  أقل عربون مطلوب لتأكيد الحجز.
                 </span>
-              </div>
-              <span className="block text-xs font-normal text-gray-500">
-                {formState.cancellation_refund_notice_days.trim()
-                  ? `يسترد العميل التأمين عند الإلغاء قبل الموعد بـ ${formState.cancellation_refund_notice_days.trim()} أيام`
-                  : 'يسترد العميل التأمين عند الإلغاء قبل الموعد بـ... أيام'}
-              </span>
-              <span className="block text-xs font-normal text-gray-500">
-                اتركها فارغة لو مفيش مهلة محددة.
-              </span>
-            </label>
-            {cancellationRefundNoticeFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {cancellationRefundNoticeFieldError}
-              </p>
-            ) : null}
+              </label>
+              {minimumDepositFieldError ? (
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                  {minimumDepositFieldError}
+                </p>
+              ) : null}
+            </div>
 
-            <label className="block space-y-2">
-              <AppSelect
-                label="مدة الفترة الواحدة"
-                onChange={(value) => updateField('slot_duration_minutes', value)}
-                options={slotDurationOptions}
-                value={formState.slot_duration_minutes}
-              />
+            {/* سياسة استرداد التأمين */}
+            <div>
+              <label className="space-y-2 text-sm font-semibold">
+                <span>سياسة استرداد التأمين</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    className={inputClass}
+                    inputMode="numeric"
+                    max="30"
+                    min="0"
+                    onChange={(event) =>
+                      updateField(
+                        'cancellation_refund_notice_days',
+                        event.target.value,
+                      )
+                    }
+                    placeholder="عدد الأيام"
+                    type="number"
+                    value={formState.cancellation_refund_notice_days}
+                  />
+                  <span className="shrink-0 text-sm font-bold text-gray-500">
+                    أيام
+                  </span>
+                </div>
+                <span className="block text-xs font-normal text-gray-500">
+                  {formState.cancellation_refund_notice_days.trim()
+                    ? `يسترد العميل التأمين عند الإلغاء قبل الموعد بـ ${formState.cancellation_refund_notice_days.trim()} أيام`
+                    : 'يسترد العميل التأمين عند الإلغاء قبل الموعد بـ... أيام'}
+                </span>
+                <span className="block text-xs font-normal text-gray-500">
+                  اتركها فارغة لو مفيش مهلة محددة.
+                </span>
+              </label>
+              {cancellationRefundNoticeFieldError ? (
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                  {cancellationRefundNoticeFieldError}
+                </p>
+              ) : null}
+            </div>
 
-              <span className="block text-xs font-normal text-gray-500">
-                يتم حفظ مدة الفترة ولا يمكن تغييرها بعد ذلك.
-              </span>
-            </label>
-            {slotDurationFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {slotDurationFieldError}
-              </p>
-            ) : null}
-            <label className="block space-y-2">
-              <AppSelect
-                label="مدة انتظار الحجز بدون العربون"
-                onChange={(value) =>
-                  updateField('internal_hold_expiry_hours', value)
-                }
-                options={holdExpiryOptions}
-                value={formState.internal_hold_expiry_hours}
-              />
+            {/* مدة الفترة الواحدة */}
+            <div>
+              <label className="block space-y-2">
+                <AppSelect
+                  label="مدة الفترة الواحدة"
+                  onChange={(value) => updateField('slot_duration_minutes', value)}
+                  options={slotDurationOptions}
+                  value={formState.slot_duration_minutes}
+                />
 
-              <span className="block text-xs font-normal text-gray-500">
-                لو العربون متدفعش خلال المدة دي، الحجز هيتلغي تلقائيًا.
-              </span>
-            </label>
-            {holdExpiryFieldError ? (
-              <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {holdExpiryFieldError}
-              </p>
-            ) : null}
+                <span className="block text-xs font-normal text-gray-500">
+                  يتم حفظ مدة الفترة ولا يمكن تغييرها بعد ذلك.
+                </span>
+              </label>
+              {slotDurationFieldError ? (
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                  {slotDurationFieldError}
+                </p>
+              ) : null}
+            </div>
+
+            {/* مدة انتظار الحجز بدون العربون */}
+            <div>
+              <label className="block space-y-2">
+                <AppSelect
+                  label="مدة انتظار الحجز بدون العربون"
+                  onChange={(value) =>
+                    updateField('internal_hold_expiry_hours', value)
+                  }
+                  options={holdExpiryOptions}
+                  value={formState.internal_hold_expiry_hours}
+                />
+
+                <span className="block text-xs font-normal text-gray-500">
+                  لو العربون متدفعش خلال المدة دي، الحجز هيتلغي تلقائيًا.
+                </span>
+              </label>
+              {holdExpiryFieldError ? (
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                  {holdExpiryFieldError}
+                </p>
+              ) : null}
+            </div>
 
             <label className="flex items-center gap-3 text-sm font-semibold">
               <input
@@ -498,6 +516,7 @@ export function CourtFormPage() {
               </AppButton>
             </div>
           </form>
+
         )}
       </AppCard>
 

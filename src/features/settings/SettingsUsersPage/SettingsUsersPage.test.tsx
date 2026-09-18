@@ -302,6 +302,34 @@ describe('SettingsUsersPage', () => {
     })
   })
 
+  it('validates optional staff phone numbers with the shared message', async () => {
+    const user = userEvent.setup()
+
+    renderUsersPage()
+
+    await screen.findByText('أحمد علي')
+    await user.click(screen.getByRole('button', { name: 'إضافة موظف' }))
+
+    await user.type(screen.getByPlaceholderText('الاسم الأول'), 'علي')
+    await user.type(screen.getByPlaceholderText('اسم المستخدم للدخول'), 'new-staff')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'Pass1')
+    await user.type(screen.getByLabelText('تأكيد كلمة المرور'), 'Pass1')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012')
+
+    await user.click(screen.getByRole('button', { name: 'إضافة الموظف' }))
+
+    expect(await screen.findByText('رقم الموبايل غير صحيح')).toBeInTheDocument()
+    expect(mockedCreateClubStaff).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'إلغاء' }))
+    await user.click(screen.getByRole('button', { name: 'اخرج من غير حفظ' }))
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('heading', { name: 'إضافة موظف جديد' }),
+      ).not.toBeInTheDocument()
+    })
+  })
+
   it('prompts for unsaved changes when closing add staff sheet with dirty inputs', async () => {
     const user = userEvent.setup()
 

@@ -21,6 +21,8 @@ const paymentMethods: SettlementPaymentMethod[] = [
 ]
 
 interface CurrentCustodyDisplayRecord extends CurrentCustodyRecord {
+  user?: number
+  user_name?: string
   can_approve?: boolean
   is_self?: boolean
 }
@@ -169,11 +171,19 @@ export function CurrentCustodySection({
           }
         >
           {records.map((record) => (
-            <AppCard className="space-y-4" key={record.collected_by}>
-              {mode === 'management' ? (
-                <p className="text-base font-black text-[var(--sloty-text-primary)]">
-                  {record.collected_by_name}
-                </p>
+            <AppCard
+              className="space-y-4"
+              key={record.user ?? 'own-custody'}
+            >
+              {mode === 'management' && record.user_name ? (
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                    المحصل
+                  </p>
+                  <p className="text-base font-black text-[var(--sloty-text-primary)]">
+                    {record.user_name}
+                  </p>
+                </div>
               ) : null}
 
               <CurrentCustodyValue record={record} />
@@ -186,11 +196,11 @@ export function CurrentCustodySection({
                 totals={record.totals_by_payment_method}
               />
 
-              {mode === 'management' && record.can_approve ? (
+              {mode === 'management' && record.can_approve && record.user !== undefined ? (
                 <Link
                   className="sloty-green-surface-button inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--sloty-primary-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)] focus:ring-offset-2"
                   to={buildPathWithQuery('/settlements/preview', {
-                    collected_by: record.collected_by,
+                    collected_by: record.user,
                     court,
                   })}
                 >

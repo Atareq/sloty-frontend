@@ -27,7 +27,6 @@ export function ConfirmSettlementDialog({
   onClose,
   onConfirm,
   onNotesChange,
-  totalAmount,
   transactionCount,
 }: ConfirmSettlementDialogProps) {
   return (
@@ -50,7 +49,6 @@ export function ConfirmSettlementDialog({
               {financeCopy.confirmReceiveAmount}
             </h2>
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
-              هل تؤكد استلام {formatMoneyAmount(totalAmount)} من{' '}
               هل تؤكد استلام {formatMoneyAmount(netAmount)} من{' '}
               {collectorName}؟
             </p>

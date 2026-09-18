@@ -164,28 +164,30 @@ export function PricingPeriodsEditor({
                   />
                 </label>
 
-                <label className="block space-y-1.5 text-xs font-bold text-[var(--sloty-text-muted)]">
-                  <span className="flex items-center gap-1.5 text-[var(--sloty-text-primary)]">
-                    <Clock className="h-3.5 w-3.5 text-[var(--sloty-text-muted)]" />
-                    <span>إلى</span>
-                  </span>
-                  <input
-                    aria-label={`فترة العمل ${index + 1} إلى`}
-                    className={inputClass}
-                    disabled={disabled}
-                    id={`working-hours-period-${period.localId}-ends`}
-                    onChange={(event) =>
-                      onUpdate(period.localId, { ends_at: event.target.value })
-                    }
-                    type="time"
-                    value={period.ends_at}
-                  />
-                  {normalizeTimeString(period.ends_at) === '00:00' ? (
-                    <span className="block text-[11px] font-normal text-[var(--sloty-text-muted)]">
-                      00:00 تعني نهاية اليوم
+                <div>
+                  <label className="block space-y-1.5 text-xs font-bold text-[var(--sloty-text-muted)]">
+                    <span className="flex items-center gap-1.5 text-[var(--sloty-text-primary)]">
+                      <Clock className="h-3.5 w-3.5 text-[var(--sloty-text-muted)]" />
+                      <span>إلى</span>
                     </span>
+                    <input
+                      aria-label={`فترة العمل ${index + 1} إلى`}
+                      className={inputClass}
+                      disabled={disabled}
+                      id={`working-hours-period-${period.localId}-ends`}
+                      onChange={(event) =>
+                        onUpdate(period.localId, { ends_at: event.target.value })
+                      }
+                      type="time"
+                      value={period.ends_at}
+                    />
+                  </label>
+                  {normalizeTimeString(period.ends_at) === '00:00' ? (
+                    <p className="mt-1 text-[11px] font-normal text-[var(--sloty-text-muted)]">
+                      00:00 تعني نهاية اليوم
+                    </p>
                   ) : null}
-                </label>
+                </div>
 
                 <label className="block space-y-1.5 text-xs font-bold text-[var(--sloty-text-muted)]">
                   <span className="flex items-center gap-1.5 text-[var(--sloty-text-primary)]">

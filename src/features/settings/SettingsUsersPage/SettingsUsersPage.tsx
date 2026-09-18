@@ -20,6 +20,7 @@ import { LiveSearchField } from '../../../shared/components/LiveSearchField/Live
 import { PasswordField } from '../../../shared/components/PasswordField/PasswordField'
 import { ResultRefreshRegion } from '../../../shared/components/ResultRefreshRegion/ResultRefreshRegion'
 import { settingsCopy } from '../../../shared/copy/appCopy'
+import { getPhoneValidationMessage } from '../../../shared/copy/phoneValidation'
 import { useRequestGeneration } from '../../../shared/hooks/useRequestGeneration'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import {
@@ -27,7 +28,7 @@ import {
   type QueryParamValue,
 } from '../../../shared/utils/buildPathWithQuery'
 import { toQueryObject } from '../../../shared/utils/queryParams'
-import { isValidSlotyPhoneNumber } from '../../../shared/validation/phone'
+import { validatePhoneNumber } from '../../../shared/validation/phone'
 import {
   createClubStaff,
   listClubUsers,
@@ -155,8 +156,10 @@ function validateAddStaffForm(values: AddStaffFormState): AddStaffFieldErrors {
     errors.confirm_password = settingsCopy.passwordMismatch
   }
 
-  if (values.phone_number && !isValidSlotyPhoneNumber(values.phone_number)) {
-    errors.phone_number = 'أدخل رقم هاتف صحيح'
+  const phoneValidation = validatePhoneNumber(values.phone_number)
+
+  if (!phoneValidation.valid) {
+    errors.phone_number = getPhoneValidationMessage(phoneValidation.error)
   }
 
   return errors

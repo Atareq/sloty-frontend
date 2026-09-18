@@ -686,7 +686,9 @@ export function SettlementsHubPage() {
             ) : null}
             <LinkedTransactions
               count={currentPreview.transaction_count}
-              isExpanded={expandedKey === `preview-${currentPreview.collected_by}`}
+              isExpanded={
+                expandedKey === `preview-${currentPreview.collected_by}`
+              }
               onToggle={() =>
                 setExpandedKey((current) =>
                   current === `preview-${currentPreview.collected_by}`

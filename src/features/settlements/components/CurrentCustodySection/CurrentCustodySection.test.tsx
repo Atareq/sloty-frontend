@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest'
 import { CurrentCustodySection } from './CurrentCustodySection'
 
 const baseRecord = {
-  collected_by: 15,
-  collected_by_name: 'محمد أحمد',
+  user: 3,
+  user_name: 'Owner Tarek',
   transaction_count: 3,
   net_amount: '700.00',
   totals_by_payment_method: {
@@ -31,6 +31,8 @@ describe('CurrentCustodySection', () => {
   it('shows Backend net amount and payment-method breakdown without recalculating totals', () => {
     renderSection([baseRecord])
 
+    expect(screen.getByText('المحصل')).toBeInTheDocument()
+    expect(screen.getByText('Owner Tarek')).toBeInTheDocument()
     expect(
       screen.getByText('المبلغ المستحق للتسليم: 700.00 ج.م'),
     ).toBeInTheDocument()
@@ -39,6 +41,30 @@ describe('CurrentCustodySection', () => {
     expect(screen.getByText('400.00 ج.م')).toBeInTheDocument()
     expect(screen.getByText('محفظة إلكترونية')).toBeInTheDocument()
     expect(screen.getByText('300.00 ج.م')).toBeInTheDocument()
+  })
+
+  it('renders collector name using user_name under label المحصل and links preview with user ID', () => {
+    renderSection([
+      {
+        user: 3,
+        user_name: 'Owner Tarek',
+        transaction_count: 2,
+        net_amount: '400.00',
+        totals_by_payment_method: {
+          CASH: '400.00',
+        },
+        can_approve: true,
+        is_self: true,
+      },
+    ])
+
+    expect(screen.getByText('المحصل')).toBeInTheDocument()
+    expect(screen.getByText('Owner Tarek')).toBeInTheDocument()
+    const receiveLink = screen.getByRole('link', { name: 'استلام المبلغ' })
+    expect(receiveLink).toHaveAttribute(
+      'href',
+      '/settlements/preview?collected_by=3',
+    )
   })
 
   it('keeps a zero-net employee visible when transactions exist', () => {
@@ -53,7 +79,7 @@ describe('CurrentCustodySection', () => {
       },
     ])
 
-    expect(screen.getByText('محمد أحمد')).toBeInTheDocument()
+    expect(screen.getByText('Owner Tarek')).toBeInTheDocument()
     expect(
       screen.getByText('صافي المبلغ المستحق حاليًا: 0 ج.م'),
     ).toBeInTheDocument()
@@ -73,7 +99,7 @@ describe('CurrentCustodySection', () => {
       },
     ])
 
-    expect(screen.getByText('محمد أحمد')).toBeInTheDocument()
+    expect(screen.getByText('Owner Tarek')).toBeInTheDocument()
     const negativeTotal = screen
       .getAllByText('-200.00 ج.م')
       .find((element) => element.getAttribute('data-custody-state') === 'negative')

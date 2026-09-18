@@ -1248,6 +1248,7 @@ export function SchedulePage() {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
+        ...(values.club_player_id ? { club_player_id: values.club_player_id } : {}),
         start_time: startTime,
         end_time: endTime,
         is_recurring: values.is_recurring,
@@ -2556,6 +2557,7 @@ export function SchedulePage() {
       selectedCourt ? (
         <AddBookingSheet
           canStartRecurring={selectedSlot.canStartRecurring}
+          clubSlug={selectedClubSlug}
           courtName={selectedCourt.name}
           dateLabel={selectedDateLabel}
           endTime={selectedSlot.endTime}

@@ -6,9 +6,11 @@ import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
 import { SlotyPhoneNumberInput } from '../../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { customerCopy } from '../../../../shared/copy/appCopy'
+import { getPhoneValidationMessage } from '../../../../shared/copy/phoneValidation'
 import {
   getCountryFromPhoneNumber,
   normalizeSlotyPhoneNumber,
+  validatePhoneNumber,
 } from '../../../../shared/validation/phone'
 import type { BookingIntentRecord } from '../../../../offline/offline.types'
 
@@ -66,20 +68,29 @@ export function BookingRequestCustomerEditSheet({
 
     const trimmedName = customerName.trim()
     const trimmedNotes = notes.trim()
-    const trimmedPhone = customerPhone.trim()
+    const phoneValidation = validatePhoneNumber(
+      customerPhone,
+      selectedCountry,
+      { required: true },
+    )
 
-    if (!trimmedName || !trimmedPhone) {
-      setValidationError('اسم العميل ورقم الموبايل مطلوبان')
+    if (!trimmedName) {
+      setValidationError(customerCopy.customerNameRequired)
+      return
+    }
+
+    if (!phoneValidation.valid) {
+      setValidationError(getPhoneValidationMessage(phoneValidation.error))
       return
     }
 
     const normalizedPhone = normalizeSlotyPhoneNumber(
-      trimmedPhone,
+      customerPhone,
       selectedCountry,
     )
 
     if (!normalizedPhone) {
-      setValidationError('رقم الموبايل غير صحيح')
+      setValidationError(getPhoneValidationMessage('INVALID_PHONE'))
       return
     }
 
@@ -106,6 +117,21 @@ export function BookingRequestCustomerEditSheet({
           </div>
 
           <div className="mt-5 space-y-4">
+            <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
+              <span>{customerCopy.mobileNumber}</span>
+              <SlotyPhoneNumberInput
+                country={selectedCountry}
+                disabled={isSubmitting}
+                error={
+                  validationError === getPhoneValidationMessage('INVALID_PHONE')
+                }
+                onChange={setCustomerPhone}
+                onCountryChange={setSelectedCountry}
+                raw
+                value={customerPhone}
+              />
+            </div>
+
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>{customerCopy.customerName}</span>
               <input
@@ -115,19 +141,6 @@ export function BookingRequestCustomerEditSheet({
                 value={customerName}
               />
             </label>
-
-            <div className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-              <span>{customerCopy.mobileNumber}</span>
-              <SlotyPhoneNumberInput
-                country={selectedCountry}
-                disabled={isSubmitting}
-                error={validationError === 'رقم الموبايل غير صحيح'}
-                onChange={setCustomerPhone}
-                onCountryChange={setSelectedCountry}
-                raw
-                value={customerPhone}
-              />
-            </div>
 
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>ملاحظات</span>

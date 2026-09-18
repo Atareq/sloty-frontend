@@ -146,14 +146,14 @@ describe('SettlementPreviewPage', () => {
   it('loads Backend own-preview when collected_by is omitted', async () => {
     renderPage('/settlements/preview')
 
-    expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
+    expect(await screen.findByText('المحصل')).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {})
   })
 
   it('persists a successful Backend preview as the current-custody snapshot', async () => {
     renderPage('/settlements/preview?collected_by=15')
 
-    expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
+    expect(await screen.findByText('المحصل')).toBeInTheDocument()
     expect(mockedOfflineRepositories.replaceCurrentCustodySnapshot)
       .toHaveBeenCalledWith(
         { userId: 1, clubSlug: 'nasr-club' },
@@ -221,7 +221,7 @@ describe('SettlementPreviewPage', () => {
   it('loads preview from URL params and renders review sections without court scoping', async () => {
     renderPage('/settlements/preview?collected_by=15')
 
-    expect(await screen.findByText('الموظف المحصل')).toBeInTheDocument()
+    expect(await screen.findByText('المحصل')).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
       collected_by: '15',
     })
@@ -651,5 +651,78 @@ describe('SettlementPreviewPage', () => {
     ).toBeInTheDocument()
     expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
     expect(mockedCreateSettlement).toHaveBeenCalledTimes(1)
+  })
+
+  it('confirms settlement using preview.collected_by when collected_by is omitted from query', async () => {
+    const user = userEvent.setup()
+    mockedGetSettlementPreview.mockResolvedValueOnce({
+      club: 1,
+      collected_by: 3,
+      collected_by_name: 'Owner Tarek',
+      court: 3,
+      court_name: 'ملعب 3',
+      is_self_preview: false,
+      can_approve: true,
+      approval_required: false,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
+      transaction_count: 2,
+      total_amount: '400.00',
+      booking_payments: '400.00',
+      booking_refunds: '0.00',
+      net_amount: '400.00',
+      totals_by_payment_method: {
+        CASH: '400.00',
+      },
+      transactions: [],
+    })
+
+    renderPage('/settlements/preview')
+
+    expect(await screen.findByText('Owner Tarek')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText(/Owner Tarek/)).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام المبلغ' })[1])
+
+    expect(mockedCreateSettlement).toHaveBeenCalledWith('nasr-club', {
+      collected_by: 3,
+    })
+  })
+
+  it('shows graceful error when collector user ID is completely missing or invalid', async () => {
+    const user = userEvent.setup()
+    mockedGetSettlementPreview.mockResolvedValueOnce({
+      club: 1,
+      collected_by: undefined as never,
+      collected_by_name: 'Unknown Collector',
+      court: 3,
+      court_name: 'ملعب 3',
+      is_self_preview: false,
+      can_approve: true,
+      approval_required: false,
+      period_start: '2026-07-21T10:00:00Z',
+      period_end: '2026-07-21T11:00:00Z',
+      transaction_count: 2,
+      total_amount: '400.00',
+      booking_payments: '400.00',
+      booking_refunds: '0.00',
+      net_amount: '400.00',
+      totals_by_payment_method: {
+        CASH: '400.00',
+      },
+      transactions: [],
+    })
+
+    renderPage('/settlements/preview')
+
+    await user.click(await screen.findByRole('button', { name: 'تأكيد استلام المبلغ' }))
+    await user.click(screen.getAllByRole('button', { name: 'تأكيد استلام المبلغ' })[1])
+
+    expect(
+      await screen.findByText('تعذر تحديد المحصل لهذه التسوية.'),
+    ).toBeInTheDocument()
+    expect(mockedCreateSettlement).not.toHaveBeenCalled()
   })
 })

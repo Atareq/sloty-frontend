@@ -23,6 +23,7 @@ const productErrorMessages: Readonly<Record<string, string>> = {
   NO_UNSETTLED_TRANSACTIONS:
     'مفيش مبلغ للموظف ده دلوقتي.',
   SETTLEMENT_CONFLICT: 'المبلغ اتغير. راجع آخر حالة وحاول مرة تانية.',
+  PAYMENT_REFERENCE_REQUIRED: 'مرجع الدفع مطلوب لهذا الملعب.',
 }
 
 function isSafeMessage(message: string | undefined): message is string {
@@ -35,6 +36,10 @@ function isSafeMessage(message: string | undefined): message is string {
   return !blockedMessages.has(trimmedMessage)
 }
 
+export const PAYMENT_REFERENCE_REQUIRED_CODE = 'PAYMENT_REFERENCE_REQUIRED'
+export const PAYMENT_REFERENCE_REQUIRED_MESSAGE =
+  productErrorMessages[PAYMENT_REFERENCE_REQUIRED_CODE]
+
 export function isApiClientError(error: unknown): error is ApiClientError {
   return error instanceof ApiClientError
 }
@@ -43,11 +48,23 @@ export function getApiErrorMessage(
   error: unknown,
   fallback = DEFAULT_API_ERROR_MESSAGE,
 ): string {
-  if (isApiClientError(error) && error.code) {
-    const productMessage = productErrorMessages[error.code]
+  if (isApiClientError(error)) {
+    if (error.code) {
+      const productMessage = productErrorMessages[error.code]
 
-    if (productMessage) {
-      return productMessage
+      if (productMessage) {
+        return productMessage
+      }
+    }
+
+    if (error.fieldErrors) {
+      for (const fieldErrors of Object.values(error.fieldErrors)) {
+        for (const fieldError of fieldErrors) {
+          if (fieldError.code && productErrorMessages[fieldError.code]) {
+            return productErrorMessages[fieldError.code]
+          }
+        }
+      }
     }
   }
 
@@ -88,7 +105,17 @@ export function getFirstFieldErrorMessage(
   fieldErrors: Record<string, ApiFieldError[]> | null,
   fieldName: string,
 ): string | null {
-  const message = fieldErrors?.[fieldName]?.[0]?.message
+  const fieldError = fieldErrors?.[fieldName]?.[0]
+
+  if (!fieldError) {
+    return null
+  }
+
+  if (fieldError.code && productErrorMessages[fieldError.code]) {
+    return productErrorMessages[fieldError.code]
+  }
+
+  const message = fieldError.message
 
   return isSafeMessage(message) ? message.trim() : null
 }

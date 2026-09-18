@@ -221,7 +221,7 @@ export function SettlementPreviewPage() {
     )
 
     if (collectedBy === null) {
-      setConfirmError('تعذر تحديد الموظف المحصل لهذه التسوية.')
+      setConfirmError(financeCopy.collectorRequired)
       return
     }
 

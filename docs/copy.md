@@ -149,6 +149,12 @@ Tone: **مصري بسيط ومحترف** (Simple, professional Egyptian Arabic).
 - **Mobile Number:** `رقم الموبايل`
 - **Phone Placeholder:** `01X XXX XXXX` (display as muted placeholder text, never default input value)
 - **Search Placeholder:** `اسم العميل أو رقم الموبايل`
+- **Phone required (ar):** `رقم الموبايل مطلوب`
+- **Phone invalid (ar):** `رقم الموبايل غير صحيح`
+- **Phone required (en):** `Mobile number is required`
+- **Phone invalid (en):** `Enter a valid mobile number`
+
+Phone validation copy is resolved from `src/shared/copy/phoneValidation.ts` using the document language. Do not hardcode these strings in feature forms.
 
 ---
 
