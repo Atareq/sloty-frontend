@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  clearAuthTokens,
   getAccessToken,
   getRefreshToken,
   markSessionExpiredNotice,
@@ -7,18 +8,21 @@ import {
 } from '../auth/authStorage'
 import {
   apiRequest,
+  invalidateAuthSession,
   resetSilentRefreshForTests,
   SESSION_EXPIRED_MESSAGE,
   subscribeSessionExpired,
 } from './apiClient'
 
 vi.mock('../auth/authStorage', () => ({
+  clearAuthTokens: vi.fn(),
   getAccessToken: vi.fn(() => null),
   getRefreshToken: vi.fn(() => null),
   setAccessToken: vi.fn(),
   markSessionExpiredNotice: vi.fn(),
 }))
 
+const mockedClearAuthTokens = vi.mocked(clearAuthTokens)
 const mockedGetAccessToken = vi.mocked(getAccessToken)
 const mockedGetRefreshToken = vi.mocked(getRefreshToken)
 const mockedSetAccessToken = vi.mocked(setAccessToken)
@@ -84,6 +88,7 @@ describe('apiRequest', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
     resetSilentRefreshForTests()
+    mockedClearAuthTokens.mockReset()
     mockedGetAccessToken.mockReturnValue(null)
     mockedGetRefreshToken.mockReturnValue(null)
     mockedSetAccessToken.mockReset()
@@ -104,29 +109,38 @@ describe('apiRequest', () => {
     await apiRequest('/ping', {
       headers: {
         'Accept-Language': 'en',
-        'X-Trace-Id': 'trace-1',
+        'X-Client-Trace': 'trace-123',
       },
     })
 
     const headers = getRequestHeaders()
 
     expect(headers.get('Accept-Language')).toBe('en')
-    expect(headers.get('X-Trace-Id')).toBe('trace-1')
+    expect(headers.get('X-Client-Trace')).toBe('trace-123')
   })
 
-  it('adds authorization and content type when needed', async () => {
-    mockedGetAccessToken.mockReturnValue('access-token')
+  it('serializes JSON bodies with the application/json header', async () => {
     mockFetch(Response.json({ ok: true }))
 
     await apiRequest('/ping', {
       method: 'POST',
-      body: { name: 'Sloty' },
+      body: { name: 'sloty' },
     })
 
-    const headers = getRequestHeaders()
+    expect(getRequestHeaders().get('Content-Type')).toBe('application/json')
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ name: 'sloty' }),
+    )
+  })
 
-    expect(headers.get('Authorization')).toBe('Bearer access-token')
-    expect(headers.get('Content-Type')).toBe('application/json')
+  it('attaches the Bearer token when an access token is stored', async () => {
+    const token = createAccessToken(3600)
+    mockedGetAccessToken.mockReturnValue(token)
+    mockFetch(Response.json({ ok: true }))
+
+    await apiRequest('/secure')
+
+    expect(getRequestHeaders().get('Authorization')).toBe(`Bearer ${token}`)
   })
 
   it('creates ApiClientError from backend JSON error details', async () => {
@@ -225,7 +239,7 @@ describe('apiRequest', () => {
     await expect(apiRequest('/empty')).resolves.toBeUndefined()
   })
 
-  it('refreshes once after 401 and retries the original request', async () => {
+  it('refreshes once after 401 SESSION_EXPIRED and retries the original request', async () => {
     const currentAccess = createAccessToken(3600, { jti: 'current' })
     const nextAccess = createAccessToken(3600, { jti: 'next' })
     mockedGetAccessToken.mockReturnValue(currentAccess)
@@ -237,7 +251,12 @@ describe('apiRequest', () => {
       'fetch',
       vi
         .fn()
-        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+            { status: 401 },
+          ),
+        )
         .mockResolvedValueOnce(Response.json({ access: nextAccess }))
         .mockResolvedValueOnce(Response.json({ ok: true })),
     )
@@ -275,31 +294,79 @@ describe('apiRequest', () => {
           return Response.json({ ok: true })
         }
 
-        return new Response('unauthorized', { status: 401 })
+        return Response.json(
+          { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+          { status: 401 },
+        )
       },
     )
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock)
 
     try {
-      const [first, second] = await Promise.all([
+      const results = await Promise.all([
         apiRequest<{ ok: boolean }>('/one'),
         apiRequest<{ ok: boolean }>('/two'),
+        apiRequest<{ ok: boolean }>('/three'),
+        apiRequest<{ ok: boolean }>('/four'),
+        apiRequest<{ ok: boolean }>('/five'),
       ])
 
-      expect(first).toEqual({ ok: true })
-      expect(second).toEqual({ ok: true })
+      results.forEach((res) => expect(res).toEqual({ ok: true }))
       expect(refreshCalls).toBe(1)
-      expect(
-        fetchMock.mock.calls.filter(([input]) =>
-          getFetchUrl(input as RequestInfo | URL).includes('token/refresh'),
-        ),
-      ).toHaveLength(1)
       expect(mockedSetAccessToken).toHaveBeenCalledWith(nextAccess)
       expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
     } finally {
       fetchSpy.mockRestore()
     }
+  })
+
+  it('awaits in-flight refresh for requests arriving during refresh and uses new token', async () => {
+    const nextAccess = createAccessToken(3600, { jti: 'next' })
+    mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    mockedSetAccessToken.mockImplementation((token: string) => {
+      mockedGetAccessToken.mockReturnValue(token)
+    })
+
+    let resolveRefresh: (res: Response) => void = () => {}
+    const refreshPromise = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve
+    })
+
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = getFetchUrl(input)
+        if (url.includes('token/refresh')) {
+          return refreshPromise
+        }
+        const auth = new Headers(init?.headers).get('Authorization')
+        if (auth === `Bearer ${nextAccess}`) {
+          return Response.json({ ok: true, path: url })
+        }
+        return Response.json(
+          { success: false, code: 'SESSION_EXPIRED' },
+          { status: 401 },
+        )
+      },
+    )
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const req1 = apiRequest('/one')
+    await Promise.resolve()
+    const req2 = apiRequest('/two')
+
+    resolveRefresh(Response.json({ access: nextAccess }))
+
+    const [res1, res2] = await Promise.all([req1, req2])
+    expect(res1).toEqual({ ok: true, path: expect.stringContaining('/one') })
+    expect(res2).toEqual({ ok: true, path: expect.stringContaining('/two') })
+
+    const refreshCalls = fetchMock.mock.calls.filter(([url]) =>
+      getFetchUrl(url).includes('token/refresh'),
+    )
+    expect(refreshCalls).toHaveLength(1)
   })
 
   it('does not refresh login or refresh token paths', async () => {
@@ -312,6 +379,19 @@ describe('apiRequest', () => {
     })
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
     expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
+  })
+
+  it('does not refresh password change path on 401', async () => {
+    mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    mockFetch(new Response('unauthorized', { status: 401 }))
+
+    await expect(
+      apiRequest('auth/password/change/', { method: 'POST', body: {} }),
+    ).rejects.toMatchObject({
+      status: 401,
+    })
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
   it('preserves structured backend account-state errors when refresh is missing', async () => {
@@ -333,6 +413,58 @@ describe('apiRequest', () => {
       code: 'TOKEN_NOT_VALID',
       message: 'انتهت صلاحية الجلسة',
     })
+    expect(mockedMarkSessionExpiredNotice).toHaveBeenCalled()
+  })
+
+  it.each([
+    'TOKEN_NOT_VALID',
+    'PASSWORD_CHANGED',
+    'USER_INACTIVE',
+    'USER_DELETED',
+  ])('does not refresh on unrecoverable 401 code %s', async (code) => {
+    mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    mockFetch(
+      Response.json(
+        {
+          success: false,
+          code,
+          message: 'Auth error',
+        },
+        { status: 401 },
+      ),
+    )
+
+    await expect(apiRequest('/bookings')).rejects.toMatchObject({
+      status: 401,
+      code,
+    })
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+    expect(mockedClearAuthTokens).toHaveBeenCalled()
+    expect(mockedMarkSessionExpiredNotice).toHaveBeenCalled()
+  })
+
+  it('does not clear tokens on 403 CLUB_ACCESS_REVOKED', async () => {
+    mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    mockFetch(
+      Response.json(
+        {
+          success: false,
+          code: 'CLUB_ACCESS_REVOKED',
+          message: 'تم إلغاء الصلاحية',
+        },
+        { status: 403 },
+      ),
+    )
+
+    await expect(apiRequest('/bookings')).rejects.toMatchObject({
+      status: 403,
+      code: 'CLUB_ACCESS_REVOKED',
+    })
+
+    expect(mockedClearAuthTokens).not.toHaveBeenCalled()
     expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
   })
 
@@ -345,8 +477,18 @@ describe('apiRequest', () => {
       'fetch',
       vi
         .fn()
-        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
-        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 })),
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+            { status: 401 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'TOKEN_NOT_VALID', message: 'Token invalid' },
+            { status: 401 },
+          ),
+        ),
     )
 
     await expect(apiRequest('/bookings')).rejects.toMatchObject({
@@ -364,8 +506,18 @@ describe('apiRequest', () => {
       'fetch',
       vi
         .fn()
-        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
-        .mockResolvedValueOnce(new Response('unauthorized', { status: 401 })),
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+            { status: 401 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'TOKEN_NOT_VALID', message: 'Token invalid' },
+            { status: 401 },
+          ),
+        ),
     )
 
     await expect(apiRequest('/bookings')).rejects.toMatchObject({
@@ -373,6 +525,110 @@ describe('apiRequest', () => {
       message: SESSION_EXPIRED_MESSAGE,
     })
     expect(mockedMarkSessionExpiredNotice).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not attempt a second refresh if retried request fails with 401', async () => {
+    const currentAccess = createAccessToken(3600)
+    const nextAccess = createAccessToken(3600)
+    mockedGetAccessToken.mockReturnValue(currentAccess)
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    mockedSetAccessToken.mockImplementation((token: string) => {
+      mockedGetAccessToken.mockReturnValue(token)
+    })
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+            { status: 401 },
+          ),
+        )
+        .mockResolvedValueOnce(Response.json({ access: nextAccess }))
+        .mockResolvedValueOnce(
+          Response.json(
+            {
+              success: false,
+              code: 'SESSION_EXPIRED',
+              message: 'Token expired again',
+            },
+            { status: 401 },
+          ),
+        ),
+    )
+
+    await expect(apiRequest('/bookings')).rejects.toMatchObject({
+      status: 401,
+    })
+
+    // 1 original, 1 refresh, 1 retry = 3 total fetch calls, NO 4th fetch call
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3)
+    expect(mockedClearAuthTokens).toHaveBeenCalled()
+  })
+
+  it('preserves tokens and throws network error when refresh fails due to transport error', async () => {
+    mockedGetAccessToken.mockReturnValue(createAccessToken(3600))
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+            { status: 401 },
+          ),
+        )
+        .mockRejectedValueOnce(new TypeError('Failed to fetch')),
+    )
+
+    await expect(apiRequest('/bookings')).rejects.toMatchObject({
+      status: 0,
+      code: 'NETWORK_ERROR',
+    })
+
+    expect(mockedClearAuthTokens).not.toHaveBeenCalled()
+    expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
+  })
+
+  it('discards new token if logout occurs while refresh is in flight', async () => {
+    const expiredAccess = createAccessToken(-60)
+    const nextAccess = createAccessToken(3600)
+    mockedGetAccessToken.mockReturnValue(expiredAccess)
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+
+    let resolveRefresh: (res: Response) => void = () => {}
+    const refreshPromise = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve
+    })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        const url = getFetchUrl(input)
+        if (url.includes('token/refresh')) {
+          return refreshPromise
+        }
+        return Promise.resolve(Response.json({ ok: true }))
+      }),
+    )
+
+    const requestPromise = apiRequest('/bookings')
+
+    // Simulate explicit logout while refresh is in flight
+    invalidateAuthSession()
+
+    resolveRefresh(Response.json({ access: nextAccess }))
+
+    await expect(requestPromise).rejects.toMatchObject({
+      status: 401,
+    })
+
+    // Token must NOT have been saved
+    expect(mockedSetAccessToken).not.toHaveBeenCalledWith(nextAccess)
   })
 
   it('refreshes an expired access token before sending the original request', async () => {
@@ -417,6 +673,7 @@ describe('apiRequest', () => {
         .fn()
         .mockResolvedValueOnce(new Response('unauthorized', { status: 401 })),
     )
+    mockFetch(new Response('unauthorized', { status: 401 }))
 
     await expect(
       apiRequest('/public/clubs/demo/courts/1/availability/', {

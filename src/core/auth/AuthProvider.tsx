@@ -17,6 +17,8 @@ import {
   isApiClientError,
 } from '../api/apiError.helpers'
 import {
+  invalidateAuthSession,
+  refreshSession,
   subscribeAccessToken,
   subscribeSessionExpired,
 } from '../api/apiClient'
@@ -54,6 +56,10 @@ function getClaims(accessToken: string | null): AuthClaims | null {
 }
 
 function hasHydratableSession(): boolean {
+  if (getRefreshToken()) {
+    return true
+  }
+
   const storedAccessToken = getAccessToken()
   const storedClaims = getClaims(storedAccessToken)
 
@@ -66,6 +72,9 @@ function hasHydratableSession(): boolean {
   }
 
   return Boolean(getRefreshToken())
+  return Boolean(
+    storedAccessToken && storedClaims && !isJwtExpired(storedClaims),
+  )
 }
 
 function hasBrowserOfflineHint(): boolean {
@@ -125,6 +134,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [currentUser, offlineRole])
 
   const clearSession = useCallback((): void => {
+    invalidateAuthSession()
     clearAuthTokens()
     clearSelectedClubSlug()
     setAccessTokenState(null)
@@ -141,6 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const clearAuthOnly = useCallback((): void => {
+    invalidateAuthSession()
     clearAuthTokens()
     setAccessTokenState(null)
     setHasRefreshToken(false)
@@ -230,7 +241,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const refreshCurrentUser = useCallback(async (): Promise<void> => {
-    if (!accessToken || !claims) {
+    let currentToken = accessToken
+    let currentClaims = claims
+
+    if (
+      (!currentToken || !currentClaims || isJwtExpired(currentClaims)) &&
+      getRefreshToken()
+    ) {
+      setIsLoadingSession(true)
+      const refreshResult = await refreshSession()
+      if (refreshResult.status === 'success') {
+        currentToken = refreshResult.accessToken
+        currentClaims = getClaims(currentToken)
+        setAccessTokenState(currentToken)
+        setHasRefreshToken(true)
+      } else if (refreshResult.status === 'network_error') {
+        const hydrated =
+          await hydrateLatestOfflineContextForSelectedClub(selectedClubSlug)
+        if (
+          !hydrated &&
+          selectedClubSlug &&
+          (currentClaims?.user_id ?? claims?.user_id)
+        ) {
+          await hydrateOfflineContextForScope(
+            (currentClaims?.user_id ?? claims?.user_id)!,
+            selectedClubSlug,
+          )
+        }
+        setIsLoadingSession(false)
+        return
+      } else {
+        clearAuthOnly()
+        setIsLoadingSession(false)
+        return
+      }
+    }
+
+    if (!currentToken || !currentClaims) {
       if (
         !getRefreshToken() &&
         !(await hydrateLatestOfflineContextForSelectedClub(selectedClubSlug))
@@ -312,10 +359,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return
       }
 
+      const activeUserId = currentClaims?.user_id ?? claims?.user_id
+
       if (
         getApiErrorCode(error) === 'NETWORK_ERROR' &&
         selectedClubSlug &&
-        (await hydrateOfflineContextForScope(claims.user_id, selectedClubSlug))
+        activeUserId &&
+        (await hydrateOfflineContextForScope(activeUserId, selectedClubSlug))
       ) {
         return
       }
@@ -323,15 +373,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const accountStateAction = getAccountStateAction(error)
 
       if (accountStateAction.type === 'clear_user') {
-        await safelyClearUserOperationalData(claims.user_id)
+        if (activeUserId) {
+          await safelyClearUserOperationalData(activeUserId)
+        }
         clearSession()
         return
       }
 
       if (accountStateAction.type === 'clear_club') {
-        if (accountStateAction.clubSlug) {
+        if (accountStateAction.clubSlug && activeUserId) {
           await safelyClearScope({
-            userId: claims.user_id,
+            userId: activeUserId,
             clubSlug: accountStateAction.clubSlug,
           })
         }
@@ -343,7 +395,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           clearSelectedClub()
         }
 
-        clearAuthOnly()
+        // Do not clear tokens for club-level revocation
         return
       }
 
@@ -475,6 +527,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     if (!accessToken) {
+      if (getRefreshToken()) {
+        queueMicrotask(() => {
+          void refreshCurrentUser()
+        })
+        return
+      }
+
       queueMicrotask(() => {
         void hydrateLatestOfflineContextForSelectedClub(selectedClubSlug).then(
           (hydrated) => {
@@ -488,6 +547,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     if (!isAuthenticated) {
+      if (getRefreshToken()) {
+        queueMicrotask(() => {
+          void refreshCurrentUser()
+        })
+        return
+      }
+
       queueMicrotask(() => {
         clearAuthOnly()
         setIsLoadingSession(false)
@@ -531,6 +597,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   )
 
   const logout = useCallback(async (): Promise<void> => {
+    invalidateAuthSession()
     const userId = currentUser?.id ?? claims?.user_id
 
     await offlineContextWriteRef.current

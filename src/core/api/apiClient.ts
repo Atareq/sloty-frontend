@@ -2,6 +2,7 @@ import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import { sessionCopy } from '../../shared/copy/appCopy'
 import { API_BASE_URL } from '../../shared/config/api'
 import {
+  clearAuthTokens,
   getAccessToken,
   getRefreshToken,
   markSessionExpiredNotice,
@@ -297,16 +298,33 @@ async function createApiClientError(
 function isAuthTokenPath(path: string): boolean {
   return (
     path === apiEndpoints.auth.token ||
-    path === apiEndpoints.auth.refresh
+    path === apiEndpoints.auth.refresh ||
+    path === apiEndpoints.auth.passwordChange
   )
 }
 
+export type RefreshResult =
+  | { status: 'success'; accessToken: string }
+  | { status: 'network_error'; error: unknown }
+  | { status: 'auth_failed'; code?: string }
+  | { status: 'aborted' }
+
 type AccessTokenListener = (token: string) => void
-type SessionExpiredListener = () => void
+type SessionExpiredListener = (code?: string) => void
 
 let accessTokenListeners: AccessTokenListener[] = []
 let sessionExpiredListeners: SessionExpiredListener[] = []
-let refreshInFlight: Promise<string | null> | null = null
+let refreshInFlight: Promise<RefreshResult> | null = null
+let sessionGeneration = 0
+
+/**
+ * Invalidates any in-flight token refresh so a late network response
+ * cannot resurrect a logged-out session.
+ */
+export function invalidateAuthSession(): void {
+  sessionGeneration += 1
+  refreshInFlight = null
+}
 
 /**
  * Lets AuthProvider keep React session state aligned with a silent refresh.
@@ -325,6 +343,7 @@ export function subscribeAccessToken(
 
 /**
  * Lets AuthProvider clear the session after a failed refresh.
+ * Lets AuthProvider clear the session after a failed refresh or unrecoverable auth error.
  */
 export function subscribeSessionExpired(
   listener: SessionExpiredListener,
@@ -342,44 +361,33 @@ function notifyAccessToken(token: string): void {
   accessTokenListeners.forEach((listener) => listener(token))
 }
 
-function failExpiredSession(): void {
+function failExpiredSession(code?: string): void {
+  clearAuthTokens()
   markSessionExpiredNotice()
-  sessionExpiredListeners.forEach((listener) => listener())
+  sessionExpiredListeners.forEach((listener) => listener(code))
 }
 
-function shouldAttemptSilentRefresh(
-  path: string,
-  options: ApiRequestOptions,
-  status?: number,
-): boolean {
-  if (
-    options.omitAuth ||
-    options.skipAuthRefresh ||
-    options.retried ||
-    isAuthTokenPath(path)
-  ) {
-    return false
-  }
-
-  if (status !== undefined && status !== 401) {
-    return false
-  }
-
-  return Boolean(getRefreshToken())
-}
-
-async function refreshAccessTokenOnce(): Promise<string | null> {
+/**
+ * Performs a single-flight silent refresh using the stored refresh token.
+ *
+ * Concurrent calls join the same in-flight refresh promise.
+ * On success, the new access token is persisted and listeners are notified.
+ * On terminal 401 errors, tokens are cleared and the session is marked expired.
+ * On transport/network failures, tokens are NOT cleared and auth state is preserved.
+ */
+export async function refreshSession(): Promise<RefreshResult> {
   if (refreshInFlight) {
     return refreshInFlight
   }
 
-  refreshInFlight = (async () => {
-    const refreshToken = getRefreshToken()
+  const initialGeneration = sessionGeneration
+  const refreshToken = getRefreshToken()
 
-    if (!refreshToken) {
-      return null
-    }
+  if (!refreshToken) {
+    return { status: 'auth_failed', code: 'TOKEN_NOT_VALID' }
+  }
 
+  refreshInFlight = (async (): Promise<RefreshResult> => {
     try {
       const response = await fetch(getApiUrl(apiEndpoints.auth.refresh), {
         method: 'POST',
@@ -390,39 +398,78 @@ async function refreshAccessTokenOnce(): Promise<string | null> {
         body: JSON.stringify({ refresh: refreshToken }),
       })
 
+      if (sessionGeneration !== initialGeneration) {
+        return { status: 'aborted' }
+      }
+
       if (!response.ok) {
-        return null
+        let code: string | undefined
+        try {
+          const payload: unknown = await response.json()
+          if (isRecord(payload) && typeof payload.code === 'string') {
+            code = payload.code.trim() || undefined
+          }
+        } catch {
+          // ignore json parse error
+        }
+
+        if (response.status === 401) {
+          clearAuthTokens()
+          failExpiredSession(code)
+          return { status: 'auth_failed', code }
+        }
+
+        return { status: 'auth_failed', code }
       }
 
       const payload: unknown = await response.json()
+
+      if (sessionGeneration !== initialGeneration) {
+        return { status: 'aborted' }
+      }
 
       if (
         !isRecord(payload) ||
         typeof payload.access !== 'string' ||
         !payload.access.trim()
       ) {
-        return null
+        return { status: 'auth_failed' }
       }
 
       const accessToken = payload.access.trim()
       setAccessToken(accessToken)
       notifyAccessToken(accessToken)
-      return accessToken
-    } catch {
-      return null
+      return { status: 'success', accessToken }
+    } catch (networkError) {
+      if (sessionGeneration !== initialGeneration) {
+        return { status: 'aborted' }
+      }
+
+      // Transport / network failure (offline, timeout, DNS, connection refused).
+      // DO NOT logout! DO NOT clear refresh token! Preserve local auth / session state.
+      return { status: 'network_error', error: networkError }
+    } finally {
+      refreshInFlight = null
     }
-  })().finally(() => {
-    refreshInFlight = null
-  })
+  })()
 
   return refreshInFlight
 }
 
 /**
- * Test-only reset for in-flight refresh state.
+ * Backward-compatible helper returning the refreshed access token string or null.
+ */
+export async function refreshAccessTokenOnce(): Promise<string | null> {
+  const result = await refreshSession()
+  return result.status === 'success' ? result.accessToken : null
+}
+
+/**
+ * Test-only reset for in-flight refresh state and session generation.
  */
 export function resetSilentRefreshForTests(): void {
   refreshInFlight = null
+  sessionGeneration = 0
 }
 
 /**
@@ -430,25 +477,58 @@ export function resetSilentRefreshForTests(): void {
  *
  * The backend is responsible for localized business and validation messages.
  * Frontend Arabic messages are used only when the backend does not provide one
- * or when the request cannot reach the backend. Expired access tokens are
- * refreshed once, with concurrent 401s sharing a single refresh request.
+ * or when the request cannot reach the backend.
+ *
+ * Expired access tokens returning 401 SESSION_EXPIRED are silently refreshed once,
+ * with concurrent expired requests sharing a single in-flight refresh request.
  */
 export async function apiRequest<TResponse>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<TResponse> {
-  if (shouldAttemptSilentRefresh(path, options)) {
-    const claims = decodeAccessToken(getAccessToken())
+  const requestGeneration = sessionGeneration
+  const isAuthExcluded =
+    options.omitAuth || options.skipAuthRefresh || isAuthTokenPath(path)
 
-    if (isJwtExpired(claims)) {
-      const refreshedToken = await refreshAccessTokenOnce()
-
-      if (!refreshedToken) {
-        failExpiredSession()
+  if (!isAuthExcluded) {
+    // If a refresh is already in-flight, wait for it so we don't fire with an expired token
+    if (refreshInFlight) {
+      const refreshResult = await refreshInFlight
+      if (
+        refreshResult.status === 'auth_failed' ||
+        refreshResult.status === 'aborted'
+      ) {
         throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
-          code: 'UNAUTHORIZED',
+          code:
+            refreshResult.status === 'auth_failed'
+              ? (refreshResult.code ?? 'UNAUTHORIZED')
+              : 'UNAUTHORIZED',
         })
       }
+    } else {
+      // Proactive UX check: if access token is already expired and we have a refresh token
+      const currentToken = getAccessToken()
+      const claims = decodeAccessToken(currentToken)
+      if (isJwtExpired(claims) && getRefreshToken()) {
+        const refreshResult = await refreshSession()
+        if (
+          refreshResult.status === 'auth_failed' ||
+          refreshResult.status === 'aborted'
+        ) {
+          throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+            code:
+              refreshResult.status === 'auth_failed'
+                ? (refreshResult.code ?? 'UNAUTHORIZED')
+                : 'UNAUTHORIZED',
+          })
+        }
+      }
+    }
+
+    if (sessionGeneration !== requestGeneration) {
+      throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+        code: 'UNAUTHORIZED',
+      })
     }
   }
 
@@ -492,29 +572,62 @@ export async function apiRequest<TResponse>(
       raw: error,
     })
   }
+
   if (!response.ok) {
     const error = await createApiClientError(response)
 
-    if (response.status === 401 && error.code === 'PASSWORD_CHANGED') {
-      failExpiredSession()
-      throw error
-    }
+    // Check for 401 authentication handling
+    if (response.status === 401) {
+      // 1. Recoverable access-token expiry: ONLY 401 SESSION_EXPIRED triggers refresh
+      if (
+        error.code === 'SESSION_EXPIRED' &&
+        !options.retried &&
+        !isAuthExcluded &&
+        Boolean(getRefreshToken())
+      ) {
+        const refreshResult = await refreshSession()
 
-    if (shouldAttemptSilentRefresh(path, options, response.status)) {
-      const refreshedToken = await refreshAccessTokenOnce()
+        if (refreshResult.status === 'success') {
+          if (sessionGeneration !== requestGeneration) {
+            throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+              code: 'UNAUTHORIZED',
+            })
+          }
+          return apiRequest<TResponse>(path, {
+            ...options,
+            retried: true,
+          })
+        }
 
-      if (refreshedToken) {
-        return apiRequest(path, {
-          ...options,
-          retried: true,
+        if (refreshResult.status === 'network_error') {
+          // Transport / network failure during refresh: preserve auth, throw network error
+          throw new ApiClientError(NETWORK_ERROR_MESSAGE, 0, {
+            code: 'NETWORK_ERROR',
+            raw: refreshResult.error,
+          })
+        }
+
+        // Terminal auth failure during refresh (or aborted)
+        const failureCode =
+          refreshResult.status === 'auth_failed'
+            ? refreshResult.code ?? 'UNAUTHORIZED'
+            : 'UNAUTHORIZED'
+        throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+          code: failureCode,
         })
       }
 
-      failExpiredSession()
-      throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
-        code: 'UNAUTHORIZED',
-      })
+      // 2. Unrecoverable auth conditions (or already retried 401):
+      // TOKEN_NOT_VALID, PASSWORD_CHANGED, USER_INACTIVE, USER_DELETED, or retried 401
+      if (!isAuthTokenPath(path) && !options.omitAuth) {
+        failExpiredSession(error.code)
+      }
+
+      throw error
     }
+
+    // 403 CLUB_ACCESS_REVOKED is authorization failure, not authentication failure.
+    // It preserves global auth and does not clear tokens.
 
     throw error
   }

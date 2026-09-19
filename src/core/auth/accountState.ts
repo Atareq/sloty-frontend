@@ -2,12 +2,19 @@ import { getApiErrorCode, getApiErrorDetails } from '../api/apiError.helpers'
 
 export const SESSION_EXPIRED_CODE = 'SESSION_EXPIRED'
 export const TOKEN_NOT_VALID_CODE = 'TOKEN_NOT_VALID'
+export const PASSWORD_CHANGED_CODE = 'PASSWORD_CHANGED'
 export const USER_INACTIVE_CODE = 'USER_INACTIVE'
 export const USER_DELETED_CODE = 'USER_DELETED'
 export const CLUB_ACCESS_REVOKED_CODE = 'CLUB_ACCESS_REVOKED'
 
 export type AccountStateAction =
-  | { type: 'auth_required'; code: typeof SESSION_EXPIRED_CODE | typeof TOKEN_NOT_VALID_CODE }
+  | {
+      type: 'auth_required'
+      code:
+        | typeof SESSION_EXPIRED_CODE
+        | typeof TOKEN_NOT_VALID_CODE
+        | typeof PASSWORD_CHANGED_CODE
+    }
   | { type: 'clear_user'; code: typeof USER_INACTIVE_CODE | typeof USER_DELETED_CODE }
   | { type: 'clear_club'; code: typeof CLUB_ACCESS_REVOKED_CODE; clubSlug: string | null }
   | { type: 'none'; code: string | null }
@@ -20,7 +27,11 @@ export type AccountStateAction =
 export function getAccountStateAction(error: unknown): AccountStateAction {
   const code = getApiErrorCode(error)
 
-  if (code === SESSION_EXPIRED_CODE || code === TOKEN_NOT_VALID_CODE) {
+  if (
+    code === SESSION_EXPIRED_CODE ||
+    code === TOKEN_NOT_VALID_CODE ||
+    code === PASSWORD_CHANGED_CODE
+  ) {
     return { type: 'auth_required', code }
   }
 
