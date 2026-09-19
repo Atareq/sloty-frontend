@@ -93,8 +93,10 @@ export interface BookingCreatePayload {
   club_player_id?: number
   start_time: string
   end_time: string
-  client_request_id?: string
+  source?: string
   is_recurring?: boolean
+  client_request_id?: string
+  requested_at?: string
   notes?: string
 }
 

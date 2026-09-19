@@ -142,7 +142,7 @@ export function RescheduleBookingSheet({
           return
         }
 
-        setSlots(mapBookingSlotsResponseToScheduleBookings(response))
+        setSlots(mapBookingSlotsResponseToScheduleBookings(response, selectedDate))
         setIsSlotsLoading(false)
       } catch (caught: unknown) {
         if (cancelled) {

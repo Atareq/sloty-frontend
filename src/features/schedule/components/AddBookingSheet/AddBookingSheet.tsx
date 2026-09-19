@@ -123,6 +123,10 @@ export function AddBookingSheet({
     fieldErrors,
     'customer_name',
   )
+  const playerFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'club_player_id',
+  )
   const phoneFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
     getFirstFieldErrorMessage(fieldErrors, 'phone_number')
@@ -349,7 +353,7 @@ export function AddBookingSheet({
               <PlayerCombobox
                 clubSlug={clubSlug}
                 disabled={isSubmitting}
-                error={Boolean(nameFieldError)}
+                error={Boolean(nameFieldError) || Boolean(playerFieldError)}
                 isLoading={isSearchingPlayers}
                 onChange={handleNameChange}
                 onSelectPlayer={handleSelectPlayer}
@@ -357,9 +361,9 @@ export function AddBookingSheet({
                 value={customerName}
               />
             </label>
-            {nameFieldError ? (
+            {nameFieldError || playerFieldError ? (
               <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {nameFieldError}
+                {nameFieldError ?? playerFieldError}
               </p>
             ) : null}
 

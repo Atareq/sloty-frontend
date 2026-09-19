@@ -79,9 +79,13 @@ describe('api error helpers', () => {
     ['SELF_SETTLEMENT_APPROVAL_FORBIDDEN', 'مينفعش تسوي عهدتك بنفسك.'],
     ['NO_UNSETTLED_TRANSACTIONS', 'مفيش مبلغ للموظف ده دلوقتي.'],
     ['PAYMENT_REFERENCE_REQUIRED', 'مرجع الدفع مطلوب لهذا الملعب.'],
+    ['BOOKING_CLUB_PLAYER_NOT_FOUND', 'بيانات اللاعب غير مسجلة في هذا النادي.'],
+    ['BOOKING_CLUB_PLAYER_MISMATCH', 'بيانات اللاعب غير تابعة لهذا النادي.'],
+    ['BOOKING_CLUB_PLAYER_PHONE_MISMATCH', 'رقم الموبايل لا يطابق اللاعب المختار.'],
   ])('maps stable code %s without parsing backend message text', (code, message) => {
     expect(
       getApiErrorMessage(new ApiClientError('Payment reference is required for this court.', 400, { code })),
+      getApiErrorMessage(new ApiClientError('Default backend message', 400, { code })),
     ).toBe(message)
   })
 

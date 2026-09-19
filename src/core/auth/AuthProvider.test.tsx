@@ -13,7 +13,12 @@ import type { PaginatedResponse } from '../../shared/api/api.types'
 import { ApiClientError } from '../api/apiClient'
 import { AuthProvider } from './AuthProvider'
 import { fetchCurrentUserProfile } from './authApi'
-import { clearAuthTokens, getAccessToken } from './authStorage'
+import {
+  clearAuthTokens,
+  getAccessToken,
+  setAccessToken,
+  setRefreshToken,
+} from './authStorage'
 import { canManageSettlements, type CurrentUserProfile } from './auth.types'
 import { createDevAccessToken } from './devAuth'
 import {
@@ -22,6 +27,24 @@ import {
   saveSelectedClubSlug,
 } from './selectedClubStorage'
 import { useAuth } from './useAuth'
+
+function createExpiredAccessToken(): string {
+  const claims = {
+    user_id: 1,
+    role: 'STAFF',
+    name: 'مستخدم تجريبي',
+    club_id: 1,
+    court_id: 1,
+    exp: Math.floor(Date.now() / 1000) - 3600,
+  }
+  const bytes = new TextEncoder().encode(JSON.stringify(claims))
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')
+  const payload = btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+  return `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.${payload}.dev`
+}
 
 vi.mock('./authApi', () => ({
   fetchCurrentUserProfile: vi.fn(),
@@ -162,6 +185,7 @@ describe('AuthProvider', () => {
   }
 
   beforeEach(() => {
+    vi.unstubAllGlobals()
     clearAuthTokens()
     clearSelectedClubSlug()
     vi.clearAllMocks()
@@ -468,7 +492,71 @@ describe('AuthProvider', () => {
       }),
     )
     expect(mockedClearUserOperationalData).not.toHaveBeenCalled()
-    expect(getAccessToken()).toBeNull()
+    expect(getAccessToken()).not.toBeNull()
     expect(getSelectedClubSlug()).toBeNull()
+  })
+
+  it('restores session on boot using refresh token when access token is expired', async () => {
+    const expiredToken = createExpiredAccessToken()
+    const nextAccess = createDevAccessToken('STAFF')
+    setAccessToken(expiredToken)
+    setRefreshToken('valid-refresh-token')
+
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(staffProfile)
+    mockedListClubs.mockResolvedValue(paginated([mockClub1]))
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('auth/token/refresh/')) {
+          return Promise.resolve(Response.json({ access: nextAccess }))
+        }
+        return Promise.resolve(Response.json({ ok: true }))
+      }),
+    )
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('staff-user')).toBeInTheDocument()
+    })
+    expect(getAccessToken()).toBe(nextAccess)
+  })
+
+  it('handles /me with profile_role null without clearing tokens', async () => {
+    const validAccess = createDevAccessToken('STAFF')
+    setAccessToken(validAccess)
+    setRefreshToken('valid-refresh-token')
+
+    const nullRoleProfile: CurrentUserProfile = {
+      id: 99,
+      username: 'unassigned-user',
+      email: 'unassigned@example.com',
+      first_name: 'Unassigned',
+      last_name: 'User',
+      phone_number: null,
+      is_active: true,
+      profile_role: null,
+      account_created_by: null,
+    }
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(nullRoleProfile)
+    mockedListClubs.mockResolvedValue(paginated([]))
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('unassigned-user')).toBeInTheDocument()
+    })
+    expect(screen.getByText('لا يوجد دور محدد')).toBeInTheDocument()
+    expect(getAccessToken()).toBe(validAccess)
   })
 })

@@ -1,3 +1,4 @@
+import { getSlotDate } from '../../features/schedule/scheduleBoard.helpers'
 import type {
   BookingSlot,
   BookingSlotsResponse,
@@ -8,10 +9,16 @@ function groupSlotsByDate(slots: BookingSlot[]): Map<string, BookingSlot[]> {
   const grouped = new Map<string, BookingSlot[]>()
 
   for (const slot of slots) {
-    const slotsForDate = grouped.get(slot.date) ?? []
+    const slotDate = getSlotDate(slot)
+
+    if (!slotDate) {
+      continue
+    }
+
+    const slotsForDate = grouped.get(slotDate) ?? []
 
     slotsForDate.push(slot)
-    grouped.set(slot.date, slotsForDate)
+    grouped.set(slotDate, slotsForDate)
   }
 
   return grouped

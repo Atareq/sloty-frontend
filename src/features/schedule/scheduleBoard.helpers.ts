@@ -1,3 +1,4 @@
+import { getPreviousCalendarDate } from '../../shared/utils/date'
 import { normalizeTimeString } from '../courts/components/CourtWorkingHoursSection/courtWorkingHours.helpers'
 import type { BookingBoardPeriod, ScheduleBooking } from './schedule.types'
 import type {
@@ -231,10 +232,60 @@ export function mapBookingSlotToScheduleBooking(
   }
 }
 
+/**
+ * Resolves the calendar date (YYYY-MM-DD) for a slot.
+ * Prefers slot.date, with fallback to the local Egypt date of slot.start_time
+ * when start_time is an ISO timestamp.
+ */
+export function getSlotDate(
+  slot: Pick<BookingSlot, 'date' | 'start_time'>,
+): string {
+  if (slot.date) {
+    return slot.date
+  }
+  if (slot.start_time?.includes('T')) {
+    return getEgyptDateValueFromInstant(slot.start_time)
+  }
+  return ''
+}
+
+export function isSlotForDate(
+  slot: Pick<BookingSlot, 'date' | 'start_time'>,
+  targetDate: string,
+): boolean {
+  return getSlotDate(slot) === targetDate
+}
+
+export function filterSlotsForDate(
+  slots: BookingSlot[],
+  targetDate: string,
+  dateFrom?: string,
+): BookingSlot[] {
+  const previousDay = getPreviousCalendarDate(targetDate)
+  const shouldFilterPreviousDay = dateFrom
+    ? dateFrom !== targetDate && (dateFrom === previousDay || dateFrom < targetDate)
+    : true
+
+  if (!shouldFilterPreviousDay) {
+    return slots
+  }
+
+  return slots.filter((slot) => {
+    const slotDate = getSlotDate(slot)
+    return !slotDate || (slotDate !== previousDay && slotDate !== dateFrom)
+  })
+}
+
 export function mapBookingSlotsResponseToScheduleBookings(
   response: BookingSlotsResponse,
+  targetDate?: string,
 ): ScheduleBooking[] {
-  return response.slots.map((slot) =>
+  const target = targetDate ?? response.date_to
+  const slotsToMap = target
+    ? filterSlotsForDate(response.slots, target, response.date_from)
+    : response.slots
+
+  return slotsToMap.map((slot) =>
     mapBookingSlotToScheduleBooking(slot, response.court),
   )
 }

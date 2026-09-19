@@ -21,6 +21,16 @@ describe('playersApi', () => {
           id: 12,
           display_name: 'طارق علي',
           phone_number: '01012345678',
+          player_number: 1,
+          player_profile: {
+            id: 101,
+            phone_number: '01012345678',
+            full_name: 'طارق علي',
+            verified: true,
+            has_account: false,
+            created_at: '2026-09-01T12:00:00Z',
+            updated_at: '2026-09-01T12:00:00Z',
+          },
           last_used_at: '2026-09-15T12:00:00Z',
         },
       ],
@@ -36,6 +46,27 @@ describe('playersApi', () => {
     )
     expect(players).toHaveLength(1)
     expect(players[0].display_name).toBe('طارق علي')
+    expect(players[0].player_profile?.phone_number).toBe('01012345678')
+  })
+
+  it('includes pagination query parameters when page and page_size are provided', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 20,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listClubPlayers('barcelona-fc', {
+      search: '010',
+      order_by: '-last_used_at',
+      page: 2,
+      page_size: 10,
+    })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      'clubs/barcelona-fc/players/?search=010&order_by=-last_used_at&page=2&page_size=10',
+    )
   })
 
   it('handles array response from non-paginated endpoints', async () => {
@@ -44,6 +75,16 @@ describe('playersApi', () => {
         id: 14,
         display_name: 'محمد صلاح',
         phone_number: '01122334455',
+        player_number: 2,
+        player_profile: {
+          id: 102,
+          phone_number: '01122334455',
+          full_name: 'محمد صلاح',
+          verified: true,
+          has_account: true,
+          created_at: '2026-09-01T12:00:00Z',
+          updated_at: '2026-09-01T12:00:00Z',
+        },
         last_used_at: '2026-09-10T12:00:00Z',
       },
     ])
@@ -79,9 +120,17 @@ describe('players.types helpers', () => {
     const playerWithProfilePhone: ClubPlayer = {
       id: 2,
       display_name: 'لاعب 2',
+      player_number: 2,
       player_profile: {
+        id: 202,
         phone_number: '01022222222',
+        full_name: 'لاعب 2',
+        verified: true,
+        has_account: false,
+        created_at: '2026-09-01T12:00:00Z',
+        updated_at: '2026-09-01T12:00:00Z',
       },
+      last_used_at: null,
     }
     const playerWithoutPhone: ClubPlayer = {
       id: 3,

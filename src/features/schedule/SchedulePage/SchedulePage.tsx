@@ -60,6 +60,7 @@ import {
   type RecordPaymentSheetValues,
 } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 import {
+  filterSlotsForDate,
   formatBookingDateTime,
   formatTime12Hour,
   getBookingSummariesFromScheduleSlots,
@@ -467,10 +468,24 @@ export function SchedulePage() {
     },
     source: 'backend' | 'cache',
     syncedAt: string | null,
+    targetDate = selectedDate,
   ): void {
-    setSlots(mapBookingSlotsResponseToScheduleBookings(response))
+    const slotsForDate = filterSlotsForDate(
+      response.slots,
+      targetDate,
+      response.date_from,
+    )
+    setSlots(
+      mapBookingSlotsResponseToScheduleBookings(
+        {
+          ...response,
+          slots: slotsForDate,
+        },
+        targetDate,
+      ),
+    )
     setBoardMessage(
-      response.slots.length === 0
+      slotsForDate.length === 0
         ? response.message || 'مفيش مواعيد متاحة في اليوم ده.'
         : null,
     )
@@ -696,7 +711,7 @@ export function SchedulePage() {
         return false
       }
 
-      applyScheduleResponse(response, 'backend', syncedAt)
+      applyScheduleResponse(response, 'backend', syncedAt, date)
 
       if (
         options.persistIfInsideWindow &&
@@ -707,7 +722,7 @@ export function SchedulePage() {
           offlineScope,
           courtId,
           date,
-          response.slots,
+          filterSlotsForDate(response.slots, date, response.date_from),
           syncedAt,
           response.message ?? null,
         )
@@ -913,6 +928,7 @@ export function SchedulePage() {
             },
             'cache',
             cachedDay.synced_at,
+            date,
           )
           setSettledSlotsDate(date)
           requestWindowSyncIfNeeded()
@@ -1108,6 +1124,7 @@ export function SchedulePage() {
             },
             'cache',
             cachedDay.synced_at,
+            selectedDate,
           )
           setSettledSlotsDate(selectedDate)
           return
@@ -1171,6 +1188,7 @@ export function SchedulePage() {
         },
         'cache',
         cachedDay.synced_at,
+        date,
       )
       setSettledSlotsDate(date)
     } catch {

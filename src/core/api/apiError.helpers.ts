@@ -24,6 +24,9 @@ const productErrorMessages: Readonly<Record<string, string>> = {
     'مفيش مبلغ للموظف ده دلوقتي.',
   SETTLEMENT_CONFLICT: 'المبلغ اتغير. راجع آخر حالة وحاول مرة تانية.',
   PAYMENT_REFERENCE_REQUIRED: 'مرجع الدفع مطلوب لهذا الملعب.',
+  BOOKING_CLUB_PLAYER_NOT_FOUND: 'بيانات اللاعب غير مسجلة في هذا النادي.',
+  BOOKING_CLUB_PLAYER_MISMATCH: 'بيانات اللاعب غير تابعة لهذا النادي.',
+  BOOKING_CLUB_PLAYER_PHONE_MISMATCH: 'رقم الموبايل لا يطابق اللاعب المختار.',
 }
 
 function isSafeMessage(message: string | undefined): message is string {
@@ -39,6 +42,10 @@ function isSafeMessage(message: string | undefined): message is string {
 export const PAYMENT_REFERENCE_REQUIRED_CODE = 'PAYMENT_REFERENCE_REQUIRED'
 export const PAYMENT_REFERENCE_REQUIRED_MESSAGE =
   productErrorMessages[PAYMENT_REFERENCE_REQUIRED_CODE]
+
+export const BOOKING_CLUB_PLAYER_NOT_FOUND_CODE = 'BOOKING_CLUB_PLAYER_NOT_FOUND'
+export const BOOKING_CLUB_PLAYER_MISMATCH_CODE = 'BOOKING_CLUB_PLAYER_MISMATCH'
+export const BOOKING_CLUB_PLAYER_PHONE_MISMATCH_CODE = 'BOOKING_CLUB_PLAYER_PHONE_MISMATCH'
 
 export function isApiClientError(error: unknown): error is ApiClientError {
   return error instanceof ApiClientError
