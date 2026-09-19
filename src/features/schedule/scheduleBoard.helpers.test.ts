@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  filterSlotsForDate,
   formatBookingDateTime,
   formatTime12Hour,
   getEgyptDateValueFromInstant,
-  mapBookingSlotToScheduleBooking,
+  getSlotDate,
   getScheduleClosingBookings,
   getSlotPeriod,
+  isSlotForDate,
+  mapBookingSlotToScheduleBooking,
+  mapBookingSlotsResponseToScheduleBookings,
 } from './scheduleBoard.helpers'
 import type { BookingListItem, BookingSlot } from './scheduleApi.types'
 
@@ -334,5 +338,152 @@ describe('scheduleBoard helpers', () => {
     expect(getSlotPeriod(12 * 60)).toBe('pm')
     expect(getSlotPeriod(18 * 60)).toBe('pm')
     expect(getSlotPeriod(23 * 60 + 59)).toBe('pm')
+  })
+
+  describe('slot date filtering helpers', () => {
+    it('resolves slot date from slot.date or instant start_time', () => {
+      expect(
+        getSlotDate({
+          date: '2026-09-19',
+          start_time: '22:00',
+        }),
+      ).toBe('2026-09-19')
+
+      expect(
+        getSlotDate({
+          date: '',
+          start_time: '2026-09-19T22:00:00+03:00',
+        }),
+      ).toBe('2026-09-19')
+    })
+
+    it('determines whether a slot belongs to a target date', () => {
+      expect(
+        isSlotForDate(
+          { date: '2026-09-19', start_time: '22:00' },
+          '2026-09-19',
+        ),
+      ).toBe(true)
+
+      expect(
+        isSlotForDate(
+          { date: '2026-09-18', start_time: '22:00' },
+          '2026-09-19',
+        ),
+      ).toBe(false)
+    })
+
+    it('filters slots strictly for the target date and excludes previous-day slots', () => {
+      const slots: BookingSlot[] = [
+        {
+          date: '2026-09-18',
+          start_time: '22:00',
+          end_time: '23:00',
+          slot_status: 'FREE',
+          is_available: true,
+          slot_price: null,
+          booking: null,
+          recurring_anchor_booking_id: null,
+          recurring_context: null,
+          can_start_recurring: null,
+          recurring_blocked_reason: null,
+          first_recurring_conflict_start: null,
+          label: 'متاح',
+        },
+        {
+          date: '2026-09-19',
+          start_time: '19:00',
+          end_time: '20:00',
+          slot_status: 'FREE',
+          is_available: true,
+          slot_price: null,
+          booking: null,
+          recurring_anchor_booking_id: null,
+          recurring_context: null,
+          can_start_recurring: null,
+          recurring_blocked_reason: null,
+          first_recurring_conflict_start: null,
+          label: 'متاح',
+        },
+        {
+          date: '2026-09-19',
+          start_time: '22:00',
+          end_time: '23:00',
+          slot_status: 'FREE',
+          is_available: true,
+          slot_price: null,
+          booking: null,
+          recurring_anchor_booking_id: null,
+          recurring_context: null,
+          can_start_recurring: null,
+          recurring_blocked_reason: null,
+          first_recurring_conflict_start: null,
+          label: 'متاح',
+        },
+      ]
+
+      const filtered = filterSlotsForDate(slots, '2026-09-19')
+      expect(filtered).toHaveLength(2)
+      expect(filtered.map((slot) => slot.start_time)).toEqual(['19:00', '22:00'])
+      expect(filtered.every((slot) => slot.date === '2026-09-19')).toBe(true)
+    })
+
+    it('filters response slots for date_to in mapBookingSlotsResponseToScheduleBookings', () => {
+      const response = {
+        court: 1,
+        court_name: 'Spotify Camp Nou',
+        date_from: '2026-09-18',
+        date_to: '2026-09-19',
+        slot_duration_minutes: 60,
+        message: null,
+        slots: [
+          {
+            date: '2026-09-18',
+            start_time: '22:00',
+            end_time: '23:00',
+            slot_status: 'FREE' as const,
+            is_available: true,
+            slot_price: null,
+            booking: null,
+            recurring_anchor_booking_id: null,
+            recurring_context: null,
+            can_start_recurring: null,
+            recurring_blocked_reason: null,
+            first_recurring_conflict_start: null,
+            label: 'متاح',
+          },
+          {
+            date: '2026-09-19',
+            start_time: '22:00',
+            end_time: '23:00',
+            slot_status: 'FREE' as const,
+            is_available: true,
+            slot_price: null,
+            booking: null,
+            recurring_anchor_booking_id: null,
+            recurring_context: null,
+            can_start_recurring: null,
+            recurring_blocked_reason: null,
+            first_recurring_conflict_start: null,
+            label: 'متاح',
+          },
+        ],
+      }
+
+      // Automatically defaults to date_to and filters out previous-day slots
+      const mapped = mapBookingSlotsResponseToScheduleBookings(response)
+      expect(mapped).toHaveLength(1)
+      expect(mapped[0].date).toBe('2026-09-19')
+      expect(mapped[0].startTime).toBe('22:00')
+
+      // Can also be explicitly filtered with targetDate
+      const dateFiltered = mapBookingSlotsResponseToScheduleBookings(
+        response,
+        '2026-09-19',
+      )
+      expect(dateFiltered).toHaveLength(1)
+      expect(dateFiltered[0].date).toBe('2026-09-19')
+      expect(dateFiltered[0].startTime).toBe('22:00')
+    })
   })
 })

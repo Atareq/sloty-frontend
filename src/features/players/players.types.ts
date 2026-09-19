@@ -1,6 +1,13 @@
 import type { Country } from 'react-phone-number-input'
 import { normalizeSlotyPhoneNumber } from '../../shared/validation/phone'
 
+export interface PlayerProfileSummary {
+  id?: number
+  phone_number?: string | null
+  name?: string | null
+  [key: string]: unknown
+}
+
 export interface PlayerProfile {
   id: number
   phone_number: string
@@ -13,10 +20,12 @@ export interface PlayerProfile {
 
 export interface ClubPlayer {
   id: number
-  player_profile: PlayerProfile
   display_name: string
-  player_number: number
-  last_used_at: string | null
+  phone_number?: string | null
+  player_profile?: PlayerProfileSummary | null
+  last_used_at?: string | null
+  has_account?: boolean
+  player_number?: number
 }
 
 export interface ListClubPlayersParams {
@@ -27,7 +36,8 @@ export interface ListClubPlayersParams {
 }
 
 /**
- * Extracts the player's primary phone number from `player_profile`.
+ * Extracts the player's primary phone number whether stored at the top-level
+ * or inside `player_profile`.
  */
 export function getClubPlayerPhone(
   player: ClubPlayer | null | undefined,
@@ -36,8 +46,8 @@ export function getClubPlayerPhone(
     return ''
   }
   return (
+    player.phone_number ||
     player.player_profile?.phone_number ||
-    (player as unknown as { phone_number?: string })?.phone_number ||
     ''
   )
 }

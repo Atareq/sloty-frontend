@@ -176,4 +176,63 @@ describe('RescheduleBookingSheet', () => {
     expect(screen.queryByRole('button', { name: '6:00 م' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '8:00 م' })).not.toBeInTheDocument()
   })
+
+  it('excludes previous-day slots returned from the slots API fetch', async () => {
+    mockedListBookingSlots.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: '2026-11-30',
+      date_to: '2026-12-01',
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        {
+          date: '2026-11-30',
+          start_time: '22:00',
+          end_time: '23:00',
+          slot_status: 'FREE',
+          is_available: true,
+          slot_price: '250.00',
+          booking: null,
+          recurring_anchor_booking_id: null,
+          recurring_context: null,
+          can_start_recurring: true,
+          recurring_blocked_reason: null,
+          first_recurring_conflict_start: null,
+          label: 'متاح',
+        },
+        {
+          date: '2026-12-01',
+          start_time: '18:00',
+          end_time: '19:00',
+          slot_status: 'FREE',
+          is_available: true,
+          slot_price: '250.00',
+          booking: null,
+          recurring_anchor_booking_id: null,
+          recurring_context: null,
+          can_start_recurring: true,
+          recurring_blocked_reason: null,
+          first_recurring_conflict_start: null,
+          label: 'متاح',
+        },
+      ],
+    })
+
+    render(
+      <RescheduleBookingSheet
+        assignedCourtId={null}
+        booking={booking}
+        canChooseCourt
+        clubSlug="nasr-club"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByRole('button', { name: '6:00 م' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '10:00 م' })).not.toBeInTheDocument()
+  })
 })

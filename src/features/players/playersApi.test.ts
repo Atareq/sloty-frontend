@@ -20,6 +20,7 @@ describe('playersApi', () => {
         {
           id: 12,
           display_name: 'طارق علي',
+          phone_number: '01012345678',
           player_number: 1,
           player_profile: {
             id: 101,
@@ -45,7 +46,7 @@ describe('playersApi', () => {
     )
     expect(players).toHaveLength(1)
     expect(players[0].display_name).toBe('طارق علي')
-    expect(players[0].player_profile.phone_number).toBe('01012345678')
+    expect(players[0].player_profile?.phone_number).toBe('01012345678')
   })
 
   it('includes pagination query parameters when page and page_size are provided', async () => {
@@ -73,6 +74,7 @@ describe('playersApi', () => {
       {
         id: 14,
         display_name: 'محمد صلاح',
+        phone_number: '01122334455',
         player_number: 2,
         player_profile: {
           id: 102,
@@ -109,7 +111,12 @@ describe('playersApi', () => {
 })
 
 describe('players.types helpers', () => {
-  it('extracts phone number from player_profile', () => {
+  it('extracts phone number from top-level or player_profile', () => {
+    const playerWithTopLevelPhone: ClubPlayer = {
+      id: 1,
+      display_name: 'لاعب 1',
+      phone_number: '01011111111',
+    }
     const playerWithProfilePhone: ClubPlayer = {
       id: 2,
       display_name: 'لاعب 2',
@@ -125,8 +132,14 @@ describe('players.types helpers', () => {
       },
       last_used_at: null,
     }
+    const playerWithoutPhone: ClubPlayer = {
+      id: 3,
+      display_name: 'لاعب 3',
+    }
 
+    expect(getClubPlayerPhone(playerWithTopLevelPhone)).toBe('01011111111')
     expect(getClubPlayerPhone(playerWithProfilePhone)).toBe('01022222222')
+    expect(getClubPlayerPhone(playerWithoutPhone)).toBe('')
     expect(getClubPlayerPhone(null)).toBe('')
   })
 

@@ -16,6 +16,7 @@ const mockPlayers: ClubPlayer[] = [
   {
     id: 101,
     display_name: 'كابتن طارق',
+    phone_number: '01012345678',
     player_number: 1,
     player_profile: {
       id: 1001,
@@ -160,6 +161,7 @@ describe('PlayerCombobox', () => {
       {
         id: 201,
         display_name: 'أحمد كابتن',
+        phone_number: '01222333444',
         player_number: 10,
         player_profile: {
           id: 1201,

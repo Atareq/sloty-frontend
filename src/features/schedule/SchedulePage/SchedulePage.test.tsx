@@ -34,6 +34,7 @@ import type {
   BookingSlotsResponse,
 } from '../scheduleApi.types'
 import { getEgyptDateValue } from '../scheduleBoard.helpers'
+import { getPreviousCalendarDate } from '../../../shared/utils/date'
 import { SchedulePage } from './SchedulePage'
 
 interface Deferred<TValue> {
@@ -208,7 +209,10 @@ function makeSlot(
   }
 }
 
-function makeSlotsResponse(slots: BookingSlot[]): BookingSlotsResponse {
+function makeSlotsResponse(
+  slots: BookingSlot[],
+  overrides: Partial<BookingSlotsResponse> = {},
+): BookingSlotsResponse {
   const today = getEgyptDateValue()
 
   return {
@@ -219,6 +223,7 @@ function makeSlotsResponse(slots: BookingSlot[]): BookingSlotsResponse {
     slot_duration_minutes: 60,
     message: null,
     slots,
+    ...overrides,
   }
 }
 
@@ -3585,15 +3590,22 @@ describe('SchedulePage', () => {
 
     await act(async () => {
       dateBDeferred.resolve(
-        makeSlotsResponse([
-          makeSlot({
-            start_time: '14:00',
-            end_time: '15:00',
-            slot_status: 'FREE',
-            is_available: true,
-            label: 'متاح',
-          }),
-        ]),
+        makeSlotsResponse(
+          [
+            makeSlot({
+              date: '2026-07-21',
+              start_time: '14:00',
+              end_time: '15:00',
+              slot_status: 'FREE',
+              is_available: true,
+              label: 'متاح',
+            }),
+          ],
+          {
+            date_from: '2026-07-21',
+            date_to: '2026-07-21',
+          },
+        ),
       )
     })
 
@@ -3683,5 +3695,129 @@ describe('SchedulePage', () => {
     // 10:00 remains visible; aborted Request A cannot apply its response
     expect(screen.getByRole('button', { name: '10:00 ص متاح' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '9:00 ص متاح' })).not.toBeInTheDocument()
+  })
+
+  it('excludes previous-day slots returned from backend fetch and prevents duplicate slot rendering', async () => {
+    const today = getEgyptDateValue()
+    const yesterday = getPreviousCalendarDate(today)
+
+    mockedListBookingSlots.mockResolvedValueOnce({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: yesterday,
+      date_to: today,
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        makeSlot({
+          date: yesterday,
+          start_time: '22:00',
+          end_time: '23:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+        makeSlot({
+          date: today,
+          start_time: '19:00',
+          end_time: '20:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+        makeSlot({
+          date: today,
+          start_time: '20:00',
+          end_time: '21:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+        makeSlot({
+          date: today,
+          start_time: '21:00',
+          end_time: '22:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+        makeSlot({
+          date: today,
+          start_time: '22:00',
+          end_time: '23:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ],
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await screen.findByText('مواعيد المساء')
+
+    // Exactly one 10:00 PM slot should exist (not two!)
+    const tenPmButtons = screen.getAllByRole('button', { name: '10:00 م متاح' })
+    expect(tenPmButtons).toHaveLength(1)
+
+    // Verify all 4 visible slots for today exist
+    expect(screen.getByRole('button', { name: '7:00 م متاح' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '8:00 م متاح' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '9:00 م متاح' })).toBeInTheDocument()
+
+    // Offline cache should only store today's 4 slots
+    expect(mockedOfflineRepositories.replaceScheduleDay).toHaveBeenCalledWith(
+      expect.anything(),
+      7,
+      today,
+      expect.arrayContaining([
+        expect.objectContaining({ date: today, start_time: '19:00' }),
+        expect.objectContaining({ date: today, start_time: '20:00' }),
+        expect.objectContaining({ date: today, start_time: '21:00' }),
+        expect.objectContaining({ date: today, start_time: '22:00' }),
+      ]),
+      expect.any(String),
+      null,
+    )
+    const cachedSlots = mockedOfflineRepositories.replaceScheduleDay.mock.calls[0][3] as BookingSlot[]
+    expect(cachedSlots).toHaveLength(4)
+    expect(cachedSlots.every((slot) => slot.date === today)).toBe(true)
+  })
+
+  it('renders empty board message when today has no slots even if previous day returned slots', async () => {
+    const today = getEgyptDateValue()
+    const yesterday = getPreviousCalendarDate(today)
+
+    mockedListBookingSlots.mockResolvedValueOnce({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: yesterday,
+      date_to: today,
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        makeSlot({
+          date: yesterday,
+          start_time: '22:00',
+          end_time: '23:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ],
+    })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('مفيش مواعيد متاحة في اليوم ده.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '10:00 م متاح' })).not.toBeInTheDocument()
   })
 })

@@ -743,6 +743,7 @@ describe('AddBookingSheet', () => {
       {
         id: 77,
         display_name: 'كابتن محمود',
+        phone_number: '01012345678',
         player_number: 7,
         player_profile: {
           id: 707,
@@ -809,6 +810,7 @@ describe('AddBookingSheet', () => {
       {
         id: 101,
         display_name: 'طارق الأحدث',
+        phone_number: '01012345678',
         player_number: 1,
         player_profile: {
           id: 1001,
@@ -824,6 +826,7 @@ describe('AddBookingSheet', () => {
       {
         id: 102,
         display_name: 'طارق الأقدم',
+        phone_number: '01012345678',
         player_number: 2,
         player_profile: {
           id: 1002,
@@ -893,6 +896,7 @@ describe('AddBookingSheet', () => {
       {
         id: 55,
         display_name: 'علي حسن',
+        phone_number: '01012345678',
         player_number: 5,
         player_profile: {
           id: 505,
