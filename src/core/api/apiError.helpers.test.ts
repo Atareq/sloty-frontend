@@ -84,6 +84,7 @@ describe('api error helpers', () => {
     ['BOOKING_CLUB_PLAYER_PHONE_MISMATCH', 'رقم الموبايل لا يطابق اللاعب المختار.'],
   ])('maps stable code %s without parsing backend message text', (code, message) => {
     expect(
+      getApiErrorMessage(new ApiClientError('Payment reference is required for this court.', 400, { code })),
       getApiErrorMessage(new ApiClientError('Default backend message', 400, { code })),
     ).toBe(message)
   })

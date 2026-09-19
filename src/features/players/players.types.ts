@@ -22,7 +22,7 @@ export interface ClubPlayer {
   id: number
   display_name: string
   phone_number?: string | null
-  player_profile?: PlayerProfileSummary | null
+  player_profile?: PlayerProfileSummary | PlayerProfile | null
   last_used_at?: string | null
   has_account?: boolean
   player_number?: number
