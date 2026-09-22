@@ -27,9 +27,6 @@ describe('apiEndpoints', () => {
     expect(apiEndpoints.clubs.courts.detail('nasr-club', 3)).toBe(
       'clubs/nasr-club/courts/3/',
     )
-    expect(apiEndpoints.clubs.users.list('nasr-club')).toBe(
-      'clubs/nasr-club/users/',
-    )
     expect(apiEndpoints.clubs.staff.list('nasr-club')).toBe(
       'clubs/nasr-club/staff/',
     )

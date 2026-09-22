@@ -53,10 +53,9 @@ export interface SettlementPreviewQueryParams {
   page?: number | string
 }
 
-/** Grouped `unsettled-summary` identity. Do not add `collected_by` here. */
 export interface CurrentCustodySummaryRow extends CurrentCustodyRecord {
-  user: number
-  user_name: string
+  collected_by: number
+  collected_by_name: string
   period_start: string
   period_end: string
   total_amount: string
@@ -126,7 +125,6 @@ export interface Settlement {
 export interface SettlementQueryParams {
   collected_by?: ProfileId | string
   settled_by?: ProfileId | string
-  status?: SettlementStatus | ''
   court?: number | string
   page?: number | string
 }

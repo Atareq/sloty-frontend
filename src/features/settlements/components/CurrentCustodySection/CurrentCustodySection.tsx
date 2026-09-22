@@ -176,7 +176,7 @@ export function CurrentCustodySection({
         >
           {mode === 'management'
             ? records.map((record) => (
-                <AppCard className="space-y-4" key={record.user}>
+                <AppCard className="space-y-4" key={record.collected_by}>
                   <div className="space-y-0.5">
                     <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
                       {financeCopy.collector}
@@ -200,7 +200,7 @@ export function CurrentCustodySection({
                     <Link
                       className="sloty-green-surface-button inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--sloty-primary-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)] focus:ring-offset-2"
                       to={buildPathWithQuery('/settlements/preview', {
-                        collected_by: record.user,
+                        collected_by: record.collected_by,
                         court,
                       })}
                     >

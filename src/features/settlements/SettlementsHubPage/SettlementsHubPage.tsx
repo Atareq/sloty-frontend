@@ -441,7 +441,6 @@ export function SettlementsHubPage() {
 
       try {
         const response = await listSettlements(selectedClubSlug, {
-          status: 'SETTLED',
           ...(query.court ? { court: query.court } : {}),
           ...(isOwnMode || !query.collected_by
             ? {}
