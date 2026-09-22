@@ -70,6 +70,7 @@ All active documentation is organized into focused, single-responsibility guides
 | [`src/offline/AGENTS.md`](../src/offline/AGENTS.md) | Scoped instructions for `src/offline/` | Database tables, scope isolation, dataset sync priorities, storage safety (governs `src/offline/**` only) |
 | [`src/features/schedule/AGENTS.md`](../src/features/schedule/AGENTS.md) | Scoped instructions for operational schedule | Request lifecycle, date strip, slot rendering, booking actions, operational closing |
 | [`src/features/publicSchedule/AGENTS.md`](../src/features/publicSchedule/AGENTS.md) | Scoped instructions for guest public schedule | Anonymous access, sanitized availability states, privacy boundaries, share link |
+| [`docs/frontend-api-contract.md`](frontend-api-contract.md) | Backend API contract matrix & endpoint inventory | DRF endpoint mapping, request/response DTOs, removed invented endpoints, non-negotiables |
 | [`architecture.md`](./architecture.md) | Frontend system architecture & contracts | Auth session (`currentUser`, `selectedClubSlug`, `selectedCourtId`), API client, routing, AppShell, PWA service worker |
 | [`frontend-ci-cd.md`](./frontend-ci-cd.md) | Production CI/CD and static publication | GitHub Actions, FE GitHub Releases, `scripts/deploy-sloty-frontend`, Nginx static publish |
 | [`domain-rules.md`](./domain-rules.md) | Business invariants & domain rules | Bookings lifecycle, financial ledger, custody & settlements, working hours pricing periods |

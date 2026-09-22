@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from 'react-router'
 import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { ClubSelectionPage } from '../features/auth/ClubSelectionPage/ClubSelectionPage'
 import { NoClubAccessPage } from '../features/auth/NoClubAccessPage/NoClubAccessPage'
+import { NoOperationalAccessPage } from '../features/auth/NoOperationalAccessPage/NoOperationalAccessPage'
 import { AuditLogsPage } from '../features/audit/AuditLogsPage/AuditLogsPage'
 import { AdminUserDetailsPage } from '../features/adminUsers/AdminUserDetailsPage/AdminUserDetailsPage'
 import { AdminUserFormPage } from '../features/adminUsers/AdminUserFormPage/AdminUserFormPage'
@@ -61,6 +62,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <NoClubAccessPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/no-operational-access',
+    element: (
+      <ProtectedRoute allowNonOperational>
+        <NoOperationalAccessPage />
       </ProtectedRoute>
     ),
   },

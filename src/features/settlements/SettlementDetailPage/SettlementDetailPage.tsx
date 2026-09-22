@@ -1,38 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import {
-  getApiErrorCode,
-  getApiErrorMessage,
-  isApiClientError,
-} from '../../../core/api/apiError.helpers'
-import {
-  canManageSettlements,
-  canViewOwnSettlements,
-} from '../../../core/auth/auth.types'
+import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
+import { canViewOwnSettlements } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
-import { AppSheet } from '../../../shared/components/AppSheet/AppSheet'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { formatArabicDateTime, formatArabicPeriodRange } from '../../../shared/utils/date'
 import { financeCopy } from '../../../shared/copy/appCopy'
 import { SettlementTotalsCard } from '../components/SettlementTotalsCard/SettlementTotalsCard'
 import { SettlementTransactionsList } from '../components/SettlementTransactionsList/SettlementTransactionsList'
-import {
-  getSettlement,
-  markSettlementSettled,
-} from '../settlementsApi'
-import { notifyCurrentFinancialStateChanged } from '../currentFinancialStateInvalidation'
+import { getSettlement } from '../settlementsApi'
 import {
   formatSettlementActor,
   getSettlementCollectorName,
 } from '../settlementDisplay.helpers'
 import type { Settlement } from '../settlements.types'
-
-const statusLabels: Record<string, string> = {
-  PENDING: 'محتاج استلام',
-  SETTLED: 'تم الاستلام',
-}
 
 function getTransactions(settlement: Settlement) {
   return settlement.lines ?? settlement.transactions ?? []
@@ -40,26 +23,17 @@ function getTransactions(settlement: Settlement) {
 
 /**
  * Read-only settlement detail page for backend-generated settlement periods.
+ * Settlements are immutable once created via POST. There is no mark-settled action
+ * on the frontend — backend owns settlement state transitions.
  */
 export function SettlementDetailPage() {
   const { settlementId } = useParams()
-  const {
-    refreshCurrentUser,
-    role,
-    selectedClubSlug,
-  } = useAuth()
+  const { role, selectedClubSlug } = useAuth()
   const [settlement, setSettlement] = useState<Settlement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isMarkingSettled, setIsMarkingSettled] = useState(false)
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const canSettle = canManageSettlements(role)
   const canViewOwn = canViewOwnSettlements(role)
-  const canMarkSettled = Boolean(
-    canSettle &&
-      settlement?.status === 'PENDING',
-  )
 
   useEffect(() => {
     let isActive = true
@@ -99,10 +73,10 @@ export function SettlementDetailPage() {
         if (isActive) {
           setSettlement(response)
         }
-      } catch (error) {
+      } catch (err) {
         if (isActive) {
           setSettlement(null)
-          setError(getApiErrorMessage(error, 'تعذر تحميل تفاصيل التسوية'))
+          setError(getApiErrorMessage(err, 'تعذر تحميل تفاصيل التسوية'))
         }
       } finally {
         if (isActive) {
@@ -118,53 +92,7 @@ export function SettlementDetailPage() {
     }
   }, [canViewOwn, selectedClubSlug, settlementId])
 
-  async function handleMarkSettled(): Promise<void> {
-    if (!selectedClubSlug || !settlementId || !canMarkSettled) {
-      return
-    }
-
-    setIsMarkingSettled(true)
-    setError(null)
-    setMessage(null)
-
-    try {
-      const response = await markSettlementSettled(selectedClubSlug, settlementId)
-
-      setSettlement(response)
-      setIsConfirmOpen(false)
-      setMessage('تم استلام المبلغ بنجاح')
-      notifyCurrentFinancialStateChanged({
-        clubSlug: selectedClubSlug,
-        reason: 'settlement-status',
-      })
-    } catch (error) {
-      const errorCode = getApiErrorCode(error)
-
-      setError(getApiErrorMessage(error, 'تعذر تحديث حالة التسوية'))
-
-      if (
-        errorCode === 'SETTLEMENT_ALREADY_DONE' ||
-        errorCode === 'TRANSACTION_SETTLED_LOCKED'
-      ) {
-        try {
-          setSettlement(await getSettlement(selectedClubSlug, settlementId))
-        } catch {
-          setSettlement(null)
-        }
-      }
-
-      if (isApiClientError(error) && error.status === 403) {
-        await refreshCurrentUser()
-      }
-    } finally {
-      setIsMarkingSettled(false)
-    }
-  }
-
   const transactions = settlement ? getTransactions(settlement) : []
-  const status = settlement?.status
-    ? statusLabels[settlement.status] ?? settlement.status
-    : 'غير محدد'
 
   return (
     <div className="space-y-5">
@@ -206,40 +134,23 @@ export function SettlementDetailPage() {
           />
 
           <AppCard className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                  {financeCopy.collector}
-                </p>
-                <h2 className="mt-1 text-2xl font-black text-[var(--sloty-text-primary)]">
-                  {getSettlementCollectorName(settlement)}
-                </h2>
-              </div>
-              {canMarkSettled ? (
-                <AppButton
-                  disabled={isMarkingSettled}
-                  onClick={() => setIsConfirmOpen(true)}
-                >
-                  تأكيد استلام المبلغ
-                </AppButton>
-              ) : null}
+            <div>
+              <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                {financeCopy.collector}
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-[var(--sloty-text-primary)]">
+                {getSettlementCollectorName(settlement)}
+              </h2>
             </div>
 
             <dl className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
               <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                 <dt className="font-bold text-[var(--sloty-text-muted)]">
-                  المستخدم
+                  {financeCopy.receivedBy}
                 </dt>
                 <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                  {getSettlementCollectorName(settlement)}
-                </dd>
-              </div>
-              <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                <dt className="font-bold text-[var(--sloty-text-muted)]">
-                  الحالة
-                </dt>
-                <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                  {status}
+                  {settlement.settled_by_name ??
+                    formatSettlementActor(settlement.settled_by)}
                 </dd>
               </div>
               <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2 md:col-span-2">
@@ -269,22 +180,14 @@ export function SettlementDetailPage() {
               </div>
               <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                 <dt className="font-bold text-[var(--sloty-text-muted)]">
-                  تاريخ الإنشاء
+                  تاريخ التسوية
                 </dt>
                 <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                  {formatArabicDateTime(settlement.created) ?? 'غير محدد'}
+                  {formatArabicDateTime(
+                    settlement.created ?? settlement.created_at,
+                  ) ?? 'غير محدد'}
                 </dd>
               </div>
-              {settlement.status === 'SETTLED' ? (
-                <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
-                  <dt className="font-bold text-[var(--sloty-text-muted)]">
-                    {financeCopy.receivedBy}
-                  </dt>
-                  <dd className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                    {formatSettlementActor(settlement.settled_by)}
-                  </dd>
-                </div>
-              ) : null}
               {settlement.settled_at ? (
                 <div className="rounded-xl bg-[var(--sloty-bg)] px-3 py-2">
                   <dt className="font-bold text-[var(--sloty-text-muted)]">
@@ -313,39 +216,6 @@ export function SettlementDetailPage() {
             transactions={transactions}
           />
 
-          <AppSheet
-            className="md:max-w-md"
-            isOpen={isConfirmOpen}
-            onRequestClose={() => {
-              if (!isMarkingSettled) {
-                setIsConfirmOpen(false)
-              }
-            }}
-            title="تأكيد استلام المبلغ"
-          >
-            <div className="space-y-4 p-4 pt-12 sm:p-5 sm:pt-12">
-              <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
-                تأكيد استلام المبلغ
-              </h2>
-              <p className="text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
-                بعد التأكيد المبلغ هيتحوّل إلى مستلم ومقفول.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <AppButton disabled={isMarkingSettled} onClick={handleMarkSettled}>
-                  {isMarkingSettled
-                    ? 'جاري تأكيد الاستلام...'
-                    : 'تأكيد استلام المبلغ'}
-                </AppButton>
-                <AppButton
-                  disabled={isMarkingSettled}
-                  onClick={() => setIsConfirmOpen(false)}
-                  variant="secondary"
-                >
-                  إلغاء
-                </AppButton>
-              </div>
-            </div>
-          </AppSheet>
         </>
       ) : null}
     </div>

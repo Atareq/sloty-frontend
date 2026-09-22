@@ -387,7 +387,9 @@ describe('bookingRequestSync', () => {
     })
 
     expect(records.get('request-1')?.status).toBe('NEEDS_REVIEW')
-    expect(records.get('request-1')?.review_reason).toBeNull()
+    expect(records.get('request-1')?.review_reason).toBe(
+      'CLIENT_REQUEST_MISMATCH',
+    )
     expect(records.get('request-1')?.client_request_id).toBe('client-request-1')
     expect(records.get('request-1')?.backend_attempt_id).toBe(77)
     expect(result.integrityMismatch).toBe(1)

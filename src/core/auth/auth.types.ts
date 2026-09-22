@@ -2,9 +2,28 @@ import type { ReactNode } from 'react'
 import type { Club } from '../../features/clubs/clubs.types'
 import type { Court } from '../../features/courts/courts.types'
 
-export const AUTH_ROLES = ['ADMIN', 'OWNER', 'STAFF'] as const
+export const OPERATIONAL_ROLES = ['ADMIN', 'OWNER', 'STAFF'] as const
 
-export type AuthRole = (typeof AUTH_ROLES)[number]
+export type OperationalRole = (typeof OPERATIONAL_ROLES)[number]
+
+export const AUTH_ROLES = OPERATIONAL_ROLES
+
+export type AuthRole = OperationalRole
+
+export type ProfileRole = AuthRole | 'PLAYER' | (string & {}) | null
+
+export function isOperationalRole(role: unknown): role is AuthRole {
+  return (
+    typeof role === 'string' &&
+    (OPERATIONAL_ROLES as readonly string[]).includes(role)
+  )
+}
+
+export type SessionState =
+  | 'restoring'
+  | 'operational'
+  | 'nonOperational'
+  | 'unauthenticated'
 
 export interface AuthClaims {
   user_id: number
@@ -26,7 +45,7 @@ export interface TokenPair {
 }
 
 export interface LoginRequest {
-  username: string
+  phone_number: string
   password: string
   club_slug?: string
 }
@@ -35,20 +54,24 @@ export interface RefreshTokenRequest {
   refresh: string
 }
 
+export type UserId = number
+export type ProfileId = number
+
 export interface AccountCreator {
   id: number
   name: string
 }
 
 export interface CurrentUserProfile {
-  id: number
-  username: string
+  id: UserId
+  profile_id?: ProfileId | null
+  username?: string | null
   email: string
   first_name: string
   last_name: string
   phone_number: string | null
   is_active: boolean
-  profile_role: AuthRole | null
+  profile_role: ProfileRole
   account_created_by: AccountCreator | null
 }
 
@@ -56,12 +79,14 @@ export interface AuthContextValue {
   accessToken: string | null
   claims: AuthClaims | null
   currentUser: CurrentUserProfile | null
+  currentProfileId?: ProfileId | null
   selectedClubSlug: string | null
   accessibleClubs: Club[]
   selectedCourtId: number | null
   accessibleCourts: Court[]
   role: AuthRole | null
   isAuthenticated: boolean
+  isOperational: boolean
   isLoadingSession: boolean
   isTokenExpired: boolean
   sessionError: string | null
@@ -161,4 +186,6 @@ export function getAssignedOperationalCourtId(
   }
   return null
 }
+
+export { getCurrentProfileId, hasOperationalProfile } from './authIdentity'
 

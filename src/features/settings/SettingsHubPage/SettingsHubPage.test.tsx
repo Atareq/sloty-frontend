@@ -23,6 +23,7 @@ function mockAuth(role: AuthRole = 'OWNER') {
     selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,

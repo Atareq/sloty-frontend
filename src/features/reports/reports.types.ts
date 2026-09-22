@@ -1,3 +1,5 @@
+import type { ProfileId } from '../../core/auth/auth.types'
+
 export const COURT_USAGE_REPORT_STATUSES = [
   'HOLD',
   'CONFIRMED',
@@ -36,7 +38,7 @@ export interface CourtUsageReportQueryParams {
   period?: CourtUsageReportPeriod
   hour_from?: string
   hour_to?: string
-  staff?: number | string
+  staff?: ProfileId | string
   status?: CourtUsageReportStatus | ''
 }
 
@@ -63,7 +65,7 @@ export interface CourtUsageContext {
   period: CourtUsageReportPeriod
   hour_from: string | null
   hour_to: string | null
-  staff: number | null
+  staff: ProfileId | null
   staff_name: string | null
   status: CourtUsageReportStatus | null
   included_statuses: CourtUsageReportStatus[]
@@ -94,7 +96,7 @@ export interface DemandHour extends UsageMetrics {
 }
 
 export interface StaffBookingActivity {
-  staff: number
+  staff: ProfileId
   staff_name: string
   booking_count: number
   status_counts: Record<string, number>

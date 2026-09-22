@@ -10,6 +10,7 @@ import { AppDateNavigator } from '../../../../shared/components/AppDateNavigator
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 import { AppSheet } from '../../../../shared/components/AppSheet/AppSheet'
 import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/UnsavedChangesPrompt'
+import { extractResults } from '../../../../shared/api/pagination.helpers'
 import { listCourts } from '../../../courts/courtsApi'
 import type { Court } from '../../../courts/courts.types'
 import type { ScheduleBooking } from '../../../schedule/schedule.types'
@@ -17,7 +18,6 @@ import {
   formatBookingDateTime,
   formatTime12Hour,
   getEgyptDateValueFromInstant,
-  isPastSlot,
   mapBookingSlotsResponseToScheduleBookings,
 } from '../../../schedule/scheduleBoard.helpers'
 import { listBookingSlots } from '../../../schedule/scheduleApi'
@@ -75,13 +75,8 @@ export function RescheduleBookingSheet({
   const courtId = Number(selectedCourtId)
   const isDirty = selectedSlot !== null || reason.length > 0
   const availableSlots = useMemo(
-    () =>
-      slots.filter(
-        (slot) =>
-          slot.isAvailable === true &&
-          !isPastSlot(selectedDate, slot.endTime),
-      ),
-    [selectedDate, slots],
+    () => slots.filter((slot) => slot.isAvailable === true),
+    [slots],
   )
   const amSlots = availableSlots.filter((slot) => slot.period === 'am')
   const pmSlots = availableSlots.filter((slot) => slot.period === 'pm')
@@ -102,6 +97,7 @@ export function RescheduleBookingSheet({
         }
 
         setCourts(response.results.filter((court) => court.is_active))
+        setCourts(extractResults(response).filter((court) => court.is_active))
         setCourtsWarning(null)
       } catch (caught: unknown) {
         if (cancelled) {

@@ -97,6 +97,7 @@ function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF', canSettle = false) {
     selectCourt: vi.fn(),
     role: effectiveRole,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,

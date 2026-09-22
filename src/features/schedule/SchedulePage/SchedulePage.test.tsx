@@ -33,7 +33,7 @@ import type {
   BookingSlot,
   BookingSlotsResponse,
 } from '../scheduleApi.types'
-import { getEgyptDateValue } from '../scheduleBoard.helpers'
+import { formatBookingDateTime, getEgyptDateValue } from '../scheduleBoard.helpers'
 import { getPreviousCalendarDate } from '../../../shared/utils/date'
 import { SchedulePage } from './SchedulePage'
 
@@ -95,6 +95,7 @@ vi.mock('../scheduleApi', () => ({
   markBookingNoShow: vi.fn(),
   previewBookingCancellation: vi.fn(),
   rescheduleBooking: vi.fn(),
+  updateBooking: vi.fn(),
   updateBookingCustomer: vi.fn(),
   updateBookingNotes: vi.fn(),
 }))
@@ -388,6 +389,7 @@ function mockScheduleApiData(): void {
       },
     ] as never,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -893,9 +895,10 @@ describe('SchedulePage', () => {
     expect(screen.getByRole('button', { name: '9:00 ص متاح' }))
       .toBeInTheDocument()
     expect(originalFreshness).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.',
-    )
+    expect(
+      screen.queryByText('تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('manual Schedule refresh rereads the current cached day after successful sync', async () => {
@@ -1691,8 +1694,8 @@ describe('SchedulePage', () => {
         backend_attempt_id: null,
         last_attempt_at: null,
         requested_date: today,
-        requested_start: `${today}T10:00:00`,
-        requested_end: `${today}T11:00:00`,
+        requested_start: formatBookingDateTime(today, '10:00'),
+        requested_end: formatBookingDateTime(today, '11:00'),
         original_slot_snapshot: alternativeSlot,
         resolved_booking_id: null,
         status: 'PENDING_SYNC',
@@ -1753,8 +1756,8 @@ describe('SchedulePage', () => {
     expect(updateCall).toBeDefined()
     expect(updateCall?.[2]).toEqual(
       expect.objectContaining({
-        requested_start: `${today}T10:00:00`,
-        requested_end: `${today}T11:00:00`,
+        requested_start: formatBookingDateTime(today, '10:00'),
+        requested_end: formatBookingDateTime(today, '11:00'),
         client_request_id: expect.any(String),
         backend_attempt_id: null,
         last_attempt_at: null,
@@ -1800,15 +1803,75 @@ describe('SchedulePage', () => {
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
     await waitFor(() => {
-      expect(mockedCreateBooking).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-        customer_name: 'أحمد علي',
-        customer_phone: '+201000000000',
-        start_time: `${today}T09:00:00`,
-        end_time: `${today}T10:00:00`,
-        is_recurring: false,
-      })
+      expect(mockedCreateBooking).toHaveBeenCalledWith(
+        'nasr-club',
+        expect.objectContaining({
+          court: 7,
+          customer_name: 'أحمد علي',
+          customer_phone: '+201000000000',
+          start_time: formatBookingDateTime(today, '09:00'),
+          end_time: formatBookingDateTime(today, '10:00'),
+          is_recurring: false,
+          source: 'MANUAL',
+        }),
+      )
     })
+    expect(await screen.findByText('✓ تم حجز الموعد بنجاح'))
+      .toBeInTheDocument()
+  })
+
+  it('reuses the same client_request_id when retrying the same online create payload', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const today = getEgyptDateValue()
+    mockedListBookingSlots.mockResolvedValue(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ]),
+    )
+    mockedCreateBooking.mockRejectedValueOnce(
+      new ApiClientError('تعذر الاتصال بالخادم', 0, { code: 'NETWORK_ERROR' }),
+    )
+    mockedCreateBooking.mockResolvedValueOnce(
+      bookingFixture({
+        id: 88,
+        court: 7,
+        start_time: formatBookingDateTime(today, '09:00'),
+        end_time: formatBookingDateTime(today, '10:00'),
+        status: 'HOLD',
+      }),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    await waitFor(() => {
+      expect(mockedCreateBooking).toHaveBeenCalledTimes(2)
+    })
+
+    const firstId = mockedCreateBooking.mock.calls[0]?.[1]?.client_request_id
+    const secondId = mockedCreateBooking.mock.calls[1]?.[1]?.client_request_id
+    expect(firstId).toEqual(expect.any(String))
+    expect(secondId).toBe(firstId)
     expect(await screen.findByText('✓ تم حجز الموعد بنجاح'))
       .toBeInTheDocument()
   })
@@ -1834,6 +1897,34 @@ describe('SchedulePage', () => {
 
     expect(await screen.findByRole('button', { name: '9:00 ص متاح' }))
       .toBeDisabled()
+  })
+
+  it('renders and opens a backend-returned FREE slot regardless of its date', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          date: '2020-01-01',
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ]),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const slot = await screen.findByRole('button', { name: '9:00 ص متاح' })
+    expect(slot).toBeEnabled()
+    await user.click(slot)
+    expect(screen.getByRole('heading', { name: 'حجز جديد' }))
+      .toBeInTheDocument()
   })
 
   it('keeps UNAVAILABLE slots disabled and outside Add Booking', async () => {
@@ -1879,6 +1970,60 @@ describe('SchedulePage', () => {
 
     await user.click(screen.getByRole('button', { name: '7:00 ص العربون مدفوع' }))
     expect(within(screen.getByRole('dialog')).getByText('العربون مدفوع'))
+      .toBeInTheDocument()
+  })
+
+  it('opens a backend-returned occupied slot regardless of its date', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookingSlots.mockResolvedValueOnce(
+      makeSlotsResponse([
+        makeSlot({
+          date: '2020-01-01',
+          start_time: '06:00',
+          end_time: '07:00',
+          slot_status: 'HOLD',
+          is_available: false,
+          label: 'بانتظار العربون',
+        }),
+      ]),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const slot = await screen.findByRole('button', {
+      name: '6:00 ص بانتظار العربون',
+    })
+    expect(slot).toBeEnabled()
+    await user.click(slot)
+    expect(within(screen.getByRole('dialog')).getByText('بانتظار العربون'))
+      .toBeInTheDocument()
+  })
+
+  it('keeps occupied morning slots clickable after start_time has passed', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    const holdSlot = await screen.findByRole('button', {
+      name: '6:00 ص بانتظار العربون',
+    })
+    const confirmedSlot = screen.getByRole('button', {
+      name: '7:00 ص العربون مدفوع',
+    })
+
+    expect(holdSlot).toBeEnabled()
+    expect(confirmedSlot).toBeEnabled()
+
+    await user.click(holdSlot)
+    expect(within(screen.getByRole('dialog')).getByText('بانتظار العربون'))
       .toBeInTheDocument()
   })
 
@@ -2089,14 +2234,18 @@ describe('SchedulePage', () => {
     await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
 
     await waitFor(() => {
-      expect(mockedCreateBooking).toHaveBeenCalledWith('nasr-club', {
-        court: 7,
-        customer_name: 'أحمد علي',
-        customer_phone: '+201000000000',
-        start_time: `${today}T09:00:00`,
-        end_time: `${today}T10:00:00`,
-        is_recurring: false,
-      })
+      expect(mockedCreateBooking).toHaveBeenCalledWith(
+        'nasr-club',
+        expect.objectContaining({
+          court: 7,
+          customer_name: 'أحمد علي',
+          customer_phone: '+201000000000',
+          start_time: formatBookingDateTime(today, '09:00'),
+          end_time: formatBookingDateTime(today, '10:00'),
+          is_recurring: false,
+          source: 'MANUAL',
+        }),
+      )
     })
     await waitFor(() => {
       expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
@@ -2170,14 +2319,15 @@ describe('SchedulePage', () => {
     await waitFor(() => {
       expect(mockedCreateBooking).toHaveBeenCalledWith(
         'nasr-club',
-        {
+        expect.objectContaining({
           court: 7,
           customer_name: 'أحمد علي',
           customer_phone: '+201000000000',
-          start_time: `${today}T09:00:00`,
-          end_time: `${today}T10:00:00`,
+          start_time: formatBookingDateTime(today, '09:00'),
+          end_time: formatBookingDateTime(today, '10:00'),
           is_recurring: true,
-        },
+          source: 'MANUAL',
+        }),
       )
     })
     await waitFor(() => {
@@ -2281,6 +2431,91 @@ describe('SchedulePage', () => {
           signal: undefined,
         },
       )
+    })
+  })
+
+  it('submits a backend-available slot even when the local clock is after that start time', async () => {
+    vi.setSystemTime(new Date('2026-07-20T14:00:00Z'))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const today = getEgyptDateValue()
+
+    mockedListBookingSlots.mockResolvedValue(
+      makeSlotsResponse([
+        makeSlot({
+          start_time: '09:00',
+          end_time: '10:00',
+          slot_status: 'FREE',
+          is_available: true,
+          label: 'متاح',
+        }),
+      ]),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    await waitFor(() => {
+      expect(mockedCreateBooking).toHaveBeenCalledWith(
+        'nasr-club',
+        expect.objectContaining({
+          court: 7,
+          customer_name: 'أحمد علي',
+          customer_phone: '+201000000000',
+          start_time: formatBookingDateTime(today, '09:00'),
+          end_time: formatBookingDateTime(today, '10:00'),
+        }),
+      )
+    })
+  })
+
+  it('displays backend working-hours rejection after the create request is sent', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedCreateBooking.mockRejectedValueOnce(
+      new ApiClientError(
+        'The selected booking time is outside the court working hours.',
+        400,
+        {
+          code: 'BOOKING_OUTSIDE_WORKING_HOURS',
+        },
+      ),
+    )
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '9:00 ص متاح' }))
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(mockedCreateBooking).toHaveBeenCalled()
+    expect(
+      await screen.findByText('الموعد خارج مواعيد عمل الملعب.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'The selected booking time is outside the court working hours.',
+      ),
+    ).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockedListBookingSlots).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -3381,6 +3616,7 @@ describe('SchedulePage', () => {
     render(<div>{latestAction}</div>)
     const shareBtn = screen.getByRole('button', { name: 'مشاركة الجدول' })
     await user.click(shareBtn)
+    await user.click(screen.getByRole('button', { name: /مشاركة الرابط/ }))
 
     expect(mockWriteText).toHaveBeenCalledWith(
       expect.stringContaining('/public/nasr-club/courts/8/schedule'),
@@ -3428,6 +3664,7 @@ describe('SchedulePage', () => {
     render(<div>{latestAction}</div>)
     const shareBtn = screen.getByRole('button', { name: 'مشاركة الجدول' })
     await user.click(shareBtn)
+    await user.click(screen.getByRole('button', { name: /مشاركة الرابط/ }))
 
     expect(mockWriteText).toHaveBeenCalledWith(
       expect.stringContaining('/public/nasr-club/courts/7/schedule'),

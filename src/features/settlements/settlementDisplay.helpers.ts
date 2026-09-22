@@ -1,8 +1,9 @@
+import type { ProfileId } from '../../core/auth/auth.types'
 import type { Settlement, SettlementActor } from './settlements.types'
 
 /** Formats a returned user snapshot without exposing backend identifiers. */
 export function formatSettlementActor(
-  actor: number | SettlementActor | null | undefined,
+  actor: ProfileId | SettlementActor | null | undefined,
 ): string {
   if (actor && typeof actor === 'object' && actor.name?.trim()) {
     return actor.name.trim()

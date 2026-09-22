@@ -56,6 +56,7 @@ interface BookingRequestSyncRepositories {
       reviewReason?: BookingRequestReviewReason | null
       resolvedBookingId?: number | null
       backendAttemptId?: number | null
+      retryCount?: number
     },
   ) => Promise<BookingIntentRecord | undefined>
 }
@@ -120,7 +121,11 @@ type ClassifiedBookingCreateError =
       backendAttemptId?: number | null
     }
   | { type: 'auth_stopped'; stopReason: BookingRequestStopReason }
-  | { type: 'integrity_mismatch'; backendAttemptId?: number | null }
+  | {
+      type: 'integrity_mismatch'
+      reason: BookingRequestReviewReason
+      backendAttemptId?: number | null
+    }
   | { type: 'unknown_nonretryable' }
 
 function isAbortError(error: unknown): boolean {
@@ -244,6 +249,7 @@ export function classifyBookingRequestSyncError(
   if (code === 'BOOKING_CLIENT_REQUEST_MISMATCH') {
     return {
       type: 'integrity_mismatch',
+      reason: 'CLIENT_REQUEST_MISMATCH',
       backendAttemptId: getBackendAttemptId(error),
     }
   }
@@ -294,9 +300,11 @@ async function restoreRetryableStatus(
   repositories: BookingRequestSyncRepositories,
   scope: OfflineScope,
   localId: string,
+  retryCount?: number,
 ): Promise<void> {
   await repositories.updateBookingIntentStatus(scope, localId, 'PENDING_SYNC', {
     reviewReason: null,
+    ...(typeof retryCount === 'number' ? { retryCount } : {}),
   })
 }
 
@@ -321,6 +329,7 @@ export async function processBookingRequest(
   }
 
   const attemptAt = now.toISOString()
+  const currentRetryCount = (request.retry_count ?? 0) + 1
   const syncingRequest = await repositories.updateBookingIntentStatus(
     options.scope,
     request.local_id,
@@ -328,6 +337,7 @@ export async function processBookingRequest(
     {
       lastAttemptAt: attemptAt,
       reviewReason: null,
+      retryCount: currentRetryCount,
     },
   )
 
@@ -352,6 +362,7 @@ export async function processBookingRequest(
         lastAttemptAt: attemptAt,
         resolvedBookingId: booking.id,
         reviewReason: null,
+        retryCount: currentRetryCount,
       },
     )
 
@@ -368,6 +379,7 @@ export async function processBookingRequest(
         repositories,
         options.scope,
         syncingRequest.local_id,
+        currentRetryCount,
       )
 
       return { localId: syncingRequest.local_id, outcome: 'pending_retry' }
@@ -382,6 +394,7 @@ export async function processBookingRequest(
           lastAttemptAt: attemptAt,
           reviewReason: classification.reason,
           backendAttemptId: classification.backendAttemptId,
+          retryCount: currentRetryCount,
         },
       )
 
@@ -395,8 +408,9 @@ export async function processBookingRequest(
         'NEEDS_REVIEW',
         {
           lastAttemptAt: attemptAt,
-          reviewReason: null,
+          reviewReason: classification.reason,
           backendAttemptId: classification.backendAttemptId,
+          retryCount: currentRetryCount,
         },
       )
 
@@ -411,6 +425,7 @@ export async function processBookingRequest(
         repositories,
         options.scope,
         syncingRequest.local_id,
+        currentRetryCount,
       )
 
       return {
@@ -430,6 +445,7 @@ export async function processBookingRequest(
       {
         lastAttemptAt: attemptAt,
         reviewReason: null,
+        retryCount: currentRetryCount,
       },
     )
 

@@ -40,20 +40,29 @@ const tones: Record<ScheduleBooking['status'], ScheduleSlotTone> = {
   no_show: 'no_show',
 }
 
+const OPENS_BOOKING_DETAILS: ReadonlySet<ScheduleBooking['status']> = new Set([
+  'hold',
+  'confirmed',
+  'completed',
+  'cancelled',
+  'no_show',
+  'recurring_reserved',
+])
+
 /** Keeps the Backend slot matrix out of the compact card markup. */
 export function getScheduleSlotPresentation(
   slot: ScheduleBooking,
 ): ScheduleSlotPresentation {
   const isRecurringReservation = slot.status === 'recurring_reserved'
   const isFree = slot.status === 'available'
-  const hasBooking = Boolean(slot.booking)
+  const opensDetails =
+    OPENS_BOOKING_DETAILS.has(slot.status) || Boolean(slot.booking)
 
   return {
     label: fallbackLabels[slot.status] || slot.label || 'متاح',
-    isClickable:
-      (isFree && slot.isAvailable === true) ||
-      isRecurringReservation ||
-      hasBooking,
+    isClickable: isFree
+      ? slot.isAvailable === true
+      : opensDetails,
     showRecurringIcon:
       isRecurringReservation ||
       Boolean(slot.booking?.is_recurring) ||

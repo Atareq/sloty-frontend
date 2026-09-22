@@ -1,3 +1,5 @@
+import type { ProfileId } from '../../core/auth/auth.types'
+
 export type PaymentMethod =
   | 'CASH'
   | 'DIGITAL_WALLET'
@@ -20,6 +22,11 @@ export const transactionTypeLabels: Record<TransactionType, string> = {
 
 export type TransactionSettlementStatus = 'settled' | 'unsettled'
 
+export interface TransactionActor {
+  id: ProfileId
+  name?: string
+}
+
 export interface TransactionQueryParams {
   booking?: number | string
   date?: string
@@ -27,7 +34,7 @@ export interface TransactionQueryParams {
   date_to?: string
   court?: number | string
   payment_method?: PaymentMethod | ''
-  created_by?: number | string
+  created_by?: ProfileId | string
   ordering?: 'created' | '-created' | ''
   search?: string
   settlement?: number | string
@@ -56,11 +63,13 @@ export interface Transaction {
   court?: number | null
   court_name?: string | null
   created_by_username?: string | null
+  created_by_name?: string | null
   modified?: string
-  created_by?: number | { id: number; name?: string } | null
+  created_by?: ProfileId | TransactionActor | null
   is_settled?: boolean
   is_cancelled?: boolean
-  cancelled_by?: number | { id: number; name?: string } | null
+  cancelled_by?: ProfileId | TransactionActor | null
+  cancelled_by_name?: string | null
   cancelled_at?: string | null
   cancellation_reason?: string | null
 }

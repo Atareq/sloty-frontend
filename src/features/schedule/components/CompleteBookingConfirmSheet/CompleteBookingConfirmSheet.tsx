@@ -84,7 +84,7 @@ export function CompleteBookingConfirmSheet({
   )
   const requiresPaymentReference =
     requiresNextDeposit &&
-    preview?.requires_payment_reference === true &&
+    preview?.requires_digital_payment_reference === true &&
     isNonCashMethod(paymentMethod)
   const isDirty =
     requiresNextDeposit &&

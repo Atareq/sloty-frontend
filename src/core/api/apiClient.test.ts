@@ -631,7 +631,7 @@ describe('apiRequest', () => {
     expect(mockedSetAccessToken).not.toHaveBeenCalledWith(nextAccess)
   })
 
-  it('refreshes an expired access token before sending the original request', async () => {
+  it('sends request with expired token, receives 401 SESSION_EXPIRED, refreshes once, and retries request', async () => {
     const expiredAccess = createAccessToken(-60)
     const nextAccess = createAccessToken(3600)
     mockedGetAccessToken
@@ -642,15 +642,23 @@ describe('apiRequest', () => {
       'fetch',
       vi
         .fn()
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+            { status: 401 },
+          ),
+        )
         .mockResolvedValueOnce(Response.json({ access: nextAccess }))
         .mockResolvedValueOnce(Response.json({ ok: true })),
     )
 
     await expect(apiRequest('/me/')).resolves.toEqual({ ok: true })
 
-    expect(getRequestUrl(0)).toContain('auth/token/refresh/')
-    expect(getRequestUrl(1)).toContain('me/')
-    expect(getRequestHeaders(1).get('Authorization')).toBe(`Bearer ${nextAccess}`)
+    expect(getRequestUrl(0)).toContain('me/')
+    expect(getRequestHeaders(0).get('Authorization')).toBe(`Bearer ${expiredAccess}`)
+    expect(getRequestUrl(1)).toContain('auth/token/refresh/')
+    expect(getRequestUrl(2)).toContain('me/')
+    expect(getRequestHeaders(2).get('Authorization')).toBe(`Bearer ${nextAccess}`)
   })
 
   it('omits Authorization header when omitAuth is true even if access token is present', async () => {

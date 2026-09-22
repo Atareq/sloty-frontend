@@ -1,29 +1,67 @@
 import { apiRequest } from '../../core/api/apiClient'
-import type { PaginatedResponse } from '../../shared/api/api.types'
+import type { PaginatedResponse } from '../../shared/api/pagination.types'
+import { fetchAllPages } from '../../shared/api/pagination.helpers'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
+import { buildPathWithQuery } from '../../shared/utils/buildPathWithQuery'
 import type { Court, CourtPayload } from './courts.types'
+
+export interface ListCourtsParams {
+  search?: string
+  page?: number
+  is_active?: boolean
+}
+
+export interface ListCourtsOptions {
+  signal?: AbortSignal
+  nextUrl?: string
+  params?: ListCourtsParams
+}
 
 /**
  * API wrapper for courts nested under a club slug.
  *
- * The backend owns permissions and validation; these helpers only centralize
- * the typed frontend calls used by Sprint 2A setup screens.
+ * Supports DRF pagination:
+ * - Pass `nextUrl` to follow a previous paginated response page link.
+ * - Pass `params.search` to filter courts by name on the backend.
+ * - Pass `params.is_active` to filter active/inactive courts.
  */
 export function listCourts(
   clubSlug: string,
-  options: { signal?: AbortSignal } = {},
+  options: ListCourtsOptions | { signal?: AbortSignal; nextUrl?: string } = {},
 ): Promise<PaginatedResponse<Court>> {
-  const path = apiEndpoints.clubs.courts.list(clubSlug)
+  let path = apiEndpoints.clubs.courts.list(clubSlug)
+
+  if (options.nextUrl) {
+    path = options.nextUrl
+  } else if ('params' in options && options.params) {
+    path = buildPathWithQuery(apiEndpoints.clubs.courts.list(clubSlug), {
+      search: options.params.search?.trim(),
+      page: options.params.page,
+      is_active: options.params.is_active,
+    })
+  }
 
   if (!options.signal) {
     return apiRequest<PaginatedResponse<Court>>(path)
   }
 
-  return apiRequest<PaginatedResponse<Court>>(
-    path,
-    { signal: options.signal },
+  return apiRequest<PaginatedResponse<Court>>(path, {
+    signal: options.signal,
+  })
+}
+
+/**
+ * Fetches all courts for a club by sequentially following `next` pagination links until null.
+ */
+export function fetchAllCourts(
+  clubSlug: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<Court[]> {
+  return fetchAllPages((nextUrl) =>
+    listCourts(clubSlug, { nextUrl, signal: options.signal }),
   )
 }
+
 
 export function createCourt(
   clubSlug: string,

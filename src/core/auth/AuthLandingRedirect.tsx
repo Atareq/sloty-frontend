@@ -1,4 +1,5 @@
 import { Navigate } from 'react-router'
+import { AppButton } from '../../shared/components/AppButton/AppButton'
 import { getDefaultRouteForRole } from './auth.types'
 import { useAuth } from './useAuth'
 
@@ -14,8 +15,12 @@ export function AuthLandingRedirect() {
     currentUser,
     isAuthenticated,
     isLoadingSession,
+    isOperational,
+    logout,
+    refreshCurrentUser,
     role,
     selectedClubSlug,
+    sessionError,
   } = useAuth()
 
   if (isLoadingSession) {
@@ -27,7 +32,27 @@ export function AuthLandingRedirect() {
   }
 
   if (!currentUser) {
-    return <p className="p-4 text-sm font-semibold">جاري تحميل الجلسة...</p>
+    return (
+      <div className="flex flex-col gap-3 p-4">
+        <p className="text-sm font-semibold text-[var(--sloty-danger)]">
+          {sessionError ?? 'تعذر تحميل الجلسة.'}
+        </p>
+        <AppButton onClick={() => void refreshCurrentUser()} type="button">
+          إعادة المحاولة
+        </AppButton>
+        <AppButton
+          onClick={() => void logout()}
+          type="button"
+          variant="secondary"
+        >
+          تسجيل الخروج
+        </AppButton>
+      </div>
+    )
+  }
+
+  if (!isOperational) {
+    return <Navigate replace to="/no-operational-access" />
   }
 
   if (role === 'ADMIN') {
@@ -47,7 +72,7 @@ export function AuthLandingRedirect() {
   }
 
   if (!role) {
-    return <Navigate replace to="/login" />
+    return <Navigate replace to="/no-operational-access" />
   }
 
   return <Navigate replace to={getDefaultRouteForRole(role)} />

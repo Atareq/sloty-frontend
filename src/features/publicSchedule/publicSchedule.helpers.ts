@@ -138,14 +138,26 @@ export function buildPublicCourtSchedulePath(
   return `/public/${encodeURIComponent(clubSlug)}/courts/${encodeURIComponent(String(courtId))}/schedule`
 }
 
+export interface BuildCourtScheduleShareUrlParams {
+  clubSlug: string
+  courtId: string | number
+  origin?: string
+}
+
 /**
- * Builds the full absolute URL for a court's public schedule.
+ * Canonical public schedule URL builder.
+ *
+ * Sole owner of public court schedule URL construction:
+ * - route construction (/public/:clubSlug/courts/:courtId/schedule)
+ * - path parameter encoding
+ * - base URL / origin derivation
+ * - final canonical string
  */
-export function buildPublicCourtScheduleUrl(
-  clubSlug: string,
-  courtId: string | number,
-  origin?: string,
-): string {
+export function buildCourtScheduleShareUrl({
+  clubSlug,
+  courtId,
+  origin,
+}: BuildCourtScheduleShareUrlParams): string {
   const baseOrigin =
     origin ||
     (typeof window !== 'undefined' && window.location?.origin
@@ -154,3 +166,14 @@ export function buildPublicCourtScheduleUrl(
   return `${baseOrigin}${buildPublicCourtSchedulePath(clubSlug, courtId)}`
 }
 
+/**
+ * Builds the full absolute URL for a court's public schedule.
+ * Alias for buildCourtScheduleShareUrl for backwards compatibility.
+ */
+export function buildPublicCourtScheduleUrl(
+  clubSlug: string,
+  courtId: string | number,
+  origin?: string,
+): string {
+  return buildCourtScheduleShareUrl({ clubSlug, courtId, origin })
+}

@@ -33,6 +33,7 @@ const authValue: AuthContextValue = {
   selectCourt: vi.fn(),
   role: null,
   isAuthenticated: true,
+  isOperational: false,
   isLoadingSession: false,
   isTokenExpired: false,
   sessionError: null,

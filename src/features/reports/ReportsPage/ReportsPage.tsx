@@ -5,6 +5,7 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
 import type { QueryParamValue } from '../../../shared/utils/buildPathWithQuery'
 import {
@@ -15,7 +16,6 @@ import { bookingStatusCopy } from '../../../shared/copy/appCopy'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { formatMoneyAmount } from '../../../shared/utils/money'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
-import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { listCourts } from '../../courts/courtsApi'
 import { getCourtUsageReport } from '../reportsApi'
 import type {
@@ -148,11 +148,6 @@ function buildReportsSearch(filters: FilterState): string {
   return buildPathWithQuery('', query)
 }
 
-function normalizeClubUsersResponse(
-  response: ClubUser[] | { results: ClubUser[] },
-): ClubUser[] {
-  return Array.isArray(response) ? response : response.results
-}
 
 function hasRequiredReportDates(filters: FilterState): boolean {
   return Boolean(filters.date_from && filters.date_to)
@@ -356,7 +351,7 @@ export function ReportsPage() {
 
       if (courtsResult.status === 'fulfilled') {
         setCourtOptions(
-          courtsResult.value.results
+          extractResults(courtsResult.value)
             .filter((court) => court.is_active)
             .map((court) => ({
               value: String(court.id),
@@ -370,7 +365,7 @@ export function ReportsPage() {
 
       if (usersResult.status === 'fulfilled') {
         setStaffOptions(
-          normalizeClubUsersResponse(usersResult.value).map((clubUser) => ({
+          extractResults(usersResult.value).map((clubUser) => ({
             value: String(clubUser.id),
             label: getClubUserDisplayName(clubUser),
           })),

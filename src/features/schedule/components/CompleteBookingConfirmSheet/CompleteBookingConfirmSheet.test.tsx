@@ -32,7 +32,7 @@ const preview: BookingRecurrenceNextPreview = {
   next_end_time: '2026-09-15T21:00:00+03:00',
   next_total_price: '350.00',
   next_required_deposit: '150.00',
-  requires_payment_reference: false,
+  requires_digital_payment_reference: false,
 }
 
 function renderSheet(
@@ -170,7 +170,7 @@ describe('CompleteBookingConfirmSheet', () => {
   it('requires reference for digital methods only when backend says so', async () => {
     mockedGetBookingRecurrenceNext.mockResolvedValue({
       ...preview,
-      requires_payment_reference: true,
+      requires_digital_payment_reference: true,
     })
     const user = userEvent.setup()
     const onConfirm = vi.fn().mockResolvedValue(undefined)

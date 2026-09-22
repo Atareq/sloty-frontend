@@ -155,10 +155,13 @@ describe('BookingCard', () => {
       <BookingCard
         booking={{
           ...confirmedBooking,
+          date: '2026-09-22',
           status: 'completed',
           startTime: '09:00',
           booking: {
             ...confirmedBookingDetails,
+            start_time: '2026-09-22T09:00:00+03:00',
+            end_time: '2026-09-22T10:00:00+03:00',
             status: 'COMPLETED',
           },
         }}
@@ -183,7 +186,15 @@ describe('BookingCard', () => {
 
     const { rerender } = render(
       <BookingCard
-        booking={{ ...confirmedBooking, booking: confirmedBookingDetails }}
+        booking={{
+          ...confirmedBooking,
+          date: '2026-09-22',
+          booking: {
+            ...confirmedBookingDetails,
+            start_time: '2026-09-22T08:00:00+03:00',
+            end_time: '2026-09-22T09:00:00+03:00',
+          },
+        }}
         onSelect={onSelect}
       />,
     )
@@ -196,7 +207,12 @@ describe('BookingCard', () => {
 
     expect(onSelect).toHaveBeenCalledWith({
       ...confirmedBooking,
-      booking: confirmedBookingDetails,
+      date: '2026-09-22',
+      booking: {
+        ...confirmedBookingDetails,
+        start_time: '2026-09-22T08:00:00+03:00',
+        end_time: '2026-09-22T09:00:00+03:00',
+      },
     })
 
     rerender(
@@ -218,6 +234,63 @@ describe('BookingCard', () => {
         name: '8:00 ص العربون مدفوع',
       }),
     ).toBeDisabled()
+  })
+
+  it('keeps backend-returned occupied bookings clickable regardless of date', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    const completedSlot = (date: string): ScheduleBooking => ({
+      ...confirmedBooking,
+      date,
+      status: 'completed',
+      startTime: '09:00',
+      isAvailable: false,
+      booking: {
+        ...confirmedBookingDetails,
+        start_time: `${date}T09:00:00+03:00`,
+        end_time: `${date}T10:00:00+03:00`,
+        status: 'COMPLETED',
+      },
+    })
+
+    const { rerender } = render(
+      <BookingCard
+        booking={completedSlot('2026-09-22')}
+        onSelect={onSelect}
+      />,
+    )
+
+    const todaySlot = screen.getByRole('button', { name: '9:00 ص تم اللعب' })
+    expect(todaySlot).toBeEnabled()
+    await user.click(todaySlot)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <BookingCard
+        booking={completedSlot('2026-09-21')}
+        onSelect={onSelect}
+      />,
+    )
+    expect(screen.getByRole('button', { name: '9:00 ص تم اللعب' })).toBeEnabled()
+
+    rerender(
+      <BookingCard
+        booking={completedSlot('2026-09-23')}
+        onSelect={onSelect}
+      />,
+    )
+    expect(screen.getByRole('button', { name: '9:00 ص تم اللعب' })).toBeEnabled()
+
+    rerender(
+      <BookingCard
+        booking={completedSlot('2026-09-20')}
+        onSelect={onSelect}
+      />,
+    )
+    const pastSlot = screen.getByRole('button', { name: '9:00 ص تم اللعب' })
+    expect(pastSlot).toBeEnabled()
+    await user.click(pastSlot)
+    expect(onSelect).toHaveBeenCalledTimes(2)
   })
 
   it('shows only an accessible recurring icon without booking details', () => {

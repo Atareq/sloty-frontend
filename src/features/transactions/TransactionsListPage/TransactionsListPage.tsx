@@ -9,8 +9,10 @@ import type { ApiFieldError } from '../../../core/api/apiClient'
 import {
   canChooseOperationalCourt,
   getAssignedOperationalCourtId,
+  type ProfileId,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppPagination } from '../../../shared/components/AppPagination/AppPagination'
@@ -258,11 +260,6 @@ function getActiveFilterChips(
   })
 }
 
-function normalizeClubUsersResponse(
-  response: ClubUser[] | { results: ClubUser[] },
-): ClubUser[] {
-  return Array.isArray(response) ? response : response.results
-}
 
 function getClubUserName(user: ClubUser): string {
   const fullName = [user.first_name, user.last_name]
@@ -275,7 +272,7 @@ function getClubUserName(user: ClubUser): string {
 
 function getActorId(
   value: Transaction['created_by'] | Transaction['cancelled_by'],
-): number | null {
+): ProfileId | null {
   if (!value) {
     return null
   }
@@ -332,10 +329,13 @@ function TransactionDetailSheet({
         )
       : null
   const collectorName =
+    transaction.created_by_name ||
     transaction.created_by_username ||
     getActorName(transaction.created_by) ||
     null
-  const cancellationActor = getActorName(transaction.cancelled_by)
+  const cancellationActor =
+    transaction.cancelled_by_name ||
+    getActorName(transaction.cancelled_by)
   const transactionType = getTransactionType(transaction)
   const isReferenceVisible =
     transaction.payment_method !== 'CASH' &&
@@ -650,7 +650,7 @@ export function TransactionsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const auth = useAuth()
-  const { currentUser, role, selectedClubSlug, accessibleCourts } = auth
+  const { currentUser, currentProfileId, role, selectedClubSlug, accessibleCourts } = auth
   const selectedMembership = (auth as { selectedMembership?: { court?: Court | null } }).selectedMembership
   const { connectivity } = useOfflineSync()
   const courtsOrScope =
@@ -886,7 +886,7 @@ export function TransactionsListPage() {
 
         setCourtOptions(
           courtsResponse
-            ? courtsResponse.results
+            ? extractResults(courtsResponse)
                 .filter((court: Court) => court.is_active)
                 .map((court) => ({
                   value: String(court.id),
@@ -901,7 +901,7 @@ export function TransactionsListPage() {
         )
         setCollectorOptions(
           usersResponse
-            ? normalizeClubUsersResponse(usersResponse).map((user) => ({
+            ? extractResults(usersResponse).map((user) => ({
                 value: String(user.id),
                 label: getClubUserName(user),
               }))
@@ -1496,6 +1496,7 @@ export function TransactionsListPage() {
             const createdLabel = formatArabicDateTime(transaction.created)
             const createdById = getActorId(transaction.created_by)
             const collectorName =
+              transaction.created_by_name ||
               transaction.created_by_username ||
               getActorName(transaction.created_by) ||
               (createdById
@@ -1516,6 +1517,7 @@ export function TransactionsListPage() {
             const cancelState = getTransactionCancelState(transaction, {
               role,
               currentUserId: currentUser?.id,
+              currentProfileId,
               isOffline: isOfflineMode,
             })
 

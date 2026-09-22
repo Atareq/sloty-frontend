@@ -1,3 +1,4 @@
+import type { ProfileId } from '../../core/auth/auth.types'
 import type { Booking } from '../../features/bookings/bookings.types'
 import type { BookingSlot } from '../../features/schedule/scheduleApi.types'
 import type { Transaction } from '../../features/transactions/transactions.types'
@@ -25,7 +26,7 @@ import {
   getScopedRecordIdentity,
 } from '../scope/offlineScope'
 
-function getCollectorId(transaction: Transaction): number | undefined {
+function getCollectorId(transaction: Transaction): ProfileId | undefined {
   if (typeof transaction.created_by === 'number') {
     return transaction.created_by
   }
@@ -559,6 +560,7 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
         reviewReason?: BookingRequestReviewReason | null
         resolvedBookingId?: number | null
         backendAttemptId?: number | null
+        retryCount?: number
       } = {},
     ): Promise<BookingIntentRecord | undefined> {
       const scopeKey = createOfflineScopeKey(scope)
@@ -583,6 +585,9 @@ export function createOfflineRepositories(db: SlotyLocalDatabase) {
           : {}),
         ...(Object.prototype.hasOwnProperty.call(options, 'backendAttemptId')
           ? { backend_attempt_id: options.backendAttemptId ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(options, 'retryCount')
+          ? { retry_count: options.retryCount }
           : {}),
       })
 

@@ -1,3 +1,5 @@
+import type { ProfileId } from '../../core/auth/auth.types'
+
 export type PaymentMethod =
   | 'CASH'
   | 'DIGITAL_WALLET'
@@ -11,7 +13,7 @@ export interface DashboardSummaryQuery {
   date_from?: string
   date_to?: string
   court?: number | string
-  collected_by?: number | string
+  collected_by?: ProfileId | string
   payment_method?: PaymentMethod | ''
   settlement_status?: SettlementStatus | ''
 }
@@ -24,7 +26,7 @@ export interface DashboardSummaryResponse {
     date_to: string
     court?: number | null
     court_name?: string | null
-    collected_by?: number | null
+    collected_by?: ProfileId | null
     collected_by_name?: string | null
     payment_method?: PaymentMethod | null
     settlement_status?: SettlementStatus | null

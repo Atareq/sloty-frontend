@@ -15,7 +15,7 @@ import {
   markBookingNoShow,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingNotes,
+  updateBooking,
 } from './scheduleApi'
 import {
   BACKEND_BOOKING_STATUSES,
@@ -132,9 +132,12 @@ describe('scheduleApi', () => {
       court: 3,
       customer_name: 'أحمد علي',
       customer_phone: '01000000000',
-      start_time: '2026-07-02T18:00:00',
-      end_time: '2026-07-02T19:00:00',
+      start_time: '2026-07-02T18:00:00+03:00',
+      end_time: '2026-07-02T19:00:00+03:00',
+      source: 'MANUAL',
       is_recurring: true,
+      client_request_id: '11111111-2222-3333-4444-555555555555',
+      requested_at: '2026-07-02T10:00:00.000Z',
     }
 
     mockedApiRequest.mockResolvedValueOnce({
@@ -142,9 +145,46 @@ describe('scheduleApi', () => {
       court: 3,
       customer_name: 'أحمد علي',
       customer_phone: '01000000000',
-      start_time: '2026-07-02T18:00:00',
-      end_time: '2026-07-02T19:00:00',
+      start_time: '2026-07-02T18:00:00+03:00',
+      end_time: '2026-07-02T19:00:00+03:00',
       status: 'CONFIRMED',
+    })
+
+    await createBooking('nasr-club', payload)
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.bookings.list('nasr-club'),
+      {
+        method: 'POST',
+        body: payload,
+      },
+    )
+    expect(payload.start_time).toMatch(/[+-]\d{2}:\d{2}$/)
+    expect(payload.end_time).toMatch(/[+-]\d{2}:\d{2}$/)
+    expect(payload).not.toHaveProperty('club_player_id')
+    expect(payload).not.toHaveProperty('player_profile_id')
+  })
+
+  it('posts historical start_time values without local date eligibility checks', async () => {
+    const payload = {
+      court: 3,
+      customer_name: 'أحمد علي',
+      customer_phone: '01000000000',
+      start_time: '2020-01-01T08:00:00+02:00',
+      end_time: '2020-01-01T09:00:00+02:00',
+      source: 'MANUAL' as const,
+      is_recurring: false,
+      client_request_id: '11111111-2222-3333-4444-555555555555',
+      requested_at: '2026-07-20T10:00:00.000Z',
+    }
+
+    mockedApiRequest.mockResolvedValueOnce({
+      id: 21,
+      court: 3,
+      customer_name: 'أحمد علي',
+      start_time: payload.start_time,
+      end_time: payload.end_time,
+      status: 'HOLD',
     })
 
     await createBooking('nasr-club', payload)
@@ -284,7 +324,7 @@ describe('scheduleApi', () => {
       next_end_time: '2026-09-15T21:00:00+03:00',
       next_total_price: '350.00',
       next_required_deposit: '150.00',
-      requires_payment_reference: false,
+      requires_digital_payment_reference: false,
     })
 
     await getBookingRecurrenceNext('nasr-club', 20)
@@ -294,13 +334,18 @@ describe('scheduleApi', () => {
     )
   })
 
-  it('patches only notes through the booking detail endpoint', async () => {
+  it('patches customer identity and notes without player IDs', async () => {
     mockedApiRequest.mockResolvedValueOnce({
-      notes: 'ملاحظة',
+      id: 20,
+      customer_name: 'Ahmed Hassan',
+      customer_phone: '+201000000002',
+      notes: 'Updated note',
     })
 
-    await updateBookingNotes('nasr-club', 20, {
-      notes: 'ملاحظة',
+    await updateBooking('nasr-club', 20, {
+      customer_name: 'Ahmed Hassan',
+      customer_phone: '+201000000002',
+      notes: 'Updated note',
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
@@ -308,10 +353,23 @@ describe('scheduleApi', () => {
       {
         method: 'PATCH',
         body: {
-          notes: 'ملاحظة',
+          customer_name: 'Ahmed Hassan',
+          customer_phone: '+201000000002',
+          notes: 'Updated note',
         },
       },
     )
+    const patchBody = (mockedApiRequest.mock.calls.at(-1)?.[1] as { body?: Record<string, unknown> })?.body
+    expect(patchBody).toEqual({
+      customer_name: 'Ahmed Hassan',
+      customer_phone: '+201000000002',
+      notes: 'Updated note',
+    })
+    expect(patchBody).not.toHaveProperty('player_profile_id')
+    expect(patchBody).not.toHaveProperty('club_player_id')
+    expect(patchBody).not.toHaveProperty('court')
+    expect(patchBody).not.toHaveProperty('start_time')
+    expect(patchBody).not.toHaveProperty('end_time')
   })
 
   it('reschedules through the booking reschedule endpoint', async () => {
@@ -319,8 +377,8 @@ describe('scheduleApi', () => {
 
     await rescheduleBooking('nasr-club', 20, {
       court: 7,
-      start_time: '2026-12-01T18:00:00',
-      end_time: '2026-12-01T19:00:00',
+      start_time: '2026-12-01T18:00:00+02:00',
+      end_time: '2026-12-01T19:00:00+02:00',
       reason: 'طلب العميل',
     })
 
@@ -330,8 +388,8 @@ describe('scheduleApi', () => {
         method: 'POST',
         body: {
           court: 7,
-          start_time: '2026-12-01T18:00:00',
-          end_time: '2026-12-01T19:00:00',
+          start_time: '2026-12-01T18:00:00+02:00',
+          end_time: '2026-12-01T19:00:00+02:00',
           reason: 'طلب العميل',
         },
       },

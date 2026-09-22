@@ -30,12 +30,15 @@ import type {
   AuthRole,
   AuthTokens,
   CurrentUserProfile,
+  ProfileId,
 } from './auth.types'
+import { isOperationalRole } from './auth.types'
 import { fetchCurrentUserProfile } from './authApi'
-import { listClubs } from '../../features/clubs/clubsApi'
+import { getClub, listClubs } from '../../features/clubs/clubsApi'
 import type { Club } from '../../features/clubs/clubs.types'
-import { listCourts } from '../../features/courts/courtsApi'
+import { getCourt, listCourts } from '../../features/courts/courtsApi'
 import type { Court } from '../../features/courts/courts.types'
+import { fetchAllPages } from '../../shared/api/api.types'
 import { AuthContext } from './authContext'
 import {
   clearAuthTokens,
@@ -49,6 +52,11 @@ import {
   getSelectedClubSlug,
   saveSelectedClubSlug,
 } from './selectedClubStorage'
+import {
+  clearSelectedCourtId,
+  getSelectedCourtId,
+  saveSelectedCourtId,
+} from './selectedCourtStorage'
 import { decodeAccessToken, isJwtExpired } from './tokenUtils'
 
 function getClaims(accessToken: string | null): AuthClaims | null {
@@ -72,9 +80,6 @@ function hasHydratableSession(): boolean {
   }
 
   return Boolean(getRefreshToken())
-  return Boolean(
-    storedAccessToken && storedClaims && !isJwtExpired(storedClaims),
-  )
 }
 
 function hasBrowserOfflineHint(): boolean {
@@ -86,6 +91,7 @@ function createOfflineUserProfile(
 ): CurrentUserProfile {
   return {
     id: context.user_id,
+    profile_id: null,
     username: context.display_name,
     email: '',
     first_name: context.display_name,
@@ -100,11 +106,22 @@ function createOfflineUserProfile(
 /**
  * Provides authenticated profile and club access context to the frontend.
  *
- * The provider hydrates the `/me` profile for account identity and `profile_role`,
- * loads backend-scoped `/clubs/`, and manages court availability for the active club.
+ * Startup flow:
+ *   1. Restore tokens from storage.
+ *   2. If refresh token exists → call /me (silently refreshing access token if
+ *      SESSION_EXPIRED via the shared single-flight refreshSession() in apiClient).
+ *   3. On /me success for operational roles:
+ *      a. If persisted club slug → direct GET /clubs/{slug}/ to validate.
+ *         200 → keep. 403 CLUB_ACCESS_REVOKED / 404 → clear, load full list.
+ *      b. If no valid club → fetchAllPages(listClubs) following `next` until null.
+ *   4. Court restoration (only after valid club):
+ *      a. If persisted court ID → direct GET /clubs/{slug}/courts/{id}/ to validate.
+ *         200 → keep. 404 → clear. 403 CLUB_ACCESS_REVOKED → clear club + court.
+ *      b. If no valid court → fetchAllPages(listCourts) following `next` until null.
  */
 export function AuthProvider({ children }: AuthProviderProps) {
   const offlineContextWriteRef = useRef<Promise<void>>(Promise.resolve())
+  const lastCourtLoadedClubSlugRef = useRef<string | null>(null)
   const [accessToken, setAccessTokenState] = useState<string | null>(() =>
     getAccessToken(),
   )
@@ -114,8 +131,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     () => getSelectedClubSlug(),
   )
   const [accessibleCourts, setAccessibleCourts] = useState<Court[]>([])
-  const [selectedCourtId, setSelectedCourtId] = useState<number | null>(null)
-  const [offlineRole, setOfflineRole] = useState<AuthRole | null>(null)
+  const [selectedCourtId, setSelectedCourtIdState] = useState<number | null>(
+    () => getSelectedCourtId(),
+  )
   const [isLoadingSession, setIsLoadingSession] = useState(hasHydratableSession)
   const [hasRefreshToken, setHasRefreshToken] = useState(() =>
     Boolean(getRefreshToken()),
@@ -130,46 +148,61 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isAuthenticated = isOnlineAuthenticated || isOfflineOperational
 
   const role: AuthRole | null = useMemo(() => {
-    return currentUser?.profile_role ?? offlineRole ?? null
-  }, [currentUser, offlineRole])
+    return isOperationalRole(currentUser?.profile_role)
+      ? currentUser.profile_role
+      : null
+  }, [currentUser])
+
+  const currentProfileId: ProfileId | null = useMemo(() => {
+    return currentUser?.profile_id ?? null
+  }, [currentUser])
+
+  const isOperational = useMemo(() => {
+    return Boolean(isAuthenticated && !isLoadingSession && role)
+  }, [isAuthenticated, isLoadingSession, role])
+
+  // ── Internal helpers ──────────────────────────────────────────────────────
+
+  /** Persists court ID and syncs React state. */
+  const setSelectedCourtId = useCallback((id: number | null): void => {
+    if (id === null) {
+      clearSelectedCourtId()
+    } else {
+      saveSelectedCourtId(id)
+    }
+    setSelectedCourtIdState(id)
+  }, [])
 
   const clearSession = useCallback((): void => {
+    lastCourtLoadedClubSlugRef.current = null
     invalidateAuthSession()
     clearAuthTokens()
     clearSelectedClubSlug()
+    clearSelectedCourtId()
     setAccessTokenState(null)
     setHasRefreshToken(false)
     setCurrentUser(null)
     setAccessibleClubs([])
     setAccessibleCourts([])
-    setSelectedCourtId(null)
-    setOfflineRole(null)
+    setSelectedCourtIdState(null)
     setSelectedClubSlugState(null)
     setSessionError(null)
     setIsOfflineOperational(false)
-    setIsLoadingSession(false)
-  }, [])
-
-  const clearAuthOnly = useCallback((): void => {
-    invalidateAuthSession()
-    clearAuthTokens()
-    setAccessTokenState(null)
-    setHasRefreshToken(false)
-    setCurrentUser(null)
-    setOfflineRole(null)
-    setSessionError(null)
-    setIsOfflineOperational(false)
-    setIsLoadingSession(false)
   }, [])
 
   const hydrateOfflineContext = useCallback(
     (context: OfflineContextRecord): void => {
       saveSelectedClubSlug(context.selected_club_slug)
       setSelectedClubSlugState(context.selected_club_slug)
-      setOfflineRole(context.role)
       setAccessibleClubs(context.accessible_clubs ?? [])
       setAccessibleCourts(context.accessible_courts ?? [])
-      setSelectedCourtId(context.selected_court_id ?? null)
+      const courtId = context.selected_court_id ?? null
+      if (courtId !== null) {
+        saveSelectedCourtId(courtId)
+      } else {
+        clearSelectedCourtId()
+      }
+      setSelectedCourtIdState(courtId)
       setCurrentUser(createOfflineUserProfile(context))
       setSessionError(null)
       setIsOfflineOperational(true)
@@ -215,7 +248,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setRefreshToken(tokens.refreshToken)
     setHasRefreshToken(Boolean(tokens.refreshToken))
     setCurrentUser(null)
-    setOfflineRole(null)
     setSessionError(null)
     setIsOfflineOperational(false)
     setIsLoadingSession(true)
@@ -223,36 +255,147 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const clearSelectedClub = useCallback((): void => {
+    lastCourtLoadedClubSlugRef.current = null
     clearSelectedClubSlug()
+    clearSelectedCourtId()
     setSelectedClubSlugState(null)
-    setSelectedCourtId(null)
+    setSelectedCourtIdState(null)
     setAccessibleCourts([])
   }, [])
 
   const selectClub = useCallback((slug: string): void => {
     saveSelectedClubSlug(slug)
     setSelectedClubSlugState(slug)
-    setSelectedCourtId(null)
+    clearSelectedCourtId()
+    setSelectedCourtIdState(null)
     setIsOfflineOperational(false)
   }, [])
 
   const selectCourt = useCallback((id: number | null): void => {
     setSelectedCourtId(id)
+  }, [setSelectedCourtId])
+
+  // ── Court list following `next` pagination ─────────────────────────────────
+
+  /**
+   * Fetches all court pages for a given club slug by following `next` links.
+   * Never appends page_size. Reuses listCourts with nextUrl support.
+   */
+  const fetchAllCourtsForClub = useCallback(
+    (clubSlug: string): Promise<Court[]> =>
+      fetchAllPages((nextUrl) => listCourts(clubSlug, { nextUrl })),
+    [],
+  )
+
+  // ── Startup: restore courts after a valid club is available ──────────────
+
+  /**
+   * Attempts to restore the selected court by direct retrieve.
+   * Falls back to fetching all courts when no persisted ID exists or when
+   * the retrieved court is no longer accessible.
+   *
+   * Returns true when the bootstrap resulted in a CLUB_ACCESS_REVOKED that
+   * callers should propagate as a club-level revocation.
+   */
+  const restoreCourtForClub = useCallback(
+    async (clubSlug: string): Promise<{ clubRevoked: boolean }> => {
+      lastCourtLoadedClubSlugRef.current = clubSlug
+      const persistedCourtId = getSelectedCourtId()
+
+      if (persistedCourtId !== null) {
+        try {
+          // Direct retrieve: authoritative, no page scanning.
+          const court = await getCourt(clubSlug, persistedCourtId)
+          setSelectedCourtIdState(court.id)
+          saveSelectedCourtId(court.id)
+          setAccessibleCourts([court])
+          return { clubRevoked: false }
+        } catch (error) {
+          const code = getApiErrorCode(error)
+
+          if (code === 'CLUB_ACCESS_REVOKED') {
+            // Club-level revocation: propagate up to the caller.
+            return { clubRevoked: true }
+          }
+
+          if (isApiClientError(error) && error.status === 404) {
+            // 404: the persisted court is gone; clear court only.
+            clearSelectedCourtId()
+            setSelectedCourtIdState(null)
+            // Fall through to load court list.
+          } else {
+            // Network or server error: preserve recoverable state.
+            return { clubRevoked: false }
+          }
+        }
+      }
+
+      // No valid persisted court: load all accessible courts for the club.
+      try {
+        const courts = await fetchAllCourtsForClub(clubSlug)
+        setAccessibleCourts(courts)
+
+        if (courts.length === 1) {
+          setSelectedCourtId(courts[0].id)
+        } else if (courts.length > 1) {
+          setSelectedCourtIdState((prev) => {
+            if (prev && courts.some((c) => c.id === prev)) {
+              return prev
+            }
+            return courts[0].id
+          })
+        } else {
+          setSelectedCourtId(null)
+        }
+      } catch {
+        // Court list unavailable; leave courts empty; do not fail the bootstrap.
+      }
+
+      return { clubRevoked: false }
+    },
+    [fetchAllCourtsForClub, setSelectedCourtId],
+  )
+
+  // ── Main session bootstrap ─────────────────────────────────────────────────
+
+  const clearAuthOnly = useCallback((): void => {
+    lastCourtLoadedClubSlugRef.current = null
+    invalidateAuthSession()
+    clearAuthTokens()
+    setAccessTokenState(null)
+    setHasRefreshToken(false)
+    setCurrentUser(null)
+    setSessionError(null)
+    setIsOfflineOperational(false)
+    setIsLoadingSession(false)
   }, [])
 
   const refreshCurrentUser = useCallback(async (): Promise<void> => {
     let currentToken = accessToken
-    let currentClaims = claims
+    const currentClaims = claims
+    let activeUserId = claims?.user_id
+    const hasRefresh = Boolean(getRefreshToken())
+    const hasValidAccess = Boolean(currentToken && currentClaims && !isJwtExpired(currentClaims))
+
+    if (!hasRefresh && !hasValidAccess) {
+      const hydrated =
+        await hydrateLatestOfflineContextForSelectedClub(selectedClubSlug)
+      if (!hydrated) {
+        clearAuthOnly()
+      }
+      setIsLoadingSession(false)
+      return
+    }
 
     if (
       (!currentToken || !currentClaims || isJwtExpired(currentClaims)) &&
-      getRefreshToken()
+      hasRefresh
     ) {
       setIsLoadingSession(true)
       const refreshResult = await refreshSession()
       if (refreshResult.status === 'success') {
         currentToken = refreshResult.accessToken
-        currentClaims = getClaims(currentToken)
+        activeUserId = getClaims(currentToken)?.user_id ?? activeUserId
         setAccessTokenState(currentToken)
         setHasRefreshToken(true)
       } else if (refreshResult.status === 'network_error') {
@@ -261,23 +404,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (
           !hydrated &&
           selectedClubSlug &&
-          (currentClaims?.user_id ?? claims?.user_id)
+          activeUserId
         ) {
           await hydrateOfflineContextForScope(
-            (currentClaims?.user_id ?? claims?.user_id)!,
+            activeUserId,
             selectedClubSlug,
           )
         }
         setIsLoadingSession(false)
         return
+      } else if (refreshResult.status === 'aborted') {
+        setIsLoadingSession(false)
+        return
       } else {
-        clearAuthOnly()
+        const code = refreshResult.code
+        if (
+          code === 'TOKEN_NOT_VALID' ||
+          code === 'PASSWORD_CHANGED' ||
+          code === 'USER_INACTIVE' ||
+          code === 'USER_DELETED'
+        ) {
+          clearSession()
+        } else {
+          clearAuthOnly()
+        }
         setIsLoadingSession(false)
         return
       }
     }
 
-    if (!currentToken || !currentClaims) {
+    if (!currentToken) {
       if (
         !getRefreshToken() &&
         !(await hydrateLatestOfflineContextForSelectedClub(selectedClubSlug))
@@ -299,67 +455,110 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setCurrentUser(profile)
-      setOfflineRole(null)
       setIsOfflineOperational(false)
 
-      let clubs: Club[] = []
-      try {
-        const clubsResponse = await listClubs()
-        clubs = Array.isArray(clubsResponse)
-          ? clubsResponse
-          : (clubsResponse.results ?? [])
-        setAccessibleClubs(clubs)
-      } catch {
-        // Continue with profile if club list fails
-      }
-
-      let activeSlug = selectedClubSlug
-      if (profile.profile_role === 'ADMIN') {
-        // Platform admin can operate without a club
-      } else if (clubs.length === 0) {
-        activeSlug = null
+      if (!isOperationalRole(profile.profile_role)) {
+        setAccessibleClubs([])
+        setAccessibleCourts([])
+        clearSelectedCourtId()
+        setSelectedCourtIdState(null)
         clearSelectedClub()
-      } else if (clubs.length === 1) {
-        activeSlug = clubs[0].slug
-        selectClub(clubs[0].slug)
-      } else {
-        const hasValidClub = clubs.some((c) => c.slug === selectedClubSlug)
-        if (!hasValidClub) {
-          activeSlug = null
-          clearSelectedClub()
-        }
+        setIsLoadingSession(false)
+        return
       }
 
-      if (activeSlug) {
+      // ── Club restoration ─────────────────────────────────────────────────
+      //
+      // Priority:
+      //   1. Persisted slug → direct GET /clubs/{slug}/ (authoritative).
+      //      200 → keep slug. CLUB_ACCESS_REVOKED / 404 → clear slug, list result determines new selection.
+      //   2. Always fetchAllPages(listClubs) to populate accessibleClubs for the UI selector.
+
+      let activeSlug: string | null = getSelectedClubSlug()
+      let clubs: Club[] = []
+
+      if (profile.profile_role !== 'ADMIN') {
+        // Load all accessible clubs (following `next` pages) — always needed for the UI.
         try {
-          const courtsResponse = await listCourts(activeSlug)
-          const courts = Array.isArray(courtsResponse)
-            ? courtsResponse
-            : (courtsResponse.results ?? [])
-          setAccessibleCourts(courts)
-
-          if (courts.length === 1) {
-            setSelectedCourtId(courts[0].id)
-          } else if (courts.length > 1) {
-            setSelectedCourtId((prev) => {
-              if (prev && courts.some((c) => c.id === prev)) {
-                return prev
-              }
-              return courts[0].id
-            })
-          } else {
-            setSelectedCourtId(null)
+          clubs = await fetchAllPages(listClubs)
+          setAccessibleClubs(clubs)
+        } catch (error) {
+          // Without a persisted slug, an empty list is indistinguishable from
+          // "no club access". Fail bootstrap so the user can retry.
+          if (!activeSlug) {
+            throw error
           }
-        } catch {
-          // Continue if court list fails
+        }
+
+        if (activeSlug) {
+          // Step 1: Direct retrieve validates the persisted slug authoritatively (O(1)).
+          try {
+            const validatedClub = await getClub(activeSlug)
+            // Slug validated — keep activeSlug and ensure it's in accessibleClubs.
+            if (!clubs.some((c) => c.slug === activeSlug)) {
+              clubs = [validatedClub, ...clubs]
+              setAccessibleClubs(clubs)
+            }
+          } catch (error) {
+            const code = getApiErrorCode(error)
+
+            if (
+              code === 'CLUB_ACCESS_REVOKED' ||
+              (isApiClientError(error) && error.status === 404)
+            ) {
+              // Stale slug: clear and fall through to auto-select from list.
+              clearSelectedClub()
+              clearSelectedCourtId()
+              activeSlug = null
+            } else {
+              // Network or server error: do not clear, preserve recoverable context.
+              throw error
+            }
+          }
+        }
+
+        // Auto-select when no valid selection exists and exactly one club is accessible.
+        if (!activeSlug) {
+          if (clubs.length === 1) {
+            activeSlug = clubs[0].slug
+            selectClub(clubs[0].slug)
+          } else {
+            // No valid selection — user must pick.
+          }
         }
       }
+
+      // ADMIN can operate without a club.
+      if (profile.profile_role === 'ADMIN' && !activeSlug) {
+        setIsLoadingSession(false)
+        return
+      }
+
+      // ── Court restoration ─────────────────────────────────────────────────
+      if (activeSlug) {
+        const { clubRevoked } = await restoreCourtForClub(activeSlug)
+
+        if (clubRevoked) {
+          // Club was revoked after club retrieve succeeded (e.g. race condition).
+          clearSelectedClub()
+          clearSelectedCourtId()
+          // Reload clubs without the revoked one.
+          try {
+            clubs = await fetchAllPages(listClubs)
+            setAccessibleClubs(clubs)
+            if (clubs.length === 1) {
+              selectClub(clubs[0].slug)
+            }
+          } catch {
+            // Silently continue.
+          }
+        }
+      }
+
     } catch (error) {
       if (!getAccessToken()) {
         return
       }
-
-      const activeUserId = currentClaims?.user_id ?? claims?.user_id
 
       if (
         getApiErrorCode(error) === 'NETWORK_ERROR' &&
@@ -393,14 +592,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
           selectedClubSlug === accountStateAction.clubSlug
         ) {
           clearSelectedClub()
+          clearSelectedCourtId()
         }
 
-        // Do not clear tokens for club-level revocation
+        // Do not clear tokens for club-level revocation.
         return
       }
 
       if (accountStateAction.type === 'auth_required') {
         clearAuthOnly()
+        if (
+          accountStateAction.code === 'TOKEN_NOT_VALID' ||
+          accountStateAction.code === 'PASSWORD_CHANGED'
+        ) {
+          clearSession()
+        } else {
+          clearAuthOnly()
+        }
         return
       }
 
@@ -429,31 +637,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
     hydrateLatestOfflineContextForSelectedClub,
     hydrateOfflineContextForScope,
     isOfflineOperational,
+    restoreCourtForClub,
     selectClub,
     selectedClubSlug,
   ])
 
-  // When selectedClubSlug changes online, refresh courts
+  // When selectedClubSlug changes online, refresh courts.
   useEffect(() => {
     if (!selectedClubSlug || isOfflineOperational || !currentUser) {
       return
     }
 
+    if (lastCourtLoadedClubSlugRef.current === selectedClubSlug) {
+      return
+    }
+    lastCourtLoadedClubSlugRef.current = selectedClubSlug
+
     let isMounted = true
 
-    void listCourts(selectedClubSlug).then(
-      (courtsResponse) => {
+    void fetchAllCourtsForClub(selectedClubSlug).then(
+      (courts) => {
         if (!isMounted) {
           return
         }
-        const courts = Array.isArray(courtsResponse)
-          ? courtsResponse
-          : (courtsResponse.results ?? [])
         setAccessibleCourts(courts)
         if (courts.length === 1) {
           setSelectedCourtId(courts[0].id)
         } else if (courts.length > 1) {
-          setSelectedCourtId((prev) => {
+          setSelectedCourtIdState((prev) => {
             if (prev && courts.some((c) => c.id === prev)) {
               return prev
             }
@@ -469,7 +680,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       isMounted = false
     }
-  }, [currentUser, isOfflineOperational, selectedClubSlug])
+  }, [currentUser, fetchAllCourtsForClub, isOfflineOperational, selectedClubSlug, setSelectedCourtId])
 
   useEffect(() => {
     if (
@@ -520,10 +731,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   useEffect(() => {
-    return subscribeSessionExpired(() => {
-      clearAuthOnly()
+    return subscribeSessionExpired((code) => {
+      const shouldClearUserData =
+        code === 'USER_DELETED' || code === 'USER_INACTIVE'
+      const userId = currentUser?.id ?? claims?.user_id
+
+      if (shouldClearUserData && typeof userId === 'number') {
+        void safelyClearUserOperationalData(userId).finally(() => {
+          clearSession()
+        })
+        return
+      }
+
+      clearSession()
     })
-  }, [clearAuthOnly])
+  }, [claims?.user_id, clearSession, currentUser?.id])
 
   useEffect(() => {
     if (!accessToken) {
@@ -556,6 +778,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       queueMicrotask(() => {
         clearAuthOnly()
+        clearSession()
         setIsLoadingSession(false)
       })
       return
@@ -571,6 +794,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [
     accessToken,
     clearAuthOnly,
+    clearSession,
     currentUser,
     hydrateLatestOfflineContextForSelectedClub,
     isAuthenticated,
@@ -615,12 +839,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       accessToken,
       claims,
       currentUser,
+      currentProfileId,
       selectedClubSlug,
       accessibleClubs,
       selectedCourtId,
       accessibleCourts,
       role,
       isAuthenticated,
+      isOperational,
       isLoadingSession,
       isTokenExpired,
       sessionError,
@@ -638,9 +864,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       accessibleCourts,
       claims,
       clearSelectedClub,
+      currentProfileId,
       currentUser,
       isAuthenticated,
       isLoadingSession,
+      isOperational,
       isTokenExpired,
       login,
       logout,

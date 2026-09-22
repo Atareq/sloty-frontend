@@ -1,10 +1,11 @@
-import type { PaginatedResponse } from '../../shared/api/api.types'
+import { extractResults } from '../../shared/api/pagination.helpers'
+import type { PaginatedResponse } from '../../shared/api/pagination.types'
 import type { PlatformUser, PlatformUserRole } from './adminUsers.types'
 
 export function normalizePlatformUsersResponse(
   response: PlatformUser[] | PaginatedResponse<PlatformUser>,
 ): PlatformUser[] {
-  return Array.isArray(response) ? response : response.results
+  return extractResults(response)
 }
 
 export function getPlatformUserDisplayName(user: PlatformUser): string {

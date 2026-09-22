@@ -224,6 +224,7 @@ describe('TransactionsListPage', () => {
       selectCourt: vi.fn(),
       role: 'OWNER',
       isAuthenticated: true,
+      isOperational: true,
       isLoadingSession: false,
       isTokenExpired: false,
       sessionError: null,

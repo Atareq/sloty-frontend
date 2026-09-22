@@ -1,13 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
-import {
-  getSettlement,
-  markSettlementSettled,
-} from '../settlementsApi'
+import { getSettlement } from '../settlementsApi'
 import { SettlementDetailPage } from './SettlementDetailPage'
 
 vi.mock('../../../core/auth/useAuth', () => ({
@@ -16,15 +11,13 @@ vi.mock('../../../core/auth/useAuth', () => ({
 
 vi.mock('../settlementsApi', () => ({
   getSettlement: vi.fn(),
-  markSettlementSettled: vi.fn(),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
 const mockedGetSettlement = vi.mocked(getSettlement)
-const mockedMarkSettlementSettled = vi.mocked(markSettlementSettled)
 const refreshCurrentUser = vi.fn()
 
-function mockAuth() {
+function mockAuth(role: 'OWNER' | 'STAFF' | 'ADMIN' | null = 'OWNER') {
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
     claims: { user_id: 1 },
@@ -36,7 +29,7 @@ function mockAuth() {
       last_name: 'User',
       phone_number: null,
       is_active: true,
-      profile_role: 'OWNER',
+      profile_role: role ?? 'OWNER',
       account_created_by: null,
     },
     selectedClubSlug: 'nasr-club',
@@ -44,8 +37,9 @@ function mockAuth() {
     accessibleCourts: [],
     selectedCourtId: null,
     selectCourt: vi.fn(),
-    role: 'OWNER',
+    role,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -89,12 +83,11 @@ describe('SettlementDetailPage', () => {
       },
       period_start: '2026-07-19T10:00:00Z',
       period_end: '2026-07-19T15:20:00Z',
-      status: 'PENDING',
       notes: 'Shift settlement',
       created_by: { id: 1, name: 'Owner User' },
       created: '2026-07-19T15:20:00Z',
-      settled_by: null,
-      settled_at: null,
+      settled_by: 1,
+      settled_by_name: 'Owner User',
       lines: [
         {
           id: 1,
@@ -104,89 +97,37 @@ describe('SettlementDetailPage', () => {
         },
       ],
     })
-    mockedMarkSettlementSettled.mockResolvedValue({
-      id: 9,
-      collected_by: 5,
-      collected_by_name: 'Ahmed Staff',
-      total_amount: '2000.00',
-      transaction_count: 8,
-      status: 'SETTLED',
-    })
   })
 
-  it('renders collected-by settlement detail with display-only backend period', async () => {
+  it('renders collected-by settlement detail with display-only backend period and audit info', async () => {
     renderPage()
 
     expect(await screen.findByText('المحصل')).toBeInTheDocument()
     expect(screen.getAllByText('Ahmed Staff')).not.toHaveLength(0)
     expect(screen.getByText('2,000.00 جنيه')).toBeInTheDocument()
     expect(screen.getByText('Shift settlement')).toBeInTheDocument()
+    expect(screen.getByText('Owner User')).toBeInTheDocument()
     expect(screen.queryByText('#101')).not.toBeInTheDocument()
     expect(mockedGetSettlement).toHaveBeenCalledWith('nasr-club', '9')
   })
 
-  it('marks pending settlement as settled and reloads displayed state from response', async () => {
-    const user = userEvent.setup()
+  it('handles error when settlement loading fails', async () => {
+    mockedGetSettlement.mockRejectedValueOnce(new Error('Network error'))
 
     renderPage()
-
-    await user.click(await screen.findByRole('button', {
-      name: 'تأكيد استلام المبلغ',
-    }))
-    await user.click(screen.getAllByRole('button', {
-      name: 'تأكيد استلام المبلغ',
-    })[1])
-
-    await waitFor(() => {
-      expect(mockedMarkSettlementSettled).toHaveBeenCalledWith('nasr-club', '9')
-    })
-    expect(await screen.findByText('تم استلام المبلغ بنجاح')).toBeInTheDocument()
-    expect(screen.getByText('تم الاستلام')).toBeInTheDocument()
-  })
-
-  it('shows 403 mark-settled error, refreshes current user, and does not retry', async () => {
-    const user = userEvent.setup()
-
-    mockedMarkSettlementSettled.mockRejectedValueOnce(
-      new ApiClientError('ليس لديك صلاحية لهذا الإجراء.', 403),
-    )
-
-    renderPage()
-
-    await user.click(await screen.findByRole('button', {
-      name: 'تأكيد استلام المبلغ',
-    }))
-    await user.click(screen.getAllByRole('button', {
-      name: 'تأكيد استلام المبلغ',
-    })[1])
 
     expect(
-      await screen.findByText('ليس لديك صلاحية لهذا الإجراء.'),
+      await screen.findByText('تعذر تحميل تفاصيل التسوية'),
     ).toBeInTheDocument()
-    expect(refreshCurrentUser).toHaveBeenCalledTimes(1)
-    expect(mockedMarkSettlementSettled).toHaveBeenCalledTimes(1)
   })
 
-  it('does not hardcode a self-settlement denial on persisted settlement detail', async () => {
-    const user = userEvent.setup()
-
-    mockedGetSettlement.mockResolvedValueOnce({
-      id: 9,
-      collected_by: 1,
-      collected_by_name: 'Owner User',
-      total_amount: '2000.00',
-      transaction_count: 8,
-      status: 'PENDING',
-    })
+  it('handles unauthorized access when role has no permission', async () => {
+    mockAuth(null)
 
     renderPage()
 
-    expect((await screen.findAllByText('Owner User')).length).toBeGreaterThan(0)
-    await user.click(screen.getByRole('button', { name: 'تأكيد استلام المبلغ' }))
-    await user.click(screen.getAllByRole('button', {
-      name: 'تأكيد استلام المبلغ',
-    })[1])
-
-    expect(mockedMarkSettlementSettled).toHaveBeenCalledWith('nasr-club', '9')
+    expect(
+      await screen.findByText('ليس لديك صلاحية عرض التسويات'),
+    ).toBeInTheDocument()
   })
 })

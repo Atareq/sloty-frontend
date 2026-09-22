@@ -51,6 +51,38 @@ describe('BookingActionSheet', () => {
     expect(screen.queryByText(baseBooking.start_time)).not.toBeInTheDocument()
   })
 
+  it('clarifies midnight and noon while leaving normal 24-hour times unchanged', () => {
+    renderSheet({
+      ...baseBooking,
+      start_time: '2026-07-21T00:00:00+03:00',
+      end_time: '2026-07-21T12:00:00+03:00',
+    })
+
+    expect(screen.getByText('00:00')).toBeInTheDocument()
+    expect(screen.getByText('(منتصف الليل)')).toHaveClass(
+      'text-xs',
+      'text-[var(--sloty-text-muted)]',
+    )
+    expect(screen.getByText('12:00')).toBeInTheDocument()
+    expect(screen.getByText('(ظهرًا)')).toHaveClass(
+      'text-xs',
+      'text-[var(--sloty-text-muted)]',
+    )
+  })
+
+  it('leaves normal 24-hour times without clarification', () => {
+    renderSheet({
+      ...baseBooking,
+      start_time: '2026-07-21T18:00:00+03:00',
+      end_time: '2026-07-21T23:00:00+03:00',
+    })
+
+    expect(screen.getByText('18:00')).toBeInTheDocument()
+    expect(screen.getByText('23:00')).toBeInTheDocument()
+    expect(screen.queryByText('(منتصف الليل)')).not.toBeInTheDocument()
+    expect(screen.queryByText('(ظهرًا)')).not.toBeInTheDocument()
+  })
+
   it('shows one HOLD primary deposit CTA and cancellation under options', async () => {
     const user = userEvent.setup()
     const onAddPayment = vi.fn()

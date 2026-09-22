@@ -11,7 +11,16 @@ For the detailed architectural specification, consult [`docs/features/schedule.m
 - **Slot Board:** Renders daily court slots split into morning (`مواعيد الصباح`) and evening (`مواعيد المساء`) containers.
 - **Date Navigation:** Integrates `AppDateNavigator` for rolling 7-day strip and calendar picker navigation.
 - **Action Workflows:** Hosts `AddBookingSheet`, `BookingActionSheet`, and `VirtualRecurringSlotDetailsSheet`.
-- **Customer phone:** `AddBookingSheet` and `BookingRequestCustomerEditSheet` use `SlotyPhoneNumberInput` with shared `validatePhoneNumber()` / `getPhoneValidationMessage()`. Do not add sheet-local phone regexes or hardcoded phone errors.
+- **Customer phone:** `AddBookingSheet`, `EditBookingDetailsSheet`, and `BookingRequestCustomerEditSheet` use `SlotyPhoneNumberInput` with shared `validatePhoneNumber()` / `getPhoneValidationMessage()`. Do not add sheet-local phone regexes or hardcoded phone errors.
+- **Booking player identity:** Phone-based player results are suggestions only and must not replace a name already entered. `AddBookingSheet` and `EditBookingDetailsSheet` submit the final entered name and phone without a frontend-selected player ID; identity matching and player/name history belong to the backend. Booking PATCH sends `{ customer_name, customer_phone, notes }` only.
+
+# Backend-Owned Slot Interaction
+
+Schedule slots returned by the backend remain rendered and interactive regardless of their calendar date. FREE slots use only the backend `is_available` field; occupied and recurring-reserved statuses remain interactive according to the backend slot status. Do not add local date or `booking.start_time > now` gates before opening a slot or sending a booking mutation.
+
+# Backend-Owned Booking Date Validity
+
+`AddBookingSheet` and `RescheduleBookingSheet` must not reject a booking or reschedule date because it is past, today, future, or different from the browser date. Render slots returned by the backend and send the selected `start_time` / `end_time`; the backend owns date validity, working hours, and final availability. Local date comparisons may support non-blocking schedule presentation such as the closing section, but must not prevent a booking mutation from reaching the API.
 - **Operational Closing:** Renders `حجوزات تحتاج إغلاق` for today only (max 3 items, excluding `FREE` slots).
 - **Public Schedule Share:** Injects `مشاركة الجدول` into `PageHeader` top-left action area for the viewed Court.
 - **Online recurring reject:** `RECURRING_UNAVAILABLE` on create shows a ~5s amber floating warning (`AppSuccessNotice` tone=`warning`) and keeps `AddBookingSheet` open. Do **not** route this online case into `طلبات حجز محتاجة مراجعة`.
@@ -74,9 +83,8 @@ For the detailed architectural specification, consult [`docs/features/schedule.m
    - Never render customer names, phone numbers, notes, or money amounts on slot buttons.
 3. **Click Action Routing:**
    - If offline (`isOfflineLike`): all slot clicks show read-only feedback; mutations are blocked.
+   - Occupied slots (`HOLD` / `CONFIRMED` / `COMPLETED` / `CANCELLED` / `NO_SHOW`) and `RECURRING_RESERVED` open details according to the backend status, without a frontend calendar-date gate.
    - `FREE` & `is_available`: Opens `AddBookingSheet`.
-   - `HOLD` / `CONFIRMED` / `COMPLETED` / `CANCELLED` / `NO_SHOW` / `EXPIRED`: Opens `BookingActionSheet`.
-   - `RECURRING_RESERVED`: Opens `VirtualRecurringSlotDetailsSheet`.
    - `UNAVAILABLE`: Disabled, non-clickable.
 
 ---

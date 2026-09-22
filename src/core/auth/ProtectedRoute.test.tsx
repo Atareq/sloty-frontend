@@ -13,6 +13,10 @@ vi.mock('./authApi', () => ({
   fetchCurrentUserProfile: vi.fn(),
 }))
 
+vi.mock('../../features/clubs/clubsApi', () => ({
+  listClubs: vi.fn().mockResolvedValue([]),
+}))
+
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 
 const currentUserProfile: CurrentUserProfile = {
@@ -33,6 +37,10 @@ function renderProtectedRoute() {
       <MemoryRouter initialEntries={['/private']}>
         <Routes>
           <Route element={<p>صفحة تسجيل الدخول</p>} path="/login" />
+          <Route
+            element={<p>لا يوجد صلاحية تشغيلية</p>}
+            path="/no-operational-access"
+          />
           <Route
             element={
               <ProtectedRoute>
@@ -92,4 +100,52 @@ describe('ProtectedRoute', () => {
       expect(getAccessToken()).toBeNull()
     },
   )
+
+  it('redirects authenticated PLAYER accounts to /no-operational-access without clearing tokens', async () => {
+    const validToken = createDevAccessToken('STAFF')
+    setAccessToken(validToken)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce({
+      ...currentUserProfile,
+      profile_role: 'PLAYER',
+    })
+
+    renderProtectedRoute()
+
+    expect(await screen.findByText('لا يوجد صلاحية تشغيلية')).toBeInTheDocument()
+    expect(screen.queryByText('صفحة تسجيل الدخول')).not.toBeInTheDocument()
+    expect(getAccessToken()).toBe(validToken)
+  })
+
+  it('redirects authenticated accounts with null role to /no-operational-access without clearing tokens', async () => {
+    const validToken = createDevAccessToken('STAFF')
+    setAccessToken(validToken)
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce({
+      ...currentUserProfile,
+      profile_role: null,
+    })
+
+    renderProtectedRoute()
+
+    expect(await screen.findByText('لا يوجد صلاحية تشغيلية')).toBeInTheDocument()
+    expect(screen.queryByText('صفحة تسجيل الدخول')).not.toBeInTheDocument()
+    expect(getAccessToken()).toBe(validToken)
+  })
+
+  it('shows retry and logout when session hydration fails without clearing tokens', async () => {
+    const validToken = createDevAccessToken('STAFF')
+    setAccessToken(validToken)
+    mockedFetchCurrentUserProfile.mockRejectedValueOnce(
+      new ApiClientError('تعذر تحميل بيانات الحساب', 500),
+    )
+
+    renderProtectedRoute()
+
+    expect(
+      await screen.findByText('تعذر تحميل بيانات الحساب'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'إعادة المحاولة' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'تسجيل الخروج' })).toBeInTheDocument()
+    expect(screen.queryByText('جاري تحميل الجلسة...')).not.toBeInTheDocument()
+    expect(getAccessToken()).toBe(validToken)
+  })
 })

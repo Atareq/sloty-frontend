@@ -147,7 +147,10 @@ describe('scheduleBoard helpers', () => {
 
   it('formats a local booking datetime from date and board time', () => {
     expect(formatBookingDateTime('2026-07-02', '18:00')).toBe(
-      '2026-07-02T18:00:00',
+      '2026-07-02T18:00:00+03:00',
+    )
+    expect(formatBookingDateTime('2026-12-01', '18:00')).toBe(
+      '2026-12-01T18:00:00+02:00',
     )
   })
 

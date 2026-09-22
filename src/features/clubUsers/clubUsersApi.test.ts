@@ -5,6 +5,7 @@ import {
   createClubStaff,
   listClubUsers,
   updateClubUser,
+  updateStaffCourts,
 } from './clubUsersApi'
 import { getUserUiState } from './clubUsers.types'
 
@@ -21,60 +22,64 @@ describe('clubUsersApi', () => {
     expect(getUserUiState({})).toBe('ACTIVE')
   })
 
-  it('lists club users through users endpoint scoped by club', async () => {
-    mockedApiRequest.mockResolvedValueOnce([])
+  it('lists club staff through confirmed clubs/{slug}/staff/ endpoint', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ results: [], count: 0, next: null, previous: null })
 
     await listClubUsers('nasr-club')
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.users.list}?club=nasr-club`,
+      apiEndpoints.clubs.staff.list('nasr-club'),
     )
   })
 
-  it('builds supported role, active, and search filters', async () => {
-    mockedApiRequest.mockResolvedValueOnce([])
+  it('builds supported active and search filters for staff', async () => {
+    mockedApiRequest.mockResolvedValueOnce({ results: [], count: 0, next: null, previous: null })
 
     await listClubUsers('nasr-club', {
-      role: 'STAFF',
       is_active: true,
       search: '  ahmed  ',
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.users.list}?club=nasr-club&role=STAFF&is_active=true&search=ahmed`,
+      `${apiEndpoints.clubs.staff.list('nasr-club')}?is_active=true&search=ahmed`,
     )
   })
 
-  it('creates club staff user with normalized payload', async () => {
+  it('creates club staff user with confirmed payload on clubs/{slug}/staff/', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       id: 42,
       username: 'staff-1',
+      profile_id: 42,
       first_name: 'أحمد',
       last_name: 'علي',
       is_active: true,
     })
 
-    await createClubStaff({
+    await createClubStaff('nasr-club', {
       username: ' staff-1 ',
       password: 'password123',
       first_name: ' أحمد ',
       last_name: ' علي ',
       email: ' staff@example.com ',
       phone_number: ' +201000000000 ',
+      court_ids: [1, 2],
     })
 
-    expect(mockedApiRequest).toHaveBeenCalledWith(apiEndpoints.users.list, {
-      method: 'POST',
-      body: {
-        username: 'staff-1',
-        password: 'password123',
-        first_name: 'أحمد',
-        last_name: 'علي',
-        email: 'staff@example.com',
-        phone_number: '+201000000000',
-        is_active: true,
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.staff.list('nasr-club'),
+      {
+        method: 'POST',
+        body: {
+          username: 'staff-1',
+          password: 'password123',
+          first_name: 'أحمد',
+          last_name: 'علي',
+          email: 'staff@example.com',
+          phone_number: '+201000000000',
+          court_ids: [1, 2],
+        },
       },
-    })
+    )
   })
 
   it('patches a club user through the detail endpoint', async () => {
@@ -96,6 +101,22 @@ describe('clubUsersApi', () => {
         method: 'PATCH',
         body: {
           is_active: false,
+        },
+      },
+    )
+  })
+
+  it('updates staff court assignments through PUT clubs/{slug}/staff/{profileId}/courts/', async () => {
+    mockedApiRequest.mockResolvedValueOnce(undefined)
+
+    await updateStaffCourts('nasr-club', 42, [3, 4])
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.staff.courts('nasr-club', 42),
+      {
+        method: 'PUT',
+        body: {
+          court_ids: [3, 4],
         },
       },
     )

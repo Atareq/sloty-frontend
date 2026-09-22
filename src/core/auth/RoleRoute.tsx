@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router'
-import type { AuthRole } from './auth.types'
-import { getDefaultRouteForRole } from './auth.types'
+import { type AuthRole, getDefaultRouteForRole } from './auth.types'
 import { useAuth } from './useAuth'
 
 export interface RoleRouteProps {
@@ -16,7 +15,7 @@ export interface RoleRouteProps {
  * frontend landing page. It is not a backend authorization boundary.
  */
 export function RoleRoute({ allowedRoles, children }: RoleRouteProps) {
-  const { isAuthenticated, isLoadingSession, role, selectedClubSlug } = useAuth()
+  const { isAuthenticated, isLoadingSession, isOperational, role } = useAuth()
 
   if (isLoadingSession) {
     return <p className="p-4 text-sm font-semibold">جاري تحميل الجلسة...</p>
@@ -26,12 +25,8 @@ export function RoleRoute({ allowedRoles, children }: RoleRouteProps) {
     return <Navigate replace to="/login" />
   }
 
-  if (!role && !selectedClubSlug) {
-    return <Navigate replace to="/select-club" />
-  }
-
-  if (!role) {
-    return <Navigate replace to="/login" />
+  if (!isOperational || !role) {
+    return <Navigate replace to="/no-operational-access" />
   }
 
   if (!allowedRoles.includes(role)) {

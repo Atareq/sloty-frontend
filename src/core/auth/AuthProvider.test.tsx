@@ -7,8 +7,8 @@ import {
   safelyPersistOfflineContext,
   safelyReadOfflineContext,
 } from '../../offline/security/offlineStorageSafety'
-import { listClubs } from '../../features/clubs/clubsApi'
-import { listCourts } from '../../features/courts/courtsApi'
+import { getClub, listClubs } from '../../features/clubs/clubsApi'
+import { getCourt, listCourts } from '../../features/courts/courtsApi'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { ApiClientError } from '../api/apiClient'
 import { AuthProvider } from './AuthProvider'
@@ -26,6 +26,9 @@ import {
   getSelectedClubSlug,
   saveSelectedClubSlug,
 } from './selectedClubStorage'
+import {
+  clearSelectedCourtId,
+} from './selectedCourtStorage'
 import { useAuth } from './useAuth'
 
 function createExpiredAccessToken(): string {
@@ -52,10 +55,16 @@ vi.mock('./authApi', () => ({
 
 vi.mock('../../features/clubs/clubsApi', () => ({
   listClubs: vi.fn(),
+  getClub: vi.fn(),
+  createClub: vi.fn(),
+  updateClub: vi.fn(),
 }))
 
 vi.mock('../../features/courts/courtsApi', () => ({
   listCourts: vi.fn(),
+  getCourt: vi.fn(),
+  createCourt: vi.fn(),
+  updateCourt: vi.fn(),
 }))
 
 vi.mock('../../offline/security/offlineStorageSafety', () => ({
@@ -68,7 +77,9 @@ vi.mock('../../offline/security/offlineStorageSafety', () => ({
 
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 const mockedListClubs = vi.mocked(listClubs)
+const mockedGetClub = vi.mocked(getClub)
 const mockedListCourts = vi.mocked(listCourts)
+const mockedGetCourt = vi.mocked(getCourt)
 const mockedClearScope = vi.mocked(safelyClearScope)
 const mockedClearUserOperationalData = vi.mocked(
   safelyClearUserOperationalData,
@@ -79,12 +90,14 @@ const mockedReadOfflineContext = vi.mocked(safelyReadOfflineContext)
 function AuthProviderHarness() {
   const {
     currentUser,
+    currentProfileId,
     login,
     logout,
     role,
     selectClub,
     selectedClubSlug,
     accessibleClubs,
+    isOperational,
   } = useAuth()
 
   const activeClub = accessibleClubs.find((c) => c.slug === selectedClubSlug)
@@ -92,9 +105,12 @@ function AuthProviderHarness() {
   return (
     <div>
       <p>{currentUser?.username ?? 'لا يوجد مستخدم'}</p>
+      <p data-testid="user-id">{currentUser?.id ?? 'none'}</p>
+      <p data-testid="profile-id">{currentProfileId ?? 'none'}</p>
       <p>{selectedClubSlug ?? 'لا يوجد نادي محدد'}</p>
       <p>{activeClub?.name ?? 'لا يوجد نادي محدد'}</p>
       <p>{role ?? 'لا يوجد دور محدد'}</p>
+      <p data-testid="is-operational">{isOperational ? 'operational' : 'non-operational'}</p>
       <p>
         {canManageSettlements(role)
           ? 'يمكن إدارة التسويات'
@@ -188,14 +204,22 @@ describe('AuthProvider', () => {
     vi.unstubAllGlobals()
     clearAuthTokens()
     clearSelectedClubSlug()
+    clearSelectedCourtId()
     vi.clearAllMocks()
     mockedClearScope.mockResolvedValue(true)
     mockedClearUserOperationalData.mockResolvedValue(true)
     mockedPersistOfflineContext.mockResolvedValue(true)
     mockedReadOfflineContext.mockResolvedValue(null)
+    // Default: getClub(slug) returns mockClub1 — the direct-retrieve path.
+    mockedGetClub.mockResolvedValue(mockClub1)
+    // Default: listClubs returns page-1 with mockClub1 (fallback path).
     mockedListClubs.mockResolvedValue(paginated([mockClub1]))
+    // Default: getCourt returns the first test court (direct-retrieve path).
+    mockedGetCourt.mockResolvedValue(mockCourtsClub1[0])
+    // Default: listCourts returns page-1 with mockCourtsClub1 (fallback path).
     mockedListCourts.mockResolvedValue(paginated(mockCourtsClub1))
   })
+
 
   it('clears the current user profile on logout', async () => {
     const user = userEvent.setup()
@@ -363,6 +387,10 @@ describe('AuthProvider', () => {
     const user = userEvent.setup()
     saveSelectedClubSlug('old-club')
     mockedFetchCurrentUserProfile.mockResolvedValueOnce(ownerProfile)
+    // getClub('old-club') → 404 (direct retrieve validates the persisted slug)
+    mockedGetClub.mockRejectedValueOnce(
+      new ApiClientError('النادي غير موجود', 404, { code: 'NOT_FOUND' }),
+    )
     mockedListClubs.mockResolvedValueOnce(paginated([mockClub1, mockClub2]))
 
     render(
@@ -376,6 +404,62 @@ describe('AuthProvider', () => {
     await waitFor(() => expect(getSelectedClubSlug()).toBeNull())
     expect(screen.getAllByText('لا يوجد نادي محدد')).toHaveLength(2)
   })
+
+  it('preserves selected club when not on page 1 via direct retrieve', async () => {
+    const user = userEvent.setup()
+    saveSelectedClubSlug('club-35')
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(ownerProfile)
+    // Direct retrieve GET /clubs/club-35/ succeeds with 200
+    mockedGetClub.mockResolvedValueOnce({
+      id: 35,
+      slug: 'club-35',
+      name: 'Club 35',
+      governorate: 'ASSIUT',
+      city: 'ASSIUT_CITY',
+      address: 'Address 35',
+      phone_number: '01012345678',
+      is_active: true,
+    })
+    // Page 1 list only has mockClub1 and mockClub2 (club-35 is not on page 1)
+    mockedListClubs.mockResolvedValueOnce(paginated([mockClub1, mockClub2]))
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    // Selection is preserved authoritatively via direct retrieve
+    await waitFor(() => expect(mockedGetClub).toHaveBeenCalledWith('club-35'))
+    expect(getSelectedClubSlug()).toBe('club-35')
+  })
+
+  it('clears selection when direct retrieve returns 403 CLUB_ACCESS_REVOKED', async () => {
+    const user = userEvent.setup()
+    saveSelectedClubSlug('revoked-club')
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(ownerProfile)
+    mockedGetClub.mockRejectedValueOnce(
+      new ApiClientError('تم إلغاء صلاحية الوصول', 403, {
+        code: 'CLUB_ACCESS_REVOKED',
+      }),
+    )
+    mockedListClubs.mockResolvedValueOnce(paginated([mockClub1, mockClub2]))
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'تسجيل دخول تجريبي' }))
+
+    await waitFor(() => expect(getSelectedClubSlug()).toBeNull())
+    expect(screen.getAllByText('لا يوجد نادي محدد')).toHaveLength(2)
+  })
+
+
 
   it('hydrates the last verified scope when profile refresh cannot reach the backend', async () => {
     const user = userEvent.setup()
@@ -446,7 +530,7 @@ describe('AuthProvider', () => {
     const user = userEvent.setup()
     saveSelectedClubSlug('demo-football-club')
     mockedFetchCurrentUserProfile.mockRejectedValueOnce(
-      new ApiClientError('تم حذف الحساب', 403, {
+      new ApiClientError('تم حذف الحساب', 401, {
         code: 'USER_DELETED',
       }),
     )
@@ -528,7 +612,7 @@ describe('AuthProvider', () => {
     expect(getAccessToken()).toBe(nextAccess)
   })
 
-  it('handles /me with profile_role null without clearing tokens', async () => {
+  it('handles /me with profile_role null without clearing tokens or requesting clubs', async () => {
     const validAccess = createDevAccessToken('STAFF')
     setAccessToken(validAccess)
     setRefreshToken('valid-refresh-token')
@@ -557,6 +641,201 @@ describe('AuthProvider', () => {
       expect(screen.getByText('unassigned-user')).toBeInTheDocument()
     })
     expect(screen.getByText('لا يوجد دور محدد')).toBeInTheDocument()
+    expect(screen.getByTestId('is-operational')).toHaveTextContent('non-operational')
     expect(getAccessToken()).toBe(validAccess)
+    expect(mockedListClubs).not.toHaveBeenCalled()
+  })
+
+  it('handles /me with profile_role PLAYER without clearing tokens or requesting clubs', async () => {
+    const validAccess = createDevAccessToken('STAFF')
+    setAccessToken(validAccess)
+    setRefreshToken('valid-refresh-token')
+
+    const playerProfile: CurrentUserProfile = {
+      id: 101,
+      username: 'player-user',
+      email: 'player@example.com',
+      first_name: 'Player',
+      last_name: 'Customer',
+      phone_number: '+201012345678',
+      is_active: true,
+      profile_role: 'PLAYER',
+      account_created_by: null,
+    }
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(playerProfile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('player-user')).toBeInTheDocument()
+    })
+    expect(screen.getByText('لا يوجد دور محدد')).toBeInTheDocument()
+    expect(screen.getByTestId('is-operational')).toHaveTextContent('non-operational')
+    expect(getAccessToken()).toBe(validAccess)
+    expect(mockedListClubs).not.toHaveBeenCalled()
+  })
+
+  it('handles /me with unknown profile_role safely as nonOperational without crashing or STAFF fallback', async () => {
+    const validAccess = createDevAccessToken('STAFF')
+    setAccessToken(validAccess)
+    setRefreshToken('valid-refresh-token')
+
+    const unknownRoleProfile: CurrentUserProfile = {
+      id: 102,
+      username: 'future-role-user',
+      email: 'future@example.com',
+      first_name: 'Future',
+      last_name: 'Role',
+      phone_number: null,
+      is_active: true,
+      profile_role: 'SOMETHING_NEW' as unknown as CurrentUserProfile['profile_role'],
+      account_created_by: null,
+    }
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(unknownRoleProfile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('future-role-user')).toBeInTheDocument()
+    })
+    expect(screen.getByText('لا يوجد دور محدد')).toBeInTheDocument()
+    expect(screen.getByTestId('is-operational')).toHaveTextContent('non-operational')
+    expect(getAccessToken()).toBe(validAccess)
+    expect(mockedListClubs).not.toHaveBeenCalled()
+  })
+
+  it.each(['OWNER', 'STAFF'] as const)(
+    'continues operational bootstrap for %s and calls listClubs',
+    async (role) => {
+      const validAccess = createDevAccessToken(role)
+      setAccessToken(validAccess)
+
+      const profile: CurrentUserProfile = {
+        id: 200,
+        username: `${role.toLowerCase()}-user`,
+        email: `${role.toLowerCase()}@example.com`,
+        first_name: role,
+        last_name: 'User',
+        phone_number: null,
+        is_active: true,
+        profile_role: role,
+        account_created_by: null,
+      }
+      mockedFetchCurrentUserProfile.mockResolvedValueOnce(profile)
+      mockedListClubs.mockResolvedValueOnce(paginated([mockClub1]))
+
+      render(
+        <AuthProvider>
+          <AuthProviderHarness />
+        </AuthProvider>,
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText(`${role.toLowerCase()}-user`)).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('is-operational')).toHaveTextContent('operational')
+      expect(mockedListClubs).toHaveBeenCalled()
+    },
+  )
+
+  it('continues operational bootstrap for ADMIN without calling listClubs', async () => {
+    const validAccess = createDevAccessToken('ADMIN')
+    setAccessToken(validAccess)
+
+    const profile: CurrentUserProfile = {
+      id: 200,
+      username: 'admin-user',
+      email: 'admin@example.com',
+      first_name: 'ADMIN',
+      last_name: 'User',
+      phone_number: null,
+      is_active: true,
+      profile_role: 'ADMIN',
+      account_created_by: null,
+    }
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(profile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('admin-user')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('is-operational')).toHaveTextContent('operational')
+    // ADMIN does not need to load clubs during startup.
+    expect(mockedListClubs).not.toHaveBeenCalled()
+  })
+
+  it('hydrates session with userId = 50 and profileId = 12 when profile_id is provided by /me/', async () => {
+    const validAccess = createDevAccessToken('STAFF')
+    setAccessToken(validAccess)
+
+    const profile: CurrentUserProfile = {
+      id: 50,
+      profile_id: 12,
+      username: 'staff-with-profile',
+      email: 'staff@example.com',
+      first_name: 'Staff',
+      last_name: 'Member',
+      phone_number: null,
+      is_active: true,
+      profile_role: 'STAFF',
+      account_created_by: null,
+    }
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(profile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('staff-with-profile')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('user-id')).toHaveTextContent('50')
+    expect(screen.getByTestId('profile-id')).toHaveTextContent('12')
+  })
+
+  it('hydrates session with userId = 50 and profileId = null when profile_id is not provided by /me/ (no guessing)', async () => {
+    const validAccess = createDevAccessToken('STAFF')
+    setAccessToken(validAccess)
+
+    const profile: CurrentUserProfile = {
+      id: 50,
+      username: 'staff-without-profile',
+      email: 'staff@example.com',
+      first_name: 'Staff',
+      last_name: 'Member',
+      phone_number: null,
+      is_active: true,
+      profile_role: 'STAFF',
+      account_created_by: null,
+    }
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(profile)
+
+    render(
+      <AuthProvider>
+        <AuthProviderHarness />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('staff-without-profile')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('user-id')).toHaveTextContent('50')
+    // Crucial: profileId must be none (null), never guessing or copying 50 from userId!
+    expect(screen.getByTestId('profile-id')).toHaveTextContent('none')
   })
 })

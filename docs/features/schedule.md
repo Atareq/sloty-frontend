@@ -54,10 +54,11 @@ The operational schedule uses a **cache-first, background-revalidate** model:
   - All interactive slot clicks are intercepted.
   - Displays the read-only notice: mutations cannot be committed offline.
 - **When Online:**
+  - Occupied bookings and `RECURRING_RESERVED` open details only for yesterday, today (all day), and future board dates. Older occupied slots are visible but not clickable.
   - `FREE` (with `is_available: true`): Opens `AddBookingSheet`.
   - `HOLD`: Opens `BookingActionSheet` (primary action: deposit confirmation).
   - `CONFIRMED`: Opens `BookingActionSheet` (primary action: collect balance or closeout).
-  - `COMPLETED` / `CANCELLED` / `NO_SHOW` / `EXPIRED`: Opens `BookingActionSheet` for inspection.
+  - `COMPLETED` / `CANCELLED` / `NO_SHOW` / `EXPIRED`: Opens `BookingActionSheet` for inspection when inside the click window.
   - `RECURRING_RESERVED`: Opens `VirtualRecurringSlotDetailsSheet` (virtual slot; anchor booking is never treated as a concrete booking row).
   - `UNAVAILABLE`: Disabled and non-clickable.
 

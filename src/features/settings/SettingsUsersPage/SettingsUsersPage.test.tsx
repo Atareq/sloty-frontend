@@ -87,6 +87,7 @@ function mockAuth(options: {
     accessibleCourts: [],
     role,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -233,7 +234,7 @@ describe('SettingsUsersPage', () => {
     await user.click(screen.getByRole('button', { name: 'إضافة الموظف' }))
 
     await waitFor(() => {
-      expect(mockedCreateClubStaff).toHaveBeenCalledWith({
+      expect(mockedCreateClubStaff).toHaveBeenCalledWith('nasr-club', {
         first_name: 'علي',
         last_name: 'حسن',
         username: 'new-staff',

@@ -1,14 +1,16 @@
+import type { ProfileId } from '../../core/auth/auth.types'
+
 export interface AuditQueryParams {
   date_from?: string
   date_to?: string
-  actor?: number | string
+  actor?: ProfileId | string
   action?: string
   search?: string
   page?: number | string
 }
 
 export interface AuditActor {
-  id: number
+  id: ProfileId
   name: string
 }
 
@@ -21,7 +23,7 @@ export interface AuditLogEntry {
   action_label?: string | null
   entity_type?: string | null
   entity_id?: number | string | null
-  actor?: AuditActor | number | null
+  actor?: AuditActor | ProfileId | null
   actor_name?: string | null
   actor_name_source?:
     | 'EVENT_SNAPSHOT'

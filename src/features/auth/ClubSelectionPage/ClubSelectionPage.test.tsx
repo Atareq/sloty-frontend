@@ -54,6 +54,7 @@ const authValue: AuthContextValue = {
   selectedCourtId: null,
   role: 'STAFF' as const,
   isAuthenticated: true,
+  isOperational: true,
   isLoadingSession: false,
   isTokenExpired: false,
   sessionError: null,

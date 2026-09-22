@@ -1,4 +1,4 @@
-import type { AuthRole } from '../core/auth/auth.types'
+import type { AuthRole, ProfileId, UserId } from '../core/auth/auth.types'
 import type { Booking } from '../features/bookings/bookings.types'
 import type { Club } from '../features/clubs/clubs.types'
 import type { Court } from '../features/courts/courts.types'
@@ -13,7 +13,7 @@ import type { Transaction } from '../features/transactions/transactions.types'
 export const OFFLINE_SCHEMA_VERSION = 5
 
 export interface OfflineScope {
-  userId: number
+  userId: UserId
   clubSlug: string
 }
 
@@ -63,7 +63,7 @@ export interface TransactionCacheRecord extends ScopedOfflineRecord {
   payment_method: Transaction['payment_method']
   cancellation_state: 'active' | 'cancelled'
   settlement_state: 'settled' | 'unsettled'
-  collector_id?: number
+  collector_id?: ProfileId
   court_id?: number
   transaction: Transaction
 }
@@ -89,7 +89,7 @@ export type CurrentCustodySnapshotPayload =
 export interface CurrentCustodySnapshotRecord extends ScopedOfflineRecord {
   snapshot_kind: CurrentCustodySnapshotKind
   collector_scope: string
-  collector_id: number | null
+  collector_id: ProfileId | null
   payload: CurrentCustodySnapshotPayload
   synced_at: string
 }
@@ -105,14 +105,47 @@ export const BOOKING_REQUEST_STATUSES = [
 
 export type BookingRequestStatus = (typeof BOOKING_REQUEST_STATUSES)[number]
 
+export const SYNC_QUEUE_STATUSES = [
+  'PENDING',
+  'SYNCING',
+  'SYNCED',
+  'FAILED',
+  'NEEDS_REVIEW',
+] as const
+
+export type SyncQueueStatus = (typeof SYNC_QUEUE_STATUSES)[number]
+
 export const BOOKING_REQUEST_REVIEW_REASONS = [
   'SLOT_UNAVAILABLE',
   'INVALID_CUSTOMER_DATA',
   'RECURRING_UNAVAILABLE',
+  'CLIENT_REQUEST_MISMATCH',
 ] as const
 
 export type BookingRequestReviewReason =
   (typeof BOOKING_REQUEST_REVIEW_REASONS)[number]
+
+export type OfflineActionType = 'CREATE_BOOKING'
+
+export interface BookingIntentPayload {
+  court_id: number
+  requested_date: string
+  requested_start: string
+  requested_end: string
+  customer_name: string
+  customer_phone: string
+  notes: string | null
+  requested_recurring: boolean
+}
+
+export interface SyncQueueItem<TPayload = BookingIntentPayload> {
+  id: string
+  action_type: OfflineActionType | string
+  payload: TPayload
+  created_at: string
+  retry_count: number
+  status: SyncQueueStatus | BookingRequestStatus
+}
 
 /**
  * Local customer intent waiting for a future authenticated Backend submission.
@@ -123,6 +156,9 @@ export type BookingRequestReviewReason =
  */
 export interface BookingRequestRecord extends ScopedOfflineRecord {
   local_id: string
+  id?: string
+  action_type?: OfflineActionType
+  type?: OfflineActionType
   client_request_id: string
   court_id: number
   requested_date: string
@@ -134,12 +170,14 @@ export interface BookingRequestRecord extends ScopedOfflineRecord {
   requested_recurring: boolean
   original_slot_snapshot: BookingSlot
   status: BookingRequestStatus
+  retry_count?: number
   review_reason: BookingRequestReviewReason | null
   created_at: string
   updated_at: string
   last_attempt_at: string | null
   resolved_booking_id: number | null
   backend_attempt_id?: number | null
+  payload?: BookingIntentPayload
 }
 
 export const BOOKING_INTENT_STATUSES = BOOKING_REQUEST_STATUSES
@@ -167,4 +205,3 @@ export interface OfflineContextInput {
   selectedCourtId: number | null
   lastVerifiedAt: string
 }
-

@@ -9,6 +9,7 @@ import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubs } from '../../clubs/clubsApi'
 import type { Club } from '../../clubs/clubs.types'
@@ -167,6 +168,7 @@ export function AdminUsersPage() {
         setUsers(normalizePlatformUsersResponse(usersResponse))
         if (clubsResponse) {
           setClubs(clubsResponse.results)
+          setClubs(extractResults(clubsResponse))
           setClubsWarning(null)
         } else {
           setClubs([])

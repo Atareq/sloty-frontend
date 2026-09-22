@@ -167,6 +167,7 @@ function getAuthValue(
     accessibleCourts,
     role: authRole,
     isAuthenticated: true,
+    isOperational: Boolean(authRole),
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,

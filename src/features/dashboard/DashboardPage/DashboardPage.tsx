@@ -27,6 +27,7 @@ import {
   getCourtDisplayName,
 } from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import {
@@ -484,6 +485,7 @@ export function DashboardPage() {
 
         if (isActive) {
           setCourts(response.results.filter((court) => court.is_active))
+          setCourts(extractResults(response).filter((court) => court.is_active))
         }
       } catch {
         if (isActive) {

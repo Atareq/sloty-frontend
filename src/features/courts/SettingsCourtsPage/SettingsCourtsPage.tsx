@@ -3,9 +3,11 @@ import { Link } from 'react-router'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import { canManagePricing, canManageWorkingHours } from '../../../core/auth/auth.types'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { listCourts } from '../courtsApi'
+import { formatCourtPricingSummary } from '../courtPricing.helpers'
 import type { Court } from '../courts.types'
 
 export function SettingsCourtsPage() {
@@ -31,10 +33,16 @@ export function SettingsCourtsPage() {
       setError(null)
 
       try {
-        const response = await listCourts(selectedClubSlug)
+        let response = await listCourts(selectedClubSlug)
+        const allCourts: Court[] = [...extractResults(response)]
+
+        while (response.next) {
+          response = await listCourts(selectedClubSlug, { nextUrl: response.next })
+          allCourts.push(...extractResults(response))
+        }
 
         if (isActive) {
-          setCourts(response.results)
+          setCourts(allCourts)
         }
       } catch (error) {
         if (isActive) {
@@ -96,6 +104,9 @@ export function SettingsCourtsPage() {
                 <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
                   {court.name}
                 </h2>
+                <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                  سعر الحجز: {formatCourtPricingSummary(court)}
+                </p>
                 <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
                   الحد الأدنى للعربون: {court.minimum_deposit} جنيه
                 </p>

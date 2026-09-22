@@ -13,6 +13,7 @@ import {
   type BookingSecondaryAction,
 } from '../../bookingActionPresentation.helpers'
 import { hasActiveRecurrence } from '../../bookingRecurrence.helpers'
+import { BookingDetailTimeRange } from '../BookingDetailTimeRange/BookingDetailTimeRange'
 import {
   formatBookingDateTimeRangeWithWeekday,
   formatHoldExpiryMessage,
@@ -192,11 +193,16 @@ export function BookingActionSheet({
                 </p>
               ) : null}
               <p className="mt-3 text-lg font-extrabold text-[var(--sloty-primary-dark)]">
-                {formatBookingDateTimeRangeWithWeekday(
-                  booking.start_time,
-                  booking.end_time,
-                  fallbackDate,
-                )}
+                <BookingDetailTimeRange
+                  endTime={booking.end_time}
+                  fallbackDate={fallbackDate}
+                  fallbackText={formatBookingDateTimeRangeWithWeekday(
+                    booking.start_time,
+                    booking.end_time,
+                    fallbackDate,
+                  )}
+                  startTime={booking.start_time}
+                />
               </p>
               <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
                 {getBookingCourtLabel(booking, courtName)}

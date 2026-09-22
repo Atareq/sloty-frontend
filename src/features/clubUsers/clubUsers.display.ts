@@ -4,14 +4,15 @@ import type { ClubUser } from './clubUsers.types'
 export function getClubUserDisplayName(user: ClubUser): string {
   const fullName = [user.first_name, user.last_name]
     .map((part) => part.trim())
+    .map((part) => part?.trim())
     .filter(Boolean)
     .join(' ')
 
-  return fullName || user.username
+  return fullName || user.phone_number || user.username || '—'
 }
 
 export function getManagerIdentity(user: ClubUser): string {
-  return getClubUserDisplayName(user) || user.phone_number || user.username
+  return getClubUserDisplayName(user) || user.phone_number || user.username || '—'
 }
 
 export function getUserCourtName(user: ClubUser, courts: Court[]): string | null {

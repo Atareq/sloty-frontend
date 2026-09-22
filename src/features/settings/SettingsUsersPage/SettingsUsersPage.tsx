@@ -9,6 +9,7 @@ import {
 } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import type { PaginatedResponse } from '../../../shared/api/api.types'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
@@ -492,6 +493,7 @@ export function SettingsUsersPage() {
 
         if (isActive && isCurrent(generation)) {
           setUsers(normalizeClubUsersResponse(usersResponse))
+          setUsers(extractResults(usersResponse))
           hasCompletedInitialLoadRef.current = true
         }
       } catch (caughtError) {
@@ -594,7 +596,7 @@ export function SettingsUsersPage() {
     setAddStaffFieldErrors({})
 
     try {
-      await createClubStaff({
+      await createClubStaff(selectedClubSlug, {
         first_name: values.first_name,
         last_name: values.last_name || undefined,
         username: values.username,

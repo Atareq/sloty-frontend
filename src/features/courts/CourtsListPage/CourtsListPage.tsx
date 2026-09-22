@@ -4,7 +4,9 @@ import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { listCourts } from '../courtsApi'
+import { formatCourtPricingSummary } from '../courtPricing.helpers'
 import type { Court } from '../courts.types'
 
 /**
@@ -34,10 +36,16 @@ export function CourtsListPage() {
       setError(null)
 
       try {
-        const response = await listCourts(currentClubSlug)
+        let response = await listCourts(currentClubSlug)
+        const allCourts: Court[] = [...extractResults(response)]
+
+        while (response.next) {
+          response = await listCourts(currentClubSlug, { nextUrl: response.next })
+          allCourts.push(...extractResults(response))
+        }
 
         if (isActive) {
-          setCourts(response.results)
+          setCourts(allCourts)
         }
       } catch (error) {
         if (isActive) {
@@ -127,6 +135,10 @@ export function CourtsListPage() {
                   {court.is_active ? 'نشط' : 'غير نشط'}
                 </span>
               </div>
+
+              <p className="text-sm text-[var(--sloty-text-muted)]">
+                سعر الحجز: {formatCourtPricingSummary(court)}
+              </p>
 
               <p className="text-sm text-[var(--sloty-text-muted)]">
                 مرجع الدفع الرقمي:{' '}

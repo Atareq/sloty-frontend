@@ -8,7 +8,24 @@ import {
   canViewOwnSettlements,
   getAssignedOperationalCourtId,
   getDefaultRouteForRole,
+  isOperationalRole,
 } from './auth.types'
+
+describe('isOperationalRole helper', () => {
+  it('returns true for operational roles (ADMIN, OWNER, STAFF)', () => {
+    expect(isOperationalRole('ADMIN')).toBe(true)
+    expect(isOperationalRole('OWNER')).toBe(true)
+    expect(isOperationalRole('STAFF')).toBe(true)
+  })
+
+  it('returns false for non-operational, unknown, or null roles', () => {
+    expect(isOperationalRole('PLAYER')).toBe(false)
+    expect(isOperationalRole(null)).toBe(false)
+    expect(isOperationalRole(undefined)).toBe(false)
+    expect(isOperationalRole('')).toBe(false)
+    expect(isOperationalRole('SOMETHING_NEW')).toBe(false)
+  })
+})
 
 describe('role permission helpers', () => {
   it('allows admins to manage pricing, working hours, and settlements', () => {

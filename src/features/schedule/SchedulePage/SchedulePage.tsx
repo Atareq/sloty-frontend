@@ -19,8 +19,8 @@ import { AppDateNavigator } from '../../../shared/components/AppDateNavigator/Ap
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import {
   formatArabicDateWithWeekday,
-  formatDateInputValue,
 } from '../../../shared/utils/date'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import {
@@ -64,6 +64,7 @@ import {
   formatBookingDateTime,
   formatTime12Hour,
   getBookingSummariesFromScheduleSlots,
+  getEgyptDateValue,
   getScheduleClosingBookings,
   mapBookingSlotsResponseToScheduleBookings,
 } from '../scheduleBoard.helpers'
@@ -78,13 +79,13 @@ import {
   markBookingNoShow,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingNotes,
+  updateBooking,
 } from '../scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
   type BookingCompletePayload,
   type BookingCancellationPreview,
-  type BookingNotesUpdatePayload,
+  type BookingUpdatePayload,
   type BookingListItem,
   type BookingReschedulePayload,
 } from '../scheduleApi.types'
@@ -132,6 +133,26 @@ function getScheduleRequestKey(
   date: string,
 ): string {
   return [clubSlug, courtId, date].join(':')
+}
+
+function createOnlineBookingBusinessKey(input: {
+  courtId: number
+  startTime: string
+  endTime: string
+  customerName: string
+  customerPhone: string
+  isRecurring: boolean
+  notes: string
+}): string {
+  return [
+    String(input.courtId),
+    input.startTime,
+    input.endTime,
+    input.customerName,
+    input.customerPhone,
+    input.isRecurring ? '1' : '0',
+    input.notes,
+  ].join('\u001f')
 }
 
 const statusLegend = [
@@ -182,6 +203,9 @@ const bookingConflictCodes = new Set([
   'BOOKING_SLOT_UNAVAILABLE',
   'BOOKING_SLOT_ALREADY_TAKEN',
   'BOOKING_OVERLAP',
+  'BOOKING_NOT_AVAILABLE',
+  'BOOKING_CONFLICT',
+  'BOOKING_OUTSIDE_WORKING_HOURS',
 ])
 
 interface VisibleBookingIntentAlternative {
@@ -236,6 +260,8 @@ function getBookingRequestReviewCopy(
       return 'بيانات العميل محتاجة تعديل'
     case 'RECURRING_UNAVAILABLE':
       return 'المعاد لسه متاح، لكن التثبيت الأسبوعي مبقاش متاح.'
+    case 'CLIENT_REQUEST_MISMATCH':
+      return 'طلب الحجز ده متعارض مع طلب سابق. عدّل البيانات أو أنشئ طلب جديد.'
     default:
       return 'الطلب محفوظ ومحتاج مراجعة قبل التأكيد.'
   }
@@ -278,7 +304,7 @@ export function SchedulePage() {
   } = useOfflineSync()
   const location = useLocation()
   const navigate = useNavigate()
-  const [selectedDate, setSelectedDate] = useState(formatDateInputValue(new Date()))
+  const [selectedDate, setSelectedDate] = useState(() => getEgyptDateValue())
   const canChooseCourt = canChooseOperationalCourt(role, accessibleCourts)
   const assignedCourtId = getAssignedOperationalCourtId(role, accessibleCourts)
   const [courts, setCourts] = useState<Court[]>([])
@@ -292,6 +318,10 @@ export function SchedulePage() {
   const [, setScheduleSource] = useState<'backend' | 'cache' | null>(null)
   const [cacheSyncedAt, setCacheSyncedAt] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<ScheduleBooking | null>(null)
+  const createBookingIdempotencyRef = useRef<{
+    businessKey: string
+    clientRequestId: string
+  } | null>(null)
   const [selectedActionBooking, setSelectedActionBooking] =
     useState<BookingListItem | null>(null)
   const [holdBooking, setHoldBooking] = useState<BookingListItem | null>(null)
@@ -350,9 +380,6 @@ export function SchedulePage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [recurringUnavailableNotice, setRecurringUnavailableNotice] =
     useState<RecurringUnavailableNotice | null>(null)
-  const [manualRefreshError, setManualRefreshError] = useState<string | null>(
-    null,
-  )
   const [isManualRefreshPending, setIsManualRefreshPending] = useState(false)
   const [settledSlotsDate, setSettledSlotsDate] = useState<string | null>(null)
   const [isMorningGuidanceActive, setIsMorningGuidanceActive] = useState(false)
@@ -804,10 +831,20 @@ export function SchedulePage() {
       }
 
       try {
-        const courtsResponse = await listCourts(selectedClubSlug, {
+        let courtsResponse = await listCourts(selectedClubSlug, {
           signal: controller.signal,
         })
-        const activeCourts = courtsResponse.results.filter(
+        const allCourts: Court[] = [...extractResults(courtsResponse)]
+
+        while (courtsResponse.next) {
+          courtsResponse = await listCourts(selectedClubSlug, {
+            nextUrl: courtsResponse.next,
+            signal: controller.signal,
+          })
+          allCourts.push(...extractResults(courtsResponse))
+        }
+
+        const activeCourts = allCourts.filter(
           (court) => court.is_active,
         )
         const firstActiveCourt = activeCourts[0] ?? null
@@ -1149,7 +1186,6 @@ export function SchedulePage() {
 
     const court = selectedCourt
     const date = selectedDate
-    setManualRefreshError(null)
     setIsManualRefreshPending(true)
 
     try {
@@ -1161,7 +1197,6 @@ export function SchedulePage() {
         result.status === 'cancelled' ||
         scheduleResult.status === 'failed'
       ) {
-        setManualRefreshError('تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.')
         return
       }
 
@@ -1172,7 +1207,6 @@ export function SchedulePage() {
       )
 
       if (!cachedDay) {
-        setManualRefreshError('تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.')
         return
       }
 
@@ -1192,7 +1226,8 @@ export function SchedulePage() {
       )
       setSettledSlotsDate(date)
     } catch {
-      setManualRefreshError('تعذر تحديث المواعيد. البيانات الحالية ما زالت ظاهرة.')
+      // Background central sync and freshness convey synchronization health;
+      // keep existing slots and timestamp visible without redundant error alert.
     } finally {
       setIsManualRefreshPending(false)
     }
@@ -1263,17 +1298,39 @@ export function SchedulePage() {
         return
       }
 
+      const businessKey = createOnlineBookingBusinessKey({
+        courtId: selectedCourt.id,
+        startTime,
+        endTime,
+        customerName: values.customer_name,
+        customerPhone: values.customer_phone,
+        isRecurring: values.is_recurring,
+        notes: values.notes ?? '',
+      })
+      const existingIdempotency = createBookingIdempotencyRef.current
+      const idempotency =
+        existingIdempotency?.businessKey === businessKey
+          ? existingIdempotency
+          : {
+              businessKey,
+              clientRequestId: createBookingRequestClientRequestId(),
+            }
+      createBookingIdempotencyRef.current = idempotency
+
       await createBooking(selectedClubSlug, {
         court: selectedCourt.id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
-        ...(values.club_player_id ? { club_player_id: values.club_player_id } : {}),
         start_time: startTime,
         end_time: endTime,
+        source: 'MANUAL',
         is_recurring: values.is_recurring,
+        client_request_id: idempotency.clientRequestId,
+        requested_at: new Date().toISOString(),
         ...(values.notes ? { notes: values.notes } : {}),
       })
 
+      createBookingIdempotencyRef.current = null
       setSelectedSlot(null)
       await reloadScheduleSlots()
       setSuccessMessage('✓ تم حجز الموعد بنجاح')
@@ -1441,6 +1498,9 @@ export function SchedulePage() {
         editingIntent.customer_name !== values.customer_name ||
         editingIntent.customer_phone !== values.customer_phone ||
         editingIntent.notes !== nextNotes
+      const mustRotateClientRequestId =
+        hasBusinessInputChanged ||
+        editingIntent.review_reason === 'CLIENT_REQUEST_MISMATCH'
 
       await offlineRepositories.updateBookingIntent(
         offlineScope,
@@ -1448,10 +1508,10 @@ export function SchedulePage() {
         {
           customer_name: values.customer_name,
           customer_phone: values.customer_phone,
-          ...(hasBusinessInputChanged
+          ...(mustRotateClientRequestId
             ? { client_request_id: createBookingRequestClientRequestId() }
             : {}),
-          ...(hasBusinessInputChanged
+          ...(mustRotateClientRequestId
             ? {
                 backend_attempt_id: null,
                 last_attempt_at: null,
@@ -1731,8 +1791,8 @@ export function SchedulePage() {
     }
   }
 
-  async function handleUpdateBookingNotes(
-    payload: BookingNotesUpdatePayload,
+  async function handleUpdateBooking(
+    payload: BookingUpdatePayload,
   ): Promise<void> {
     if (!selectedClubSlug || !editingBooking) {
       return
@@ -1747,17 +1807,17 @@ export function SchedulePage() {
     setLifecycleFieldErrors(null)
 
     try {
-      await updateBookingNotes(selectedClubSlug, editingBooking.id, payload)
+      await updateBooking(selectedClubSlug, editingBooking.id, payload)
       const freshBooking = await refreshCanonicalBooking(editingBooking.id)
       setEditingBooking(null)
       if (freshBooking) {
         setSelectedActionBooking(freshBooking)
       }
-      setSuccessMessage('تم تحديث ملاحظات الحجز')
+      setSuccessMessage('تم تحديث بيانات الحجز')
       await reloadScheduleSlots()
     } catch (error) {
       setLifecycleError(
-        getApiErrorMessage(error, 'تعذر تحديث ملاحظات الحجز. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر تحديث بيانات الحجز. حاول مرة أخرى'),
       )
       setLifecycleFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -2127,14 +2187,6 @@ export function SchedulePage() {
                   </p>
                 ) : null}
               </div>
-              {manualRefreshError ? (
-                <p
-                  className="mt-2 text-xs font-semibold text-[var(--sloty-danger)]"
-                  role="alert"
-                >
-                  {manualRefreshError}
-                </p>
-              ) : null}
             </div>
           ) : null}
           {lifecycleError &&
@@ -2455,7 +2507,8 @@ export function SchedulePage() {
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       {canEditRequest &&
                       (intent.status === 'PENDING_SYNC' ||
-                        intent.review_reason === 'INVALID_CUSTOMER_DATA') ? (
+                        intent.review_reason === 'INVALID_CUSTOMER_DATA' ||
+                        intent.review_reason === 'CLIENT_REQUEST_MISMATCH') ? (
                         <AppButton
                           onClick={() => setEditingIntent(intent)}
                           type="button"
@@ -2591,6 +2644,7 @@ export function SchedulePage() {
             setSelectedSlot(null)
             setCreateError(null)
             setCreateFieldErrors(null)
+            createBookingIdempotencyRef.current = null
           }}
           onSubmit={handleCreateBooking}
           recurringBlockedReason={selectedSlot.recurringBlockedReason}
@@ -2796,6 +2850,7 @@ export function SchedulePage() {
       {editingBooking && selectedClubSlug ? (
         <EditBookingDetailsSheet
           booking={editingBooking}
+          clubSlug={selectedClubSlug}
           error={lifecycleError}
           fieldErrors={lifecycleFieldErrors}
           isSubmitting={isLifecycleSubmitting}
@@ -2804,7 +2859,7 @@ export function SchedulePage() {
             setLifecycleError(null)
             setLifecycleFieldErrors(null)
           }}
-          onSubmit={handleUpdateBookingNotes}
+          onSubmit={handleUpdateBooking}
         />
       ) : null}
 

@@ -1,3 +1,4 @@
+import type { ProfileId } from '../../core/auth/auth.types'
 import {
   paymentMethodLabels,
   type PaymentMethod,
@@ -11,6 +12,7 @@ export const settlementPaymentMethodLabels = paymentMethodLabels
 
 /** Shared Backend fields that describe custody financial totals. */
 export interface CurrentCustodyRecord {
+  collected_by_name?: string
   transaction_count: number
   net_amount: string
   totals_by_payment_method: Partial<Record<SettlementPaymentMethod, string>>
@@ -33,7 +35,7 @@ export interface SettlementPreview extends CurrentCustodyRecord {
   club: number
   court?: number | null
   court_name?: string | null
-  collected_by: number
+  collected_by: ProfileId
   collected_by_name: string
   is_self_preview: boolean
   can_approve: boolean
@@ -47,7 +49,7 @@ export interface SettlementPreview extends CurrentCustodyRecord {
 }
 
 export interface SettlementPreviewQueryParams {
-  collected_by?: number | string
+  collected_by?: ProfileId | string
   page?: number | string
 }
 
@@ -69,11 +71,11 @@ export interface CurrentCustodySummaryResponse {
 }
 
 export interface CurrentCustodySummaryQueryParams {
-  collected_by?: number | string
+  collected_by?: ProfileId | string
 }
 
 export interface CreateSettlementPayload {
-  collected_by: number
+  collected_by: ProfileId
   notes?: string
 }
 
@@ -93,7 +95,7 @@ export interface SettlementLine {
 }
 
 export interface SettlementActor {
-  id: number
+  id: ProfileId
   name?: string
 }
 
@@ -102,7 +104,8 @@ export interface Settlement {
   created_at?: string
   club?: number
   court?: number | null
-  collected_by?: number | null
+  court_name?: string | null
+  collected_by?: ProfileId | null
   collected_by_name?: string | null
   period_start?: string | null
   period_end?: string | null
@@ -111,8 +114,9 @@ export interface Settlement {
   transaction_count?: number
   totals_by_payment_method?: Partial<Record<SettlementPaymentMethod, string>>
   notes?: string | null
-  created_by?: number | SettlementActor | null
-  settled_by?: number | SettlementActor | null
+  created_by?: ProfileId | SettlementActor | null
+  settled_by?: ProfileId | SettlementActor | null
+  settled_by_name?: string | null
   settled_at?: string | null
   created?: string
   lines?: SettlementLine[]
@@ -120,7 +124,8 @@ export interface Settlement {
 }
 
 export interface SettlementQueryParams {
-  collected_by?: number | string
+  collected_by?: ProfileId | string
+  settled_by?: ProfileId | string
   status?: SettlementStatus | ''
   court?: number | string
   page?: number | string

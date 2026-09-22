@@ -100,8 +100,8 @@ describe('RescheduleBookingSheet', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({
       court: 7,
-      start_time: '2026-12-01T18:00:00',
-      end_time: '2026-12-01T19:00:00',
+      start_time: '2026-12-01T18:00:00+02:00',
+      end_time: '2026-12-01T19:00:00+02:00',
     })
   })
 
@@ -173,8 +173,110 @@ describe('RescheduleBookingSheet', () => {
       expect(onSubmit).toHaveBeenCalledTimes(1)
       expect(slotLoads).toBeGreaterThan(1)
     })
+    expect(screen.getByText('المعاد مبقاش متاح. اختار ميعاد تاني.'))
+      .toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '6:00 م' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '8:00 م' })).not.toBeInTheDocument()
+  })
+
+  it('submits a backend-returned slot even when its date has already passed locally', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const historicalBooking = {
+      ...booking,
+      start_time: '2026-07-21T20:00:00+03:00',
+      end_time: '2026-07-21T21:00:00+03:00',
+    }
+
+    mockedListBookingSlots.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: '2026-07-21',
+      date_to: '2026-07-21',
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        {
+          date: '2026-07-21',
+          start_time: '18:00',
+          end_time: '19:00',
+          slot_status: 'FREE',
+          is_available: true,
+          slot_price: '250.00',
+          booking: null,
+          recurring_anchor_booking_id: null,
+          recurring_context: null,
+          can_start_recurring: true,
+          recurring_blocked_reason: null,
+          first_recurring_conflict_start: null,
+          label: 'متاح',
+        },
+      ],
+    })
+
+    render(
+      <RescheduleBookingSheet
+        assignedCourtId={null}
+        booking={historicalBooking}
+        canChooseCourt
+        clubSlug="nasr-club"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '6:00 م' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد تغيير الموعد' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        court: 7,
+        start_time: expect.stringContaining('2026-07-21T18:00'),
+        end_time: expect.stringContaining('2026-07-21T19:00'),
+      }),
+    )
+  })
+
+  it('shows a backend date rejection after submitting a selected slot', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValue(
+      new Error('backend date rejection'),
+    )
+
+    const { rerender } = render(
+      <RescheduleBookingSheet
+        assignedCourtId={null}
+        booking={booking}
+        canChooseCourt
+        clubSlug="nasr-club"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '6:00 م' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد تغيير الموعد' }))
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <RescheduleBookingSheet
+        assignedCourtId={null}
+        booking={booking}
+        canChooseCourt
+        clubSlug="nasr-club"
+        error="الموعد خارج مواعيد عمل الملعب."
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    )
+
+    expect(screen.getByText('الموعد خارج مواعيد عمل الملعب.')).toBeInTheDocument()
   })
 
   it('excludes previous-day slots returned from the slots API fetch', async () => {

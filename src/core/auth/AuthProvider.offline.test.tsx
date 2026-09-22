@@ -15,8 +15,8 @@ import {
   saveSelectedClubSlug,
 } from './selectedClubStorage'
 import type { CurrentUserProfile } from './auth.types'
-import { listClubs } from '../../features/clubs/clubsApi'
-import { listCourts } from '../../features/courts/courtsApi'
+import { getClub, listClubs } from '../../features/clubs/clubsApi'
+import { getCourt, listCourts } from '../../features/courts/courtsApi'
 import { useAuth } from './useAuth'
 
 vi.mock('./authApi', () => ({
@@ -25,15 +25,22 @@ vi.mock('./authApi', () => ({
 
 vi.mock('../../features/clubs/clubsApi', () => ({
   listClubs: vi.fn(),
+  getClub: vi.fn(),
+  createClub: vi.fn(),
+  updateClub: vi.fn(),
 }))
 
 vi.mock('../../features/courts/courtsApi', () => ({
   listCourts: vi.fn(),
+  getCourt: vi.fn(),
+  createCourt: vi.fn(),
+  updateCourt: vi.fn(),
 }))
 
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 const mockedListClubs = vi.mocked(listClubs)
 const mockedListCourts = vi.mocked(listCourts)
+
 const scope = { userId: 1, clubSlug: 'demo-football-club' }
 const booking: Booking = {
   id: 1,
@@ -110,11 +117,33 @@ describe('AuthProvider explicit logout IndexedDB integration', () => {
     clearAuthTokens()
     clearSelectedClubSlug()
     vi.clearAllMocks()
+    // Default: getClub succeeds (direct retrieve validation path).
+    vi.mocked(getClub).mockResolvedValue({
+      id: 1,
+      slug: 'demo-football-club',
+      name: 'Demo Football Club',
+      city: 'ASSIUT',
+      is_active: true,
+    })
+    // Default: getCourt is not called unless a court ID is persisted.
+    vi.mocked(getCourt).mockResolvedValue({
+      id: 3,
+      name: 'Court 1',
+      club: 1,
+      sport_type: 'FOOTBALL',
+      minimum_deposit: '100.00',
+      cancellation_refund_notice_days: 3,
+      slot_duration_minutes: 60,
+      is_active: true,
+      requires_digital_payment_reference: false,
+      internal_hold_expiry_hours: 2,
+    })
     mockedListCourts.mockResolvedValue({ count: 0, next: null, previous: null, results: [] })
     slotyLocalDatabase.close()
     await slotyLocalDatabase.delete()
     await slotyLocalDatabase.open()
   })
+
 
   afterEach(async () => {
     slotyLocalDatabase.close()

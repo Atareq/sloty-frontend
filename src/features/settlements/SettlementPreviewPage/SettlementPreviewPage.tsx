@@ -9,6 +9,7 @@ import {
   canViewOwnSettlements,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
+import { useOfflineReadonly } from '../../../shared/hooks/useOfflineReadonly'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
 import type { OfflineScope } from '../../../offline/offline.types'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -116,6 +117,7 @@ export function SettlementPreviewPage() {
     selectedClubSlug,
   } = useAuth()
   const canViewOwn = canViewOwnSettlements(role)
+  const { blockOfflineMutation, isOffline, offlineMessage } = useOfflineReadonly()
   const queryParams = useMemo(
     () => parsePreviewQuery(location.search),
     [location.search],
@@ -213,6 +215,10 @@ export function SettlementPreviewPage() {
 
   async function handleConfirmSettlement(): Promise<void> {
     if (!selectedClubSlug || !preview || !canApprovePreview) {
+      return
+    }
+
+    if (blockOfflineMutation(setConfirmError)) {
       return
     }
 
@@ -340,7 +346,7 @@ export function SettlementPreviewPage() {
         <>
           <SettlementPreviewContent preview={preview} />
 
-          {canApprovePreview ? (
+          {canApprovePreview && !isOffline ? (
             <AppCard className="space-y-4">
               <AppButton
                 onClick={() => {
@@ -354,9 +360,11 @@ export function SettlementPreviewPage() {
           ) : (
             <AppCard>
               <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-                {preview.is_self_preview
-                  ? financeCopy.selfPreviewDenied
-                  : 'تقدر تراجع المبلغ هنا، لكن تأكيد الاستلام غير متاح.'}
+                {isOffline
+                  ? offlineMessage
+                  : preview.is_self_preview
+                    ? financeCopy.selfPreviewDenied
+                    : 'تقدر تراجع المبلغ هنا، لكن تأكيد الاستلام غير متاح.'}
               </p>
             </AppCard>
           )}

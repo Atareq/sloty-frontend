@@ -39,6 +39,7 @@ function mockMembership(role: AuthRole = 'OWNER') {
     selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -82,7 +83,39 @@ describe('SettingsCourtsPage', () => {
     )
 
     expect(await screen.findByText('ملعب 1')).toBeInTheDocument()
+    expect(screen.getByText('سعر الحجز: لم يتم ضبط الأسعار')).toBeInTheDocument()
     expect(mockedListCourts).toHaveBeenCalledWith('nasr-club')
+  })
+
+  it('renders configured court price range when available', async () => {
+    mockedListCourts.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 7,
+          club: 1,
+          name: 'ملعب النجوم',
+          sport_type: 'PADEL',
+          minimum_deposit: '50.00',
+          cancellation_refund_notice_days: 1,
+          slot_duration_minutes: 60,
+          is_active: true,
+          requires_digital_payment_reference: false,
+          internal_hold_expiry_hours: 12,
+          pricing_configured: true,
+          minimum_slot_price: '200.00',
+          maximum_slot_price: '300.00',
+        },
+      ]),
+    )
+
+    render(
+      <MemoryRouter>
+        <SettingsCourtsPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('ملعب النجوم')).toBeInTheDocument()
+    expect(screen.getByText('سعر الحجز: 200.00 - 300.00 جنيه')).toBeInTheDocument()
   })
 
   it('shows no-permission for staff without working-hours or pricing permission', async () => {

@@ -47,6 +47,7 @@ function setupAuth(): void {
     selectCourt: vi.fn(),
     role: 'OWNER',
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -228,6 +229,7 @@ describe('CourtWorkingHoursSection', () => {
     expect(serializedPayload).not.toContain('opens_at')
     expect(serializedPayload).not.toContain('closes_at')
     expect(serializedPayload).not.toContain('is_closed')
+    expect(serializedPayload).not.toContain('default_price')
     expect(serializedPayload).not.toContain('blocks')
     expect(serializedPayload).not.toContain('localId')
     expect(serializedPayload).not.toContain('"id"')

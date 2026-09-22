@@ -70,6 +70,8 @@ describe('api error helpers', () => {
 
   it.each([
     ['BOOKING_SLOT_UNAVAILABLE', 'المعاد مبقاش متاح. اختار ميعاد تاني.'],
+    ['BOOKING_OUTSIDE_WORKING_HOURS', 'الموعد خارج مواعيد عمل الملعب.'],
+    ['BOOKING_CLIENT_REQUEST_MISMATCH', 'طلب الحجز ده متعارض مع طلب سابق. راجع البيانات وحاول تاني.'],
     ['BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT', 'لازم تحصّل المبلغ المتبقي قبل إكمال الحجز.'],
     ['RECURRENCE_CONTINUATION_DECISION_REQUIRED', 'اختار إذا كان الموعد الأسبوعي هيستمر ولا هيتوقف.'],
     ['BOOKING_RECURRENCE_NOT_ACTIVE', 'التكرار الأسبوعي للحجز ده مش نشط.'],
@@ -79,9 +81,14 @@ describe('api error helpers', () => {
     ['SELF_SETTLEMENT_APPROVAL_FORBIDDEN', 'مينفعش تسوي عهدتك بنفسك.'],
     ['NO_UNSETTLED_TRANSACTIONS', 'مفيش مبلغ للموظف ده دلوقتي.'],
     ['PAYMENT_REFERENCE_REQUIRED', 'مرجع الدفع مطلوب لهذا الملعب.'],
+    ['BOOKING_CUSTOMER_IDENTITY_INCOMPLETE', 'رقم الموبايل مطلوب عشان نحدد هوية العميل.'],
     ['BOOKING_CLUB_PLAYER_NOT_FOUND', 'بيانات اللاعب غير مسجلة في هذا النادي.'],
     ['BOOKING_CLUB_PLAYER_MISMATCH', 'بيانات اللاعب غير تابعة لهذا النادي.'],
     ['BOOKING_CLUB_PLAYER_PHONE_MISMATCH', 'رقم الموبايل لا يطابق اللاعب المختار.'],
+    ['BOOKING_NOT_AVAILABLE', 'الموعد غير متاح حالياً.'],
+    ['BOOKING_CONFLICT', 'تعارض في الموعد. يرجى اختيار موعد آخر.'],
+    ['PERMISSION_DENIED', 'ليس لديك صلاحية لتنفيذ هذا الإجراء.'],
+    ['CLUB_ACCESS_REVOKED', 'صلاحيتك على النادي ده مش نشطة. اختار نادي تاني أو سجّل الخروج.'],
   ])('maps stable code %s without parsing backend message text', (code, message) => {
     expect(
       getApiErrorMessage(new ApiClientError('Payment reference is required for this court.', 400, { code })),
