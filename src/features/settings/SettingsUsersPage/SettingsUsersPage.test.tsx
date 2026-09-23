@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -320,6 +320,9 @@ describe('SettingsUsersPage', () => {
         screen.queryByRole('heading', { name: 'إضافة موظف جديد' }),
       ).not.toBeInTheDocument()
     })
+    await waitFor(() => {
+      expect(screen.queryByText('عندك تعديلات لسه متحفظتش.')).not.toBeInTheDocument()
+    })
   })
 
   it('prompts for unsaved changes when closing add staff sheet with dirty inputs', async () => {
@@ -330,8 +333,8 @@ describe('SettingsUsersPage', () => {
     await screen.findByText('أحمد علي')
     await user.click(screen.getByRole('button', { name: 'إضافة موظف' }))
 
-    const firstNameInput = (await screen.findByPlaceholderText('الاسم الأول')) as HTMLInputElement
-    await user.type(firstNameInput, 'علي')
+    const firstNameInput = await screen.findByPlaceholderText('الاسم الأول')
+    fireEvent.change(firstNameInput, { target: { value: 'علي' } })
     const cancelButton = screen.getByRole('button', { name: 'إلغاء' })
     await user.click(cancelButton)
 
