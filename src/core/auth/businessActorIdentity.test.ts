@@ -7,15 +7,12 @@ import { formatSettlementActor } from '../../features/settlements/settlementDisp
 import type { AuditLogEntry } from '../../features/audit/audit.types'
 import { getAuditEntryPresentation } from '../../features/audit/auditEntryPresentation'
 import type { CourtUsageContext, StaffBookingActivity } from '../../features/reports/reports.types'
-import type { ProfileId, UserId } from './auth.types'
+import type { ProfileId } from './auth.types'
 
 describe('Business Actor Identity & ProfileId Invariants', () => {
-  describe('Phase 7.1 — ID Separation Test', () => {
-    it('uses Profile.id (12) and never User.id (50) for operational actor comparisons', () => {
-      const userAccountId: UserId = 50
-      const operationalProfileId: ProfileId = 12
-
-      // Transaction created by Profile ID 50 (a different user's profile).
+  describe('Phase 7.1 — Backend cancellation authority', () => {
+    it('does not use User/Profile identity to block an online cancellation attempt', () => {
+      // Backend scope and authorization decide whether this transaction may be cancelled.
       // If code wrongly used User.id (50), this staff user would be allowed to cancel someone else's transaction!
       const transactionCreatedByProfile50: Transaction = {
         id: 101,
@@ -27,19 +24,12 @@ describe('Business Actor Identity & ProfileId Invariants', () => {
         is_settled: false,
       }
 
-      // Check with Staff role having User.id = 50, but Profile.id = 12
       const cancellationForDifferentProfile = getTransactionCancelState(
         transactionCreatedByProfile50,
-        {
-          role: 'STAFF',
-          currentUserId: userAccountId,
-          currentProfileId: operationalProfileId,
-        },
+        {},
       )
 
-      // Must be denied because operational Profile (12) !== created_by (50)
-      expect(cancellationForDifferentProfile.canCancel).toBe(false)
-      expect(cancellationForDifferentProfile.disabledReason).toContain('يمكن للموظف إلغاء معاملاته فقط')
+      expect(cancellationForDifferentProfile.canCancel).toBe(true)
 
       // Transaction created by Profile ID 12 (this user's operational profile)
       const transactionCreatedByProfile12: Transaction = {
@@ -54,14 +44,9 @@ describe('Business Actor Identity & ProfileId Invariants', () => {
 
       const cancellationForOwnProfile = getTransactionCancelState(
         transactionCreatedByProfile12,
-        {
-          role: 'STAFF',
-          currentUserId: userAccountId,
-          currentProfileId: operationalProfileId,
-        },
+        {},
       )
 
-      // Must be allowed because operational Profile (12) === created_by (12)
       expect(cancellationForOwnProfile.canCancel).toBe(true)
     })
   })

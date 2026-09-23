@@ -153,6 +153,12 @@ describe('CourtWorkingHoursSection helpers', () => {
         { starts_at: '10:00', ends_at: '12:00', price: '100' },
       ]),
     ).toBe(false)
+    expect(
+      doPricingPeriodsOverlap([
+        { starts_at: '01:00', ends_at: '05:00', price: '200' },
+        { starts_at: '05:00', ends_at: '09:00', price: '300' },
+      ]),
+    ).toBe(false)
   })
 })
 

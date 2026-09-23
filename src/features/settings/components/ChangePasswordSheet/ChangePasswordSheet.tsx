@@ -103,20 +103,16 @@ export function ChangePasswordSheet({
 
   return (
     <AppSheet
-      ariaLabel="تغيير كلمة المرور"
+      title="تغيير كلمة المرور"
       isOpen={isOpen}
       onRequestClose={handleClose}
-      title="تغيير كلمة المرور"
     >
       <form
-        className="space-y-5 p-5 pt-14 sm:p-6"
+        className="space-y-5 p-5 sm:p-6"
         dir="rtl"
         onSubmit={handleSubmit}
       >
         <div className="space-y-1">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            تغيير كلمة المرور
-          </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             غيّر كلمة مرور حسابك للحفاظ على أمانه.
           </p>

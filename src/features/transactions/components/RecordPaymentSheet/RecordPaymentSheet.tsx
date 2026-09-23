@@ -241,7 +241,7 @@ export function RecordPaymentSheet({
   return (
     <>
       <AppSheet
-        ariaLabel={
+        title={
           paymentPurpose === 'deposit'
             ? 'تسجيل العربون'
             : paymentPurpose === 'remaining'
@@ -250,15 +250,8 @@ export function RecordPaymentSheet({
         }
         onRequestClose={requestClose}
       >
-        <form className="p-5 pt-14" onSubmit={handleSubmit}>
+        <form className="p-5" onSubmit={handleSubmit}>
         <div className="space-y-1">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            {paymentPurpose === 'deposit'
-              ? 'تسجيل العربون'
-              : paymentPurpose === 'remaining'
-                ? 'تحصيل المبلغ المتبقي'
-                : 'إضافة دفعة'}
-          </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {paymentPurpose === 'deposit'
               ? 'سجل العربون لتأكيد الحجز'

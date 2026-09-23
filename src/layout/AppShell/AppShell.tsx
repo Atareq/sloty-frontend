@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../core/auth/useAuth'
 import { useBackendBuildInfo } from '../../core/system/useBackendBuildInfo'
 import { LogoutConfirmationSheet } from '../../features/auth/LogoutConfirmationSheet/LogoutConfirmationSheet'
+import { ChangePasswordSheet } from '../../features/settings/components/ChangePasswordSheet/ChangePasswordSheet'
 import { OfflineSyncProvider } from '../../offline/sync/OfflineSyncProvider'
 import { useOfflineSync } from '../../offline/sync/offlineSyncContext'
 import { PwaExperience } from '../../pwa/PwaExperience'
@@ -19,6 +20,7 @@ import {
   useAppOverlayRegistration,
   useHasActiveAppSheet,
 } from '../../shared/components/AppSheet/appSheetOverlay'
+import { AppButton } from '../../shared/components/AppButton/AppButton'
 import { AdminBuildInfoFooter } from '../../shared/components/BuildInfo/BuildInfo'
 import { NewBookingFAB } from '../../shared/components/NewBookingFAB/NewBookingFAB'
 import { PageHeader } from '../../shared/components/PageHeader/PageHeader'
@@ -152,6 +154,7 @@ function AppShellInner() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isLogoutConfirmationOpen, setIsLogoutConfirmationOpen] =
     useState(false)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(getStoredViewMode)
   const [pageHeaderAction, setPageHeaderAction] = useState<ReactNode>(null)
@@ -204,10 +207,12 @@ function AppShellInner() {
     !shouldUseDesktopNav &&
     !isMenuOpen &&
     !isLogoutConfirmationOpen &&
+    !isChangePasswordOpen &&
     !hasActiveAppSheet
   const shouldBlockPwaPrompts =
     isMenuOpen ||
     isLogoutConfirmationOpen ||
+    isChangePasswordOpen ||
     hasActiveAppSheet ||
     hasActiveModalTask ||
     isPwaPromptBlockedRoute(location.pathname)
@@ -232,6 +237,11 @@ function AppShellInner() {
     }
 
     setIsMenuOpen(true)
+  }
+
+  function handleChangePasswordRequest(): void {
+    setIsMenuOpen(false)
+    setIsChangePasswordOpen(true)
   }
 
   function handleLogoutRequest(): void {
@@ -329,6 +339,30 @@ function AppShellInner() {
 
         {shouldUseDesktopNav ? (
           <section className="border-t border-[var(--sloty-border)] pt-4">
+            {role === 'STAFF' ? (
+              <div className="mb-4 space-y-2">
+                <h2 className="px-1 text-xs font-black text-[var(--sloty-text-muted)]">
+                  الأمان والحساب
+                </h2>
+                <div className="rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3 space-y-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-[var(--sloty-text-primary)]">
+                      تغيير كلمة المرور
+                    </h3>
+                    <p className="mt-0.5 text-xs text-[var(--sloty-text-muted)]">
+                      غيّر كلمة مرور حسابك للحفاظ على أمانه.
+                    </p>
+                  </div>
+                  <AppButton
+                    fullWidth
+                    onClick={handleChangePasswordRequest}
+                    variant="secondary"
+                  >
+                    تغيير كلمة المرور
+                  </AppButton>
+                </div>
+              </div>
+            ) : null}
             <p className="px-1 text-xs font-black text-[var(--sloty-text-muted)]">
               العرض
             </p>
@@ -473,6 +507,31 @@ function AppShellInner() {
               })}
             </nav>
 
+            {role === 'STAFF' ? (
+              <section className="mb-4 space-y-2 border-t border-[var(--sloty-border)] pt-4">
+                <h2 className="px-1 text-xs font-black text-[var(--sloty-text-muted)]">
+                  الأمان والحساب
+                </h2>
+                <div className="rounded-2xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3 space-y-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-[var(--sloty-text-primary)]">
+                      تغيير كلمة المرور
+                    </h3>
+                    <p className="mt-0.5 text-xs text-[var(--sloty-text-muted)]">
+                      غيّر كلمة مرور حسابك للحفاظ على أمانه.
+                    </p>
+                  </div>
+                  <AppButton
+                    fullWidth
+                    onClick={handleChangePasswordRequest}
+                    variant="secondary"
+                  >
+                    تغيير كلمة المرور
+                  </AppButton>
+                </div>
+              </section>
+            ) : null}
+
             <section className="mt-auto space-y-2 rounded-3xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] p-3">
               {canChangeClub ? (
                 <button
@@ -521,6 +580,11 @@ function AppShellInner() {
         onConfirm={() => {
           void handleLogoutConfirm()
         }}
+      />
+
+      <ChangePasswordSheet
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
       />
     </div>
   )

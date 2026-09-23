@@ -48,7 +48,7 @@ function normalizePlatformAdminPayload(
   payload: PlatformAdminUserPayload,
 ): PlatformAdminUserPayload {
   return {
-    username: payload.username.trim(),
+    ...(payload.username?.trim() ? { username: payload.username.trim() } : {}),
     password: payload.password,
     first_name: payload.first_name.trim(),
     last_name: optionalText(payload.last_name),

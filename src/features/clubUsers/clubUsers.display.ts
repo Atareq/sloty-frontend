@@ -8,11 +8,11 @@ export function getClubUserDisplayName(user: ClubUser): string {
     .filter(Boolean)
     .join(' ')
 
-  return fullName || user.phone_number || user.username || '—'
+  return fullName || user.phone_number || '—'
 }
 
 export function getManagerIdentity(user: ClubUser): string {
-  return getClubUserDisplayName(user) || user.phone_number || user.username || '—'
+  return getClubUserDisplayName(user) || user.phone_number || '—'
 }
 
 export function getUserCourtName(user: ClubUser, courts: Court[]): string | null {

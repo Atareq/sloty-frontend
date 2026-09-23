@@ -2585,7 +2585,10 @@ describe('SchedulePage', () => {
       .toBeInTheDocument()
     expect(within(dialog).getByText('+201012345678')).toBeInTheDocument()
     expect(within(dialog).getByText(/سبتمبر/)).toBeInTheDocument()
-    expect(within(dialog).getByText('8:00 م – 9:00 م')).toBeInTheDocument()
+    expect(within(dialog).getByText('09:00 PM - 08:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
     expect(within(dialog).getByText('ملعب 1')).toBeInTheDocument()
     expect(within(dialog).getByText('↻ محجوز أسبوعيًا')).toBeInTheDocument()
     expect(within(dialog).getByText('السعر الحالي')).toBeInTheDocument()

@@ -4,7 +4,7 @@ export interface ClubUser {
   id: number
   profile_id?: number
   user_id?: number
-  username?: string
+  username?: string | null
   first_name: string
   last_name: string
   email?: string | null

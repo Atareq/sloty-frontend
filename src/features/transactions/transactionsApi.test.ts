@@ -117,6 +117,21 @@ describe('transactionsApi', () => {
     )
   })
 
+  it('sends a court filter only when it is explicitly supplied', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+
+    await listTransactions('nasr-club', { court: 2 })
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      `${apiEndpoints.clubs.transactions.list('nasr-club')}?court=2`,
+    )
+  })
+
   it('keeps Swagger transaction query params', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,

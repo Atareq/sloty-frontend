@@ -769,6 +769,49 @@ describe('AppShell', () => {
     expect(within(dialog).queryByText('الإعدادات')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'تسجيل الخروج' }))
       .toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'الأمان والحساب' }))
+      .toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'تغيير كلمة المرور' }))
+      .toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'تغيير كلمة المرور' }))
+      .toBeInTheDocument()
+  })
+
+  it('opens change password sheet when clicking تغيير كلمة المرور in staff burger menu', async () => {
+    const user = userEvent.setup()
+
+    mockedUseAuth.mockReturnValue(getAuthValue(1, { role: 'STAFF' }))
+
+    renderAppShell()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    const dialog = screen.getByRole('dialog')
+
+    const changePasswordBtn = within(dialog).getByRole('button', {
+      name: 'تغيير كلمة المرور',
+    })
+    await user.click(changePasswordBtn)
+
+    expect(screen.getByLabelText('كلمة المرور الحالية')).toBeInTheDocument()
+    expect(screen.getByLabelText('كلمة المرور الجديدة')).toBeInTheDocument()
+    expect(screen.getByLabelText('تأكيد كلمة المرور الجديدة')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'حفظ كلمة المرور' }),
+    ).toBeInTheDocument()
+  })
+
+  it('does not show security section in owner burger menu', async () => {
+    const user = userEvent.setup()
+
+    mockedUseAuth.mockReturnValue(getAuthValue(2, { role: 'OWNER' }))
+
+    renderAppShell()
+
+    await user.click(screen.getByRole('button', { name: 'فتح القائمة' }))
+    const dialog = screen.getByRole('dialog')
+
+    expect(within(dialog).queryByRole('heading', { name: 'الأمان والحساب' }))
+      .not.toBeInTheDocument()
   })
 
   it('keeps logout in the menu instead of the visible header', async () => {

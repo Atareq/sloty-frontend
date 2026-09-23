@@ -586,7 +586,7 @@ describe('SettlementsHubPage', () => {
       transactions: [],
     })
 
-    renderHub('/settlements?collected_by=15')
+    renderHub('/settlements?court=3&collected_by=15')
 
     expect(await screen.findByText('منى سمير')).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {

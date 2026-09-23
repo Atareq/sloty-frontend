@@ -56,15 +56,12 @@ export function CancelTransactionSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="إلغاء تسجيل الدفعة" onRequestClose={requestClose}>
+      <AppSheet title="إلغاء تسجيل الدفعة" onRequestClose={requestClose}>
       <form
-        className="p-5 pt-14"
+        className="p-5"
         onSubmit={handleSubmit}
       >
         <div className="space-y-2">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            إلغاء تسجيل الدفعة
-          </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             هذا تصحيح لدفعة مسجلة بالخطأ، وليس عملية استرداد للعميل. ستظل
             الدفعة ظاهرة في السجل، لكن مش هتدخل ضمن الإجماليات.

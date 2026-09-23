@@ -14,7 +14,7 @@ export function getPlatformUserDisplayName(user: PlatformUser): string {
     .filter(Boolean)
     .join(' ')
 
-  return fullName || user.username
+  return fullName 
 }
 
 /** Returns an Arabic label for the user's profile role. */

@@ -39,6 +39,10 @@ describe('VirtualRecurringSlotDetailsSheet', () => {
       .toBeInTheDocument()
     expect(screen.getByText('أحمد محمد')).toBeInTheDocument()
     expect(screen.getByText('+201012345678')).toBeInTheDocument()
+    expect(screen.getByText('09:00 PM - 08:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
     expect(screen.getByText('↻ محجوز أسبوعيًا')).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -69,5 +73,22 @@ describe('VirtualRecurringSlotDetailsSheet', () => {
       screen.getAllByRole('button', { name: 'إيقاف الحجز الأسبوعي' }).at(-1)!,
     )
     expect(onEndRecurrence).toHaveBeenCalledWith(120)
+  })
+
+  it('uses the shared noon clarification for a selected recurring occurrence', () => {
+    render(
+      <VirtualRecurringSlotDetailsSheet
+        courtName="ملعب 1"
+        onClose={vi.fn()}
+        onEndRecurrence={vi.fn()}
+        slot={{ ...virtualSlot, endTime: '13:00', startTime: '12:00' }}
+      />,
+    )
+
+    expect(screen.getByText('01:00 PM - 12:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
+    expect(screen.getByText('ظهرًا')).toBeInTheDocument()
   })
 })

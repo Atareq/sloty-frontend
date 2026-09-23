@@ -27,4 +27,15 @@ describe('StatusChip', () => {
     expect(screen.getByText('انتهت المهلة')).toBeInTheDocument()
     expect(screen.queryByText('منتهي')).not.toBeInTheDocument()
   })
+
+  it('supports a contextual label while preserving the booking-history chip style', () => {
+    render(<StatusChip label="ظهرًا" status="confirmed" />)
+
+    expect(screen.getByText('ظهرًا')).toHaveClass(
+      'rounded-full',
+      'bg-[var(--sloty-success-soft)]',
+      'text-[var(--sloty-success)]',
+    )
+    expect(screen.queryByText('العربون مدفوع')).not.toBeInTheDocument()
+  })
 })

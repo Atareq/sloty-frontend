@@ -1,27 +1,35 @@
 import {
   formatBookingDetailDateTimeRange,
+  type BookingDetailDateTimeRange,
   type BookingDetailTimePresentation,
 } from '../../bookingDetailTime.helpers'
+import { StatusChip } from '../../../../shared/components/StatusChip/StatusChip'
 
-interface BookingDetailTimeValueProps {
-  presentation: BookingDetailTimePresentation
+export interface BookingDetailTimeRangePresentationProps {
+  start: BookingDetailTimePresentation
+  end: BookingDetailTimePresentation
 }
 
-function BookingDetailTimeValue({
-  presentation,
-}: BookingDetailTimeValueProps) {
+/** Renders the canonical RTL booking-detail range and optional time context. */
+export function BookingDetailTimeRangePresentation({
+  end,
+  start,
+}: BookingDetailTimeRangePresentationProps) {
   return (
-    <span className="inline-flex items-baseline gap-1" dir="ltr">
-      <span>{presentation.value}</span>
-      {presentation.clarification ? (
-        <span
-          className="text-xs font-normal text-[var(--sloty-text-muted)]"
-          dir="rtl"
-        >
-          {presentation.clarification}
-        </span>
+    <div className="flex w-full items-center justify-between gap-3" dir="rtl">
+      <p
+        className="shrink-0 text-lg font-black text-[var(--sloty-primary-dark)]"
+        dir="ltr"
+      >
+        {end.value} - {start.value}
+      </p>
+
+      {start.clarification ? (
+        <div className="shrink-0">
+          <StatusChip label={start.clarification} status="confirmed" />
+        </div>
       ) : null}
-    </span>
+    </div>
   )
 }
 
@@ -30,6 +38,7 @@ export interface BookingDetailTimeRangeProps {
   endTime: string
   fallbackDate?: string | null
   fallbackText: string
+  timeRange?: BookingDetailDateTimeRange | null
 }
 
 /** Displays a booking time range with midnight/noon context when applicable. */
@@ -38,23 +47,20 @@ export function BookingDetailTimeRange({
   fallbackDate,
   fallbackText,
   startTime,
+  timeRange,
 }: BookingDetailTimeRangeProps) {
-  const range = formatBookingDetailDateTimeRange(
-    startTime,
-    endTime,
-    fallbackDate,
-  )
+  const range =
+    timeRange ??
+    formatBookingDetailDateTimeRange(startTime, endTime, fallbackDate)
 
   if (!range) {
     return <>{fallbackText}</>
   }
 
   return (
-    <>
-      <span>{range.date} · </span>
-      <BookingDetailTimeValue presentation={range.start} />
-      <span> - </span>
-      <BookingDetailTimeValue presentation={range.end} />
-    </>
+    <BookingDetailTimeRangePresentation
+      end={range.end}
+      start={range.start}
+    />
   )
 }

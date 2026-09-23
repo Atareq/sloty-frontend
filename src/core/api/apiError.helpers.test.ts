@@ -87,6 +87,7 @@ describe('api error helpers', () => {
     ['BOOKING_CLUB_PLAYER_PHONE_MISMATCH', 'رقم الموبايل لا يطابق اللاعب المختار.'],
     ['BOOKING_NOT_AVAILABLE', 'الموعد غير متاح حالياً.'],
     ['BOOKING_CONFLICT', 'تعارض في الموعد. يرجى اختيار موعد آخر.'],
+    ['PAYMENT_CANCELLATION_REQUIRES_BOOKING_CANCELLATION', 'لا يمكن إلغاء هذه الدفعة مباشرة. يرجى إلغاء الحجز أولاً.'],
     ['PERMISSION_DENIED', 'ليس لديك صلاحية لتنفيذ هذا الإجراء.'],
     ['CLUB_ACCESS_REVOKED', 'صلاحيتك على النادي ده مش نشطة. اختار نادي تاني أو سجّل الخروج.'],
   ])('maps stable code %s without parsing backend message text', (code, message) => {

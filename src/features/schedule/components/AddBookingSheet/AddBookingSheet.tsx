@@ -18,7 +18,8 @@ import {
 } from '../../../../shared/validation/phone'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
-import { formatTime12Hour } from '../../scheduleBoard.helpers'
+import { BookingDetailTimeRange } from '../../../bookings/components/BookingDetailTimeRange/BookingDetailTimeRange'
+import { formatBookingTimeRange } from '../../../bookings/bookingDisplay.helpers'
 import { PlayerCombobox } from '../../../players/components/PlayerCombobox/PlayerCombobox'
 import { listClubPlayers } from '../../../players/playersApi'
 import { getClubPlayerPhone } from '../../../players/players.types'
@@ -147,8 +148,6 @@ export function AddBookingSheet({
     ? 'جاري حفظ الطلب...'
     : 'جاري الحجز...'
 
-  const displayStartTime = formatTime12Hour(startTime)
-  const displayEndTime = formatTime12Hour(endTime)
   const initialName = initialValues?.customer_name ?? ''
   const initialPhone = initialValues?.customer_phone ?? ''
   const initialNotes = initialValues?.notes ?? ''
@@ -315,21 +314,18 @@ export function AddBookingSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="حجز جديد" onRequestClose={requestClose}>
-        <form className="p-5 pt-14" onSubmit={handleSubmit}>
-          <div className="space-y-1">
-            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-              {title}
-            </h2>
+      <AppSheet title={title} onRequestClose={requestClose}>
+        <form className="relative p-5" onSubmit={handleSubmit}>
+          {/* Booking header */}
+          <div className="relative pr-0">
             <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
               {courtName} - {dateLabel}
             </p>
-            <p
-              className="text-lg font-black text-[var(--sloty-primary-dark)]"
-              dir="ltr"
-            >
-              {displayStartTime} - {displayEndTime}
-            </p>
+            <BookingDetailTimeRange
+              endTime={endTime}
+              fallbackText={formatBookingTimeRange(startTime, endTime)}
+              startTime={startTime}
+            />
             {slotPrice ? (
               <p className="text-sm font-black text-[var(--sloty-primary-dark)]">
                 السعر {formatMoneyAmount(slotPrice)}

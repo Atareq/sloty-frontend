@@ -37,11 +37,12 @@ function parseBookingDateTime(
 }
 
 /**
- * Adds the operational clarification only to the already displayed clock
- * value. It does not parse backend timestamps or alter timezone conversion.
+ * Formats the already localized clock value for booking detail/review sheets.
+ * It does not parse backend timestamps or alter timezone conversion.
  */
 export function formatBookingDetailTime(
   displayedTime: string,
+  options: { includeClarification?: boolean } = {},
 ): BookingDetailTimePresentation {
   const match = displayedTime.match(/^(\d{1,2}):(\d{2})$/)
 
@@ -51,16 +52,18 @@ export function formatBookingDetailTime(
 
   const hour = Number(match[1])
   const minute = match[2]
-  const value = `${String(hour).padStart(2, '0')}:${minute}`
+  const displayHour = hour % 12 || 12
+  const period = hour < 12 ? 'AM' : 'PM'
+  const value = `${String(displayHour).padStart(2, '0')}:${minute} ${period}`
 
   return {
     value,
     clarification:
-      minute === '00'
+      options.includeClarification !== false && minute === '00'
         ? hour === 0
-          ? '(منتصف الليل)'
+          ? 'منتصف الليل'
           : hour === 12
-            ? '(ظهرًا)'
+            ? 'ظهرًا'
             : null
         : null,
   }
@@ -75,6 +78,20 @@ export function formatBookingDetailDateTimeRange(
   endTime: string,
   fallbackDate?: string | null,
 ): BookingDetailDateTimeRange | null {
+  if (
+    !fallbackDate &&
+    /^\d{1,2}:\d{2}$/.test(startTime) &&
+    /^\d{1,2}:\d{2}$/.test(endTime)
+  ) {
+    return {
+      date: '',
+      start: formatBookingDetailTime(startTime),
+      end: formatBookingDetailTime(endTime, {
+        includeClarification: false,
+      }),
+    }
+  }
+
   const startDate = parseBookingDateTime(startTime, fallbackDate)
   const endDate = parseBookingDateTime(endTime, fallbackDate)
 
@@ -85,6 +102,8 @@ export function formatBookingDetailDateTimeRange(
   return {
     date: bookingDetailDateFormatter.format(startDate),
     start: formatBookingDetailTime(bookingDetailTimeFormatter.format(startDate)),
-    end: formatBookingDetailTime(bookingDetailTimeFormatter.format(endDate)),
+    end: formatBookingDetailTime(bookingDetailTimeFormatter.format(endDate), {
+      includeClarification: false,
+    }),
   }
 }

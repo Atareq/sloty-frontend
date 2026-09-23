@@ -70,12 +70,11 @@ describe('clubUsersApi', () => {
       {
         method: 'POST',
         body: {
-          username: 'staff-1',
+          phone_number: '+201000000000',
           password: 'password123',
+          email: 'staff@example.com',
           first_name: 'أحمد',
           last_name: 'علي',
-          email: 'staff@example.com',
-          phone_number: '+201000000000',
           court_ids: [1, 2],
         },
       },

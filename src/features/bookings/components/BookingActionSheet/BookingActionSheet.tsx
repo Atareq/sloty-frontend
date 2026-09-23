@@ -13,6 +13,7 @@ import {
   type BookingSecondaryAction,
 } from '../../bookingActionPresentation.helpers'
 import { hasActiveRecurrence } from '../../bookingRecurrence.helpers'
+import { formatBookingDetailDateTimeRange } from '../../bookingDetailTime.helpers'
 import { BookingDetailTimeRange } from '../BookingDetailTimeRange/BookingDetailTimeRange'
 import {
   formatBookingDateTimeRangeWithWeekday,
@@ -79,6 +80,13 @@ export function BookingActionSheet({
   const optionsRef = useRef<HTMLDetailsElement>(null)
   const fallbackDate =
     dateValue ?? (booking ? getBookingDateFallback(booking) : null)
+  const bookingTimeRange = booking
+    ? formatBookingDetailDateTimeRange(
+        booking.start_time,
+        booking.end_time,
+        fallbackDate,
+      )
+    : null
   const notes = booking ? getBookingNotes(booking) : null
   const shouldTickHoldCountdown =
     isOpen &&
@@ -173,11 +181,11 @@ export function BookingActionSheet({
   return (
     <>
       <AppSheet
-        ariaLabel="تفاصيل الحجز"
+        title="تفاصيل الحجز"
         isOpen={isOpen}
         onRequestClose={closeDetails}
       >
-      <div className="p-5 pt-14">
+      <div className="relative p-5 pt-5">
         {booking ? (
           <>
             <header>
@@ -192,7 +200,7 @@ export function BookingActionSheet({
                   {booking.customer_phone}
                 </p>
               ) : null}
-              <p className="mt-3 text-lg font-extrabold text-[var(--sloty-primary-dark)]">
+              <div className="mt-3">
                 <BookingDetailTimeRange
                   endTime={booking.end_time}
                   fallbackDate={fallbackDate}
@@ -202,8 +210,9 @@ export function BookingActionSheet({
                     fallbackDate,
                   )}
                   startTime={booking.start_time}
+                  timeRange={bookingTimeRange}
                 />
-              </p>
+              </div>
               <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
                 {getBookingCourtLabel(booking, courtName)}
               </p>
@@ -441,15 +450,12 @@ export function BookingActionSheet({
       </AppSheet>
       {booking && hasActiveRecurrence(booking) && isEndRecurrenceConfirming ? (
         <AppSheet
-          ariaLabel={recurringCopy.stopWeeklyConfirmTitle}
+          title={recurringCopy.stopWeeklyConfirmTitle}
           isOpen
           onRequestClose={() => setIsEndRecurrenceConfirming(false)}
         >
-        <div className="p-5 pt-14">
-          <h2 className="text-xl font-bold text-[var(--sloty-text-primary)]">
-            {recurringCopy.stopWeeklyConfirmTitle}
-          </h2>
-          <p className="mt-2 text-sm font-medium leading-6 text-[var(--sloty-text-muted)]">
+        <div className="p-5">
+          <p className="text-sm font-medium leading-6 text-[var(--sloty-text-muted)]">
             {recurringCopy.stopWeeklyConfirmBody}
           </p>
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">

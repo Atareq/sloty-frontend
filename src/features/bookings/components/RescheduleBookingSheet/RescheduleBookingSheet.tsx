@@ -240,12 +240,9 @@ export function RescheduleBookingSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="تغيير الموعد" onRequestClose={requestClose}>
-        <form className="p-5 pt-14" onSubmit={(event) => void handleSubmit(event)}>
+      <AppSheet title="تغيير الموعد" onRequestClose={requestClose}>
+        <form className="p-5" onSubmit={(event) => void handleSubmit(event)}>
           <div className="space-y-1">
-            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-              تغيير الموعد
-            </h2>
             <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
               اختار ملعب وتاريخ وميعاد متاح. التأكيد النهائي من النظام.
             </p>

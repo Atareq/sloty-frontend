@@ -239,16 +239,12 @@ export function EditBookingDetailsSheet({
   return (
     <>
       <AppSheet
-        ariaLabel="تعديل بيانات الحجز"
+        title="تعديل بيانات الحجز"
         isOpen
         onRequestClose={requestClose}
-        title="تعديل بيانات الحجز"
       >
-        <form className="p-5 pt-14 text-right" onSubmit={(event) => void handleSubmit(event)}>
+        <form className="p-5 text-right" onSubmit={(event) => void handleSubmit(event)}>
           <div className="space-y-1">
-            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-              تعديل بيانات الحجز
-            </h2>
             <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
               تقدر تعدل الاسم والموبايل والملاحظات. البحث عن لاعب بيساعد في التعبئة فقط.
             </p>

@@ -8,7 +8,6 @@ import {
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import {
   canChooseOperationalCourt,
-  getAssignedOperationalCourtId,
   type ProfileId,
 } from '../../../core/auth/auth.types'
 import { useAuth } from '../../../core/auth/useAuth'
@@ -343,11 +342,11 @@ function TransactionDetailSheet({
 
   return (
     <AppSheet
+    title="تفاصيل العملية المالية"
       className="md:max-w-lg"
       onRequestClose={onClose}
-      title="تفاصيل العملية المالية"
     >
-      <div className="space-y-4">
+      <div className="space-y-4 px-4 pt-4 pb-5 sm:px-5 sm:pt-5">
         {isOfflineMode ? (
           <p className="rounded-xl bg-[var(--sloty-soft-mint)] px-3 py-2 text-xs font-bold text-[var(--sloty-primary-dark)]">
             بدون إنترنت · تفاصيل العملية للقراءة فقط، وأي إجراء مالي يحتاج اتصال.
@@ -650,7 +649,7 @@ export function TransactionsListPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const auth = useAuth()
-  const { currentUser, currentProfileId, role, selectedClubSlug, accessibleCourts } = auth
+  const { currentUser, role, selectedClubSlug, accessibleCourts } = auth
   const selectedMembership = (auth as { selectedMembership?: { court?: Court | null } }).selectedMembership
   const { connectivity } = useOfflineSync()
   const courtsOrScope =
@@ -665,7 +664,6 @@ export function TransactionsListPage() {
     role === 'OWNER' ||
     (role as string) === 'MANAGER' ||
     (role as string) === 'PLATFORM_ADMIN'
-  const assignedCourtId = getAssignedOperationalCourtId(role, courtsOrScope)
   const [offlineSearchQuery, setOfflineSearchQuery] = useState('')
   const [offlineSort, setOfflineSort] = useState<'newest' | 'oldest'>('newest')
   const [pagination, setPagination] = useState({
@@ -705,26 +703,15 @@ export function TransactionsListPage() {
   }, [canChooseCourt, urlParams])
   const urlHasTransactionFilters = hasTransactionFilters(scopedUrlParams)
   const effectiveParams = useMemo<TransactionQueryParams>(() => {
-    const fixedCourtParams: TransactionQueryParams =
-      !canChooseCourt && assignedCourtId
-        ? { court: String(assignedCourtId) }
-        : {}
-
     const baseParams = urlHasTransactionFilters
       ? scopedUrlParams
       : createDefaultQueryParams()
 
     return {
       ...baseParams,
-      ...fixedCourtParams,
       ordering: scopedUrlParams.ordering || '-created',
     }
-  }, [
-    assignedCourtId,
-    canChooseCourt,
-    urlHasTransactionFilters,
-    scopedUrlParams,
-  ])
+  }, [urlHasTransactionFilters, scopedUrlParams])
   const initialFilters = useMemo(
     () => filterStateFromParams(effectiveParams),
     [effectiveParams],
@@ -1515,9 +1502,6 @@ export function TransactionsListPage() {
             const transactionType = getTransactionType(transaction)
             const isRefund = isRefundTransaction(transaction)
             const cancelState = getTransactionCancelState(transaction, {
-              role,
-              currentUserId: currentUser?.id,
-              currentProfileId,
               isOffline: isOfflineMode,
             })
 
@@ -1603,7 +1587,7 @@ export function TransactionsListPage() {
                 </div>
 
                 <div className="space-y-2 pt-1">
-                  {!cancelState.isHidden ? (
+                  {!cancelState.isHidden && !transaction.is_cancelled ? (
                     <div title={cancelState.disabledReason}>
                       <AppButton
                         aria-disabled={!cancelState.canCancel}

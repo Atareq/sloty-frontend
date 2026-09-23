@@ -19,6 +19,8 @@ export type BookingStatusChipValue =
 
 export interface StatusChipProps {
   status: BookingStatusChipValue
+  label?: string
+  className?: string
 }
 
 const backendToChipStatus: Record<
@@ -79,7 +81,7 @@ function getStatusChipTone(status: BookingStatusChipValue): SlotyStatus {
  *
  * Recurrence is metadata and must not receive a separate status color.
  */
-export function StatusChip({ status }: StatusChipProps) {
+export function StatusChip({ className, label, status }: StatusChipProps) {
   const statusConfig = statusMap[getStatusChipTone(status)]
 
   return (
@@ -87,9 +89,10 @@ export function StatusChip({ status }: StatusChipProps) {
       className={[
         'inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ring-1',
         statusConfig.className,
-      ].join(' ')}
+        className,
+      ].filter(Boolean).join(' ')}
     >
-      {statusConfig.label}
+      {label ?? statusConfig.label}
     </span>
   )
 }

@@ -174,6 +174,42 @@ describe('courtWorkingHours.helpers', () => {
       ).toBe(false)
     })
 
+    it('allows adjacent periods 01:00-05:00 and 05:00-09:00 without conflict', () => {
+      expect(
+        doPricingPeriodsOverlap([
+          { starts_at: '01:00', ends_at: '05:00', price: '200' },
+          { starts_at: '05:00', ends_at: '09:00', price: '300' },
+        ]),
+      ).toBe(false)
+    })
+
+    it('detects overlap when first period ends after next period starts (01:00-05:00 and 04:00-09:00)', () => {
+      expect(
+        doPricingPeriodsOverlap([
+          { starts_at: '01:00', ends_at: '05:00', price: '200' },
+          { starts_at: '04:00', ends_at: '09:00', price: '300' },
+        ]),
+      ).toBe(true)
+    })
+
+    it('detects overlap between identical periods (01:00-05:00 and 01:00-05:00)', () => {
+      expect(
+        doPricingPeriodsOverlap([
+          { starts_at: '01:00', ends_at: '05:00', price: '200' },
+          { starts_at: '01:00', ends_at: '05:00', price: '300' },
+        ]),
+      ).toBe(true)
+    })
+
+    it('allows adjacent periods starting from midnight (00:00-01:00 and 01:00-05:00)', () => {
+      expect(
+        doPricingPeriodsOverlap([
+          { starts_at: '00:00', ends_at: '01:00', price: '200' },
+          { starts_at: '01:00', ends_at: '05:00', price: '300' },
+        ]),
+      ).toBe(false)
+    })
+
     it('detects overlap when first period ends after next period starts', () => {
       expect(
         doPricingPeriodsOverlap([

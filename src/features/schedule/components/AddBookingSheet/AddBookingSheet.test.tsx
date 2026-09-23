@@ -149,6 +149,107 @@ describe('AddBookingSheet', () => {
     expect(screen.queryByLabelText('السعر')).not.toBeInTheDocument()
   })
 
+  it('clarifies an exact midnight start in the selected-slot review', () => {
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="01:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="00:00"
+      />,
+    )
+
+    expect(screen.getByText('01:00 AM - 12:00 AM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
+    expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveClass(
+      'absolute',
+      'left-2',
+      'top-2',
+    )
+    const clarification = screen.getByText('منتصف الليل')
+    expect(clarification).toHaveClass(
+      'rounded-full',
+      'bg-[var(--sloty-success-soft)]',
+      'text-[var(--sloty-success)]',
+    )
+  })
+
+  it('renders the title inside the current booking-header container', () => {
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="13:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="12:00"
+      />,
+    )
+
+    const title = screen.getByRole('heading', { name: 'حجز جديد' })
+    const clarification = screen.getByText('ظهرًا')
+
+    expect(title).toBeInTheDocument()
+    expect(title.parentElement).toHaveClass('sloty-green-surface')
+    expect(clarification).toHaveClass('rounded-full')
+  })
+
+  it('clarifies an exact noon start in the selected-slot review', () => {
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="13:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="12:00"
+      />,
+    )
+
+    expect(screen.getByText('01:00 PM - 12:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
+    const clarification = screen.getByText('ظهرًا')
+    expect(clarification).toHaveClass(
+      'rounded-full',
+      'bg-[var(--sloty-success-soft)]',
+      'text-[var(--sloty-success)]',
+    )
+  })
+
+  it('renders normal selected-slot times in 12-hour format without clarification', () => {
+    render(
+      <AddBookingSheet
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    expect(screen.getByText('07:00 PM - 06:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
+    expect(screen.queryByText('منتصف الليل')).not.toBeInTheDocument()
+    expect(screen.queryByText('ظهرًا')).not.toBeInTheDocument()
+  })
+
   it('uses outcome-based loading copy', () => {
     render(
       <AddBookingSheet

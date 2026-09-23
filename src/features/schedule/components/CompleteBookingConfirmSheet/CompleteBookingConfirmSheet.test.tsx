@@ -109,7 +109,33 @@ describe('CompleteBookingConfirmSheet', () => {
       screen.getByText(/أقل عربون تقدر تسجل بيه/, { selector: 'p' }),
     ).toBeInTheDocument()
     expect(screen.getByText('150.00 جنيه')).toBeInTheDocument()
+    expect(screen.getByText('09:00 PM - 08:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
     expect(screen.queryByText('2026-09-01')).not.toBeInTheDocument()
+  })
+
+  it('uses the shared midnight clarification for the next recurring booking', async () => {
+    mockedGetBookingRecurrenceNext.mockResolvedValue({
+      ...preview,
+      next_end_time: '2026-09-16T01:00:00+03:00',
+      next_start_time: '2026-09-16T00:00:00+03:00',
+    })
+
+    renderSheet({
+      booking: {
+        ...booking,
+        is_recurring: true,
+        recurrence_status: 'ACTIVE',
+      },
+    })
+
+    expect(await screen.findByText('01:00 AM - 12:00 AM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
+    expect(screen.getByText('منتصف الليل')).toBeInTheDocument()
   })
 
   it('does not require payment method when the backend deposit is zero', async () => {

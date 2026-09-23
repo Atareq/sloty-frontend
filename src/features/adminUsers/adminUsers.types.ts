@@ -9,7 +9,7 @@ export type PlatformUserRole = 'ADMIN' | 'OWNER' | 'STAFF'
 
 export interface PlatformUser {
   id: number
-  username: string
+  username?: string | null
   first_name: string
   last_name: string
   phone_number: string | null
@@ -28,7 +28,7 @@ export interface PlatformUsersQueryParams {
 }
 
 export interface PlatformAdminUserPayload {
-  username: string
+  username?: string
   password: string
   first_name: string
   last_name?: string

@@ -72,6 +72,21 @@ describe('settlementsApi', () => {
     )
   })
 
+  it('gets the normal settlement preview without a court parameter', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      transaction_count: 0,
+      total_amount: '0.00',
+      totals_by_payment_method: {},
+      transactions: [],
+    })
+
+    await getSettlementPreview('nasr-club', {})
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.settlements.preview('nasr-club'),
+    )
+  })
+
   it('gets a settlement preview with optional page param', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       transaction_count: 0,

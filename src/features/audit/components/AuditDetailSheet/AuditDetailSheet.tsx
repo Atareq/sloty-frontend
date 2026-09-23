@@ -86,15 +86,12 @@ export function AuditDetailSheet({
 
   return (
     <AppSheet
-      ariaLabel="تفاصيل النشاط"
+      title="تفاصيل النشاط"
       className="md:max-w-2xl"
       onRequestClose={onClose}
     >
-      <div className="space-y-5 p-5 pt-12">
+      <div className="space-y-5 p-5">
         <header className="space-y-1">
-          <p className="text-xs font-black text-[var(--sloty-text-muted)]">
-            تفاصيل النشاط
-          </p>
           <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
             {presentation?.title ?? 'جاري تحميل النشاط...'}
           </h2>

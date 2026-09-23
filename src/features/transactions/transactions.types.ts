@@ -40,6 +40,7 @@ export interface TransactionQueryParams {
   settlement?: number | string
   settlement_status?: TransactionSettlementStatus | ''
   is_cancelled?: boolean | string | ''
+  is_settled?: boolean | ''
   page?: number | string
   transaction_type?: TransactionType | ''
 }

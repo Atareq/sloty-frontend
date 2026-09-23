@@ -6,14 +6,20 @@ import {
 
 describe('formatBookingDetailTime', () => {
   it.each([
-    ['00:00', { value: '00:00', clarification: '(منتصف الليل)' }],
-    ['12:00', { value: '12:00', clarification: '(ظهرًا)' }],
-    ['00:30', { value: '00:30', clarification: null }],
-    ['12:30', { value: '12:30', clarification: null }],
-    ['18:00', { value: '18:00', clarification: null }],
-    ['23:00', { value: '23:00', clarification: null }],
-  ])('formats %s without changing normal times', (time, expected) => {
+    ['00:00', { value: '12:00 AM', clarification: 'منتصف الليل' }],
+    ['12:00', { value: '12:00 PM', clarification: 'ظهرًا' }],
+    ['00:30', { value: '12:30 AM', clarification: null }],
+    ['12:30', { value: '12:30 PM', clarification: null }],
+    ['18:00', { value: '06:00 PM', clarification: null }],
+    ['23:00', { value: '11:00 PM', clarification: null }],
+  ])('formats %s as a 12-hour booking-detail value', (time, expected) => {
     expect(formatBookingDetailTime(time)).toEqual(expected)
+  })
+
+  it('can suppress clarification for the range end while keeping its 12-hour value', () => {
+    expect(
+      formatBookingDetailTime('12:00', { includeClarification: false }),
+    ).toEqual({ value: '12:00 PM', clarification: null })
   })
 })
 
@@ -26,8 +32,8 @@ describe('formatBookingDetailDateTimeRange', () => {
       ),
     ).toEqual({
       date: 'الثلاثاء، ٢١ يوليو',
-      start: { value: '00:00', clarification: '(منتصف الليل)' },
-      end: { value: '12:00', clarification: '(ظهرًا)' },
+      start: { value: '12:00 AM', clarification: 'منتصف الليل' },
+      end: { value: '12:00 PM', clarification: null },
     })
   })
 
@@ -36,8 +42,18 @@ describe('formatBookingDetailDateTimeRange', () => {
       formatBookingDetailDateTimeRange('00:00', '12:00', '2026-07-21'),
     ).toEqual({
       date: 'الثلاثاء، ٢١ يوليو',
-      start: { value: '00:00', clarification: '(منتصف الليل)' },
-      end: { value: '12:00', clarification: '(ظهرًا)' },
+      start: { value: '12:00 AM', clarification: 'منتصف الليل' },
+      end: { value: '12:00 PM', clarification: null },
+    })
+  })
+
+  it('keeps already-local time-only values in the shared detail presentation', () => {
+    expect(
+      formatBookingDetailDateTimeRange('00:00', '01:00'),
+    ).toEqual({
+      date: '',
+      start: { value: '12:00 AM', clarification: 'منتصف الليل' },
+      end: { value: '01:00 AM', clarification: null },
     })
   })
 })

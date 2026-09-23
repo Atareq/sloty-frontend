@@ -41,13 +41,8 @@ export function ConfirmSettlementDialog({
       title={financeCopy.confirmReceiveAmount}
     >
       <section className="p-4 sm:p-5">
-        <div className="space-y-4 pt-7">
+        <div className="space-y-4">
           <div>
-            <h2
-              className="text-lg font-black text-[var(--sloty-text-primary)]"
-            >
-              {financeCopy.confirmReceiveAmount}
-            </h2>
             <p className="mt-2 text-sm font-bold leading-6 text-[var(--sloty-text-muted)]">
               هل تؤكد استلام {formatMoneyAmount(netAmount)} من{' '}
               {collectorName}؟

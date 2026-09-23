@@ -131,14 +131,16 @@ export function AdminUserDetailsPage() {
                 {getPlatformUserDisplayName(user)}
               </dd>
             </div>
-            <div>
-              <dt className="font-black text-[var(--sloty-text-muted)]">
-                اسم المستخدم
-              </dt>
-              <dd className="mt-1 font-bold text-[var(--sloty-text-primary)]">
-                @{user.username}
-              </dd>
-            </div>
+            {user.username ? (
+              <div>
+                <dt className="font-black text-[var(--sloty-text-muted)]">
+                  اسم المستخدم
+                </dt>
+                <dd className="mt-1 font-bold text-[var(--sloty-text-primary)]">
+                  @{user.username}
+                </dd>
+              </div>
+            ) : null}
             <div>
               <dt className="font-black text-[var(--sloty-text-muted)]">
                 رقم الهاتف

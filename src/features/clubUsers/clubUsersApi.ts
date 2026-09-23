@@ -79,7 +79,6 @@ export function createClubStaff(
       first_name: payload.first_name.trim(),
       last_name: optionalText(payload.last_name) ?? '',
       court_ids: payload.court_ids ?? [],
-      ...(payload.username ? { username: payload.username.trim() } : {}),
       ...(payload.is_active !== undefined ? { is_active: payload.is_active } : {}),
     },
   })
