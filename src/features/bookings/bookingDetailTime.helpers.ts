@@ -25,20 +25,6 @@ const bookingDetailTimeFormatter = new Intl.DateTimeFormat('en-GB', {
   timeZone: BOOKING_DETAIL_TIME_ZONE,
 })
 
-function parseCalendarDateOnly(value: string): Date | null {
-  const [year, month, day] = value.split('-').map(Number)
-
-  if (
-    !Number.isFinite(year) ||
-    !Number.isFinite(month) ||
-    !Number.isFinite(day)
-  ) {
-    return null
-  }
-
-  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
-}
-
 function parseBookingDateTime(
   value: string,
   fallbackDate?: string | null,
@@ -93,13 +79,12 @@ export function formatBookingDetailDateTimeRange(
   fallbackDate?: string | null,
 ): BookingDetailDateTimeRange | null {
   if (
+    !fallbackDate &&
     /^\d{1,2}:\d{2}$/.test(startTime) &&
     /^\d{1,2}:\d{2}$/.test(endTime)
   ) {
-    const parsedDate = fallbackDate ? parseCalendarDateOnly(fallbackDate) : null
-
     return {
-      date: parsedDate ? bookingDetailDateFormatter.format(parsedDate) : '',
+      date: '',
       start: formatBookingDetailTime(startTime),
       end: formatBookingDetailTime(endTime, {
         includeClarification: false,
