@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowRight, Download, QrCode, Share2 } from 'lucide-react'
 import { AppSheet } from '../../../shared/components/AppSheet/AppSheet'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
@@ -175,7 +176,7 @@ export function ShareCourtScheduleSheet({
     handleClose()
   }
 
-  return (
+  return createPortal(
     <AppSheet
       ariaLabel={view === 'choices' ? 'مشاركة الجدول' : 'QR للجدول'}
       className={view === 'qr' ? 'md:max-w-md' : 'md:max-w-sm'}
@@ -280,6 +281,7 @@ export function ShareCourtScheduleSheet({
           </div>
         )}
       </div>
-    </AppSheet>
+    </AppSheet>,
+    document.body,
   )
 }

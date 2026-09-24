@@ -84,6 +84,7 @@ When determining factual system behavior, what features exist, and how contracts
 ### 4. Unified Design System Integrity
 - **One PageHeader:** All authenticated shell pages use the single shell-level `PageHeader` from `AppShell`. Never create custom page headers.
 - **One AppSheet:** Non-full-page temporary flows use `AppSheet` (mobile bottom sheet / desktop modal).
+- **Header actions and overlays:** A full-screen `AppSheet` opened from `PageHeaderAction` must portal its overlay to `document.body`; the shell header owns overflow, sticky, and stacking styles and must contain only the trigger/action presentation.
 - **One Brand Palette:** Use Sloty's canonical green palette and surface tokens documented in [`docs/ui-reference.md`](docs/ui-reference.md).
 - **No Rogue Primitives:** Do not copy V0 prototype components or add unapproved UI component libraries.
 ### 4. Unified Design System (`KEEP IT UNITED`)
