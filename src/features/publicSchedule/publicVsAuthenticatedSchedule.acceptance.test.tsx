@@ -261,7 +261,9 @@ describe('Public vs Authenticated Schedule Independent Acceptance', () => {
     // 3. Verifies Visitor Guidance Popup opens with exact Arabic copy
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: publicScheduleVisitorCopy.title }),
+      screen.getByRole('heading', {
+        name: publicScheduleVisitorCopy.title.trim().replace(/\s+/g, ' '),
+      }),
     ).toBeInTheDocument()
     expect(
       screen.getByText(publicScheduleVisitorCopy.bodyPlayer),

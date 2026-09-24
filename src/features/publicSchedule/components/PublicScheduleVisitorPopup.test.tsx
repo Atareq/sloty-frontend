@@ -16,7 +16,9 @@ describe('PublicScheduleVisitorPopup', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: publicScheduleVisitorCopy.title }),
+      screen.getByRole('heading', {
+        name: publicScheduleVisitorCopy.title.trim().replace(/\s+/g, ' '),
+      }),
     ).toBeInTheDocument()
     expect(
       screen.getByText(publicScheduleVisitorCopy.bodyPlayer),
