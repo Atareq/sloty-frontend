@@ -97,6 +97,7 @@ Schedule slots returned by the backend remain rendered and interactive regardles
   /public/:clubSlug/courts/:courtId/schedule
   ```
 - **Placement:** Must render in the **`PageHeader` top-left action slot** via `PageHeaderAction`.
+- **Overlay boundary:** `ShareCourtScheduleSheet` is portaled to `document.body` so the full-screen backdrop/dialog cannot be clipped by the `PageHeader` overflow and stacking context.
 - **Implementation & Invariants:**
   - Must **never** share authenticated `/schedule`.
   - Uses the currently viewed/selected Court already owned by `SchedulePage`.
