@@ -22,15 +22,12 @@ export function FilterSheet({
 }: FilterSheetProps) {
   return (
     <AppSheet
-      ariaLabel={title}
+      title={title}
       className="min-w-0 max-w-full md:max-w-2xl"
       isOpen={isOpen}
       onRequestClose={onClose}
     >
-      <div className="w-full min-w-0 max-w-full overflow-x-hidden p-5 pt-14">
-        <h2 className="mb-5 text-xl font-extrabold text-[var(--sloty-text-primary)]">
-          {title}
-        </h2>
+      <div className="w-full min-w-0 max-w-full overflow-x-hidden p-5">
         {children}
       </div>
     </AppSheet>

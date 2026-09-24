@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,7 +28,6 @@ const mockedUpdateClubUser = vi.mocked(updateClubUser)
 
 const staffMember1: ClubUser = {
   id: 10,
-  username: 'staff-ahmed',
   first_name: 'أحمد',
   last_name: 'علي',
   email: 'ahmed@example.com',
@@ -39,7 +38,6 @@ const staffMember1: ClubUser = {
 
 const staffMember2: ClubUser = {
   id: 11,
-  username: 'staff-sara',
   first_name: 'سارة',
   last_name: 'محمود',
   email: 'sara@example.com',
@@ -72,7 +70,6 @@ function mockAuth(options: {
     claims: { user_id: 1, role },
     currentUser: {
       id: 1,
-      username: 'owner-user',
       email: 'owner@example.com',
       first_name: 'أحمد',
       last_name: 'مالك',
@@ -87,6 +84,7 @@ function mockAuth(options: {
     accessibleCourts: [],
     role,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -158,9 +156,9 @@ describe('SettingsUsersPage', () => {
     renderUsersPage()
 
     expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
-    expect(screen.getByText('@staff-ahmed')).toBeInTheDocument()
+    expect(screen.getByText('+201012345678')).toBeInTheDocument()
     expect(screen.getByText('سارة محمود')).toBeInTheDocument()
-    expect(screen.getByText('@staff-sara')).toBeInTheDocument()
+    expect(screen.getByText('+201098765432')).toBeInTheDocument()
     expect(mockedListClubUsers).toHaveBeenCalledWith('nasr-club', {
       role: 'STAFF',
     })
@@ -208,7 +206,6 @@ describe('SettingsUsersPage', () => {
     const user = userEvent.setup()
     mockedCreateClubStaff.mockResolvedValueOnce({
       id: 12,
-      username: 'new-staff',
       first_name: 'علي',
       last_name: 'حسن',
       phone_number: '+201011223344',
@@ -222,21 +219,19 @@ describe('SettingsUsersPage', () => {
     await screen.findByText('أحمد علي')
     await user.click(screen.getByRole('button', { name: 'إضافة موظف' }))
 
-    expect(screen.getAllByRole('heading', { name: 'إضافة موظف جديد' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'إضافة موظف جديد' })).toBeInTheDocument()
 
     await user.type(screen.getByPlaceholderText('الاسم الأول'), 'علي')
     await user.type(screen.getByPlaceholderText('اسم العائلة'), 'حسن')
-    await user.type(screen.getByPlaceholderText('اسم المستخدم للدخول'), 'new-staff')
     await user.type(screen.getByLabelText('كلمة المرور'), 'Password123!')
     await user.type(screen.getByLabelText('تأكيد كلمة المرور'), 'Password123!')
 
     await user.click(screen.getByRole('button', { name: 'إضافة الموظف' }))
 
     await waitFor(() => {
-      expect(mockedCreateClubStaff).toHaveBeenCalledWith({
+      expect(mockedCreateClubStaff).toHaveBeenCalledWith('nasr-club', {
         first_name: 'علي',
         last_name: 'حسن',
-        username: 'new-staff',
         phone_number: undefined,
         email: undefined,
         password: 'Password123!',
@@ -260,7 +255,6 @@ describe('SettingsUsersPage', () => {
     await user.click(screen.getByRole('button', { name: 'إضافة الموظف' }))
 
     expect(await screen.findByText('الاسم الأول مطلوب')).toBeInTheDocument()
-    expect(screen.getByText('اسم المستخدم مطلوب')).toBeInTheDocument()
     expect(screen.getByText('كلمة المرور مطلوبة')).toBeInTheDocument()
     expect(mockedCreateClubStaff).not.toHaveBeenCalled()
 
@@ -281,7 +275,6 @@ describe('SettingsUsersPage', () => {
     await user.click(screen.getByRole('button', { name: 'إضافة موظف' }))
 
     await user.type(screen.getByPlaceholderText('الاسم الأول'), 'علي')
-    await user.type(screen.getByPlaceholderText('اسم المستخدم للدخول'), 'new-staff')
     await user.type(screen.getByLabelText('كلمة المرور'), 'Pass1')
     await user.type(screen.getByLabelText('تأكيد كلمة المرور'), 'Pass2')
 
@@ -311,7 +304,6 @@ describe('SettingsUsersPage', () => {
     await user.click(screen.getByRole('button', { name: 'إضافة موظف' }))
 
     await user.type(screen.getByPlaceholderText('الاسم الأول'), 'علي')
-    await user.type(screen.getByPlaceholderText('اسم المستخدم للدخول'), 'new-staff')
     await user.type(screen.getByLabelText('كلمة المرور'), 'Pass1')
     await user.type(screen.getByLabelText('تأكيد كلمة المرور'), 'Pass1')
     await user.type(screen.getByLabelText('رقم الموبايل'), '01012')
@@ -328,6 +320,9 @@ describe('SettingsUsersPage', () => {
         screen.queryByRole('heading', { name: 'إضافة موظف جديد' }),
       ).not.toBeInTheDocument()
     })
+    await waitFor(() => {
+      expect(screen.queryByText('عندك تعديلات لسه متحفظتش.')).not.toBeInTheDocument()
+    })
   })
 
   it('prompts for unsaved changes when closing add staff sheet with dirty inputs', async () => {
@@ -338,8 +333,8 @@ describe('SettingsUsersPage', () => {
     await screen.findByText('أحمد علي')
     await user.click(screen.getByRole('button', { name: 'إضافة موظف' }))
 
-    const firstNameInput = (await screen.findByPlaceholderText('الاسم الأول')) as HTMLInputElement
-    await user.type(firstNameInput, 'علي')
+    const firstNameInput = await screen.findByPlaceholderText('الاسم الأول')
+    fireEvent.change(firstNameInput, { target: { value: 'علي' } })
     const cancelButton = screen.getByRole('button', { name: 'إلغاء' })
     await user.click(cancelButton)
 

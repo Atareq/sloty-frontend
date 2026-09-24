@@ -93,8 +93,8 @@ const baseSummaryResponse: DashboardSummaryResponse = {
 }
 
 const currentCustodyRow = {
-  user: 15,
-  user_name: 'أحمد المحصل',
+  collected_by: 15,
+  collected_by_name: 'أحمد المحصل',
   period_start: '2026-07-20T10:00:00Z',
   period_end: '2026-07-21T10:00:00Z',
   transaction_count: 3,
@@ -114,8 +114,6 @@ const currentCustodyRow = {
 const ownCurrentCustodyPreview = {
   ...currentCustodyRow,
   club: 1,
-  user: 1,
-  user_name: 'محمد أحمد',
   collected_by: 1,
   collected_by_name: 'محمد أحمد',
   court: 3,
@@ -148,6 +146,7 @@ function mockAuth(selectedClubSlug: string | null = 'nasr-club') {
     selectCourt: vi.fn(),
     role: 'OWNER',
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,

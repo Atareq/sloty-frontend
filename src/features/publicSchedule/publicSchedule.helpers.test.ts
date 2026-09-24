@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildCourtScheduleShareUrl,
   buildPublicCourtSchedulePath,
   buildPublicCourtScheduleUrl,
   getPublicScheduleDateWindow,
@@ -118,7 +119,7 @@ describe('publicSchedule.helpers', () => {
     })
   })
 
-  describe('buildPublicCourtSchedulePath and buildPublicCourtScheduleUrl', () => {
+  describe('buildPublicCourtSchedulePath, buildCourtScheduleShareUrl, and buildPublicCourtScheduleUrl', () => {
     it('builds canonical relative path for a court schedule', () => {
       expect(buildPublicCourtSchedulePath('al-ahly', 5)).toBe(
         '/public/al-ahly/courts/5/schedule',
@@ -128,7 +129,29 @@ describe('publicSchedule.helpers', () => {
       )
     })
 
-    it('builds absolute URL with provided or window origin', () => {
+    it('builds canonical share URL with provided origin', () => {
+      expect(
+        buildCourtScheduleShareUrl({
+          clubSlug: 'al-ahly',
+          courtId: 5,
+          origin: 'https://sloty.app',
+        }),
+      ).toBe('https://sloty.app/public/al-ahly/courts/5/schedule')
+    })
+
+    it('encodes special characters in club slug and court id properly', () => {
+      expect(
+        buildCourtScheduleShareUrl({
+          clubSlug: 'النادي الأهلي',
+          courtId: 'court #1',
+          origin: 'https://sloty.baronlearning.com',
+        }),
+      ).toBe(
+        'https://sloty.baronlearning.com/public/%D8%A7%D9%84%D9%86%D8%A7%D8%AF%D9%8A%20%D8%A7%D9%84%D8%A3%D9%87%D9%84%D9%8A/courts/court%20%231/schedule',
+      )
+    })
+
+    it('builds absolute URL with provided or window origin via legacy alias', () => {
       expect(
         buildPublicCourtScheduleUrl('al-ahly', 5, 'https://sloty.app'),
       ).toBe('https://sloty.app/public/al-ahly/courts/5/schedule')

@@ -54,8 +54,8 @@ const mockedOfflineRepositories = vi.mocked(offlineRepositories)
 const currentCustodySummary = {
   results: [
     {
-      user: 15,
-      user_name: 'أحمد محمد',
+      collected_by: 15,
+      collected_by_name: 'أحمد محمد',
       period_start: '2026-08-15T10:00:00Z',
       period_end: '2026-08-16T11:00:00Z',
       transaction_count: 3,
@@ -97,6 +97,7 @@ function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF', canSettle = false) {
     selectCourt: vi.fn(),
     role: effectiveRole,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -392,8 +393,8 @@ describe('SettlementsHubPage', () => {
     mockAuth('OWNER', true)
     const rows = Array.from({ length: 30 }, (_, index) => ({
       ...currentCustodySummary.results[0],
-      user: index + 10,
-      user_name: `موظف ${index + 1}`,
+      collected_by: index + 10,
+      collected_by_name: `موظف ${index + 1}`,
       net_amount: `${100 + index}.00`,
       total_amount: `${100 + index}.00`,
     }))
@@ -403,7 +404,7 @@ describe('SettlementsHubPage', () => {
       next: null,
       previous: null,
       results: rows.map((row, index) => ({
-        id: row.user,
+        id: row.collected_by,
         username: `employee-${index + 1}`,
         first_name: 'موظف',
         last_name: String(index + 1),
@@ -521,7 +522,6 @@ describe('SettlementsHubPage', () => {
             collected_by_name: 'أحمد محمد',
             total_amount: '1250.00',
             transaction_count: 3,
-            status: 'SETTLED',
           },
         ],
       })
@@ -586,7 +586,7 @@ describe('SettlementsHubPage', () => {
       transactions: [],
     })
 
-    renderHub('/settlements?collected_by=15')
+    renderHub('/settlements?court=3&collected_by=15')
 
     expect(await screen.findByText('منى سمير')).toBeInTheDocument()
     expect(mockedGetSettlementPreview).toHaveBeenCalledWith('nasr-club', {
@@ -725,7 +725,6 @@ describe('SettlementsHubPage', () => {
           transaction_count: 8,
           period_start: '2026-07-19T10:00:00Z',
           period_end: '2026-07-19T15:20:00Z',
-          status: 'SETTLED',
           created_by: { id: 1, name: 'Owner User' },
           created: '2026-07-19T15:20:00Z',
         },
@@ -744,9 +743,7 @@ describe('SettlementsHubPage', () => {
       '/settlements/9',
     )
     await waitFor(() => {
-      expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club', {
-        status: 'SETTLED',
-      })
+      expect(mockedListSettlements).toHaveBeenCalledWith('nasr-club', {})
     })
   })
 

@@ -1,3 +1,4 @@
+import type { ProfileId } from '../../core/auth/auth.types'
 import type { PaymentMethod } from '../transactions/transactions.types'
 
 export const BACKEND_BOOKING_STATUSES = [
@@ -57,7 +58,7 @@ export interface BookingRecurrenceNextPreview {
   next_end_time: string
   next_total_price: string
   next_required_deposit: string
-  requires_payment_reference: boolean
+  requires_digital_payment_reference: boolean
 }
 
 export interface BookingListItem {
@@ -82,7 +83,9 @@ export interface BookingListItem {
   previous_recurring_booking_id: number | null
   next_recurring_booking_id: number | null
   hold_expires_at?: string | null
-  last_status_changed_by?: number | null
+  created_by?: ProfileId | null
+  created_by_name?: string | null
+  last_status_changed_by?: ProfileId | null
   last_status_changed_by_name?: string | null
 }
 
@@ -90,7 +93,6 @@ export interface BookingCreatePayload {
   court: number
   customer_name: string
   customer_phone: string
-  club_player_id?: number
   start_time: string
   end_time: string
   source?: string
@@ -202,22 +204,30 @@ export interface BookingEndRecurrencePayload {
   reason?: string
 }
 
-/** PATCH body for booking notes edit. Customer identity, court, time, status, and recurrence are immutable. */
-export interface BookingNotesUpdatePayload {
+/**
+ * PATCH body for booking customer intent and notes.
+ * Backend resolves PlayerProfile → ClubPlayer. Never include identity IDs.
+ */
+export interface BookingUpdatePayload {
+  customer_name: string
+  customer_phone: string
   notes: string
 }
 
 /**
- * PATCH response contains only the edited notes field. Refetch Booking
- * detail instead of treating this as a full Booking record.
+ * PATCH `to_representation` returns the full booking detail.
+ * Callers still refetch canonical Booking state after success.
  */
-export interface BookingNotesUpdateResponse {
-  notes: string
-}
+export type BookingUpdateResponse = BookingListItem
 
-/** @deprecated Use BookingNotesUpdatePayload. Retained for backwards-compatibility during migration. */
-export type BookingCustomerUpdatePayload = BookingNotesUpdatePayload
-export type BookingCustomerUpdateResponse = BookingNotesUpdateResponse
+/** @deprecated Use BookingUpdatePayload. */
+export type BookingNotesUpdatePayload = BookingUpdatePayload
+/** @deprecated Use BookingUpdateResponse. */
+export type BookingNotesUpdateResponse = BookingUpdateResponse
+/** @deprecated Use BookingUpdatePayload. */
+export type BookingCustomerUpdatePayload = BookingUpdatePayload
+/** @deprecated Use BookingUpdateResponse. */
+export type BookingCustomerUpdateResponse = BookingUpdateResponse
 
 export interface BookingReschedulePayload {
   court: number

@@ -1,6 +1,3 @@
-import type { Country } from 'react-phone-number-input'
-import { normalizeSlotyPhoneNumber } from '../../shared/validation/phone'
-
 export interface PlayerProfileSummary {
   id?: number
   phone_number?: string | null
@@ -49,47 +46,5 @@ export function getClubPlayerPhone(
     player.phone_number ||
     player.player_profile?.phone_number ||
     ''
-  )
-}
-
-/**
- * Validates whether two phone number representations correspond to the same
- * physical phone, accounting for international E.164, local format, or raw digits.
- */
-export function arePhoneNumbersMatching(
-  phoneA?: string | null,
-  phoneB?: string | null,
-  country: Country = 'EG',
-): boolean {
-  if (!phoneA || !phoneB) {
-    return false
-  }
-
-  const trimmedA = phoneA.trim()
-  const trimmedB = phoneB.trim()
-  if (!trimmedA || !trimmedB) {
-    return false
-  }
-
-  if (trimmedA === trimmedB) {
-    return true
-  }
-
-  const normA = normalizeSlotyPhoneNumber(trimmedA, country)
-  const normB = normalizeSlotyPhoneNumber(trimmedB, country)
-  if (normA && normB) {
-    return normA === normB
-  }
-
-  const digitsA = trimmedA.replace(/\D/g, '')
-  const digitsB = trimmedB.replace(/\D/g, '')
-  if (!digitsA || !digitsB) {
-    return false
-  }
-
-  return (
-    digitsA === digitsB ||
-    digitsA.endsWith(digitsB) ||
-    digitsB.endsWith(digitsA)
   )
 }

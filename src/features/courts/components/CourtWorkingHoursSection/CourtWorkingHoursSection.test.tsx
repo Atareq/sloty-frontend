@@ -47,6 +47,7 @@ function setupAuth(): void {
     selectCourt: vi.fn(),
     role: 'OWNER',
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -152,6 +153,12 @@ describe('CourtWorkingHoursSection helpers', () => {
         { starts_at: '10:00', ends_at: '12:00', price: '100' },
       ]),
     ).toBe(false)
+    expect(
+      doPricingPeriodsOverlap([
+        { starts_at: '01:00', ends_at: '05:00', price: '200' },
+        { starts_at: '05:00', ends_at: '09:00', price: '300' },
+      ]),
+    ).toBe(false)
   })
 })
 
@@ -228,6 +235,7 @@ describe('CourtWorkingHoursSection', () => {
     expect(serializedPayload).not.toContain('opens_at')
     expect(serializedPayload).not.toContain('closes_at')
     expect(serializedPayload).not.toContain('is_closed')
+    expect(serializedPayload).not.toContain('default_price')
     expect(serializedPayload).not.toContain('blocks')
     expect(serializedPayload).not.toContain('localId')
     expect(serializedPayload).not.toContain('"id"')

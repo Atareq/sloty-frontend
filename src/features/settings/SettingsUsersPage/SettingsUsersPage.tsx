@@ -9,6 +9,7 @@ import {
 } from '../../../core/api/apiError.helpers'
 import { useAuth } from '../../../core/auth/useAuth'
 import type { PaginatedResponse } from '../../../shared/api/api.types'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
@@ -56,7 +57,6 @@ interface AddStaffFormState {
   last_name: string
   phone_number: Value | undefined
   email: string
-  username: string
   password: string
   confirm_password: string
 }
@@ -69,7 +69,6 @@ const emptyAddStaffForm: AddStaffFormState = {
   last_name: '',
   phone_number: undefined,
   email: '',
-  username: '',
   password: '',
   confirm_password: '',
 }
@@ -144,10 +143,6 @@ function validateAddStaffForm(values: AddStaffFormState): AddStaffFieldErrors {
     errors.first_name = 'الاسم الأول مطلوب'
   }
 
-  if (!values.username.trim()) {
-    errors.username = 'اسم المستخدم مطلوب'
-  }
-
   if (!values.password) {
     errors.password = 'كلمة المرور مطلوبة'
   }
@@ -211,16 +206,12 @@ function AddStaffSheet({
   return (
     <>
       <AppSheet
-        ariaLabel="إضافة موظف جديد"
+        title="إضافة موظف جديد"
         isOpen
         onRequestClose={requestClose}
-        title="إضافة موظف جديد"
       >
         <form className="space-y-4 p-4 text-right" onSubmit={handleSubmit}>
           <div className="space-y-1">
-            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-              إضافة موظف جديد
-            </h2>
             <p className="text-sm font-semibold text-[var(--sloty-text-muted)]">
               أدخل بيانات الموظف لإنشاء حسابه في النادي
             </p>
@@ -260,22 +251,6 @@ function AddStaffSheet({
               />
             </label>
           </div>
-
-          <label className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
-            <span>اسم المستخدم</span>
-            <input
-              className="sloty-mobile-safe-input h-11 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 outline-none transition focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-              disabled={isSubmitting}
-              onChange={(event) => updateValue('username', event.target.value)}
-              placeholder="اسم المستخدم للدخول"
-              value={values.username}
-            />
-            {fieldErrors.username ? (
-              <span className="text-xs font-bold text-[var(--sloty-danger)]">
-                {fieldErrors.username}
-              </span>
-            ) : null}
-          </label>
 
           <div className="space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
             <span>رقم الهاتف</span>
@@ -367,9 +342,6 @@ function UserCard({
           <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
             {getClubUserDisplayName(user)}
           </h2>
-          <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-            @{user.username}
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
@@ -492,6 +464,7 @@ export function SettingsUsersPage() {
 
         if (isActive && isCurrent(generation)) {
           setUsers(normalizeClubUsersResponse(usersResponse))
+          setUsers(extractResults(usersResponse))
           hasCompletedInitialLoadRef.current = true
         }
       } catch (caughtError) {
@@ -594,10 +567,9 @@ export function SettingsUsersPage() {
     setAddStaffFieldErrors({})
 
     try {
-      await createClubStaff({
+      await createClubStaff(selectedClubSlug, {
         first_name: values.first_name,
         last_name: values.last_name || undefined,
-        username: values.username,
         phone_number: values.phone_number || undefined,
         email: values.email || undefined,
         password: values.password,
@@ -610,7 +582,6 @@ export function SettingsUsersPage() {
       const fieldErrors = getApiFieldErrors(caughtError)
 
       setAddStaffFieldErrors({
-        username: getFirstFieldErrorMessage(fieldErrors, 'username') ?? undefined,
         email: getFirstFieldErrorMessage(fieldErrors, 'email') ?? undefined,
         password: getFirstFieldErrorMessage(fieldErrors, 'password') ?? undefined,
         phone_number:

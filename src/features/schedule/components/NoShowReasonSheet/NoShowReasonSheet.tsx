@@ -71,12 +71,9 @@ export function NoShowReasonSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="تسجيل عدم حضور" onRequestClose={requestClose}>
-        <form className="p-5 pt-14" onSubmit={handleSubmit}>
+      <AppSheet title="تسجيل عدم حضور" onRequestClose={requestClose}>
+        <form className="p-5" onSubmit={handleSubmit}>
         <div className="space-y-1">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            تسجيل عدم حضور
-          </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {recurrenceWillEnd
               ? 'تسجيل الحجز كعدم حضور هيوقف كمان التكرار الأسبوعي.'

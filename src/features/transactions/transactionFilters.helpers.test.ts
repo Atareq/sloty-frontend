@@ -12,70 +12,42 @@ describe('getTransactionCancelState', () => {
     is_settled: false,
   }
 
-  it('hides cancellation for refund transactions', () => {
+  it('keeps cancellation available for refunds and lets the backend decide', () => {
     const state = getTransactionCancelState(
       { ...baseTransaction, transaction_type: 'REFUND', amount: '-100.00' },
-      { role: 'OWNER', currentUserId: 1 },
+      {},
     )
-    expect(state.isHidden).toBe(true)
-    expect(state.canCancel).toBe(false)
+    expect(state).toEqual({ canCancel: true, isHidden: false })
   })
 
-  it('hides cancellation for already cancelled transactions', () => {
+  it('keeps cancellation available for already cancelled rows returned by the backend', () => {
     const state = getTransactionCancelState(
       { ...baseTransaction, is_cancelled: true },
-      { role: 'OWNER', currentUserId: 1 },
+      {},
     )
-    expect(state.isHidden).toBe(true)
-    expect(state.canCancel).toBe(false)
+    expect(state).toEqual({ canCancel: true, isHidden: false })
   })
 
   it('hides cancellation when offline', () => {
     const state = getTransactionCancelState(baseTransaction, {
-      role: 'OWNER',
-      currentUserId: 1,
       isOffline: true,
     })
     expect(state.isHidden).toBe(true)
     expect(state.canCancel).toBe(false)
   })
 
-  it('disables cancellation with message when settled', () => {
+  it('hides cancellation for settled rows', () => {
     const state = getTransactionCancelState(
       { ...baseTransaction, is_settled: true },
-      { role: 'OWNER', currentUserId: 1 },
+      {},
     )
-    expect(state.isHidden).toBe(false)
-    expect(state.canCancel).toBe(false)
-    expect(state.disabledReason).toContain('تم استلام هذه المعاملة')
+    expect(state).toEqual({ canCancel: false, isHidden: true })
   })
 
-  it('allows owner to cancel any unsettled payment', () => {
+  it('does not inspect collector identity or role before allowing an online attempt', () => {
     const state = getTransactionCancelState(baseTransaction, {
-      role: 'OWNER',
-      currentUserId: 1,
+      isOffline: false,
     })
-    expect(state.isHidden).toBe(false)
-    expect(state.canCancel).toBe(true)
-  })
-
-  it('allows staff to cancel their own collection', () => {
-    const state = getTransactionCancelState(baseTransaction, {
-      role: 'STAFF',
-      currentUserId: 10,
-    })
-    expect(state.isHidden).toBe(false)
-    expect(state.canCancel).toBe(true)
-  })
-
-  it('disables cancellation for staff when not the collector', () => {
-    const state = getTransactionCancelState(baseTransaction, {
-      role: 'STAFF',
-      currentUserId: 20,
-    })
-    expect(state.isHidden).toBe(false)
-    expect(state.canCancel).toBe(false)
-    expect(state.disabledReason).toContain('يمكن للموظف إلغاء معاملاته فقط')
+    expect(state).toEqual({ canCancel: true, isHidden: false })
   })
 })
-

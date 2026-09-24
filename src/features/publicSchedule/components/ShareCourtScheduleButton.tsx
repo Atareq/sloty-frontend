@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Share2 } from 'lucide-react'
-import { buildPublicCourtScheduleUrl } from '../publicSchedule.helpers'
 import { AppSuccessNotice } from '../../../shared/components/AppSuccessNotice/AppSuccessNotice'
+import { buildCourtScheduleShareUrl } from '../publicSchedule.helpers'
+import { ShareCourtScheduleSheet } from './ShareCourtScheduleSheet'
 
 export interface ShareCourtScheduleButtonProps {
   clubSlug: string
@@ -17,8 +18,9 @@ const CONFIRMATION_MESSAGE = `تم نسخ رابط الجدول
 /**
  * Share button for public court schedule.
  *
- * Implements native sharing on mobile/supported platforms and falls back to
- * clipboard copy on desktop. Preserves locked UI copy and feedback states.
+ * Serves as the single Schedule header entry point with locked copy and visual treatment.
+ * Constructs the canonical public schedule share URL once and passes it to
+ * ShareCourtScheduleSheet for consistent usage across copy, share, and QR generation.
  */
 export function ShareCourtScheduleButton({
   clubSlug,
@@ -27,12 +29,18 @@ export function ShareCourtScheduleButton({
   className = '',
   variant = 'header',
 }: ShareCourtScheduleButtonProps) {
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
-  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [notice, setNotice] = useState<{
+    message: string
+    tone: 'success' | 'warning'
+  } | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const copiedTimeoutRef = useRef<number | null>(null)
   const errorTimeoutRef = useRef<number | null>(null)
+
+  const shareUrl = buildCourtScheduleShareUrl({ clubSlug, courtId })
 
   useEffect(() => {
     return () => {
@@ -47,6 +55,7 @@ export function ShareCourtScheduleButton({
 
   function showError(message: string): void {
     setErrorMessage(message)
+    setNotice(null)
     if (errorTimeoutRef.current) {
       window.clearTimeout(errorTimeoutRef.current)
     }
@@ -55,56 +64,27 @@ export function ShareCourtScheduleButton({
     }, 3500)
   }
 
-  async function handleShare(): Promise<void> {
-    const publicUrl = buildPublicCourtScheduleUrl(clubSlug, courtId)
-    const title = courtName ? `جدول ${courtName}` : 'جدول الملعب'
-    const text = courtName ? `جدول مواعيد ${courtName}` : 'جدول مواعيد الملعب'
+  function handleCopySuccess(): void {
+    setIsCopied(true)
+    setNotice({ message: CONFIRMATION_MESSAGE, tone: 'success' })
+    setErrorMessage(null)
 
-    // When navigator.share exists -> native share
-    if (
-      typeof navigator !== 'undefined' &&
-      typeof navigator.share === 'function'
-    ) {
-      try {
-        await navigator.share({
-          title,
-          text,
-          url: publicUrl,
-        })
-        return
-      } catch (err: unknown) {
-        // If it rejects with AbortError: no error, no clipboard fallback, no copied state
-        if ((err as Error)?.name === 'AbortError') {
-          return
-        }
-        // If native share rejected with other error, show lightweight error
-        showError('تعذر إتمام المشاركة.')
-        return
-      }
+    if (copiedTimeoutRef.current) {
+      window.clearTimeout(copiedTimeoutRef.current)
     }
-
-    // When native share is unavailable -> clipboard.writeText(publicUrl)
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(publicUrl)
-        setIsCopied(true)
-        setShowConfirmation(true)
-        setErrorMessage(null)
-
-        if (copiedTimeoutRef.current) {
-          window.clearTimeout(copiedTimeoutRef.current)
-        }
-        copiedTimeoutRef.current = window.setTimeout(() => {
-          setIsCopied(false)
-        }, 2000)
-      } catch {
-        setIsCopied(false)
-        showError('تعذر نسخ الرابط إلى الحافظة.')
-      }
-    } else {
+    copiedTimeoutRef.current = window.setTimeout(() => {
       setIsCopied(false)
-      showError('المشاركة غير مدعومة على هذا المتصفح.')
-    }
+    }, 1500)
+  }
+
+  function handleDownloadSuccess(): void {
+    setNotice({ message: 'تم تحميل صورة QR', tone: 'success' })
+    setErrorMessage(null)
+  }
+
+  function handleInfo(message: string): void {
+    setNotice({ message, tone: 'warning' })
+    setErrorMessage(null)
   }
 
   const baseStyles =
@@ -127,7 +107,7 @@ export function ShareCourtScheduleButton({
           className,
         ].join(' ')}
         data-testid="share-court-schedule-button"
-        onClick={handleShare}
+        onClick={() => setIsSheetOpen(true)}
         type="button"
       >
         {isCopied ? (
@@ -140,10 +120,22 @@ export function ShareCourtScheduleButton({
         )}
       </button>
 
-      {showConfirmation ? (
+      <ShareCourtScheduleSheet
+        courtName={courtName}
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        onCopySuccess={handleCopySuccess}
+        onDownloadSuccess={handleDownloadSuccess}
+        onError={showError}
+        onInfo={handleInfo}
+        shareUrl={shareUrl}
+      />
+
+      {notice ? (
         <AppSuccessNotice
-          message={CONFIRMATION_MESSAGE}
-          onDismiss={() => setShowConfirmation(false)}
+          message={notice.message}
+          onDismiss={() => setNotice(null)}
+          tone={notice.tone}
         />
       ) : null}
 

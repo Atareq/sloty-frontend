@@ -20,4 +20,5 @@ export const appRoutes = {
   settings: '/settings',
   settingsUsers: '/settings/users',
   transactions: '/transactions',
+  noOperationalAccess: '/no-operational-access',
 } as const

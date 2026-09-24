@@ -129,12 +129,9 @@ export function CancelBookingReasonSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="إلغاء الحجز" onRequestClose={requestClose}>
-        <form className="p-5 pt-14" onSubmit={handleSubmit}>
+      <AppSheet title="إلغاء الحجز؟" onRequestClose={requestClose}>
+        <form className="p-5" onSubmit={handleSubmit}>
         <div className="space-y-1">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            إلغاء الحجز؟
-          </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {recurrenceWillEnd
               ? 'الحجز الحالي هيتلغي، وكمان تثبيت الموعد الأسبوعي هيتوقف.'

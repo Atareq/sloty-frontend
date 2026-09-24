@@ -14,9 +14,11 @@ import {
   getAccessToken,
   getRefreshToken,
 } from '../../../core/auth/authStorage'
+import { clearSelectedClubSlug } from '../../../core/auth/selectedClubStorage'
+import { clearSelectedCourtId } from '../../../core/auth/selectedCourtStorage'
 import { createDevAccessToken } from '../../../core/auth/devAuth'
 import type { CurrentUserProfile } from '../../../core/auth/auth.types'
-import { listClubs } from '../../../features/clubs/clubsApi'
+import { getClub, listClubs } from '../../../features/clubs/clubsApi'
 import { listCourts } from '../../../features/courts/courtsApi'
 import { LoginPage } from './LoginPage'
 
@@ -26,6 +28,7 @@ vi.mock('../../../core/auth/authApi', () => ({
 }))
 
 vi.mock('../../../features/clubs/clubsApi', () => ({
+  getClub: vi.fn(),
   listClubs: vi.fn(),
 }))
 
@@ -35,15 +38,16 @@ vi.mock('../../../features/courts/courtsApi', () => ({
 
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 const mockedLoginWithPassword = vi.mocked(loginWithPassword)
+const mockedGetClub = vi.mocked(getClub)
 const mockedListClubs = vi.mocked(listClubs)
 const mockedListCourts = vi.mocked(listCourts)
+
 const currentUserProfile: CurrentUserProfile = {
   id: 1,
-  username: 'staff-user',
   email: 'staff@example.com',
   first_name: 'أحمد',
   last_name: 'علي',
-  phone_number: null,
+  phone_number: '+201011122233',
   is_active: true,
   profile_role: 'STAFF',
   account_created_by: { id: 2, name: 'مالك النادي' },
@@ -77,8 +81,18 @@ function renderLoginPageWithRoutes() {
 describe('LoginPage', () => {
   beforeEach(() => {
     clearAuthTokens()
+    clearSelectedClubSlug()
+    clearSelectedCourtId()
     vi.clearAllMocks()
     mockedFetchCurrentUserProfile.mockResolvedValue(currentUserProfile)
+    mockedGetClub.mockResolvedValue({
+      id: 1,
+      name: 'نادي النصر',
+      slug: 'nasr-club',
+      city: 'ASSIUT',
+      is_active: true,
+      created: '2026-08-01T00:00:00Z',
+    })
     mockedListClubs.mockResolvedValue({
       count: 1,
       next: null,
@@ -105,42 +119,159 @@ describe('LoginPage', () => {
   it('renders the Arabic login heading', () => {
     renderLoginPage()
 
-    expect(screen.getByRole('heading', { name: 'تسجيل الدخول' }))
-      .toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'تسجيل الدخول' }),
+    ).toBeInTheDocument()
   })
 
   it('renders the Sloty brand block and login fields', () => {
     renderLoginPage()
 
     expect(screen.getByText('سلوتي')).toBeInTheDocument()
-    expect(screen.getByLabelText('إسم المستخدم'))
-      .toBeInTheDocument()
+    expect(screen.getByLabelText('رقم الموبايل')).toBeInTheDocument()
     expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
   })
 
-  it('uses a text login identifier field that supports usernames on mobile', async () => {
+  // Test 1 — payload: sends phone_number and password, NO username or email
+  it('sends phone_number and password in the login payload without username or email', async () => {
+    const user = userEvent.setup()
+    const accessToken = createDevAccessToken('STAFF')
+
+    mockedLoginWithPassword.mockResolvedValueOnce({
+      access: accessToken,
+      refresh: 'refresh-token',
+    })
+
+    renderLoginPageWithRoutes()
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01011122233')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(mockedLoginWithPassword).toHaveBeenCalledTimes(1)
+    const payload = mockedLoginWithPassword.mock.calls[0][0]
+    expect(payload).toEqual({
+      phone_number: '+201011122233',
+      password: 'secret',
+    })
+    expect(payload).not.toHaveProperty('username')
+    expect(payload).not.toHaveProperty('email')
+    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
+  })
+
+  // Test 2 — required phone: empty phone triggers required validation
+  it('shows required phone validation when phone number is empty', async () => {
     const user = userEvent.setup()
 
     renderLoginPage()
 
-    const usernameInput = screen.getByLabelText('إسم المستخدم')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
 
-    expect(usernameInput).toHaveAttribute('type', 'text')
-    expect(usernameInput).toHaveAttribute('autocomplete', 'username')
-    expect(usernameInput).toHaveAttribute('autocapitalize', 'none')
-    expect(usernameInput).toHaveAttribute('autocorrect', 'off')
-    expect(usernameInput).toHaveAttribute('spellcheck', 'false')
-    expect(usernameInput).not.toHaveAttribute('inputmode', 'tel')
-    expect(usernameInput).not.toHaveAttribute('inputmode', 'numeric')
-    expect(usernameInput).toHaveAttribute(
-      'placeholder',
-      'اسم المستخدم',
+    expect(await screen.findByText('رقم الموبايل مطلوب')).toBeInTheDocument()
+    expect(mockedLoginWithPassword).not.toHaveBeenCalled()
+  })
+
+  // Test 3 — invalid phone: invalid phone triggers shared invalid-phone validation
+  it('shows invalid phone validation when phone number is invalid', async () => {
+    const user = userEvent.setup()
+
+    renderLoginPage()
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '12345')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(await screen.findByText('رقم الموبايل غير صحيح')).toBeInTheDocument()
+    expect(mockedLoginWithPassword).not.toHaveBeenCalled()
+  })
+
+  // Test 4 — success: stores access and refresh tokens and continues session flow
+  it('stores access and refresh tokens on successful login and redirects', async () => {
+    const user = userEvent.setup()
+    const accessToken = createDevAccessToken('STAFF')
+
+    mockedLoginWithPassword.mockResolvedValueOnce({
+      access: accessToken,
+      refresh: 'REFRESH_TOKEN',
+    })
+
+    renderLoginPageWithRoutes()
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
+    expect(getAccessToken()).toBe(accessToken)
+    expect(getRefreshToken()).toBe('REFRESH_TOKEN')
+  })
+
+  // Test 5 — generic auth failure: 401 returns generic error without account enumeration
+  it('shows a generic login error on 401 without account enumeration', async () => {
+    const user = userEvent.setup()
+
+    mockedLoginWithPassword.mockRejectedValueOnce(
+      new ApiClientError('Unauthorized', 401),
     )
-    expect(screen.queryByText('01')).not.toBeInTheDocument()
 
-    await user.type(usernameInput, 'manager_a')
+    renderLoginPageWithRoutes()
 
-    expect(usernameInput).toHaveValue('manager_a')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'wrong-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(
+      await screen.findByText(
+        'تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('لوحة التحكم')).not.toBeInTheDocument()
+    expect(getAccessToken()).toBeNull()
+  })
+
+  // Test 6 — no username dependency in auth code / UI
+  it('does not render username input, labels, or username autocomplete', () => {
+    renderLoginPage()
+
+    expect(screen.queryByLabelText('إسم المستخدم')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('اسم المستخدم')).not.toBeInTheDocument()
+    expect(screen.queryByText('اسم المستخدم')).not.toBeInTheDocument()
+    expect(
+      document.querySelector('input[autocomplete="username"]'),
+    ).not.toBeInTheDocument()
+  })
+
+  // Test 7 — /me does not require username
+  it('hydrates user session successfully when /me response does not contain username', async () => {
+    const user = userEvent.setup()
+    const accessToken = createDevAccessToken('STAFF')
+
+    // /me response without username field
+    const profileWithoutUsername: CurrentUserProfile = {
+      id: 10,
+      email: 'user@example.com',
+      first_name: 'طارق',
+      last_name: 'أحمد',
+      phone_number: '+201099887766',
+      is_active: true,
+      profile_role: 'STAFF',
+      account_created_by: null,
+    }
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce(profileWithoutUsername)
+    mockedLoginWithPassword.mockResolvedValueOnce({
+      access: accessToken,
+      refresh: 'refresh-token',
+    })
+
+    renderLoginPageWithRoutes()
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01099887766')
+    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
+
+    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
+    expect(getAccessToken()).toBe(accessToken)
   })
 
   it('keeps password manager autocomplete on the password field', () => {
@@ -169,79 +300,6 @@ describe('LoginPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('calls the auth API and stores tokens on successful login', async () => {
-    const user = userEvent.setup()
-    const accessToken = createDevAccessToken('STAFF')
-
-    mockedLoginWithPassword.mockResolvedValueOnce({
-      access: accessToken,
-      refresh: 'refresh-token',
-    })
-
-    renderLoginPageWithRoutes()
-
-    await user.type(
-      screen.getByLabelText('إسم المستخدم'),
-      'manager_a',
-    )
-    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
-
-    expect(mockedLoginWithPassword).toHaveBeenCalledWith({
-      username: 'manager_a',
-      password: 'secret-pass',
-    })
-    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
-    expect(getAccessToken()).toBe(accessToken)
-    expect(getRefreshToken()).toBe('refresh-token')
-  })
-
-  it('sends phone-number login through the username payload field', async () => {
-    const user = userEvent.setup()
-    const accessToken = createDevAccessToken('STAFF')
-
-    mockedLoginWithPassword.mockResolvedValueOnce({
-      access: accessToken,
-      refresh: 'refresh-token',
-    })
-
-    renderLoginPageWithRoutes()
-
-    await user.type(
-      screen.getByLabelText('إسم المستخدم'),
-      '01012345678',
-    )
-    await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
-
-    expect(mockedLoginWithPassword).toHaveBeenCalledWith({
-      username: '01012345678',
-      password: 'secret-pass',
-    })
-    expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
-  })
-
-  it('shows an Arabic error when the auth API rejects login', async () => {
-    const user = userEvent.setup()
-
-    mockedLoginWithPassword.mockRejectedValueOnce(new Error('Unauthorized'))
-
-    renderLoginPageWithRoutes()
-
-    await user.type(
-      screen.getByLabelText('إسم المستخدم'),
-      'wrong-user',
-    )
-    await user.type(screen.getByLabelText('كلمة المرور'), 'bad-pass')
-    await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
-
-    expect(
-      await screen.findByText('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى'),
-    ).toBeInTheDocument()
-    expect(screen.queryByText('لوحة التحكم')).not.toBeInTheDocument()
-    expect(getAccessToken()).toBeNull()
-  })
-
   it('shows backend login message and field errors when available', async () => {
     const user = userEvent.setup()
 
@@ -249,10 +307,10 @@ describe('LoginPage', () => {
       new ApiClientError('بيانات الدخول غير صحيحة', 400, {
         code: 'VALIDATION_ERROR',
         fieldErrors: {
-          username: [
+          phone_number: [
             {
-              code: 'INVALID_USERNAME',
-              message: 'اسم المستخدم غير صحيح',
+              code: 'INVALID_PHONE',
+              message: 'رقم الموبايل غير مسجل',
             },
           ],
           password: [
@@ -267,16 +325,12 @@ describe('LoginPage', () => {
 
     renderLoginPageWithRoutes()
 
-    await user.type(
-      screen.getByLabelText('إسم المستخدم'),
-      'wrong-user',
-    )
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.type(screen.getByLabelText('كلمة المرور'), 'bad-pass')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
 
-    expect(await screen.findByText('بيانات الدخول غير صحيحة'))
-      .toBeInTheDocument()
-    expect(screen.getByText('اسم المستخدم غير صحيح')).toBeInTheDocument()
+    expect(await screen.findByText('بيانات الدخول غير صحيحة')).toBeInTheDocument()
+    expect(screen.getByText('رقم الموبايل غير مسجل')).toBeInTheDocument()
     expect(screen.getByText('كلمة المرور غير صحيحة')).toBeInTheDocument()
     expect(getAccessToken()).toBeNull()
   })
@@ -335,9 +389,7 @@ describe('LoginPage', () => {
       </AuthProvider>,
     )
 
-    expect(
-      screen.getByText('مش من فريق العمل في الملعب؟'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('مش من فريق العمل في الملعب؟')).toBeInTheDocument()
     expect(
       screen.getByText('تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.'),
     ).toBeInTheDocument()
@@ -396,7 +448,7 @@ describe('LoginPage', () => {
       </AuthProvider>,
     )
 
-    await user.type(screen.getByLabelText('إسم المستخدم'), 'manager_a')
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
     await user.type(screen.getByLabelText('كلمة المرور'), 'secret-pass')
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
 

@@ -17,7 +17,7 @@ import {
   listBookingSlots,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingNotes,
+  updateBooking,
 } from '../../schedule/scheduleApi'
 import type { AuthRole } from '../../../core/auth/auth.types'
 import { createTransaction } from '../../transactions/transactionsApi'
@@ -65,6 +65,7 @@ vi.mock('../../schedule/scheduleApi', () => ({
   markBookingNoShow: vi.fn(),
   previewBookingCancellation: vi.fn(),
   rescheduleBooking: vi.fn(),
+  updateBooking: vi.fn(),
   updateBookingCustomer: vi.fn(),
   updateBookingNotes: vi.fn(),
 }))
@@ -86,7 +87,7 @@ const mockedGetBookingRecurrenceNext = vi.mocked(getBookingRecurrenceNext)
 const mockedListBookingSlots = vi.mocked(listBookingSlots)
 const mockedPreviewBookingCancellation = vi.mocked(previewBookingCancellation)
 const mockedRescheduleBooking = vi.mocked(rescheduleBooking)
-const mockedUpdateBookingNotes = vi.mocked(updateBookingNotes)
+const mockedUpdateBooking = vi.mocked(updateBooking)
 const mockedCreateTransaction = vi.mocked(createTransaction)
 
 function bookingFixture(
@@ -164,6 +165,7 @@ function mockAuth(
     role,
     accessibleCourts: role === 'STAFF' ? ([{ id: 3, name: 'ملعب 1' }] as never) : [],
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -1191,7 +1193,7 @@ describe('BookingsListPage', () => {
       next_end_time: '2026-09-15T09:00:00+03:00',
       next_total_price: '350.00',
       next_required_deposit: '0.00',
-      requires_payment_reference: false,
+      requires_digital_payment_reference: false,
     })
     mockedCompleteBooking.mockResolvedValueOnce({
       ...recurringBooking,
@@ -1471,7 +1473,7 @@ describe('BookingsListPage', () => {
       .not.toBeInTheDocument()
   })
 
-  it('edits booking notes then refetches booking detail', async () => {
+  it('edits booking identity and notes then refetches booking detail', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const holdBooking = bookingFixture({
       id: 55,
@@ -1496,7 +1498,8 @@ describe('BookingsListPage', () => {
         ...holdBooking,
         notes: 'ملاحظة جديدة',
       })
-    mockedUpdateBookingNotes.mockResolvedValueOnce({
+    mockedUpdateBooking.mockResolvedValueOnce({
+      ...holdBooking,
       notes: 'ملاحظة جديدة',
     })
 
@@ -1510,13 +1513,18 @@ describe('BookingsListPage', () => {
     const notesInput = await screen.findByLabelText('ملاحظات')
     await user.clear(notesInput)
     await user.type(notesInput, 'ملاحظة جديدة')
-    await user.click(screen.getByRole('button', { name: 'حفظ الملاحظات' }))
+    await user.click(screen.getByRole('button', { name: 'حفظ التعديلات' }))
 
     await waitFor(() => {
-      expect(mockedUpdateBookingNotes).toHaveBeenCalledWith('nasr-club', 55, {
+      expect(mockedUpdateBooking).toHaveBeenCalledWith('nasr-club', 55, {
+        customer_name: 'أحمد علي',
+        customer_phone: '+201012345678',
         notes: 'ملاحظة جديدة',
       })
     })
+    const updatePayload = mockedUpdateBooking.mock.calls[0]?.[2]
+    expect(updatePayload).not.toHaveProperty('club_player_id')
+    expect(updatePayload).not.toHaveProperty('player_profile_id')
     expect(mockedGetBooking).toHaveBeenCalledTimes(2)
     expect(mockedOfflineRepositories.saveBookingDetail).toHaveBeenCalledWith(
       { userId: 1, clubSlug: 'nasr-club' },
@@ -1621,8 +1629,8 @@ describe('BookingsListPage', () => {
     await waitFor(() => {
       expect(mockedRescheduleBooking).toHaveBeenCalledWith('nasr-club', 57, {
         court: 3,
-        start_time: '2026-07-21T18:00:00',
-        end_time: '2026-07-21T19:00:00',
+        start_time: '2026-07-21T18:00:00+03:00',
+        end_time: '2026-07-21T19:00:00+03:00',
       })
     })
     expect(mockedGetBooking).toHaveBeenCalled()

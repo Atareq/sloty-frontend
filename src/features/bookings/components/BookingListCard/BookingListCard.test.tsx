@@ -54,6 +54,21 @@ describe('BookingListCard', () => {
     expect(handleSelect).toHaveBeenCalledWith(confirmedBooking)
   })
 
+  it('does not add booking-detail clarification to the compact list card', () => {
+    render(
+      <BookingListCard
+        booking={{
+          ...confirmedBooking,
+          start_time: '2026-07-21T00:00:00+03:00',
+          end_time: '2026-07-21T12:00:00+03:00',
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('(منتصف الليل)')).not.toBeInTheDocument()
+    expect(screen.queryByText('(ظهرًا)')).not.toBeInTheDocument()
+  })
+
   it('keeps completed bookings selectable for read-only details', async () => {
     const user = userEvent.setup()
     const handleSelect = vi.fn()

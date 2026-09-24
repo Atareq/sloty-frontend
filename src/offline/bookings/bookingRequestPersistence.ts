@@ -1,8 +1,11 @@
 import type {
+  BookingIntentPayload,
   BookingRequestRecord,
   BookingRequestReviewReason,
   BookingRequestStatus,
   ScopedOfflineRecord,
+  SyncQueueItem,
+  SyncQueueStatus,
 } from '../offline.types'
 
 type LegacyBookingIntentStatus =
@@ -73,6 +76,7 @@ export function mapLegacyBookingIntentStatus(
   status: BookingRequestStatus
 } {
   switch (status) {
+    case 'SYNCED':
     case 'BOOKED':
       return { reviewReason: null, status: 'BOOKED' }
     case 'DISMISSED':
@@ -83,11 +87,14 @@ export function mapLegacyBookingIntentStatus(
       return { reviewReason: null, status: 'SYNCING' }
     case 'NEEDS_REVIEW':
       return { reviewReason: null, status: 'NEEDS_REVIEW' }
+    case 'FAILED':
+      return { reviewReason: null, status: 'NEEDS_REVIEW' }
     case 'EXPIRED':
       // Legacy EXPIRED was assigned only because the appointment time passed.
       // Historical Booking Requests are now valid, so preserve the customer
       // intent as recoverable work instead of terminalizing it.
       return { reviewReason: null, status: 'PENDING_SYNC' }
+    case 'PENDING':
     case 'READY_TO_BOOK':
     case 'PENDING_RECHECK':
     case 'PENDING_SYNC':
@@ -103,7 +110,8 @@ function normalizeReviewReason(
   if (
     value === 'SLOT_UNAVAILABLE' ||
     value === 'INVALID_CUSTOMER_DATA' ||
-    value === 'RECURRING_UNAVAILABLE'
+    value === 'RECURRING_UNAVAILABLE' ||
+    value === 'CLIENT_REQUEST_MISMATCH'
   ) {
     return value
   }
@@ -132,23 +140,40 @@ export function normalizeBookingRequestRecord(
     ? record.client_request_id
     : generatedClientRequestId()
 
+  const localId = record.local_id ?? record.id ?? createFallbackId()
+  const actionType = record.action_type ?? record.type ?? 'CREATE_BOOKING'
+  const retryCount = typeof record.retry_count === 'number' ? record.retry_count : 0
+  const courtId = record.court_id ?? record.payload?.court_id ?? 0
+  const requestedDate = record.requested_date ?? record.payload?.requested_date ?? ''
+  const requestedStart = record.requested_start ?? record.payload?.requested_start ?? ''
+  const requestedEnd = record.requested_end ?? record.payload?.requested_end ?? ''
+  const customerName = record.customer_name ?? record.payload?.customer_name ?? ''
+  const customerPhone = record.customer_phone ?? record.payload?.customer_phone ?? ''
+  const notes = record.notes ?? record.payload?.notes ?? null
+  const requestedRecurring =
+    record.requested_recurring === true || record.payload?.requested_recurring === true
+
   return {
     ...record,
     scope_key: record.scope_key ?? '',
     user_id: record.user_id ?? 0,
     club_slug: record.club_slug ?? '',
-    local_id: record.local_id ?? createFallbackId(),
+    local_id: localId,
+    id: localId,
+    action_type: actionType,
+    type: actionType,
     client_request_id: clientRequestId,
-    court_id: record.court_id ?? 0,
-    requested_date: record.requested_date ?? '',
-    requested_start: record.requested_start ?? '',
-    requested_end: record.requested_end ?? '',
-    customer_name: record.customer_name ?? '',
-    customer_phone: record.customer_phone ?? '',
-    notes: record.notes ?? null,
-    requested_recurring: record.requested_recurring === true,
+    court_id: courtId,
+    requested_date: requestedDate,
+    requested_start: requestedStart,
+    requested_end: requestedEnd,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    notes,
+    requested_recurring: requestedRecurring,
     original_slot_snapshot: record.original_slot_snapshot,
     status: mappedStatus.status,
+    retry_count: retryCount,
     review_reason: normalizeReviewReason(
       record.review_reason,
       mappedStatus.reviewReason,
@@ -158,5 +183,55 @@ export function normalizeBookingRequestRecord(
     last_attempt_at: record.last_attempt_at ?? null,
     resolved_booking_id: record.resolved_booking_id ?? null,
     backend_attempt_id: record.backend_attempt_id ?? null,
+    payload: record.payload ?? {
+      court_id: courtId,
+      requested_date: requestedDate,
+      requested_start: requestedStart,
+      requested_end: requestedEnd,
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      notes,
+      requested_recurring: requestedRecurring,
+    },
   } as BookingRequestRecord
+}
+
+/**
+ * Exposes a canonical queue item view of a persisted booking intent.
+ */
+export function toSyncQueueItem(
+  record: BookingRequestRecord,
+): SyncQueueItem<BookingIntentPayload> {
+  const normalized = normalizeBookingRequestRecord(record)
+
+  let queueStatus: SyncQueueStatus
+  if (normalized.status === 'BOOKED') {
+    queueStatus = 'SYNCED'
+  } else if (normalized.status === 'SYNCING') {
+    queueStatus = 'SYNCING'
+  } else if (normalized.status === 'NEEDS_REVIEW') {
+    queueStatus = 'NEEDS_REVIEW'
+  } else if (normalized.status === 'DISMISSED') {
+    queueStatus = 'FAILED'
+  } else {
+    queueStatus = 'PENDING'
+  }
+
+  return {
+    id: normalized.local_id,
+    action_type: normalized.action_type ?? 'CREATE_BOOKING',
+    payload: normalized.payload ?? {
+      court_id: normalized.court_id,
+      requested_date: normalized.requested_date,
+      requested_start: normalized.requested_start,
+      requested_end: normalized.requested_end,
+      customer_name: normalized.customer_name,
+      customer_phone: normalized.customer_phone,
+      notes: normalized.notes,
+      requested_recurring: normalized.requested_recurring,
+    },
+    created_at: normalized.created_at,
+    retry_count: normalized.retry_count ?? 0,
+    status: queueStatus,
+  }
 }

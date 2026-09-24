@@ -116,4 +116,71 @@ describe('AppSheet', () => {
     window.history.back()
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+
+  it('renders visible heading in sloty-green-surface and sets accessible name when title is provided', () => {
+    render(
+      <AppSheet onRequestClose={vi.fn()} title="تفاصيل العملية المالية">
+        <p>محتوى الشيت</p>
+      </AppSheet>,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'تفاصيل العملية المالية' })
+    expect(dialog).toBeInTheDocument()
+
+    const heading = screen.getByRole('heading', { name: 'تفاصيل العملية المالية' })
+    expect(heading).toBeInTheDocument()
+    expect(heading).toHaveClass('text-white')
+    expect(heading.parentElement).toHaveClass('sloty-green-surface')
+  })
+
+  it('sets accessible name from ariaLabel without rendering visible heading when only ariaLabel is provided', () => {
+    render(
+      <AppSheet ariaLabel="اختيار الملعب" onRequestClose={vi.fn()}>
+        <p>محتوى الشيت</p>
+      </AppSheet>,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'اختيار الملعب' })
+    expect(dialog).toBeInTheDocument()
+
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+    expect(screen.queryByText('اختيار الملعب')).not.toBeInTheDocument()
+  })
+
+  it('renders visible heading once when both title and ariaLabel are provided', () => {
+    render(
+      <AppSheet
+        ariaLabel="تسجيل الخروج"
+        onRequestClose={vi.fn()}
+        title="تسجيل الخروج"
+      >
+        <p>محتوى تأكيد الخروج</p>
+      </AppSheet>,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'تسجيل الخروج' })
+    expect(dialog).toBeInTheDocument()
+
+    const headings = screen.getAllByRole('heading', { name: 'تسجيل الخروج' })
+    expect(headings).toHaveLength(1)
+  })
+
+  it('identifies missing title and missing ariaLabel as an invalid usage', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(() => {
+      render(
+        <AppSheet onRequestClose={vi.fn()}>
+          <p>محتوى بدون تسمية</p>
+        </AppSheet>,
+      )
+    }).toThrow('AppSheet: An accessible name must be provided using either "title" or "ariaLabel".')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('AppSheet: An accessible name must be provided'),
+    )
+
+    consoleSpy.mockRestore()
+  })
 })
+

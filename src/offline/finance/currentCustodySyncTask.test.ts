@@ -23,8 +23,8 @@ describe('current custody sync task', () => {
     const summary: CurrentCustodySummaryResponse = {
       results: [
         {
-          user: 15,
-          user_name: 'محمد علي',
+          collected_by: 15,
+          collected_by_name: 'محمد علي',
           transaction_count: 3,
           net_amount: '1250.00',
           totals_by_payment_method: {

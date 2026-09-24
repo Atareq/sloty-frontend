@@ -48,7 +48,7 @@ function normalizePlatformAdminPayload(
   payload: PlatformAdminUserPayload,
 ): PlatformAdminUserPayload {
   return {
-    username: payload.username.trim(),
+    ...(payload.username?.trim() ? { username: payload.username.trim() } : {}),
     password: payload.password,
     first_name: payload.first_name.trim(),
     last_name: optionalText(payload.last_name),
@@ -83,6 +83,12 @@ export function getPlatformUser(
 /**
  * Creates a new platform admin user via POST /api/v1/users/.
  * The backend assigns the ADMIN profile_role based on internal rules.
+ *
+ * NOTE: BLOCKED BY BACKEND CONTRACT.
+ * Backend UserViewSet strictly allows ('get', 'patch', 'head', 'options').
+ * Platform admin accounts cannot be created via the REST API; they require
+ * backend CLI (createsuperuser/management commands). This method remains
+ * typed for interface compatibility but is blocked by backend contract.
  */
 export function createPlatformAdmin(
   payload: PlatformAdminUserPayload,

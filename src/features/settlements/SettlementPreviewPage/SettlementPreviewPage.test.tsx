@@ -57,6 +57,7 @@ function mockAuth(
     selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,
@@ -724,5 +725,20 @@ describe('SettlementPreviewPage', () => {
       await screen.findByText('تعذر تحديد المحصل لهذه التسوية.'),
     ).toBeInTheDocument()
     expect(mockedCreateSettlement).not.toHaveBeenCalled()
+  })
+
+  it('blocks settlement confirmation while offline', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+
+    renderPage()
+
+    expect(
+      await screen.findByText('يحتاج اتصال بالإنترنت'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تأكيد استلام المبلغ' }),
+    ).not.toBeInTheDocument()
+    expect(mockedCreateSettlement).not.toHaveBeenCalled()
+    vi.restoreAllMocks()
   })
 })

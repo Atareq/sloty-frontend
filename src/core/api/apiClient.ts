@@ -8,7 +8,6 @@ import {
   markSessionExpiredNotice,
   setAccessToken,
 } from '../auth/authStorage'
-import { decodeAccessToken, isJwtExpired } from '../auth/tokenUtils'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -505,24 +504,6 @@ export async function apiRequest<TResponse>(
               : 'UNAUTHORIZED',
         })
       }
-    } else {
-      // Proactive UX check: if access token is already expired and we have a refresh token
-      const currentToken = getAccessToken()
-      const claims = decodeAccessToken(currentToken)
-      if (isJwtExpired(claims) && getRefreshToken()) {
-        const refreshResult = await refreshSession()
-        if (
-          refreshResult.status === 'auth_failed' ||
-          refreshResult.status === 'aborted'
-        ) {
-          throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
-            code:
-              refreshResult.status === 'auth_failed'
-                ? (refreshResult.code ?? 'UNAUTHORIZED')
-                : 'UNAUTHORIZED',
-          })
-        }
-      }
     }
 
     if (sessionGeneration !== requestGeneration) {
@@ -570,6 +551,12 @@ export async function apiRequest<TResponse>(
     throw new ApiClientError(NETWORK_ERROR_MESSAGE, 0, {
       code: 'NETWORK_ERROR',
       raw: error,
+    })
+  }
+
+  if (!isAuthExcluded && sessionGeneration !== requestGeneration) {
+    throw new ApiClientError(SESSION_EXPIRED_MESSAGE, 401, {
+      code: 'UNAUTHORIZED',
     })
   }
 

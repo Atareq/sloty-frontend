@@ -1,4 +1,5 @@
 import { canChooseOperationalCourt } from '../../core/auth/auth.types'
+import { extractResults } from '../../shared/api/pagination.helpers'
 import { listCourts as defaultListCourts } from '../../features/courts/courtsApi'
 import type { Court } from '../../features/courts/courts.types'
 import {
@@ -80,7 +81,7 @@ export async function getAuthorizedScheduleCourtIds(
 
   const response = await listCourts(context.clubSlug, { signal })
 
-  return response.results
+  return extractResults(response)
     .filter((court) => court.is_active)
     .map((court) => court.id)
 }

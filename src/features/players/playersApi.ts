@@ -1,5 +1,6 @@
 import { apiRequest } from '../../core/api/apiClient'
-import type { PaginatedResponse } from '../../shared/api/api.types'
+import { extractResults } from '../../shared/api/pagination.helpers'
+import type { PaginatedResponse } from '../../shared/api/pagination.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import type { ClubPlayer, ListClubPlayersParams } from './players.types'
 
@@ -41,15 +42,7 @@ export async function listClubPlayers(
       PaginatedResponse<ClubPlayer> | ClubPlayer[]
     >(path)
 
-    if (Array.isArray(response)) {
-      return response
-    }
-
-    if (Array.isArray(response?.results)) {
-      return response.results
-    }
-
-    return []
+    return extractResults(response)
   } catch {
     return []
   }

@@ -10,8 +10,8 @@ const baseBooking: BookingListItem = {
   court: 7,
   customer_name: 'أحمد علي',
   customer_phone: '01000000000',
-  start_time: '2026-07-21T20:00:00',
-  end_time: '2026-07-21T21:00:00',
+  start_time: '2026-07-21T20:00:00+03:00',
+  end_time: '2026-07-21T21:00:00+03:00',
   status: 'CONFIRMED',
   total_price: '250.00',
   paid_amount: '100.00',
@@ -40,7 +40,10 @@ describe('BookingActionSheet', () => {
 
     expect(screen.getByRole('heading', { name: 'أحمد علي' })).toBeInTheDocument()
     expect(screen.getByText('01000000000')).toHaveAttribute('dir', 'ltr')
-    expect(screen.getByText(/الثلاثاء، ٢١ يوليو/)).toBeInTheDocument()
+    expect(screen.getByText('09:00 PM - 08:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
     expect(screen.getByText('ملعب 1')).toBeInTheDocument()
     expect(screen.getByText('الحجز خلص ولسه عليه 150.00 ج.م'))
       .toBeInTheDocument()
@@ -49,6 +52,68 @@ describe('BookingActionSheet', () => {
     expect(screen.getByText('150.00 جنيه')).toBeInTheDocument()
     expect(screen.queryByText('CONFIRMED')).not.toBeInTheDocument()
     expect(screen.queryByText(baseBooking.start_time)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      'midnight',
+      '2026-07-21T00:00:00+03:00',
+      '2026-07-21T01:00:00+03:00',
+      '01:00 AM - 12:00 AM',
+      'منتصف الليل',
+    ],
+    [
+      'noon',
+      '2026-07-21T12:00:00+03:00',
+      '2026-07-21T13:00:00+03:00',
+      '01:00 PM - 12:00 PM',
+      'ظهرًا',
+    ],
+  ])('clarifies %s alongside the current detail-time presentation', (
+    _label,
+    startTime,
+    endTime,
+    expectedRange,
+    expectedClarification,
+  ) => {
+    renderSheet({
+      ...baseBooking,
+      start_time: startTime,
+      end_time: endTime,
+    })
+
+    const timeRange = screen.getByText(expectedRange)
+    expect(timeRange).toHaveAttribute('dir', 'ltr')
+    expect(timeRange.parentElement).toHaveAttribute('dir', 'rtl')
+    expect(timeRange.parentElement).toHaveClass(
+      'flex',
+      'w-full',
+      'items-center',
+      'justify-between',
+    )
+    const clarification = screen.getByText(expectedClarification)
+    expect(clarification.parentElement).toHaveClass('shrink-0')
+    expect(clarification).toHaveClass(
+      'rounded-full',
+      'bg-[var(--sloty-success-soft)]',
+      'text-[var(--sloty-success)]',
+    )
+    expect(timeRange).toBeInTheDocument()
+  })
+
+  it('renders normal times as one LTR 12-hour range without clarification', () => {
+    renderSheet({
+      ...baseBooking,
+      start_time: '2026-07-21T18:00:00+03:00',
+      end_time: '2026-07-21T23:00:00+03:00',
+    })
+
+    expect(screen.getByText('11:00 PM - 06:00 PM')).toHaveAttribute(
+      'dir',
+      'ltr',
+    )
+    expect(screen.queryByText('منتصف الليل')).not.toBeInTheDocument()
+    expect(screen.queryByText('ظهرًا')).not.toBeInTheDocument()
   })
 
   it('shows one HOLD primary deposit CTA and cancellation under options', async () => {

@@ -5,10 +5,10 @@ import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
-import type { ClubUser } from '../../clubUsers/clubUsers.types'
 import { getAuditLog, listAuditLogs } from '../auditApi'
 import type { AuditLogEntry, AuditQueryParams } from '../audit.types'
 import {
@@ -81,11 +81,6 @@ function getAuditSearch(params: AuditQueryParams): string {
   return queryString ? `?${queryString}` : ''
 }
 
-function normalizeClubUsersResponse(
-  response: ClubUser[] | { results: ClubUser[] },
-): ClubUser[] {
-  return Array.isArray(response) ? response : response.results
-}
 
 /**
  * Read-only sensitive activity log for club owners.
@@ -131,7 +126,7 @@ export function AuditLogsPage() {
         const response = await listAuditLogs(clubSlug, params)
 
         if (isActive) {
-          setEntries(response.results)
+          setEntries(extractResults(response))
         }
       } catch (error) {
         if (isActive) {
@@ -172,7 +167,7 @@ export function AuditLogsPage() {
         }
 
         setUserOptions(
-          normalizeClubUsersResponse(response).map((clubUser) => ({
+          extractResults(response).map((clubUser) => ({
             value: String(clubUser.id),
             label: getClubUserDisplayName(clubUser),
           })),

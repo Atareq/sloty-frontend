@@ -18,19 +18,16 @@ import {
 } from '../../../../shared/validation/phone'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
 import { formatArabicDateTime } from '../../../../shared/utils/date'
-import { formatTime12Hour } from '../../scheduleBoard.helpers'
+import { BookingDetailTimeRange } from '../../../bookings/components/BookingDetailTimeRange/BookingDetailTimeRange'
+import { formatBookingTimeRange } from '../../../bookings/bookingDisplay.helpers'
 import { PlayerCombobox } from '../../../players/components/PlayerCombobox/PlayerCombobox'
 import { listClubPlayers } from '../../../players/playersApi'
-import {
-  arePhoneNumbersMatching,
-  getClubPlayerPhone,
-  type ClubPlayer,
-} from '../../../players/players.types'
+import { getClubPlayerPhone } from '../../../players/players.types'
+import type { ClubPlayer } from '../../../players/players.types'
 
 export interface AddBookingSheetValues {
   customer_name: string
   customer_phone: string
-  club_player_id?: number
   is_recurring: boolean
   notes?: string
 }
@@ -111,9 +108,13 @@ export function AddBookingSheet({
   const [customerPhone, setCustomerPhone] = useState(
     initialValues?.customer_phone ?? '',
   )
-  const [selectedPlayer, setSelectedPlayer] = useState<ClubPlayer | null>(null)
   const [playerOptions, setPlayerOptions] = useState<ClubPlayer[]>([])
   const [isSearchingPlayers, setIsSearchingPlayers] = useState(false)
+  const isNameOverriddenRef = useRef<boolean>(
+    Boolean(initialValues?.customer_name?.trim()),
+  )
+  const autoFilledNameRef = useRef<string | null>(null)
+  const phoneSearchSeqRef = useRef<number>(0)
   const phoneSearchTimeoutRef = useRef<number | null>(null)
 
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
@@ -122,10 +123,6 @@ export function AddBookingSheet({
   const nameFieldError = getFirstFieldErrorMessage(
     fieldErrors,
     'customer_name',
-  )
-  const playerFieldError = getFirstFieldErrorMessage(
-    fieldErrors,
-    'club_player_id',
   )
   const phoneFieldError =
     getFirstFieldErrorMessage(fieldErrors, 'customer_phone') ??
@@ -151,8 +148,6 @@ export function AddBookingSheet({
     ? 'جاري حفظ الطلب...'
     : 'جاري الحجز...'
 
-  const displayStartTime = formatTime12Hour(startTime)
-  const displayEndTime = formatTime12Hour(endTime)
   const initialName = initialValues?.customer_name ?? ''
   const initialPhone = initialValues?.customer_phone ?? ''
   const initialNotes = initialValues?.notes ?? ''
@@ -172,59 +167,89 @@ export function AddBookingSheet({
     }
   }, [])
 
-  function handlePhoneChange(newPhone: string) {
-    setCustomerPhone(newPhone)
-
-    // Clear selected player if phone no longer matches the selected player
-    if (selectedPlayer) {
-      const playerPhone = getClubPlayerPhone(selectedPlayer)
-      if (!arePhoneNumbersMatching(newPhone, playerPhone, selectedCountry)) {
-        setSelectedPlayer(null)
-      }
-    }
-
+  function triggerPhoneSearch(phone: string, country: Country) {
     if (phoneSearchTimeoutRef.current) {
       window.clearTimeout(phoneSearchTimeoutRef.current)
     }
 
-    const trimmedPhone = newPhone.trim()
-    if (!clubSlug || trimmedPhone.length < 3) {
+    const currentSeq = ++phoneSearchSeqRef.current
+    const trimmedPhone = phone.trim()
+
+    const isPhoneComplete = Boolean(
+      clubSlug &&
+        trimmedPhone &&
+        validatePhoneNumber(trimmedPhone, country, { required: true }).valid,
+    )
+
+    if (!isPhoneComplete) {
       setPlayerOptions([])
       setIsSearchingPlayers(false)
+      // If current name was auto-filled from previous phone and user never edited it,
+      // clear it when phone becomes incomplete.
+      if (!isNameOverriddenRef.current && autoFilledNameRef.current) {
+        setCustomerName('')
+        autoFilledNameRef.current = null
+      }
       return
     }
 
     setIsSearchingPlayers(true)
     phoneSearchTimeoutRef.current = window.setTimeout(async () => {
       try {
-        const results = await listClubPlayers(clubSlug, {
+        const results = await listClubPlayers(clubSlug!, {
           search: trimmedPhone,
           order_by: '-last_used_at',
         })
+
+        if (phoneSearchSeqRef.current !== currentSeq) {
+          return
+        }
+
         setPlayerOptions(results)
-        if (results.length > 0) {
-          // Default to latest used player name from Backend
-          setCustomerName(results[0].display_name)
-          setSelectedPlayer(results[0])
+
+        if (!isNameOverriddenRef.current) {
+          if (results.length > 0 && results[0].display_name) {
+            const defaultName = results[0].display_name
+            setCustomerName(defaultName)
+            autoFilledNameRef.current = defaultName
+          } else if (autoFilledNameRef.current) {
+            setCustomerName('')
+            autoFilledNameRef.current = null
+          }
         }
       } catch {
+        if (phoneSearchSeqRef.current !== currentSeq) {
+          return
+        }
         setPlayerOptions([])
       } finally {
-        setIsSearchingPlayers(false)
+        if (phoneSearchSeqRef.current === currentSeq) {
+          setIsSearchingPlayers(false)
+        }
       }
     }, 300)
   }
 
-  function handleNameChange(newName: string) {
-    setCustomerName(newName)
-    if (selectedPlayer && selectedPlayer.display_name !== newName) {
-      setSelectedPlayer(null)
+  function handlePhoneChange(newPhone: string) {
+    setCustomerPhone(newPhone)
+    triggerPhoneSearch(newPhone, selectedCountry)
+  }
+
+  function handleCountryChange(newCountry: Country) {
+    setSelectedCountry(newCountry)
+    if (customerPhone) {
+      triggerPhoneSearch(customerPhone, newCountry)
     }
   }
 
+  function handleNameChange(newName: string) {
+    setCustomerName(newName)
+    isNameOverriddenRef.current = true
+  }
+
   function handleSelectPlayer(player: ClubPlayer) {
-    setSelectedPlayer(player)
     setCustomerName(player.display_name)
+    isNameOverriddenRef.current = true
     const playerPhone = getClubPlayerPhone(player)
     if (playerPhone) {
       setCustomerPhone(playerPhone)
@@ -280,15 +305,6 @@ export function AddBookingSheet({
     const values: AddBookingSheetValues = {
       customer_name: trimmedName,
       customer_phone: normalizedPhone,
-      club_player_id:
-        selectedPlayer &&
-        arePhoneNumbersMatching(
-          customerPhone,
-          getClubPlayerPhone(selectedPlayer),
-          selectedCountry,
-        )
-          ? selectedPlayer.id
-          : undefined,
       is_recurring: isRecurring,
       notes: trimmedNotes || undefined,
     }
@@ -298,21 +314,18 @@ export function AddBookingSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="حجز جديد" onRequestClose={requestClose}>
-        <form className="p-5 pt-14" onSubmit={handleSubmit}>
-          <div className="space-y-1">
-            <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-              {title}
-            </h2>
+      <AppSheet title={title} onRequestClose={requestClose}>
+        <form className="relative p-5" onSubmit={handleSubmit}>
+          {/* Booking header */}
+          <div className="relative pr-0">
             <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
               {courtName} - {dateLabel}
             </p>
-            <p
-              className="text-lg font-black text-[var(--sloty-primary-dark)]"
-              dir="ltr"
-            >
-              {displayStartTime} - {displayEndTime}
-            </p>
+            <BookingDetailTimeRange
+              endTime={endTime}
+              fallbackText={formatBookingTimeRange(startTime, endTime)}
+              startTime={startTime}
+            />
             {slotPrice ? (
               <p className="text-sm font-black text-[var(--sloty-primary-dark)]">
                 السعر {formatMoneyAmount(slotPrice)}
@@ -337,7 +350,7 @@ export function AddBookingSheet({
                   Boolean(phoneFieldError)
                 }
                 onChange={handlePhoneChange}
-                onCountryChange={setSelectedCountry}
+                onCountryChange={handleCountryChange}
                 raw
                 value={customerPhone}
               />
@@ -353,7 +366,7 @@ export function AddBookingSheet({
               <PlayerCombobox
                 clubSlug={clubSlug}
                 disabled={isSubmitting}
-                error={Boolean(nameFieldError) || Boolean(playerFieldError)}
+                error={Boolean(nameFieldError)}
                 isLoading={isSearchingPlayers}
                 onChange={handleNameChange}
                 onSelectPlayer={handleSelectPlayer}
@@ -361,9 +374,9 @@ export function AddBookingSheet({
                 value={customerName}
               />
             </label>
-            {nameFieldError || playerFieldError ? (
+            {nameFieldError ? (
               <p className="-mt-2 text-xs font-bold text-[var(--sloty-danger)]">
-                {nameFieldError ?? playerFieldError}
+                {nameFieldError}
               </p>
             ) : null}
 

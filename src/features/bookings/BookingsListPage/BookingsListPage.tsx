@@ -46,6 +46,7 @@ import {
 } from '../../../offline/bookings/offlineBookingFilters'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
 import { useOfflineSync } from '../../../offline/sync/offlineSyncContext'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { listCourts } from '../../courts/courtsApi'
 import type { Court } from '../../courts/courts.types'
 import { listBookings } from '../bookingsApi'
@@ -84,13 +85,13 @@ import {
   markBookingNoShow,
   previewBookingCancellation,
   rescheduleBooking,
-  updateBookingNotes,
+  updateBooking,
 } from '../../schedule/scheduleApi'
 import {
   BOOKING_COMPLETION_REQUIRES_FULL_PAYMENT,
   type BookingCompletePayload,
   type BookingCancellationPreview,
-  type BookingNotesUpdatePayload,
+  type BookingUpdatePayload,
   type BookingReschedulePayload,
 } from '../../schedule/scheduleApi.types'
 import {
@@ -629,9 +630,10 @@ export function BookingsListPage() {
           return
         }
 
-        setCourtRecords(courtsResponse.results)
+        const courts = extractResults(courtsResponse)
+        setCourtRecords(courts)
         setCourtOptions(
-          courtsResponse.results
+          courts
             .filter((court: Court) => court.is_active)
             .map((court) => ({
               value: String(court.id),
@@ -1242,8 +1244,8 @@ export function BookingsListPage() {
     }
   }
 
-  async function handleUpdateBookingNotes(
-    payload: BookingNotesUpdatePayload,
+  async function handleUpdateBooking(
+    payload: BookingUpdatePayload,
   ): Promise<void> {
     if (!selectedClubSlug || !editingBooking || blockOfflineMutation()) {
       return
@@ -1254,15 +1256,15 @@ export function BookingsListPage() {
     setActionFieldErrors(null)
 
     try {
-      await updateBookingNotes(selectedClubSlug, editingBooking.id, payload)
+      await updateBooking(selectedClubSlug, editingBooking.id, payload)
       const freshBooking = await loadAuthoritativeBookingDetail(editingBooking.id)
       setEditingBooking(null)
       setSelectedBooking(freshBooking)
-      setSuccessMessage('تم تحديث ملاحظات الحجز')
+      setSuccessMessage('تم تحديث بيانات الحجز')
       await reloadBookings()
     } catch (error) {
       setActionError(
-        getApiErrorMessage(error, 'تعذر تحديث ملاحظات الحجز. حاول مرة أخرى'),
+        getApiErrorMessage(error, 'تعذر تحديث بيانات الحجز. حاول مرة أخرى'),
       )
       setActionFieldErrors(getApiFieldErrors(error))
     } finally {
@@ -1653,6 +1655,7 @@ export function BookingsListPage() {
       {editingBooking && selectedClubSlug && !isOfflineMode ? (
         <EditBookingDetailsSheet
           booking={editingBooking}
+          clubSlug={selectedClubSlug}
           error={actionError}
           fieldErrors={actionFieldErrors}
           isSubmitting={isActionSubmitting}
@@ -1661,7 +1664,7 @@ export function BookingsListPage() {
             setActionError(null)
             setActionFieldErrors(null)
           }}
-          onSubmit={handleUpdateBookingNotes}
+          onSubmit={handleUpdateBooking}
         />
       ) : null}
 

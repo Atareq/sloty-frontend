@@ -6,6 +6,7 @@ import {
   normalizeCourtWorkingHoursResponse,
   saveCourtWorkingHours,
 } from './courtWorkingHoursApi'
+import type { UpdateCourtWorkingHoursPayload } from './courtWorkingHours.types'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -191,8 +192,35 @@ describe('courtWorkingHoursApi', () => {
     expect(serializedPayload).not.toContain('opens_at')
     expect(serializedPayload).not.toContain('closes_at')
     expect(serializedPayload).not.toContain('is_closed')
+    expect(serializedPayload).not.toContain('default_price')
     expect(serializedPayload).not.toContain('blocks')
     expect(serializedPayload).not.toContain('localId')
     expect(serializedPayload).not.toContain('"id"')
+  })
+
+  it('serializes closed day strictly as pricing_periods: [] with no is_closed field (Rule 23)', async () => {
+    mockedApiRequest.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      working_hours: [],
+    })
+
+    const closedDayPayload: UpdateCourtWorkingHoursPayload = {
+      working_hours: [
+        {
+          weekday: 0,
+          pricing_periods: [],
+        },
+      ],
+    }
+
+    await saveCourtWorkingHours('nasr-club', 7, closedDayPayload)
+
+    const sentPayload = mockedApiRequest.mock.calls.at(-1)?.[1]?.body
+    const serializedPayload = JSON.stringify(sentPayload)
+
+    expect(sentPayload).toEqual(closedDayPayload)
+    expect(serializedPayload).toContain('"pricing_periods":[]')
+    expect(serializedPayload).not.toContain('is_closed')
   })
 })

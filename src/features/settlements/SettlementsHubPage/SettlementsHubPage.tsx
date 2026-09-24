@@ -163,7 +163,7 @@ function LinkedTransactions({
 export function SettlementsHubPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentUser, role, selectedClubSlug } = useAuth()
+  const { currentProfileId, currentUser, role, selectedClubSlug } = useAuth()
   const canSettle = canManageSettlements(role)
   const canViewOwn = canViewOwnSettlements(role)
   const isOwnMode = canViewOwn && !canSettle
@@ -197,9 +197,19 @@ export function SettlementsHubPage() {
   const [currentFinancialRefreshToken, setCurrentFinancialRefreshToken] =
     useState(0)
   const hasAccess = Boolean(selectedClubSlug && canViewOwn)
+  const currentUserId = currentUser?.id
   const reviewableUsers = useMemo(
-    () => users.filter((user) => user.id !== currentUser?.id),
-    [currentUser?.id, users],
+    () =>
+      users.filter((user) => {
+        if (currentProfileId && (user.profile_id || user.id)) {
+          return (user.profile_id ?? user.id) !== currentProfileId
+        }
+        if (currentUserId && user.user_id) {
+          return user.user_id !== currentUserId
+        }
+        return user.id !== currentUserId
+      }),
+    [currentProfileId, currentUserId, users],
   )
   const offlineScope: OfflineScope | null = useMemo(
     () =>
@@ -431,7 +441,6 @@ export function SettlementsHubPage() {
 
       try {
         const response = await listSettlements(selectedClubSlug, {
-          status: 'SETTLED',
           ...(query.court ? { court: query.court } : {}),
           ...(isOwnMode || !query.collected_by
             ? {}

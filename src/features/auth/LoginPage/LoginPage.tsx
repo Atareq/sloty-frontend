@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { Navigate, useLocation, useNavigate } from 'react-router'
+import type { Country } from 'react-phone-number-input'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
   getFirstFieldErrorMessage,
+  isApiClientError,
 } from '../../../core/api/apiError.helpers'
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { loginWithPassword } from '../../../core/auth/authApi'
@@ -11,16 +13,22 @@ import { consumeSessionExpiredNotice } from '../../../core/auth/authStorage'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
+import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
+import {
+  normalizeSlotyPhoneNumber,
+  validatePhoneNumber,
+} from '../../../shared/validation/phone'
+import { getPhoneValidationMessage } from '../../../shared/copy/phoneValidation'
 import { isValidGuestReturnRoute } from '../../publicSchedule/publicSchedule.helpers'
 
 interface LoginFormState {
-  username: string
+  phoneNumber: string
   password: string
   clubSlug: string
 }
 
 const initialFormState: LoginFormState = {
-  username: '',
+  phoneNumber: '',
   password: '',
   clubSlug: '',
 }
@@ -34,8 +42,11 @@ const initialFormState: LoginFormState = {
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login } = useAuth()
+  const { isAuthenticated, isLoadingSession, login } = useAuth()
   const [formState, setFormState] = useState<LoginFormState>(initialFormState)
+  const [country, setCountry] = useState<Country>('EG')
+  const [clientPhoneError, setClientPhoneError] = useState<string | null>(null)
+  const [clientPasswordError, setClientPasswordError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<
     string,
@@ -61,35 +72,64 @@ export function LoginPage() {
       setError(notice)
     }
   }, [])
-  const usernameFieldError =
-    getFirstFieldErrorMessage(fieldErrors, 'username') ??
-    getFirstFieldErrorMessage(fieldErrors, 'phone_number')
-  const passwordFieldError = getFirstFieldErrorMessage(fieldErrors, 'password')
+
+  if (isLoadingSession) {
+    return <p className="p-4 text-sm font-semibold">جاري تحميل الجلسة...</p>
+  }
+
+  if (isAuthenticated) {
+    return <Navigate replace to="/" />
+  }
+
+  const phoneFieldError =
+    clientPhoneError ?? getFirstFieldErrorMessage(fieldErrors, 'phone_number')
+  const passwordFieldError =
+    clientPasswordError ?? getFirstFieldErrorMessage(fieldErrors, 'password')
 
   function updateField(field: keyof LoginFormState, value: string): void {
     setFormState((currentFormState) => ({
       ...currentFormState,
       [field]: value,
     }))
+    if (field === 'phoneNumber') {
+      setClientPhoneError(null)
+    } else if (field === 'password') {
+      setClientPasswordError(null)
+    }
     setFieldErrors(null)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
 
-    if (!formState.username.trim() || !formState.password.trim()) {
-      setError('إسم المستخدم وكلمة المرور مطلوبان')
-      setFieldErrors(null)
+    const phoneValidation = validatePhoneNumber(formState.phoneNumber, country, {
+      required: true,
+    })
+    const isPasswordEmpty = !formState.password.trim()
+
+    if (!phoneValidation.valid || isPasswordEmpty) {
+      if (!phoneValidation.valid) {
+        setClientPhoneError(getPhoneValidationMessage(phoneValidation.error))
+      }
+      if (isPasswordEmpty) {
+        setClientPasswordError('كلمة المرور مطلوبة')
+      }
       return
     }
 
     setError(null)
     setFieldErrors(null)
+    setClientPhoneError(null)
+    setClientPasswordError(null)
     setIsSubmitting(true)
 
     try {
+      const normalizedPhone =
+        normalizeSlotyPhoneNumber(formState.phoneNumber, country) ||
+        formState.phoneNumber.trim()
+
       const tokens = await loginWithPassword({
-        username: formState.username.trim(),
+        phone_number: normalizedPhone,
         password: formState.password,
         ...(formState.clubSlug.trim()
           ? { club_slug: formState.clubSlug.trim() }
@@ -98,12 +138,16 @@ export function LoginPage() {
       login(tokens.access, tokens.refresh)
       navigate('/')
     } catch (error) {
-      setError(
-        getApiErrorMessage(
-          error,
-          'تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى',
-        ),
-      )
+      if (isApiClientError(error) && error.status === 401) {
+        setError('تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى')
+      } else {
+        setError(
+          getApiErrorMessage(
+            error,
+            'تعذر تسجيل الدخول. تأكد من البيانات وحاول مرة أخرى',
+          ),
+        )
+      }
       setFieldErrors(getApiFieldErrors(error))
     } finally {
       setIsSubmitting(false)
@@ -144,29 +188,27 @@ export function LoginPage() {
             <div className="space-y-2">
               <label
                 className="text-sm font-semibold text-[var(--sloty-text-primary)]"
-                htmlFor="username"
+                htmlFor="phone-number"
               >
-                إسم المستخدم
+                رقم الموبايل
               </label>
-              <div className="relative">
-                <input
-                  autoCapitalize="none"
-                  autoComplete="username"
-                  autoCorrect="off"
-                  className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"
-                  id="username"
-                  onChange={(event) =>
-                    updateField('username', event.target.value)
-                  }
-                  placeholder="اسم المستخدم"
-                  spellCheck={false}
-                  type="text"
-                  value={formState.username}
-                />
-              </div>
-              {usernameFieldError ? (
+              <SlotyPhoneNumberInput
+                ariaLabel="رقم الموبايل"
+                country={country}
+                disabled={isSubmitting}
+                error={Boolean(phoneFieldError)}
+                onChange={(value) => updateField('phoneNumber', value)}
+                onCountryChange={(newCountry) => {
+                  setCountry(newCountry)
+                  setClientPhoneError(null)
+                  setFieldErrors(null)
+                }}
+                raw
+                value={formState.phoneNumber}
+              />
+              {phoneFieldError ? (
                 <p className="text-xs font-bold text-[var(--sloty-danger)]">
-                  {usernameFieldError}
+                  {phoneFieldError}
                 </p>
               ) : null}
             </div>
@@ -179,7 +221,6 @@ export function LoginPage() {
                 كلمة المرور
               </label>
               <div className="relative">
- 
                 <input
                   autoComplete="current-password"
                   className="h-12 w-full rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] px-3 pl-16 pr-5 text-right text-base outline-none transition placeholder:text-[var(--sloty-text-muted)] focus:border-[var(--sloty-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--sloty-primary)]/15"

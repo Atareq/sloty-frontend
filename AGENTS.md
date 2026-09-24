@@ -100,6 +100,11 @@ When determining factual system behavior, what features exist, and how contracts
 ### 5. Backend is the Security Authority
 - Role authorization, court access, and pricing rules are enforced by the server.
 - The frontend adapts UI visibility based on `currentUser.profile_role` (`ADMIN`, `OWNER`, `STAFF`) and accessible clubs/courts, but never invents security policies.
+- Before changing API, identity, finance, booking, or offline behavior, inspect the sibling backend at `../sloty-backend`. Follow [`.cursor/rules/backend-contract-awareness.mdc`](.cursor/rules/backend-contract-awareness.mdc).
+- Never modify `../sloty-backend` from this repository. Backend changes require a separate backend task.
+- Backend inspection order: tests → serializers → ViewSets/API views → URL routing → domain docs → OpenAPI. Runtime behavior, serializers, and tests are the final contract; OpenAPI may be incomplete or outdated.
+- Never invent endpoints, assume `User.id == Profile.id`, or treat paginated list responses as raw arrays. Respect backend nullability. Prefer minimal V1-safe changes; do not introduce new patterns, libraries, or architecture migrations unless explicitly requested.
+- V1 critical-flow hardening: `/` and protected routes must show `sessionError` with retry/logout when tokens remain but session hydration failed. Online booking create must reuse `client_request_id` for the same payload retry. Historical settlement detail is read-only; there is no `mark-settled` action.
 
 ### 6. Offline Operational Mutation Boundary
 - **Allowed Offline:** Saving a local **Booking Request** (`BookingRequestRecord`) from an available cached `FREE` slot (`PENDING_SYNC`).
@@ -153,6 +158,9 @@ tests/deploy/     # Workflow and deploy-script contract tests
 - Authentication context is accessed exclusively via `useAuth()`. Never decode JWTs in components.
 - Post-login user context is hydrated from `/api/v1/me/`. Club-scoped access depends on the active `selectedMembership`.
 - Permissions default to false and are enforced per selected club membership: `can_change_pricing`, `can_manage_working_hours`, `can_manage_settlements`. Backend remains the security authority.
+- **Booking player identity:** Player search results are suggestions in backend order. A phone lookup must not overwrite entered `customer_name`. Booking create and booking edit send the final entered `customer_name` and `customer_phone`, without a frontend-selected `club_player_id` or `player_profile_id`. The backend owns identity matching and player/name history.
+- **Booking slot interaction:** Schedule slots returned by the backend remain rendered and interactive regardless of their calendar date. FREE slots use only the backend `is_available` field; backend booking statuses determine occupied-slot interaction. Do not add local date or `start_time > now` gates before opening a slot or sending a booking mutation.
+- **Booking date validity:** Do not block create, update, or reschedule because a date is past, today, future, or different from the browser clock. Send the selected `start_time` / `end_time` and show backend codes (`BOOKING_OUTSIDE_WORKING_HOURS`, `BOOKING_SLOT_UNAVAILABLE`, `VALIDATION_ERROR`). Slot board display still follows backend `is_available` for FREE slots.
 Run targeted validation commands before reporting completion:
 - **TypeScript:** `npx tsc -b --noEmit`
 - **Linting:** `npm run lint`

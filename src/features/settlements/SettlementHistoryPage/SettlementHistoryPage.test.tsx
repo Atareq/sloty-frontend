@@ -65,6 +65,7 @@ function mockAuth(options: {
     accessibleCourts: [],
     selectCourt: vi.fn(),
     isAuthenticated: true,
+    isOperational: true,
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,

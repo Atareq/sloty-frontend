@@ -53,6 +53,17 @@ GET /api/v1/public/clubs/{club_slug}/courts/{court_id}/availability/?date=YYYY-M
 
 ### Share Experience
 - `PageHeaderAction` provides a `مشاركة الجدول` button.
+- `PageHeaderAction` provides a single `مشاركة الجدول` button.
+- **Canonical Public Share URL (`buildCourtScheduleShareUrl`):** Single source of truth for constructing public court schedule URLs (`/public/:clubSlug/courts/:courtId/schedule`).
+- **Exact URL Equality Invariant:**
+  ```text
+  copiedUrl === sharedUrl === qrEncodedValue
+  ```
+  The exact same URL string is supplied to clipboard copy, native Web Share, and QR generation.
+- **QR Architecture & Presentation:**
+  - QR generation owns only encoding and presentation (`generateQrSvg` using `qrcode`); it never constructs or derives URLs.
+  - Generates scanner-safe black-on-white SVG with quiet zone margin >= 4 and error correction level 'M'.
+  - Branded QR Card presentation wraps the QR code with Sloty branding, court name, and helper copy without altering the QR matrix.
 - Uses `navigator.share` on supported mobile devices.
 - Falls back to clipboard copy (`navigator.clipboard.writeText`) on desktop/unsupported browsers with toast feedback:
   ```text

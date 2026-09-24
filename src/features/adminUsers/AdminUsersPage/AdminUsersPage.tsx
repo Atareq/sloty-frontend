@@ -9,6 +9,7 @@ import { FilterSheet } from '../../../shared/components/FilterSheet/FilterSheet'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubs } from '../../clubs/clubsApi'
 import type { Club } from '../../clubs/clubs.types'
@@ -167,6 +168,7 @@ export function AdminUsersPage() {
         setUsers(normalizePlatformUsersResponse(usersResponse))
         if (clubsResponse) {
           setClubs(clubsResponse.results)
+          setClubs(extractResults(clubsResponse))
           setClubsWarning(null)
         } else {
           setClubs([])
@@ -306,9 +308,11 @@ export function AdminUsersPage() {
                       <p className="font-black text-[var(--sloty-text-primary)]">
                         {getPlatformUserDisplayName(user)}
                       </p>
-                      <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
-                        @{user.username}
-                      </p>
+                      {user.username ? (
+                        <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
+                          @{user.username}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="py-3 font-semibold">
                       {getPlatformUserRoleLabel(user.profile_role)}
@@ -343,9 +347,11 @@ export function AdminUsersPage() {
                     <h2 className="text-lg font-black text-[var(--sloty-text-primary)]">
                       {getPlatformUserDisplayName(user)}
                     </h2>
-                    <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
-                      @{user.username}
-                    </p>
+                    {user.username ? (
+                      <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
+                        @{user.username}
+                      </p>
+                    ) : null}
                   </div>
                   <span className="rounded-full bg-[var(--sloty-soft-mint)] px-3 py-1 text-xs font-black text-[var(--sloty-primary-dark)]">
                     {getPlatformUserStatusLabel(user.is_active)}

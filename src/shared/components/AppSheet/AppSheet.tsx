@@ -35,6 +35,15 @@ export function AppSheet({
   onRequestClose,
   title,
 }: AppSheetProps) {
+  if (process.env.NODE_ENV !== 'production' && !title && !ariaLabel) {
+    console.error(
+      'AppSheet: An accessible name must be provided using either "title" or "ariaLabel".',
+    )
+    throw new Error(
+      'AppSheet: An accessible name must be provided using either "title" or "ariaLabel".',
+    )
+  }
+
   const sheetId = `app-sheet-${useId()}`
   const panelRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
@@ -123,12 +132,11 @@ export function AppSheet({
       }}
     >
       <div
-        aria-label={title ? undefined : ariaLabel}
-        aria-labelledby={title ? `${sheetId}-title` : undefined}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabel ? undefined : (title ? `${sheetId}-title` : undefined)}
         aria-modal="true"
         className={[
-          'relative max-h-[85dvh] w-full overflow-x-hidden overflow-y-auto rounded-t-3xl bg-[var(--sloty-surface)] pb-[max(env(safe-area-inset-bottom),0px)] shadow-2xl md:rounded-3xl',
-          'relative max-h-[85dvh] w-full overflow-x-hidden overflow-y-auto rounded-t-3xl bg-[var(--sloty-surface)] pb-[calc(max(env(safe-area-inset-bottom,0px),1rem)+1.25rem)] shadow-2xl md:pb-6 md:rounded-3xl',
+          'relative max-h-[85dvh] w-full overflow-x-hidden overflow-y-auto rounded-t-3xl bg-[var(--sloty-surface)] pb-[calc(max(env(safe-area-inset-bottom,0px),1rem)+1.25rem)] shadow-2xl md:rounded-3xl md:pb-6',
           className,
         ].join(' ')}
         onKeyDown={handleFocusTrap}
@@ -136,19 +144,33 @@ export function AppSheet({
         role="dialog"
         tabIndex={-1}
       >
-        <button
-          aria-label="إغلاق"
-          className="absolute left-2 top-2 z-10 flex h-11 w-11 items-center justify-center rounded-full text-[var(--sloty-text-muted)] transition hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30"
-          onClick={requestClose}
-          type="button"
-        >
-          <X aria-hidden="true" size={20} />
-        </button>
         {title ? (
-          <h2 className="sr-only" id={`${sheetId}-title`}>
-            {title}
-          </h2>
-        ) : null}
+          <div className="sloty-green-surface relative min-h-16 rounded-t-3xl px-5 py-4">
+            <button
+              aria-label="إغلاق"
+              className="absolute left-2 top-2 z-20 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/80 bg-white text-[var(--sloty-text-muted)] shadow-md transition hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)] focus:outline-none focus:ring-2 focus:ring-white/80"
+              onClick={requestClose}
+              type="button"
+            >
+              <X aria-hidden="true" size={20} />
+            </button>
+            <h2
+              className="pl-12 text-right text-lg font-black text-white"
+              id={`${sheetId}-title`}
+            >
+              {title}
+            </h2>
+          </div>
+        ) : (
+          <button
+            aria-label="إغلاق"
+            className="absolute left-2 top-2 z-20 flex h-11 w-11 items-center justify-center rounded-full text-[var(--sloty-text-muted)] transition hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)]/30"
+            onClick={requestClose}
+            type="button"
+          >
+            <X aria-hidden="true" size={20} />
+          </button>
+        )}
         {children}
       </div>
     </div>

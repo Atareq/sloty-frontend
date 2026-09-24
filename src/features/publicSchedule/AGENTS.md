@@ -61,6 +61,9 @@ For the detailed architectural specification, consult [`docs/features/public-sch
 ## 5. Share Experience & Login Affordance
 
 1. **Share Action (`مشاركة الجدول`):**
+   - Single canonical public schedule URL builder: `buildCourtScheduleShareUrl({ clubSlug, courtId, origin? })`.
+   - **Invariant:** `copiedUrl === sharedUrl === qrEncodedValue` (exact string equality).
+   - QR generation owns only encoding and presentation (`generateQrSvg` using `qrcode`); it never constructs or derives URLs.
    - Uses `navigator.share` on supported platforms, falling back to clipboard copy (`navigator.clipboard.writeText`) on desktop/unsupported environments.
    - Clipboard fallback provides instant button feedback (`✓ تم النسخ`) and displays the canonical confirmation notice:
      ```text

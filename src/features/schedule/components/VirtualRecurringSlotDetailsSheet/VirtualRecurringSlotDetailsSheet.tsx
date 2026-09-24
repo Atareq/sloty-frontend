@@ -8,8 +8,8 @@ import {
 } from '../../../../shared/copy/appCopy'
 import { formatArabicDateWithWeekday } from '../../../../shared/utils/date'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { BookingDetailTimeRange } from '../../../bookings/components/BookingDetailTimeRange/BookingDetailTimeRange'
 import type { ScheduleBooking } from '../../schedule.types'
-import { formatTime12Hour } from '../../scheduleBoard.helpers'
 
 export interface VirtualRecurringSlotDetailsSheetProps {
   slot: ScheduleBooking
@@ -43,7 +43,6 @@ export function VirtualRecurringSlotDetailsSheet({
   const dateLabel = slot.date
     ? formatArabicDateWithWeekday(slot.date)
     : null
-  const timeRange = `${formatTime12Hour(slot.startTime)} – ${formatTime12Hour(slot.endTime)}`
   const showCurrentPrice =
     slot.slotPrice !== null &&
     slot.slotPrice !== undefined &&
@@ -57,16 +56,13 @@ export function VirtualRecurringSlotDetailsSheet({
   return (
     <>
       <AppSheet
-        ariaLabel="تفاصيل المعاد"
+        title="تفاصيل المعاد"
         isOpen
         onRequestClose={closeDetails}
       >
-        <div className="p-5 pt-14">
+        <div className="p-5">
           <header>
-            <p className="text-sm font-bold text-[var(--sloty-text-muted)]">
-              تفاصيل المعاد
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-[var(--sloty-text-primary)]">
+            <h2 className="text-2xl font-black text-[var(--sloty-text-primary)]">
               {context?.customer_name || 'عميل غير محدد'}
             </h2>
             {context?.customer_phone ? (
@@ -82,12 +78,14 @@ export function VirtualRecurringSlotDetailsSheet({
                 {dateLabel}
               </p>
             ) : null}
-            <p
-              className="mt-1 text-base font-bold text-[var(--sloty-text-primary)]"
-              dir="ltr"
-            >
-              {timeRange}
-            </p>
+            <div className="mt-1">
+              <BookingDetailTimeRange
+                endTime={slot.endTime}
+                fallbackDate={slot.date}
+                fallbackText={`${slot.endTime} - ${slot.startTime}`}
+                startTime={slot.startTime}
+              />
+            </div>
             <p className="mt-1 text-sm font-bold text-[var(--sloty-text-muted)]">
               {courtName}
             </p>
@@ -146,15 +144,12 @@ export function VirtualRecurringSlotDetailsSheet({
 
       {anchorBookingId && isEndRecurrenceConfirming ? (
         <AppSheet
-          ariaLabel={recurringCopy.stopWeeklyConfirmTitle}
+          title={recurringCopy.stopWeeklyConfirmTitle}
           isOpen
           onRequestClose={() => setIsEndRecurrenceConfirming(false)}
         >
-          <div className="p-5 pt-14">
-            <h2 className="text-xl font-bold text-[var(--sloty-text-primary)]">
-              {recurringCopy.stopWeeklyConfirmTitle}
-            </h2>
-            <p className="mt-2 text-sm font-medium leading-6 text-[var(--sloty-text-muted)]">
+          <div className="p-5">
+            <p className="text-sm font-medium leading-6 text-[var(--sloty-text-muted)]">
               {recurringCopy.stopWeeklyConfirmBody}
             </p>
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">

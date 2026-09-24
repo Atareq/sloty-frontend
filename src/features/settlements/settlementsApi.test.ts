@@ -7,7 +7,6 @@ import {
   getCurrentCustodySummary,
   getSettlementPreview,
   getSettlement,
-  markSettlementSettled,
   listSettlements,
 } from './settlementsApi'
 import type { CurrentCustodySummaryQueryParams } from './settlements.types'
@@ -70,6 +69,21 @@ describe('settlementsApi', () => {
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       `${apiEndpoints.clubs.settlements.preview('nasr-club')}?collected_by=5`,
+    )
+  })
+
+  it('gets the normal settlement preview without a court parameter', async () => {
+    mockedApiRequest.mockResolvedValueOnce({
+      transaction_count: 0,
+      total_amount: '0.00',
+      totals_by_payment_method: {},
+      transactions: [],
+    })
+
+    await getSettlementPreview('nasr-club', {})
+
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      apiEndpoints.clubs.settlements.preview('nasr-club'),
     )
   })
 
@@ -265,7 +279,7 @@ describe('settlementsApi', () => {
     expect(options?.body).not.toHaveProperty('booking_refunds')
   })
 
-  it('lists settlements with supported collected_by/status/court filters', async () => {
+  it('lists settlements with supported collected_by and court filters', async () => {
     mockedApiRequest.mockResolvedValueOnce({
       count: 0,
       next: null,
@@ -275,12 +289,11 @@ describe('settlementsApi', () => {
 
     await listSettlements('nasr-club', {
       collected_by: 5,
-      status: 'PENDING',
       court: 3,
     })
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
-      `${apiEndpoints.clubs.settlements.list('nasr-club')}?collected_by=5&status=PENDING&court=3`,
+      `${apiEndpoints.clubs.settlements.list('nasr-club')}?collected_by=5&court=3`,
     )
   })
 
@@ -291,19 +304,6 @@ describe('settlementsApi', () => {
 
     expect(mockedApiRequest).toHaveBeenCalledWith(
       apiEndpoints.clubs.settlements.detail('nasr-club', 9),
-    )
-  })
-
-  it('marks one settlement as settled through the confirmed action endpoint', async () => {
-    mockedApiRequest.mockResolvedValueOnce({ id: 9, status: 'SETTLED' })
-
-    await markSettlementSettled('nasr-club', 9)
-
-    expect(mockedApiRequest).toHaveBeenCalledWith(
-      apiEndpoints.clubs.settlements.markSettled('nasr-club', 9),
-      {
-        method: 'POST',
-      },
     )
   })
 })

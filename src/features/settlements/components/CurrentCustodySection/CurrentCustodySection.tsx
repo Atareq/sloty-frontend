@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import { AppCard } from '../../../../shared/components/AppCard/AppCard'
 import { financeCopy } from '../../../../shared/copy/appCopy'
+import { useOfflineReadonly } from '../../../../shared/hooks/useOfflineReadonly'
 import { buildPathWithQuery } from '../../../../shared/utils/buildPathWithQuery'
 import {
   formatMoneyAmount,
@@ -124,6 +125,7 @@ export function CurrentCustodySection({
   showTitle = true,
   snapshotLabel = null,
 }: CurrentCustodySectionProps) {
+  const { isOffline, offlineMessage } = useOfflineReadonly()
   const title =
     mode === 'staff'
       ? financeCopy.currentCustody
@@ -174,13 +176,13 @@ export function CurrentCustodySection({
         >
           {mode === 'management'
             ? records.map((record) => (
-                <AppCard className="space-y-4" key={record.user}>
+                <AppCard className="space-y-4" key={record.collected_by}>
                   <div className="space-y-0.5">
                     <p className="text-xs font-bold text-[var(--sloty-text-muted)]">
                       {financeCopy.collector}
                     </p>
                     <p className="text-base font-black text-[var(--sloty-text-primary)]">
-                      {record.user_name}
+                      {record.collected_by_name}
                     </p>
                   </div>
 
@@ -194,16 +196,22 @@ export function CurrentCustodySection({
                     totals={record.totals_by_payment_method}
                   />
 
-                  {record.can_approve ? (
+                  {record.can_approve && !isOffline ? (
                     <Link
                       className="sloty-green-surface-button inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--sloty-primary-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--sloty-primary)] focus:ring-offset-2"
                       to={buildPathWithQuery('/settlements/preview', {
-                        collected_by: record.user,
+                        collected_by: record.collected_by,
                         court,
                       })}
                     >
                       {financeCopy.receiveAmount}
                     </Link>
+                  ) : null}
+
+                  {record.can_approve && isOffline ? (
+                    <p className="text-sm font-medium text-[var(--sloty-text-muted)]">
+                      {offlineMessage}
+                    </p>
                   ) : null}
 
                   {record.is_self && !record.can_approve ? (

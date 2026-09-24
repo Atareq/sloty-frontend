@@ -38,3 +38,6 @@ export interface CourtWorkingHoursApiResponse {
 export interface UpdateCourtWorkingHoursPayload {
   working_hours: CourtWorkingDayPayload[]
 }
+
+export type WorkingHoursResponse = CourtWorkingHoursResponse
+export type WorkingHoursWriteInput = UpdateCourtWorkingHoursPayload

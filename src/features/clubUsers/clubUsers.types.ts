@@ -2,17 +2,22 @@ export type ClubUserRole = 'OWNER' | 'STAFF' | 'ADMIN'
 
 export interface ClubUser {
   id: number
-  username: string
+  profile_id?: number
+  user_id?: number
+  username?: string | null
   first_name: string
   last_name: string
   email?: string | null
   phone_number?: string | null
   is_active: boolean
+  is_enabled?: boolean
   role?: ClubUserRole | string
   profile_role?: ClubUserRole | string | null
   created_by?: number | null
   court?: number | null
   court_name?: string | null
+  court_ids?: number[]
+  courts?: { id: number; name: string; is_active: boolean }[]
   can_change_pricing?: boolean
   can_manage_working_hours?: boolean
   can_manage_settlements?: boolean
@@ -27,13 +32,15 @@ export interface UpdateManagerPermissionsPayload {
 }
 
 export interface CreateClubStaffPayload {
-  username: string
+  club_slug?: string
+  username?: string
   password: string
   first_name: string
   last_name?: string
   email?: string
   phone_number?: string | null
   is_active?: boolean
+  court_ids?: number[]
 }
 
 export type UpdateClubUserPayload = Partial<

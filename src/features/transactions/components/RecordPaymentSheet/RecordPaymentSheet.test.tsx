@@ -39,7 +39,9 @@ describe('RecordPaymentSheet', () => {
       />,
     )
 
-    await user.type(screen.getByLabelText('المبلغ'), '0')
+    fireEvent.change(screen.getByLabelText('المبلغ'), {
+      target: { value: '0' },
+    })
     await user.click(screen.getByRole('button', { name: 'تسجيل الدفعة' }))
 
     expect(screen.getByText('المبلغ يجب أن يكون أكبر من صفر'))

@@ -146,11 +146,81 @@ export function formatTime12Hour(time: string): string {
   return `${hours12}:${padTimePart(minutes)} ${period}`
 }
 
+/**
+ * Returns the canonical UTC offset string for Africa/Cairo at the specified date and time.
+ * For example: "+02:00" in winter (standard time), "+03:00" in summer (daylight saving time).
+ */
+export function getEgyptTimezoneOffset(
+  dateValue: string,
+  timeValue = '12:00',
+): string {
+  const dateMatch = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!dateMatch) {
+    return '+02:00'
+  }
+  const [, yearStr, monthStr, dayStr] = dateMatch
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+
+  const timeMatch = timeValue.match(/^(\d{1,2}):(\d{2})/)
+  const hour = timeMatch ? Number(timeMatch[1]) : 12
+  const minute = timeMatch ? Number(timeMatch[2]) : 0
+
+  // Local time = UTC + offset  =>  UTC = Local time - offset
+  // Egypt is UTC+2 in winter or UTC+3 in summer. Testing UTC with -2h gives an instant on that same local date.
+  const utcCandidate = new Date(Date.UTC(year, month - 1, day, hour - 2, minute))
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EGYPT_TIME_ZONE,
+    timeZoneName: 'longOffset',
+  }).formatToParts(utcCandidate)
+  const tzPart = parts.find((p) => p.type === 'timeZoneName')?.value
+  if (tzPart && tzPart.startsWith('GMT')) {
+    return tzPart.replace('GMT', '')
+  }
+
+  return '+02:00'
+}
+
+/**
+ * Formats a timezone-aware ISO-8601 datetime string for Africa/Cairo from a date (YYYY-MM-DD)
+ * and time (HH:mm or HH:mm:ss).
+ *
+ * If the value already contains timezone information (e.g. "+03:00" or "Z"), it is preserved.
+ * Example output: "2026-07-02T18:00:00+03:00"
+ */
 export function formatBookingDateTime(
   dateValue: string,
   timeValue: string,
 ): string {
-  return `${dateValue}T${timeValue}:00`
+  if (timeValue.includes('T') && (/[Z+-]\d{2}/i.test(timeValue) || timeValue.endsWith('Z'))) {
+    return timeValue
+  }
+
+  if (
+    dateValue.includes('T') &&
+    (/[Z+-]\d{2}/i.test(dateValue) || dateValue.endsWith('Z')) &&
+    (!timeValue || timeValue === dateValue)
+  ) {
+    return dateValue
+  }
+
+  const datePart = dateValue.includes('T') ? dateValue.split('T')[0] : dateValue
+
+  if (/[Z+-]\d{2}/i.test(timeValue) || timeValue.endsWith('Z')) {
+    const cleanTime = timeValue.includes('T') ? timeValue.split('T')[1] : timeValue
+    return `${datePart}T${cleanTime}`
+  }
+
+  const rawTime = timeValue.includes('T') ? timeValue.split('T')[1] : timeValue
+  const timeSegments = rawTime.split(':')
+  const hours = timeSegments[0].padStart(2, '0')
+  const minutes = (timeSegments[1] ?? '00').padStart(2, '0')
+  const seconds = (timeSegments[2] ?? '00').padStart(2, '0')
+  const normalizedTime = `${hours}:${minutes}:${seconds}`
+
+  const offset = getEgyptTimezoneOffset(datePart, `${hours}:${minutes}`)
+  return `${datePart}T${normalizedTime}${offset}`
 }
 
 function timeToMinutes(time: string): number | null {

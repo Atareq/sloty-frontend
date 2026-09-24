@@ -1,3 +1,4 @@
+import type { ProfileId } from '../../core/auth/auth.types'
 import { apiRequest } from '../../core/api/apiClient'
 import type { PaginatedResponse } from '../../shared/api/api.types'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
@@ -22,8 +23,8 @@ function buildQueryString(params?: SettlementQueryParams): string {
     searchParams.set('collected_by', String(params.collected_by))
   }
 
-  if (params?.status) {
-    searchParams.set('status', params.status)
+  if (params?.settled_by) {
+    searchParams.set('settled_by', String(params.settled_by))
   }
 
   if (params?.court) {
@@ -98,7 +99,7 @@ export function getSettlementPreview(
 }
 
 export interface GetCurrentCustodyParams {
-  collected_by?: number | string
+  collected_by?: ProfileId | string
 }
 
 export interface GetCurrentCustodyOptions {
@@ -175,20 +176,5 @@ export function getSettlement(
 ): Promise<Settlement> {
   return apiRequest<Settlement>(
     apiEndpoints.clubs.settlements.detail(clubSlug, id),
-  )
-}
-
-/**
- * Marks one pending settlement as settled through the confirmed backend action.
- */
-export function markSettlementSettled(
-  clubSlug: string,
-  id: number | string,
-): Promise<Settlement> {
-  return apiRequest<Settlement>(
-    apiEndpoints.clubs.settlements.markSettled(clubSlug, id),
-    {
-      method: 'POST',
-    },
   )
 }

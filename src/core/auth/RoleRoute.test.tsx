@@ -12,6 +12,10 @@ vi.mock('./authApi', () => ({
   fetchCurrentUserProfile: vi.fn(),
 }))
 
+vi.mock('../../features/clubs/clubsApi', () => ({
+  listClubs: vi.fn().mockResolvedValue([]),
+}))
+
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 
 const currentUserProfile: CurrentUserProfile = {
@@ -40,6 +44,10 @@ function renderRoleRoute() {
         <Routes>
           <Route element={<p>صفحة تسجيل الدخول</p>} path="/login" />
           <Route element={<p>لوحة التحكم</p>} path="/schedule" />
+          <Route
+            element={<p>لا يوجد صلاحية تشغيلية</p>}
+            path="/no-operational-access"
+          />
           <Route
             element={
               <RoleRoute allowedRoles={['ADMIN']}>
@@ -76,5 +84,19 @@ describe('RoleRoute', () => {
     renderRoleRoute()
 
     expect(await screen.findByText('إدارة المنصة')).toBeInTheDocument()
+  })
+
+  it('redirects non-operational roles to /no-operational-access', async () => {
+    setAccessToken(createDevAccessToken('STAFF'))
+    mockedFetchCurrentUserProfile.mockResolvedValueOnce({
+      ...currentUserProfile,
+      profile_role: 'PLAYER',
+    })
+
+    renderRoleRoute()
+
+    expect(await screen.findByText('لا يوجد صلاحية تشغيلية')).toBeInTheDocument()
+    expect(screen.queryByText('صفحة تسجيل الدخول')).not.toBeInTheDocument()
+    expect(screen.queryByText('لوحة التحكم')).not.toBeInTheDocument()
   })
 })

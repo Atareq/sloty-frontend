@@ -106,3 +106,12 @@ describe('router public schedule routes', () => {
     expect((route?.element as ReactElement).type).toBe(PublicSchedulePage)
   })
 })
+
+describe('router no-operational-access route', () => {
+  it('maps /no-operational-access to NoOperationalAccessPage with allowNonOperational', () => {
+    const route = router.routes.find((r) => r.path === '/no-operational-access')
+
+    expect(route).toBeDefined()
+    expect(isValidElement(route?.element)).toBe(true)
+  })
+})

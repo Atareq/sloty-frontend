@@ -69,11 +69,6 @@ export const apiEndpoints = {
     dashboard: {
       summary: (clubSlug: string) => `clubs/${clubSlug}/dashboard/summary/`,
     },
-    memberships: {
-      list: (clubSlug: string) => `clubs/${clubSlug}/memberships/`,
-      detail: (clubSlug: string, id: ApiId) =>
-        `clubs/${clubSlug}/memberships/${id}/`,
-    },
     players: {
       list: (clubSlug: string) => `clubs/${clubSlug}/players/`,
     },
@@ -89,8 +84,13 @@ export const apiEndpoints = {
         `clubs/${clubSlug}/settlements/unsettled-summary/`,
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/settlements/${id}/`,
-      markSettled: (clubSlug: string, id: ApiId) =>
-        `clubs/${clubSlug}/settlements/${id}/mark-settled/`,
+    },
+    staff: {
+      list: (clubSlug: string) => `clubs/${clubSlug}/staff/`,
+      detail: (clubSlug: string, profileId: ApiId) =>
+        `clubs/${clubSlug}/staff/${profileId}/`,
+      courts: (clubSlug: string, profileId: ApiId) =>
+        `clubs/${clubSlug}/staff/${profileId}/courts/`,
     },
     transactions: {
       list: (clubSlug: string) => `clubs/${clubSlug}/transactions/`,
@@ -105,9 +105,6 @@ export const apiEndpoints = {
         `clubs/${clubSlug}/transaction-attempts/${id}/`,
       dismiss: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/transaction-attempts/${id}/dismiss/`,
-    },
-    users: {
-      list: (clubSlug: string) => `clubs/${clubSlug}/users/`,
     },
   },
   users: {

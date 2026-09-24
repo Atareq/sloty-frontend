@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { listClubPlayers } from './playersApi'
-import { arePhoneNumbersMatching, getClubPlayerPhone } from './players.types'
+import { getClubPlayerPhone } from './players.types'
 import type { ClubPlayer } from './players.types'
 
 vi.mock('../../core/api/apiClient', () => ({
@@ -141,14 +141,5 @@ describe('players.types helpers', () => {
     expect(getClubPlayerPhone(playerWithProfilePhone)).toBe('01022222222')
     expect(getClubPlayerPhone(playerWithoutPhone)).toBe('')
     expect(getClubPlayerPhone(null)).toBe('')
-  })
-
-  it('matches equivalent phone numbers across formats and rejects mismatches', () => {
-    expect(arePhoneNumbersMatching('01012345678', '+201012345678')).toBe(true)
-    expect(arePhoneNumbersMatching('01012345678', '01012345678')).toBe(true)
-    expect(arePhoneNumbersMatching('+201012345678', '+20 10 1234 5678')).toBe(true)
-    expect(arePhoneNumbersMatching('01012345678', '01099999999')).toBe(false)
-    expect(arePhoneNumbersMatching('', '01012345678')).toBe(false)
-    expect(arePhoneNumbersMatching(null, '01012345678')).toBe(false)
   })
 })

@@ -16,8 +16,8 @@ import type {
   BookingSlotsRangeParams,
   BookingSlotsResponse,
   BookingNoShowPayload,
-  BookingNotesUpdatePayload,
-  BookingNotesUpdateResponse,
+  BookingUpdatePayload,
+  BookingUpdateResponse,
 } from './scheduleApi.types'
 
 function isBookingSlotsRangeParams(
@@ -75,8 +75,9 @@ export function listBookingsForCourtDay(
 /**
  * Lists backend-calculated availability slots for the active Schedule board.
  *
- * Schedule uses `slot.is_available` for clickability and `slot.label` for
- * localized slot display text while keeping booking lifecycle status separate.
+ * Schedule uses `slot.is_available` only for FREE-slot bookability.
+ * Occupied and recurring-reserved slots stay interactive according to their
+ * backend status; frontend date comparisons do not block slot interaction.
  */
 export function listBookingSlots(
   clubSlug: string,
@@ -205,29 +206,34 @@ export function getBookingRecurrenceNext(
 }
 
 /**
- * Updates customer identity fields only.
+ * Updates booking customer intent and notes.
  *
- * The PATCH response is not a full Booking. Callers must refetch detail
- * instead of replacing canonical Booking state with this payload.
- * Updates booking notes only. Customer identity fields are immutable on PATCH.
+ * Backend owns PlayerProfile → ClubPlayer resolution. This client never
+ * sends `club_player_id` or `player_profile_id`. Callers still refetch
+ * canonical Booking detail after success.
  */
-export function updateBookingNotes(
+export function updateBooking(
   clubSlug: string,
   bookingId: number | string,
-  payload: BookingNotesUpdatePayload,
-): Promise<BookingNotesUpdateResponse> {
-  return apiRequest<BookingNotesUpdateResponse>(
+  payload: BookingUpdatePayload,
+): Promise<BookingUpdateResponse> {
+  return apiRequest<BookingUpdateResponse>(
     apiEndpoints.clubs.bookings.detail(clubSlug, bookingId),
     {
       method: 'PATCH',
       body: {
+        customer_name: payload.customer_name,
+        customer_phone: payload.customer_phone,
         notes: payload.notes,
       },
     },
   )
 }
 
-export const updateBookingCustomer = updateBookingNotes
+/** @deprecated Use updateBooking. */
+export const updateBookingNotes = updateBooking
+/** @deprecated Use updateBooking. */
+export const updateBookingCustomer = updateBooking
 
 /**
  * Moves a non-active-recurring HOLD/CONFIRMED booking to a backend-available slot.

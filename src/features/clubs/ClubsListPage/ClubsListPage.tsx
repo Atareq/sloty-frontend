@@ -6,6 +6,7 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
 import { appRoutes } from '../../../shared/navigation/appRoutes'
 import { buildPathWithQuery } from '../../../shared/utils/buildPathWithQuery'
+import { extractResults } from '../../../shared/api/pagination.helpers'
 import { fetchEgyptLocations } from '../../locations/egyptLocationsApi'
 import {
   getCityLabel,
@@ -20,9 +21,13 @@ import type { Club } from '../clubs.types'
  *
  * This screen lists the current clubs only; ownership, memberships, and booking
  * workflows intentionally stay outside Sprint 2A.
+ * This screen lists current clubs supporting initial page, next pages, and loading more.
  */
 export function ClubsListPage() {
   const [clubs, setClubs] = useState<Club[]>([])
+  const [nextUrl, setNextUrl] = useState<string | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [locations, setLocations] = useState<EgyptLocationsResponse | null>(
     null,
   )
@@ -35,6 +40,7 @@ export function ClubsListPage() {
     async function loadClubs(): Promise<void> {
       setIsLoading(true)
       setError(null)
+      setLoadMoreError(null)
 
       try {
         const [clubsResponse, locationsResponse] = await Promise.all([
@@ -44,6 +50,8 @@ export function ClubsListPage() {
 
         if (isActive) {
           setClubs(clubsResponse.results)
+          setClubs(extractResults(clubsResponse))
+          setNextUrl(clubsResponse.next)
           setLocations(locationsResponse)
         }
       } catch (error) {
@@ -64,6 +72,26 @@ export function ClubsListPage() {
       isActive = false
     }
   }, [])
+
+  async function handleLoadMore(): Promise<void> {
+    if (!nextUrl || isLoadingMore) {
+      return
+    }
+
+    setIsLoadingMore(true)
+    setLoadMoreError(null)
+
+    try {
+      const response = await listClubs(nextUrl)
+      setClubs((prev) => [...prev, ...extractResults(response)])
+      setNextUrl(response.next)
+    } catch (err) {
+      setLoadMoreError(getApiErrorMessage(err, 'تعذر تحميل المزيد من الأندية'))
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
+
 
   return (
     <div className="space-y-5">
@@ -157,6 +185,24 @@ export function ClubsListPage() {
               </div>
             </AppCard>
           ))}
+        </div>
+      ) : null}
+
+      {loadMoreError ? (
+        <p className="text-center text-sm font-semibold text-[var(--sloty-danger)]">
+          {loadMoreError}
+        </p>
+      ) : null}
+
+      {nextUrl ? (
+        <div className="flex justify-center pt-2">
+          <AppButton
+            disabled={isLoadingMore}
+            onClick={handleLoadMore}
+            variant="secondary"
+          >
+            {isLoadingMore ? 'جاري التحميل...' : 'تحميل المزيد'}
+          </AppButton>
         </div>
       ) : null}
     </div>

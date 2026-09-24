@@ -1,15 +1,9 @@
-import type {
-  AuthContextValue,
-  AuthRole,
+import {
+  type AuthContextValue,
+  isOperationalRole,
 } from '../../core/auth/auth.types'
 import { createOfflineScopeKey } from '../scope/offlineScope'
 import type { OperationalSyncContext } from './sync.types'
-
-function isOperationalRole(
-  role: AuthRole | null,
-): role is 'OWNER' | 'STAFF' | 'ADMIN' {
-  return role === 'OWNER' || role === 'STAFF' || role === 'ADMIN'
-}
 
 /**
  * Converts authoritative auth state into the scope used by sync tasks.

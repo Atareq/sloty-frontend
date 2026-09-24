@@ -7,8 +7,8 @@ import type { CurrentCustodySummaryRow } from '../../settlements.types'
 import { CurrentCustodySection } from './CurrentCustodySection'
 
 const baseRecord = {
-  user: 3,
-  user_name: 'Owner Tarek',
+  collected_by: 3,
+  collected_by_name: 'Owner Tarek',
   period_start: '2026-07-20T10:00:00Z',
   period_end: '2026-07-21T10:00:00Z',
   transaction_count: 3,
@@ -50,12 +50,12 @@ describe('CurrentCustodySection', () => {
     expect(screen.getByText('300.00 ج.م')).toBeInTheDocument()
   })
 
-  it('renders collector name using user_name under label المحصل and links preview with user ID', () => {
+  it('renders collector name using collected_by_name and links preview with collector ID', () => {
     renderSection([
       {
         ...baseRecord,
-        user: 3,
-        user_name: 'Owner Tarek',
+        collected_by: 3,
+        collected_by_name: 'Owner Tarek',
         transaction_count: 2,
         net_amount: '400.00',
         totals_by_payment_method: {
@@ -75,16 +75,15 @@ describe('CurrentCustodySection', () => {
     )
   })
 
-  it('does not read collected_by fields from unsettled-summary rows', () => {
+  it('uses collected_by identity fields from unsettled-summary rows', () => {
     renderSection([
       {
         ...baseRecord,
-        user: 3,
-        user_name: 'Owner Tarek',
+        collected_by: 3,
+        collected_by_name: 'Owner Tarek',
       },
     ])
 
-    expect(screen.queryByText('collected_by')).not.toBeInTheDocument()
     expect(screen.getByText('Owner Tarek')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'استلام المبلغ' })).toHaveAttribute(
       'href',
@@ -92,15 +91,15 @@ describe('CurrentCustodySection', () => {
     )
   })
 
-  it('keeps summary React keys on user identity and never reads collected_by from the row', () => {
+  it('keeps summary React keys and links on the collector identity', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/features/settlements/components/CurrentCustodySection/CurrentCustodySection.tsx'),
       'utf8',
     )
 
-    expect(source).toContain('key={record.user}')
-    expect(source).not.toContain('record.collected_by')
-    expect(source).not.toContain('collected_by_name')
+    expect(source).toContain('key={record.collected_by}')
+    expect(source).toContain('record.collected_by')
+    expect(source).toContain('collected_by_name')
     expect(source).not.toContain('collectorId ??')
     expect(source).not.toContain('?? record.net_amount')
   })

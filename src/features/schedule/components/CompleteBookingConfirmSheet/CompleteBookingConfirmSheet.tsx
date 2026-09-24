@@ -6,6 +6,7 @@ import { UnsavedChangesPrompt } from '../../../../shared/components/AppSheet/Uns
 import { AppSelect } from '../../../../shared/components/AppSelect/AppSelect'
 import { financeCopy } from '../../../../shared/copy/appCopy'
 import { formatMoneyAmount } from '../../../../shared/utils/money'
+import { BookingDetailTimeRange } from '../../../bookings/components/BookingDetailTimeRange/BookingDetailTimeRange'
 import {
   formatBookingDateWithWeekday,
   formatBookingTimeRange,
@@ -84,7 +85,7 @@ export function CompleteBookingConfirmSheet({
   )
   const requiresPaymentReference =
     requiresNextDeposit &&
-    preview?.requires_payment_reference === true &&
+    preview?.requires_digital_payment_reference === true &&
     isNonCashMethod(paymentMethod)
   const isDirty =
     requiresNextDeposit &&
@@ -196,12 +197,12 @@ export function CompleteBookingConfirmSheet({
 
   return (
     <>
-      <AppSheet ariaLabel="إكمال الحجز" onRequestClose={requestClose}>
-      <div className="p-5 pt-14">
+      <AppSheet
+        title={showContinuationUi ? 'إكمال الحجز الأسبوعي' : 'إكمال الحجز'}
+        onRequestClose={requestClose}
+      >
+      <div className="p-5">
         <div className="space-y-2">
-          <h2 className="text-xl font-black text-[var(--sloty-text-primary)]">
-            {showContinuationUi ? 'إكمال الحجز الأسبوعي' : 'إكمال الحجز'}
-          </h2>
           <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
             {hasRemaining
               ? 'يوجد مبلغ متبقي على هذا الحجز. يجب تسجيل الدفعة أولًا قبل إكمال الحجز.'
@@ -239,12 +240,16 @@ export function CompleteBookingConfirmSheet({
               <p className="font-black text-[var(--sloty-text-primary)]">
                 {formatBookingDateWithWeekday(preview.next_start_time)}
               </p>
-              <p className="mt-1 font-black text-[var(--sloty-text-primary)]">
-                {formatBookingTimeRange(
-                  preview.next_start_time,
-                  preview.next_end_time,
-                )}
-              </p>
+              <div className="mt-1">
+                <BookingDetailTimeRange
+                  endTime={preview.next_end_time}
+                  fallbackText={formatBookingTimeRange(
+                    preview.next_start_time,
+                    preview.next_end_time,
+                  )}
+                  startTime={preview.next_start_time}
+                />
+              </div>
             </div>
             <div>
               <p className="font-bold text-[var(--sloty-text-muted)]">

@@ -1,0 +1,247 @@
+---
+description: Inspect sloty-backend contracts before changing frontend APIs, identity, finance, bookings, or offline behavior.
+alwaysApply: true
+---
+
+# Backend Contract Awareness
+
+Sloty is a full-stack system.
+
+This repository is frontend-only.
+
+The sibling backend:
+
+`../sloty-backend`
+
+is the source of truth for:
+
+- APIs
+- serializers
+- validation
+- permissions
+- business rules
+- financial logic
+- identity boundaries
+- lifecycle states
+
+Never modify `../sloty-backend` from this repository.
+Backend changes require a separate backend task.
+
+Inspect backend. Never invent frontend behavior from frontend assumptions.
+
+---
+
+# Before Changing Frontend Behavior
+
+Inspect `../sloty-backend` in this order:
+
+1. Backend tests
+2. Serializers
+3. ViewSets / API views
+4. URL routing
+5. Domain documentation
+6. OpenAPI schema
+
+Backend tests and runtime behavior are stronger than OpenAPI.
+
+OpenAPI may be incomplete or outdated.
+Runtime behavior, serializers, and tests are the final contract.
+
+---
+
+# Frontend Architecture
+
+Respect existing frontend architecture.
+
+Do not introduce:
+
+- new libraries;
+- new patterns;
+- large abstractions;
+- refactors;
+
+unless explicitly requested.
+
+Prefer minimal V1-safe changes aligned with existing project conventions.
+
+---
+
+# Domain Map
+
+Authentication:
+
+- `apps/accounts`
+- `apps/profiles`
+
+Identity:
+
+- User = authentication identity
+- Profile = operational actor identity
+- ClubPlayer = customer identity
+
+Never assume:
+
+`User.id == Profile.id`
+
+Clubs: `apps/clubs`
+
+Courts and pricing: `apps/courts`
+
+Bookings: `apps/bookings`
+
+Players: `apps/players`
+
+Transactions: `apps/transactions`
+
+Settlements: `apps/settlements`
+
+Reports: `apps/reports`
+
+---
+
+# API Rules
+
+Before creating or modifying API calls:
+
+Verify:
+
+- endpoint exists;
+- HTTP method matches;
+- request payload matches serializer;
+- response matches serializer.
+
+Never invent endpoints.
+
+---
+
+# Pagination
+
+Never assume list endpoints return arrays.
+
+Verify backend pagination behavior before consuming list responses.
+
+Respect:
+
+- count
+- next
+- previous
+- results
+
+---
+
+# Identity Rules
+
+Business actor fields:
+
+- created_by
+- actor
+- settled_by
+- collected_by
+- cancelled_by
+
+use Profile IDs unless backend explicitly says otherwise.
+
+---
+
+# Finance Rules
+
+Backend owns:
+
+- prices;
+- totals;
+- balances;
+- settlements;
+- payment validity.
+
+Frontend must never calculate:
+
+- booking totals;
+- remaining amounts;
+- settlement values;
+- financial balances.
+
+Render server values.
+
+---
+
+# Booking Rules
+
+Backend owns:
+
+- availability;
+- customer resolution;
+- booking lifecycle;
+- pricing.
+
+Frontend sends user intent only (`customer_name`, `customer_phone`).
+
+Do not resolve or send `club_player_id` or `player_profile_id` on the client.
+
+Schedule-board clickability (yesterday + today + future) is UI-only.
+Do not hide historical booking detail on list/retrieve; backend retrieve is not date-clamped.
+
+---
+
+# Offline Rules
+
+Offline support is limited to backend-approved operations.
+
+Never create offline flows for:
+
+- payments;
+- settlements;
+- cancellations;
+- financial actions.
+
+---
+
+# Response Safety
+
+Respect backend nullability.
+
+Do not convert nullable backend fields into required frontend assumptions.
+
+---
+
+# Testing
+
+Before changing contract-sensitive code:
+
+Inspect matching backend tests first.
+
+---
+
+# Audit Mode
+
+When asked to audit:
+
+Do not immediately modify code.
+
+First report:
+
+- finding;
+- backend evidence;
+- frontend impact;
+- recommended action.
+
+Avoid large refactors unless explicitly requested.
+
+---
+
+# V1 Scope
+
+During V1 stabilization:
+
+Prefer:
+
+- bug fixes;
+- contract alignment;
+- production safety.
+
+Avoid:
+
+- global refactors;
+- permission redesign;
+- architecture migrations.
+
+Unless explicitly requested.

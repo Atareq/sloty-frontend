@@ -72,6 +72,7 @@ describe('AdminUserDetailsPage', () => {
       accessibleCourts: [],
       role: 'ADMIN',
       isAuthenticated: true,
+      isOperational: true,
       isLoadingSession: false,
       isTokenExpired: false,
       sessionError: null,

@@ -159,27 +159,43 @@ export function sortPeriodsByStartTime<
   })
 }
 
-export function doPricingPeriodsOverlap(
-  periods: CourtPricingPeriodPayload[],
-): boolean {
-  const sortedPeriods = sortPeriodsByStartTime(periods)
+/**
+ * Validates that no two pricing periods overlap on the half-open operational timeline [start, end).
+ *
+ * Two periods conflict if and only if:
+ *   start < other.end && end > other.start
+ *
+ * Contiguous/adjacent periods (e.g., 01:00-05:00 and 05:00-09:00) share an exact boundary
+ * point but do not conflict because periods are half-open intervals [start, end).
+ */
+export function doPricingPeriodsOverlap<
+  T extends Pick<CourtPricingPeriodPayload, 'starts_at' | 'ends_at'>,
+>(periods: T[]): boolean {
+  for (let i = 0; i < periods.length; i += 1) {
+    const period = periods[i]
+    const start = timeToBusinessMinutes(period.starts_at, 'start')
+    const end = timeToBusinessMinutes(period.ends_at, 'end')
 
-  return sortedPeriods.some((period, index) => {
-    const nextPeriod = sortedPeriods[index + 1]
-
-    if (!nextPeriod) {
-      return false
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      continue
     }
 
-    const currentEnd = timeToBusinessMinutes(period.ends_at, 'end')
-    const nextStart = timeToBusinessMinutes(nextPeriod.starts_at, 'start')
+    for (let j = i + 1; j < periods.length; j += 1) {
+      const other = periods[j]
+      const otherStart = timeToBusinessMinutes(other.starts_at, 'start')
+      const otherEnd = timeToBusinessMinutes(other.ends_at, 'end')
 
-    if (!Number.isFinite(currentEnd) || !Number.isFinite(nextStart)) {
-      return false
+      if (!Number.isFinite(otherStart) || !Number.isFinite(otherEnd)) {
+        continue
+      }
+
+      if (start < otherEnd && end > otherStart) {
+        return true
+      }
     }
+  }
 
-    return currentEnd > nextStart
-  })
+  return false
 }
 
 export function isTimeAlignedToSlotDuration(

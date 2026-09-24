@@ -224,6 +224,7 @@ describe('TransactionsListPage', () => {
       selectCourt: vi.fn(),
       role: 'OWNER',
       isAuthenticated: true,
+      isOperational: true,
       isLoadingSession: false,
       isTokenExpired: false,
       sessionError: null,
@@ -281,7 +282,7 @@ describe('TransactionsListPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps staff transactions court-scoped without creator filtering', async () => {
+  it('does not inject a staff assigned court into the transaction request', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -305,7 +306,6 @@ describe('TransactionsListPage', () => {
     expect(mockedListClubUsers).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
-        court: '3',
         ...defaultFilters,
       })
     })
@@ -338,7 +338,7 @@ describe('TransactionsListPage', () => {
     expect(mockedListTransactions).not.toHaveBeenCalled()
   })
 
-  it('shows cancelled transaction state and cancellation reason', async () => {
+  it('hides cancellation for a cancelled transaction without affecting details', async () => {
     mockedListTransactions.mockResolvedValueOnce(
       paginatedResponse([
         {
@@ -360,9 +360,13 @@ describe('TransactionsListPage', () => {
     expect(
       screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
     ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'عرض التفاصيل' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }),
+    ).not.toBeInTheDocument()
   })
 
-  it('renders refund rows as signed backend amounts without correction actions', async () => {
+  it('renders refund rows and leaves cancellation eligibility to the backend', async () => {
     mockedListTransactions.mockResolvedValueOnce(
       paginatedResponse([
         {
@@ -382,9 +386,7 @@ describe('TransactionsListPage', () => {
 
     expect(await screen.findByText('استرداد')).toBeInTheDocument()
     expect(screen.getByText(/-250\.00 ج\.م/)).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'إلغاء التحصيل' })).toBeInTheDocument()
   })
 
   it('cancels an active payment and reloads transactions', async () => {
@@ -438,6 +440,74 @@ describe('TransactionsListPage', () => {
       },
     )
     expect(await screen.findByText('تم إلغاء العملية')).toBeInTheDocument()
+  })
+
+  it('hides the cancellation action for a settled transaction', async () => {
+    mockedUseAuth.mockReturnValue({
+      ...mockedUseAuth(),
+      role: 'STAFF',
+      currentUser: {
+        ...mockedUseAuth().currentUser!,
+        id: 50,
+      },
+    })
+    mockedListTransactions.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 15,
+          amount: '150.00',
+          payment_method: 'CASH' as const,
+          created_by: { id: 12, name: 'موظف آخر' },
+          is_cancelled: true,
+          is_settled: true,
+        },
+      ]),
+    )
+    renderTransactionsPage()
+
+    await screen.findByText('150.00 ج.م · نقدي')
+    expect(
+      screen.queryByRole('button', { name: 'إلغاء التحصيل' }),
+    ).not.toBeInTheDocument()
+    expect(mockedCancelTransaction).not.toHaveBeenCalled()
+  })
+
+  it('displays the backend booking-cancellation guidance without retrying', async () => {
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    })
+
+    mockedListTransactions.mockResolvedValueOnce(
+      paginatedResponse([
+        {
+          id: 16,
+          amount: '150.00',
+          payment_method: 'CASH' as const,
+          created_by: { id: 999, name: 'موظف آخر' },
+          is_cancelled: false,
+          is_settled: false,
+        },
+      ]),
+    )
+    mockedCancelTransaction.mockRejectedValueOnce(
+      new ApiClientError(
+        'This payment can no longer be cancelled directly. Cancel the booking instead.',
+        409,
+        { code: 'PAYMENT_CANCELLATION_REQUIRES_BOOKING_CANCELLATION' },
+      ),
+    )
+
+    renderTransactionsPage()
+
+    await user.click(await screen.findByRole('button', { name: 'إلغاء التحصيل' }))
+    await user.type(screen.getByLabelText('سبب الإلغاء'), 'تصحيح محاسبي')
+    await user.click(screen.getByRole('button', { name: 'تأكيد إلغاء تسجيل الدفعة' }))
+
+    expect(
+      await screen.findByText('لا يمكن إلغاء هذه الدفعة مباشرة. يرجى إلغاء الحجز أولاً.'),
+    ).toBeInTheDocument()
+    expect(mockedCancelTransaction).toHaveBeenCalledTimes(1)
+    expect(mockedListTransactions).toHaveBeenCalledTimes(1)
   })
 
   it('renders the scoped cached transaction snapshot offline without calling the server', async () => {
@@ -1165,7 +1235,7 @@ describe('TransactionsListPage', () => {
     })
   })
 
-  it('resets advanced filters while preserving quick shortcuts', async () => {
+  it('clears an explicit court filter while preserving quick shortcuts', async () => {
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime,
     })
@@ -1174,7 +1244,7 @@ describe('TransactionsListPage', () => {
       .mockResolvedValueOnce(paginatedResponse([]))
       .mockResolvedValueOnce(paginatedResponse([]))
 
-    renderTransactionsPage('/transactions?settlement_status=unsettled')
+    renderTransactionsPage('/transactions?court=3&settlement_status=unsettled')
 
     await screen.findByText('مفيش عمليات مالية مطابقة للفلاتر الحالية.')
     await expandQuickShortcuts(user)
@@ -1192,7 +1262,7 @@ describe('TransactionsListPage', () => {
     })
   })
 
-  it('does not automatically restrict transactions to a date period for any role on page open', async () => {
+  it('does not automatically restrict transactions by date or assigned court on page open', async () => {
     // 1. Owner / Admin role
     mockedListTransactions.mockResolvedValueOnce(paginatedResponse([]))
     const { unmount } = renderTransactionsPage()
@@ -1213,7 +1283,6 @@ describe('TransactionsListPage', () => {
     const { unmount: unmountStaff } = renderTransactionsPage()
 
     expect(mockedListTransactions).toHaveBeenCalledWith('nasr-club', {
-      court: '3',
       ordering: '-created',
     })
     expect(screen.queryByRole('button', { name: /إزالة فلتر/ })).not.toBeInTheDocument()

@@ -70,6 +70,7 @@ function mockAuth(
     selectCourt: vi.fn(),
     role,
     isAuthenticated: true,
+    isOperational: Boolean(role),
     isLoadingSession: false,
     isTokenExpired: false,
     sessionError: null,

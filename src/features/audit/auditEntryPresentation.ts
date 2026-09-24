@@ -1,6 +1,5 @@
 import { bookingStatusLabels } from '../bookings/bookingDisplay.helpers'
 import { formatTime12Hour } from '../schedule/scheduleBoard.helpers'
-import { settlementStatusLabels } from '../settlements/settlements.types'
 import {
   paymentMethodLabels,
   transactionTypeLabels,
@@ -177,10 +176,14 @@ function formatLegacyDepositStatus(value: unknown): string | null {
     : null
 }
 
+const settlementStatusLabels: Record<string, string> = {
+  PENDING: 'قيد المراجعة',
+  SETTLED: 'مسواة',
+}
+
 function formatSettlementStatus(value: unknown): string | null {
   return typeof value === 'string'
-    ? settlementStatusLabels[value as keyof typeof settlementStatusLabels] ??
-        value
+    ? settlementStatusLabels[value] ?? value
     : null
 }
 
