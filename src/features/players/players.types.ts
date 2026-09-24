@@ -1,3 +1,6 @@
+import type { Country } from 'react-phone-number-input'
+import { normalizeSlotyPhoneNumber } from '../../shared/validation/phone'
+
 export interface PlayerProfileSummary {
   id?: number
   phone_number?: string | null
@@ -47,4 +50,28 @@ export function getClubPlayerPhone(
     player.player_profile?.phone_number ||
     ''
   )
+}
+
+/**
+ * True when this club player belongs to the entered phone.
+ *
+ * Comparison uses the shared phone normalizer so national and E.164 forms of
+ * the same number match. Names for other phones do not.
+ */
+export function clubPlayerMatchesPhone(
+  player: ClubPlayer,
+  phone: string,
+  country: Country,
+): boolean {
+  const normalizedQuery = normalizeSlotyPhoneNumber(phone, country)
+  if (!normalizedQuery) {
+    return false
+  }
+
+  const rawPhone = getClubPlayerPhone(player)
+  const normalizedPlayer =
+    normalizeSlotyPhoneNumber(rawPhone, country) ??
+    normalizeSlotyPhoneNumber(rawPhone)
+
+  return normalizedPlayer === normalizedQuery
 }

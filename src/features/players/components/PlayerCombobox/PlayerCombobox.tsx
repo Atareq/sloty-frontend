@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useId,
   useRef,
@@ -8,12 +7,10 @@ import {
 } from 'react'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import { customerCopy } from '../../../../shared/copy/appCopy'
-import { listClubPlayers } from '../../playersApi'
 import { getClubPlayerPhone } from '../../players.types'
 import type { ClubPlayer } from '../../players.types'
 
 export interface PlayerComboboxProps {
-  clubSlug?: string | null
   value: string
   onChange: (value: string) => void
   onSelectPlayer?: (player: ClubPlayer) => void
@@ -29,15 +26,14 @@ export interface PlayerComboboxProps {
 const EMPTY_PLAYER_OPTIONS: ClubPlayer[] = []
 
 /**
- * Searchable player name combobox with free-text typing.
+ * Free-text customer name field with optional phone-scoped suggestions.
  *
- * Allows selecting previously used player identities ordered by last booking usage,
- * live-searching by player name, or freely typing a brand-new custom name.
- * Free text is always valid; player selection from dropdown is never forced.
+ * Suggestions come only from `playerOptions`, which the booking sheet loads
+ * for the entered phone. Typing never searches all customers, never rejects
+ * an unknown name, and never replaces the typed value.
  */
 export function PlayerCombobox({
   ariaLabel = customerCopy.playerName,
-  clubSlug,
   disabled = false,
   error = false,
   id,
@@ -54,29 +50,13 @@ export function PlayerCombobox({
 
   const [isOpen, setIsOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
-  const [nameSearchResults, setNameSearchResults] = useState<
-    ClubPlayer[] | null
-  >(null)
-  const [isSearchingName, setIsSearchingName] = useState(false)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const searchTimeoutRef = useRef<number | null>(null)
-  const prevPlayerOptionsRef = useRef(playerOptions)
 
-  // When playerOptions from parent change, reset local name-search results
-  useEffect(() => {
-    if (prevPlayerOptionsRef.current !== playerOptions) {
-      prevPlayerOptionsRef.current = playerOptions
-      setNameSearchResults(null)
-    }
-  }, [playerOptions])
+  const canShowSuggestions = playerOptions.length > 0 || isLoading
+  const suggestionsOpen = isOpen && canShowSuggestions
 
-  // Use name-search results when user typed a name search; otherwise use props playerOptions (from phone lookup)
-  const displayedOptions = nameSearchResults ?? playerOptions
-  const activeLoading = isLoading || isSearchingName
-
-  // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (
@@ -97,52 +77,10 @@ export function PlayerCombobox({
     }
   }, [])
 
-  // Clear pending debounce timers on unmount
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        window.clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const triggerNameSearch = useCallback(
-    (query: string) => {
-      if (searchTimeoutRef.current) {
-        window.clearTimeout(searchTimeoutRef.current)
-      }
-
-      const trimmed = query.trim()
-      if (!clubSlug || !trimmed) {
-        setNameSearchResults(null)
-        setIsSearchingName(false)
-        return
-      }
-
-      setIsSearchingName(true)
-      searchTimeoutRef.current = window.setTimeout(async () => {
-        try {
-          const results = await listClubPlayers(clubSlug, {
-            search: trimmed,
-            order_by: '-last_used_at',
-          })
-          setNameSearchResults(results)
-        } catch {
-          setNameSearchResults([])
-        } finally {
-          setIsSearchingName(false)
-        }
-      }, 300)
-    },
-    [clubSlug],
-  )
-
   function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const nextValue = event.target.value
-    onChange(nextValue)
-    setIsOpen(true)
+    onChange(event.target.value)
     setActiveIndex(-1)
-    triggerNameSearch(nextValue)
+    setIsOpen(playerOptions.length > 0)
   }
 
   function handleSelect(player: ClubPlayer) {
@@ -150,7 +88,6 @@ export function PlayerCombobox({
     onSelectPlayer?.(player)
     setIsOpen(false)
     setActiveIndex(-1)
-    setNameSearchResults(null)
     inputRef.current?.focus()
   }
 
@@ -161,42 +98,48 @@ export function PlayerCombobox({
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
+      if (!canShowSuggestions) {
+        return
+      }
       if (!isOpen) {
         setIsOpen(true)
-        if (displayedOptions.length > 0) {
+        if (playerOptions.length > 0) {
           setActiveIndex(0)
         }
-      } else if (displayedOptions.length > 0) {
-        setActiveIndex((prev) => (prev + 1) % displayedOptions.length)
+      } else if (playerOptions.length > 0) {
+        setActiveIndex((prev) => (prev + 1) % playerOptions.length)
       }
       return
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
+      if (!canShowSuggestions) {
+        return
+      }
       if (!isOpen) {
         setIsOpen(true)
-        if (displayedOptions.length > 0) {
-          setActiveIndex(displayedOptions.length - 1)
+        if (playerOptions.length > 0) {
+          setActiveIndex(playerOptions.length - 1)
         }
-      } else if (displayedOptions.length > 0) {
+      } else if (playerOptions.length > 0) {
         setActiveIndex((prev) =>
-          prev <= 0 ? displayedOptions.length - 1 : prev - 1,
+          prev <= 0 ? playerOptions.length - 1 : prev - 1,
         )
       }
       return
     }
 
     if (event.key === 'Enter') {
-      if (isOpen && activeIndex >= 0 && displayedOptions[activeIndex]) {
+      if (suggestionsOpen && activeIndex >= 0 && playerOptions[activeIndex]) {
         event.preventDefault()
-        handleSelect(displayedOptions[activeIndex])
+        handleSelect(playerOptions[activeIndex])
       }
       return
     }
 
     if (event.key === 'Escape') {
-      if (isOpen) {
+      if (suggestionsOpen) {
         event.preventDefault()
         setIsOpen(false)
         setActiveIndex(-1)
@@ -211,7 +154,7 @@ export function PlayerCombobox({
   }
 
   function handleToggleDropdown() {
-    if (disabled) {
+    if (disabled || !canShowSuggestions) {
       return
     }
     setIsOpen((prev) => !prev)
@@ -229,12 +172,12 @@ export function PlayerCombobox({
           id={inputId}
           type="text"
           role="combobox"
-          aria-expanded={isOpen}
+          aria-expanded={suggestionsOpen}
           aria-autocomplete="list"
-          aria-controls={isOpen ? listboxId : undefined}
+          aria-controls={suggestionsOpen ? listboxId : undefined}
           aria-activedescendant={
-            isOpen && activeIndex >= 0 && displayedOptions[activeIndex]
-              ? `${listboxId}-opt-${displayedOptions[activeIndex].id}`
+            suggestionsOpen && activeIndex >= 0 && playerOptions[activeIndex]
+              ? `${listboxId}-opt-${playerOptions[activeIndex].id}`
               : undefined
           }
           aria-label={ariaLabel}
@@ -247,7 +190,7 @@ export function PlayerCombobox({
           disabled={disabled}
           onChange={handleInputChange}
           onFocus={() => {
-            if (displayedOptions.length > 0) {
+            if (playerOptions.length > 0) {
               setIsOpen(true)
             }
           }}
@@ -264,35 +207,31 @@ export function PlayerCombobox({
           onClick={handleToggleDropdown}
           disabled={disabled}
         >
-          {activeLoading ? (
+          {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin text-[var(--sloty-primary)]" />
           ) : (
             <ChevronDown
               className={`h-4 w-4 transition-transform duration-150 ${
-                isOpen ? 'rotate-180' : ''
+                suggestionsOpen ? 'rotate-180' : ''
               }`}
             />
           )}
         </button>
       </div>
 
-      {isOpen ? (
+      {suggestionsOpen ? (
         <div
           id={listboxId}
           role="listbox"
           className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-[var(--sloty-border)] bg-white p-1 shadow-lg"
         >
-          {activeLoading && displayedOptions.length === 0 ? (
+          {isLoading && playerOptions.length === 0 ? (
             <div className="flex items-center justify-center gap-2 p-3 text-xs font-bold text-[var(--sloty-text-muted)]">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--sloty-primary)]" />
               <span>{customerCopy.searching}</span>
             </div>
-          ) : displayedOptions.length === 0 ? (
-            <div className="p-3 text-center text-xs font-bold text-[var(--sloty-text-muted)]">
-              {customerCopy.noSavedPlayers}
-            </div>
           ) : (
-            displayedOptions.map((option, idx) => {
+            playerOptions.map((option, idx) => {
               const optionPhone = getClubPlayerPhone(option)
               const isOptionActive = activeIndex === idx
 
@@ -308,7 +247,6 @@ export function PlayerCombobox({
                       : 'hover:bg-[var(--sloty-bg)] text-[var(--sloty-text-primary)]'
                   }`}
                   onMouseDown={(event) => {
-                    // Prevent blur before click completes
                     event.preventDefault()
                   }}
                   onClick={() => handleSelect(option)}

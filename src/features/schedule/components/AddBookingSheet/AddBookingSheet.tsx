@@ -22,7 +22,10 @@ import { BookingDetailTimeRange } from '../../../bookings/components/BookingDeta
 import { formatBookingTimeRange } from '../../../bookings/bookingDisplay.helpers'
 import { PlayerCombobox } from '../../../players/components/PlayerCombobox/PlayerCombobox'
 import { listClubPlayers } from '../../../players/playersApi'
-import { getClubPlayerPhone } from '../../../players/players.types'
+import {
+  clubPlayerMatchesPhone,
+  getClubPlayerPhone,
+} from '../../../players/players.types'
 import type { ClubPlayer } from '../../../players/players.types'
 
 export interface AddBookingSheetValues {
@@ -175,6 +178,8 @@ export function AddBookingSheet({
     const currentSeq = ++phoneSearchSeqRef.current
     const trimmedPhone = phone.trim()
 
+    setPlayerOptions([])
+
     const isPhoneComplete = Boolean(
       clubSlug &&
         trimmedPhone &&
@@ -182,7 +187,6 @@ export function AddBookingSheet({
     )
 
     if (!isPhoneComplete) {
-      setPlayerOptions([])
       setIsSearchingPlayers(false)
       // If current name was auto-filled from previous phone and user never edited it,
       // clear it when phone becomes incomplete.
@@ -205,11 +209,14 @@ export function AddBookingSheet({
           return
         }
 
-        setPlayerOptions(results)
+        const matchingPlayers = results.filter((player) =>
+          clubPlayerMatchesPhone(player, trimmedPhone, country),
+        )
+        setPlayerOptions(matchingPlayers)
 
         if (!isNameOverriddenRef.current) {
-          if (results.length > 0 && results[0].display_name) {
-            const defaultName = results[0].display_name
+          if (matchingPlayers.length > 0 && matchingPlayers[0].display_name) {
+            const defaultName = matchingPlayers[0].display_name
             setCustomerName(defaultName)
             autoFilledNameRef.current = defaultName
           } else if (autoFilledNameRef.current) {
@@ -364,7 +371,6 @@ export function AddBookingSheet({
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>{customerCopy.playerName}</span>
               <PlayerCombobox
-                clubSlug={clubSlug}
                 disabled={isSubmitting}
                 error={Boolean(nameFieldError)}
                 isLoading={isSearchingPlayers}

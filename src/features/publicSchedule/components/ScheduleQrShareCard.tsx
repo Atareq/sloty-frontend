@@ -47,7 +47,7 @@ export function ScheduleQrShareCard({
   return (
     <div
       className={[
-        'relative flex w-full max-w-[340px] sm:max-w-[380px] flex-col items-center justify-center overflow-hidden rounded-2xl shadow-md transition',
+        'relative mx-auto flex w-full min-w-0 max-w-full flex-col items-center justify-center overflow-hidden rounded-2xl shadow-md sm:max-w-[380px]',
         className,
       ].join(' ')}
       data-testid="schedule-qr-share-card"
@@ -62,7 +62,7 @@ export function ScheduleQrShareCard({
         <>
           <img
             alt={`QR لعرض جدول مواعيد ${courtDisplayName}`}
-            className="h-auto w-full object-contain"
+            className="block h-auto max-h-[min(56dvh,520px)] w-full min-w-0 max-w-full object-contain"
             src={`data:image/svg+xml;utf8,${encodeURIComponent(cardSvg)}`}
           />
           {/* Accessible metadata */}

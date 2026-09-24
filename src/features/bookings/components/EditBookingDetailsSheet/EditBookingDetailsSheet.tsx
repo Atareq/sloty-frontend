@@ -18,7 +18,10 @@ import {
 } from '../../../../shared/validation/phone'
 import { PlayerCombobox } from '../../../players/components/PlayerCombobox/PlayerCombobox'
 import { listClubPlayers } from '../../../players/playersApi'
-import { getClubPlayerPhone } from '../../../players/players.types'
+import {
+  clubPlayerMatchesPhone,
+  getClubPlayerPhone,
+} from '../../../players/players.types'
 import type { ClubPlayer } from '../../../players/players.types'
 import type {
   BookingListItem,
@@ -101,6 +104,8 @@ export function EditBookingDetailsSheet({
     const currentSeq = ++phoneSearchSeqRef.current
     const trimmedPhone = phone.trim()
 
+    setPlayerOptions([])
+
     const isPhoneComplete = Boolean(
       clubSlug &&
         trimmedPhone &&
@@ -108,7 +113,6 @@ export function EditBookingDetailsSheet({
     )
 
     if (!isPhoneComplete) {
-      setPlayerOptions([])
       setIsSearchingPlayers(false)
       if (!isNameOverriddenRef.current && autoFilledNameRef.current) {
         setCustomerName('')
@@ -129,11 +133,14 @@ export function EditBookingDetailsSheet({
           return
         }
 
-        setPlayerOptions(results)
+        const matchingPlayers = results.filter((player) =>
+          clubPlayerMatchesPhone(player, trimmedPhone, country),
+        )
+        setPlayerOptions(matchingPlayers)
 
         if (!isNameOverriddenRef.current) {
-          if (results.length > 0 && results[0].display_name) {
-            const defaultName = results[0].display_name
+          if (matchingPlayers.length > 0 && matchingPlayers[0].display_name) {
+            const defaultName = matchingPlayers[0].display_name
             setCustomerName(defaultName)
             autoFilledNameRef.current = defaultName
           } else if (autoFilledNameRef.current) {
@@ -276,7 +283,6 @@ export function EditBookingDetailsSheet({
             <label className="block space-y-2 text-sm font-bold text-[var(--sloty-text-primary)]">
               <span>{customerCopy.playerName}</span>
               <PlayerCombobox
-                clubSlug={clubSlug}
                 disabled={isSubmitting}
                 error={Boolean(nameFieldError)}
                 isLoading={isSearchingPlayers}

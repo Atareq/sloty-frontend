@@ -122,9 +122,11 @@ describe('ScheduleQrShareCard', () => {
     render(<ScheduleQrShareCard courtName="ملعب النصر" qrSvg={sampleQrSvg} />)
 
     const cardContainer = screen.getByTestId('schedule-qr-share-card')
-    expect(cardContainer).toHaveClass('max-w-[340px]')
+    expect(cardContainer).toHaveClass('min-w-0', 'max-w-full', 'w-full')
     expect(cardContainer).toHaveClass('sm:max-w-[380px]')
-    expect(cardContainer).not.toHaveClass('max-w-[300px]')
+    expect(cardContainer).not.toHaveClass('hidden')
+    expect(cardContainer.className).not.toMatch(/\b(?:sm|md|lg):(?:block|flex|hidden)\b/)
     expect(cardContainer).not.toHaveClass('border')
+    expect(screen.getByRole('img', { name: 'QR لعرض جدول مواعيد ملعب النصر' })).toBeInTheDocument()
   })
 })

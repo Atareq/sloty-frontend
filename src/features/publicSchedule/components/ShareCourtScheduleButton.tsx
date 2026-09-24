@@ -91,7 +91,7 @@ export function ShareCourtScheduleButton({
     variant === 'header'
       ? isCopied
         ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
-        : 'bg-white/15 text-white hover:bg-white/25 focus:ring-white/70'
+        : 'border border-white/70 bg-white text-[var(--sloty-primary-dark)] shadow-sm hover:bg-[var(--sloty-soft-mint)] focus:ring-white/80'
       : isCopied
         ? 'border-emerald-300 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-400/20'
         : 'border-[var(--sloty-border)] bg-[var(--sloty-surface)] text-[var(--sloty-text-primary)] hover:bg-[var(--sloty-bg)] focus:ring-[var(--sloty-primary)]/20'
@@ -101,7 +101,7 @@ export function ShareCourtScheduleButton({
       <button
         aria-label={isCopied ? 'تم النسخ' : 'مشاركة الجدول'}
         className={[
-          'inline-flex h-11 items-center justify-center gap-1.5 rounded-2xl px-3.5 text-sm font-bold transition focus:outline-none focus:ring-2',
+          'inline-flex h-11 max-w-full min-w-0 items-center justify-center gap-1.5 rounded-2xl px-3.5 text-sm font-bold transition focus:outline-none focus:ring-2',
           variant === 'secondary' ? 'border shadow-xs' : '',
           baseStyles,
           className,
@@ -115,7 +115,7 @@ export function ShareCourtScheduleButton({
         ) : (
           <>
             <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
-            <span>مشاركة الجدول</span>
+            <span className="truncate">مشاركة الجدول</span>
           </>
         )}
       </button>
