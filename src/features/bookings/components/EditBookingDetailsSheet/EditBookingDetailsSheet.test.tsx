@@ -119,8 +119,14 @@ describe('EditBookingDetailsSheet', () => {
     )
 
     const phoneInput = screen.getByLabelText('رقم الموبايل')
-    await user.clear(phoneInput)
-    await user.type(phoneInput, '01000000002')
+    fireEvent.change(phoneInput, { target: { value: '01000000002' } })
+
+    await waitFor(() => {
+      expect(mockedListClubPlayers).toHaveBeenCalledWith('nasr-club', {
+        search: '01000000002',
+        order_by: '-last_used_at',
+      })
+    })
 
     await user.click(screen.getByRole('button', { name: 'عرض قائمة اللاعبين' }))
     await waitFor(() => expect(screen.getByText('أحمد حسن')).toBeInTheDocument())

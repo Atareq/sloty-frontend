@@ -159,8 +159,10 @@ function makeSlot(
   const bookingIdByStartTime: Record<string, number> = {
     '06:00': 12,
     '07:00': 10,
+    '10:00': 15,
     '12:00': 13,
     '13:00': 14,
+    '19:00': 16,
   }
   const label = Object.prototype.hasOwnProperty.call(overrides, 'label')
     ? overrides.label ?? null
