@@ -90,7 +90,7 @@ export const publicScheduleVisitorCopy = {
     'حالياّ تقدر تشوف مواعيد الملعب فقط, وقريب هتقدر تحجز بنفسك إن شاء الله 🤍',
   stayTuned: 'استنّانا!',
   bodyStaff: 'لو أنت من فريق العمل، سجّل الدخول دلوقتي واحجز لغيرك.',
-  continueAction: 'استمرار',
+  continueAction: 'كمل',
 } as const
 
 export const customerCopy = {
