@@ -70,18 +70,19 @@ For the detailed architectural specification, consult [`docs/features/public-sch
      تم نسخ رابط الجدول
      الرابط جاهز للمشاركة مع اللاعبين.
      ```
-2. **Login Affordance on `/login`:**
-   - Matches the exact locked copy:
-     ```text
-     مش من فريق العمل في الملعب؟
-     تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.
-   - Uses `navigator.share` on supported platforms, falling back to clipboard copy (`navigator.clipboard.writeText`) on desktop/unsupported environments with instant feedback toast (`تم نسخ رابط الجدول`).
-2. **Login Affordance:**
-   - Provides clear messaging for staff members to navigate to the operational login.
-
-     المتابعة كزائر
-     ```
-   - Tapping `المتابعة كزائر` returns the guest to the public court schedule.
+2. **Guest Header Actions & Login Affordance:**
+   - **Mobile Layout:** Unauthenticated visitors see the compact `LogIn` icon button and compact `Share2` icon button (`mobileIconOnly`) placed together at the top-left (`endAction` in RTL `PageHeader`).
+   - **Responsive Enhancement:** On tablet and desktop viewports (`sm:`), both actions expand to display their full Arabic labels (`تسجيل الدخول` and `مشاركة الجدول`).
+   - **Slot Click Guidance:** Clicking an available slot on public schedule opens the `PublicScheduleVisitorPopup` (`AppSheet` modal/dialog) with exact Arabic guidance for players and staff. It does not open the booking flow, does not redirect, does not trigger login button highlights, and strictly preserves the user's scroll and schedule position. There is **zero booking flow** on guest public schedule.
+   - **Isolation Boundary:** Authenticated schedule retains its standalone share button with full text and never adopts guest compact icon styling.
+   - **Login Page Affordance (`/login`):**
+     - Matches the locked copy for unauthenticated visitors returning to public schedule:
+       ```text
+       مش من فريق العمل في الملعب؟
+       تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.
+       المتابعة كزائر
+       ```
+     - Tapping `المتابعة كزائر` returns the guest to the public court schedule.
 
 Detailed architectural specification: [`docs/public-schedule-architecture.md`](../../../docs/public-schedule-architecture.md).
 Detailed architectural specification: [`docs/features/public-schedule.md`](../../../docs/features/public-schedule.md).

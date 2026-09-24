@@ -99,7 +99,7 @@ It must not change Nginx config, restart Nginx, restart Backend, run Django migr
 
 Existing UI metadata is reused:
 
-- Frontend: [`src/core/config/buildInfo.ts`](../src/core/config/buildInfo.ts)
+- Frontend: [`src/core/config/buildInfo.ts`](../src/core/config/buildInfo.ts) and static `version.json` via [`src/core/release/releaseManager.ts`](../src/core/release/releaseManager.ts)
 - Backend: [`src/core/system/`](../src/core/system/) and [`src/shared/components/BuildInfo/`](../src/shared/components/BuildInfo/)
 
 Production API targeting stays in `.env.production` via [`src/shared/config/api.ts`](../src/shared/config/api.ts). Vite env values are client-visible; never put secrets in `VITE_*`.

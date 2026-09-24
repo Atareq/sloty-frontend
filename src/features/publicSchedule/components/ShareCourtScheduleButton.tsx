@@ -10,6 +10,7 @@ export interface ShareCourtScheduleButtonProps {
   courtName?: string
   className?: string
   variant?: 'header' | 'secondary'
+  mobileIconOnly?: boolean
 }
 
 const CONFIRMATION_MESSAGE = `تم نسخ رابط الجدول
@@ -28,6 +29,7 @@ export function ShareCourtScheduleButton({
   courtName,
   className = '',
   variant = 'header',
+  mobileIconOnly = false,
 }: ShareCourtScheduleButtonProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
@@ -101,7 +103,8 @@ export function ShareCourtScheduleButton({
       <button
         aria-label={isCopied ? 'تم النسخ' : 'مشاركة الجدول'}
         className={[
-          'inline-flex h-11 max-w-full min-w-0 items-center justify-center gap-1.5 rounded-2xl px-3.5 text-sm font-bold transition focus:outline-none focus:ring-2',
+          'inline-flex h-11 max-w-full min-w-0 items-center justify-center gap-1.5 rounded-2xl text-sm font-bold transition focus:outline-none focus:ring-2',
+          mobileIconOnly ? 'w-11 px-0 sm:w-auto sm:px-3.5' : 'px-3.5',
           variant === 'secondary' ? 'border shadow-xs' : '',
           baseStyles,
           className,
@@ -111,11 +114,30 @@ export function ShareCourtScheduleButton({
         type="button"
       >
         {isCopied ? (
-          <span>✓ تم النسخ</span>
+          mobileIconOnly ? (
+            <span>
+              ✓<span className="hidden sm:inline"> تم النسخ</span>
+            </span>
+          ) : (
+            <span>✓ تم النسخ</span>
+          )
         ) : (
           <>
-            <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
-            <span className="truncate">مشاركة الجدول</span>
+            <Share2
+              aria-hidden="true"
+              className={
+                mobileIconOnly
+                  ? 'h-5 w-5 shrink-0 sm:h-4 sm:w-4'
+                  : 'h-4 w-4 shrink-0'
+              }
+            />
+            <span
+              className={
+                mobileIconOnly ? 'hidden sm:inline truncate' : 'truncate'
+              }
+            >
+              مشاركة الجدول
+            </span>
           </>
         )}
       </button>
