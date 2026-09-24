@@ -3537,6 +3537,8 @@ describe('SchedulePage', () => {
     render(<div>{capturedAction}</div>)
     const shareButton = screen.getByRole('button', { name: 'مشاركة الجدول' })
     expect(shareButton).toBeInTheDocument()
+    expect(shareButton).not.toHaveClass('w-11')
+    expect(shareButton).toHaveTextContent('مشاركة الجدول')
   })
 
   it('updates PageHeaderAction Share button when Owner or Manager changes court', async () => {

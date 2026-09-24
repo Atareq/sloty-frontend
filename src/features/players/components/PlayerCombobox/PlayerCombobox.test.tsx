@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PlayerCombobox } from './PlayerCombobox'
@@ -153,38 +153,19 @@ describe('PlayerCombobox', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
-  it('triggers debounced name search when typing in the input', async () => {
+  it('keeps a typed name free-form and does not search customers by name', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-
-    mockedListClubPlayers.mockResolvedValueOnce([
-      {
-        id: 201,
-        display_name: 'أحمد كابتن',
-        phone_number: '01222333444',
-        player_number: 10,
-        player_profile: {
-          id: 1201,
-          phone_number: '01222333444',
-          full_name: 'أحمد كابتن',
-          verified: true,
-          has_account: false,
-          created_at: '2026-09-01T12:00:00Z',
-          updated_at: '2026-09-01T12:00:00Z',
-        },
-        last_used_at: '2026-09-10T12:00:00Z',
-      },
-    ])
 
     function ControlledPlayerCombobox() {
       const [val, setVal] = useState('')
       return (
         <PlayerCombobox
-          clubSlug="barcelona-fc"
-          onChange={(v) => {
-            setVal(v)
-            onChange(v)
+          onChange={(nextValue) => {
+            setVal(nextValue)
+            onChange(nextValue)
           }}
+          playerOptions={mockPlayers}
           value={val}
         />
       )
@@ -193,38 +174,43 @@ describe('PlayerCombobox', () => {
     render(<ControlledPlayerCombobox />)
 
     const input = screen.getByRole('combobox')
-    await user.type(input, 'أحمد')
+    await user.type(input, 'Mohamed Adel')
 
-    expect(onChange).toHaveBeenLastCalledWith('أحمد')
-
-    await waitFor(() => {
-      expect(mockedListClubPlayers).toHaveBeenCalledWith('barcelona-fc', {
-        search: 'أحمد',
-        order_by: '-last_used_at',
-      })
-    })
-
-    expect(await screen.findByText('أحمد كابتن')).toBeInTheDocument()
+    expect(onChange).toHaveBeenLastCalledWith('Mohamed Adel')
+    expect(input).toHaveValue('Mohamed Adel')
+    expect(mockedListClubPlayers).not.toHaveBeenCalled()
+    expect(screen.queryByText('مفيش لاعب محفوظ بالبيانات دي')).not.toBeInTheDocument()
+    expect(screen.getByText('كابتن طارق')).toBeInTheDocument()
+    expect(screen.getByText('طارق محمد')).toBeInTheDocument()
   })
 
-  it('displays empty state when no saved players match', async () => {
+  it('does not open a no-results message when there are no phone-scoped names', async () => {
     const user = userEvent.setup()
 
-    render(
-      <PlayerCombobox
-        onChange={vi.fn()}
-        playerOptions={[]}
-        value=""
-      />,
-    )
+    function ControlledPlayerCombobox() {
+      const [val, setVal] = useState('')
+      return (
+        <PlayerCombobox
+          onChange={setVal}
+          playerOptions={[]}
+          value={val}
+        />
+      )
+    }
+
+    render(<ControlledPlayerCombobox />)
 
     await user.click(
       screen.getByRole('button', { name: 'عرض قائمة اللاعبين' }),
     )
+    await user.type(screen.getByRole('combobox'), 'اسم جديد')
 
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(
-      screen.getByText('مفيش لاعب محفوظ بالبيانات دي'),
-    ).toBeInTheDocument()
+      screen.queryByText('مفيش لاعب محفوظ بالبيانات دي'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox')).toHaveValue('اسم جديد')
+    expect(mockedListClubPlayers).not.toHaveBeenCalled()
   })
 
   it('displays loading state during active search', async () => {

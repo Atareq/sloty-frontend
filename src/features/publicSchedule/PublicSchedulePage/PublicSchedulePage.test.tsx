@@ -1,9 +1,10 @@
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getPublicCourtAvailability } from '../publicScheduleApi'
 import type { PublicCourtAvailabilityResponse } from '../publicSchedule.types'
+import { publicScheduleVisitorCopy } from '../../../shared/copy/appCopy'
 import { PublicSchedulePage } from './PublicSchedulePage'
 
 vi.mock('../publicScheduleApi', () => ({
@@ -109,9 +110,8 @@ describe('PublicSchedulePage', () => {
     )
   })
 
-  it('shows informational notice and triggers login attention ring when an available slot is clicked', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+  it('opens visitor guidance popup with exact copy and no scroll or login ring when an available slot is clicked', async () => {
+    const user = userEvent.setup()
 
     renderPublicSchedulePage()
 
@@ -121,43 +121,58 @@ describe('PublicSchedulePage', () => {
     const loginButton = screen.getByTestId('public-schedule-login-button')
 
     expect(loginButton).not.toHaveClass('ring-4')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await user.click(availableSlots[0])
 
-    // Verify informational toast with required Arabic copy appears
-    const notice = screen.getByRole('status')
-    expect(notice).toBeInTheDocument()
+    // Verify visitor guidance dialog appears with exact Arabic copy
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(
-      screen.getByText('الحجز وتفاصيل المواعيد متاحة لفريق العمل فقط.'),
+      screen.getByRole('heading', {
+        name: publicScheduleVisitorCopy.title.trim().replace(/\s+/g, ' '),
+      }),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'لو أنت صاحب المكان أو أحد العاملين، سجّل الدخول من أعلى الصفحة.',
-      ),
+      screen.getByText(publicScheduleVisitorCopy.bodyPlayer),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('اللاعبون يقدروا يشوفوا المواعيد المتاحة فقط.'),
+      screen.getByText(publicScheduleVisitorCopy.stayTuned),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(publicScheduleVisitorCopy.bodyStaff),
     ).toBeInTheDocument()
 
-    // Verify login button has active attention highlight class
-    expect(loginButton).toHaveClass('ring-4')
+    // Verifies NO Booking flow
+    expect(screen.queryByText('حجز جديد')).not.toBeInTheDocument()
 
-    // Advance timer past 1500ms for login attention ring to reset
-    act(() => {
-      vi.advanceTimersByTime(1600)
-    })
+    // Verify login button was NOT scrolled to, NOT highlighted, and NOT focused
+    expect(window.HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled()
     expect(loginButton).not.toHaveClass('ring-4')
+    expect(loginButton).not.toHaveFocus()
 
-    // Advance timer past 4000ms for notice to auto-dismiss
-    act(() => {
-      vi.advanceTimersByTime(2500)
+    // Click 'استمرار' to close popup
+    const continueButton = screen.getByRole('button', {
+      name: publicScheduleVisitorCopy.continueAction,
     })
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    await user.click(continueButton)
 
-    vi.useRealTimers()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('does not trigger notice or attention highlight when an unavailable slot is targeted', async () => {
+  it('renders mobile Login icon button and compact Share button in public header', async () => {
+    renderPublicSchedulePage()
+
+    const loginButton = await screen.findByTestId('public-schedule-login-button')
+    expect(loginButton).toHaveClass('w-11')
+    expect(loginButton).toHaveAttribute('aria-label', 'تسجيل الدخول لفريق العمل')
+    expect(loginButton.querySelector('span.hidden.sm\\:inline')).toHaveTextContent('تسجيل الدخول')
+
+    const shareButton = screen.getByRole('button', { name: 'مشاركة الجدول' })
+    expect(shareButton).toBeInTheDocument()
+    expect(shareButton).toHaveClass('w-11')
+  })
+
+  it('does not open visitor popup when an unavailable slot is targeted', async () => {
     const user = userEvent.setup()
 
     renderPublicSchedulePage()
@@ -165,13 +180,11 @@ describe('PublicSchedulePage', () => {
     const unavailableSlots = await screen.findAllByRole('button', {
       name: /غير متاح$/,
     })
-    const loginButton = screen.getByTestId('public-schedule-login-button')
 
     expect(unavailableSlots[0]).toBeDisabled()
     await user.click(unavailableSlots[0])
 
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    expect(loginButton).not.toHaveClass('ring-4')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('navigates to /login with state.guestReturnTo when login button is clicked', async () => {

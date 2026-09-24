@@ -4,12 +4,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AddBookingSheet } from './AddBookingSheet'
 import { getPhoneValidationMessage } from '../../../../shared/copy/phoneValidation'
 import { listClubPlayers } from '../../../players/playersApi'
+import type { ClubPlayer } from '../../../players/players.types'
 
 vi.mock('../../../players/playersApi', () => ({
   listClubPlayers: vi.fn(),
 }))
 
 const mockedListClubPlayers = vi.mocked(listClubPlayers)
+
+function makeClubPlayer(id: number, name: string, phone: string): ClubPlayer {
+  return {
+    id,
+    display_name: name,
+    phone_number: phone,
+    player_profile: {
+      id: id + 1000,
+      phone_number: phone,
+      full_name: name,
+      verified: false,
+      has_account: false,
+      created_at: '2026-09-01T12:00:00Z',
+      updated_at: '2026-09-01T12:00:00Z',
+    },
+    last_used_at: '2026-09-17T20:00:00Z',
+  }
+}
 
 describe('AddBookingSheet', () => {
   beforeEach(() => {
@@ -1428,5 +1447,146 @@ describe('AddBookingSheet', () => {
       is_recurring: false,
       notes: undefined,
     })
+  })
+
+  it('shows only names stored for the entered phone', async () => {
+    const user = userEvent.setup()
+    mockedListClubPlayers.mockResolvedValueOnce([
+      makeClubPlayer(1, 'Ahmed Hassan', '01012345678'),
+      makeClubPlayer(2, 'Ahmed Ali', '01012345678'),
+      makeClubPlayer(3, 'Other Phone Name', '01098765432'),
+    ])
+
+    render(
+      <AddBookingSheet
+        clubSlug="barcelona-fc"
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await user.click(screen.getByRole('button', { name: 'عرض قائمة اللاعبين' }))
+
+    expect(await screen.findByText('Ahmed Hassan')).toBeInTheDocument()
+    expect(screen.getByText('Ahmed Ali')).toBeInTheDocument()
+    expect(screen.queryByText('Other Phone Name')).not.toBeInTheDocument()
+    expect(mockedListClubPlayers).toHaveBeenCalledWith('barcelona-fc', {
+      search: '01012345678',
+      order_by: '-last_used_at',
+    })
+    expect(
+      mockedListClubPlayers.mock.calls.some((call) => call[1]?.search === 'Ahmed Hassan'),
+    ).toBe(false)
+  })
+
+  it('drops the previous phone names when the phone number changes', async () => {
+    const user = userEvent.setup()
+    mockedListClubPlayers
+      .mockResolvedValueOnce([
+        makeClubPlayer(1, 'Ahmed Hassan', '01012345678'),
+        makeClubPlayer(2, 'Ahmed Ali', '01012345678'),
+      ])
+      .mockResolvedValueOnce([
+        makeClubPlayer(4, 'Sara Nabil', '01098765432'),
+      ])
+
+    render(
+      <AddBookingSheet
+        clubSlug="barcelona-fc"
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    const phoneInput = screen.getByLabelText('رقم الموبايل')
+    await user.type(phoneInput, '01012345678')
+    await user.click(screen.getByRole('button', { name: 'عرض قائمة اللاعبين' }))
+    expect(await screen.findByText('Ahmed Hassan')).toBeInTheDocument()
+
+    await user.clear(phoneInput)
+    expect(screen.queryByText('Ahmed Hassan')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ahmed Ali')).not.toBeInTheDocument()
+
+    await user.type(phoneInput, '01098765432')
+    await user.click(screen.getByRole('button', { name: 'عرض قائمة اللاعبين' }))
+    expect(await screen.findByText('Sara Nabil')).toBeInTheDocument()
+    expect(screen.queryByText('Ahmed Hassan')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ahmed Ali')).not.toBeInTheDocument()
+  })
+
+  it('shows no name suggestions for a phone with no known names and still accepts a new name', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    mockedListClubPlayers.mockResolvedValueOnce([])
+
+    render(
+      <AddBookingSheet
+        clubSlug="barcelona-fc"
+        courtName="ملعب 1"
+        dateLabel="الخميس، ٢ يوليو"
+        endTime="19:00"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        startTime="18:00"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'إغلاق' })).toHaveFocus()
+    })
+
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01012345678')
+    await waitFor(() => {
+      expect(mockedListClubPlayers).toHaveBeenCalledWith('barcelona-fc', {
+        search: '01012345678',
+        order_by: '-last_used_at',
+      })
+    })
+
+    const nameInput = screen.getByRole('combobox', { name: 'اسم اللاعب' })
+    await user.click(screen.getByRole('button', { name: 'عرض قائمة اللاعبين' }))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.queryByText('مفيش لاعب محفوظ بالبيانات دي')).not.toBeInTheDocument()
+
+    await user.type(nameInput, 'Mohamed Adel')
+    expect(nameInput).toHaveValue('Mohamed Adel')
+    expect(screen.queryByText('اسم العميل مطلوب')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      customer_name: 'Mohamed Adel',
+      customer_phone: '+201012345678',
+      is_recurring: false,
+      notes: undefined,
+    })
+    expect(
+      mockedListClubPlayers.mock.calls.every(
+        (call) => call[1]?.search === '01012345678',
+      ),
+    ).toBe(true)
   })
 })

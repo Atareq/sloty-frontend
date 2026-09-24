@@ -246,7 +246,7 @@ export function ShareCourtScheduleSheet({
               </h2>
             </div>
 
-            <div className="flex flex-col items-center justify-center py-1.5 sm:py-2">
+            <div className="flex w-full min-w-0 flex-col items-center justify-center py-1.5 sm:py-2">
               <ScheduleQrShareCard
                 cardSvg={cardSvg}
                 courtName={courtName}

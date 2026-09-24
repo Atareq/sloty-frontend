@@ -92,7 +92,7 @@ export function PageHeader({
             <div className="min-w-0" aria-hidden="true" />
 
             <div
-              className="flex min-h-11 min-w-11 shrink-0 items-start justify-center"
+              className="flex min-h-11 min-w-0 max-w-full flex-wrap items-center justify-end gap-2"
               data-page-header-actions="end"
             >
               {endAction ?? (showHomeButton ? (

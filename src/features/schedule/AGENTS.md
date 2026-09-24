@@ -12,7 +12,7 @@ For the detailed architectural specification, consult [`docs/features/schedule.m
 - **Date Navigation:** Integrates `AppDateNavigator` for rolling 7-day strip and calendar picker navigation.
 - **Action Workflows:** Hosts `AddBookingSheet`, `BookingActionSheet`, and `VirtualRecurringSlotDetailsSheet`.
 - **Customer phone:** `AddBookingSheet`, `EditBookingDetailsSheet`, and `BookingRequestCustomerEditSheet` use `SlotyPhoneNumberInput` with shared `validatePhoneNumber()` / `getPhoneValidationMessage()`. Do not add sheet-local phone regexes or hardcoded phone errors.
-- **Booking player identity:** Phone-based player results are suggestions only and must not replace a name already entered. `AddBookingSheet` and `EditBookingDetailsSheet` submit the final entered name and phone without a frontend-selected player ID; identity matching and player/name history belong to the backend. Booking PATCH sends `{ customer_name, customer_phone, notes }` only.
+- **Booking player identity:** Phone-based player results are suggestions only and must not replace a name already entered. Name suggestions are limited to the entered phone; the name field stays free-form and does not search all customers. `AddBookingSheet` and `EditBookingDetailsSheet` submit the final entered name and phone without a frontend-selected player ID; identity matching and player/name history belong to the backend. Booking PATCH sends `{ customer_name, customer_phone, notes }` only.
 
 # Backend-Owned Slot Interaction
 

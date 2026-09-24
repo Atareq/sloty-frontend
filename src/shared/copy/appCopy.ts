@@ -84,6 +84,15 @@ export const recurringCopy = {
   unavailableFallback: 'فيه حجز متعارض في أحد الأسابيع الجاية.',
 } as const
 
+export const publicScheduleVisitorCopy = {
+  title: '⚽️ لاعب  ! ',
+  bodyPlayer:
+    'حالياّ تقدر تشوف مواعيد الملعب فقط, وقريب هتقدر تحجز بنفسك إن شاء الله 🤍',
+  stayTuned: 'استنّانا!',
+  bodyStaff: 'لو أنت من فريق العمل، سجّل الدخول دلوقتي واحجز لغيرك.',
+  continueAction: 'كمل',
+} as const
+
 export const customerCopy = {
   customerName: 'اسم العميل',
   customerNameRequired: 'اسم العميل مطلوب',

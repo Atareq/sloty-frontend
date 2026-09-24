@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
+import { LogIn } from 'lucide-react'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { AppDateNavigator } from '../../../shared/components/AppDateNavigator/AppDateNavigator'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
@@ -14,7 +15,7 @@ import {
 import { getPublicCourtAvailability } from '../publicScheduleApi'
 import type { PublicCourtAvailabilityResponse } from '../publicSchedule.types'
 import { PublicSlotCard } from '../components/PublicSlotCard'
-import { PublicScheduleInfoNotice } from '../components/PublicScheduleInfoNotice'
+import { PublicScheduleVisitorPopup } from '../components/PublicScheduleVisitorPopup'
 import { ShareCourtScheduleButton } from '../components/ShareCourtScheduleButton'
 import { useAttentionHighlight } from '../hooks/useAttentionHighlight'
 
@@ -81,11 +82,10 @@ export function PublicSchedulePage() {
     useState<PublicCourtAvailabilityResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showInfoNotice, setShowInfoNotice] = useState(false)
+  const [isVisitorPopupOpen, setIsVisitorPopupOpen] = useState(false)
 
   const dateWindow = useMemo(() => getPublicScheduleDateWindow(), [])
 
-  const loginAttention = useAttentionHighlight(1500)
   const morningAttention = useAttentionHighlight(1500)
   const eveningAttention = useAttentionHighlight(1500)
 
@@ -166,8 +166,7 @@ export function PublicSchedulePage() {
   }
 
   function handleSelectSlot(): void {
-    setShowInfoNotice(true)
-    loginAttention.trigger()
+    setIsVisitorPopupOpen(true)
   }
 
   function handleMorningGuidance(): void {
@@ -198,17 +197,13 @@ export function PublicSchedulePage() {
   const loginButton = (
     <button
       aria-label="تسجيل الدخول لفريق العمل"
-      className={[
-        'inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-bold transition focus:outline-none focus:ring-2',
-        loginAttention.isHighlighted
-          ? 'bg-amber-300 text-amber-950 ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.6)] scale-105'
-          : 'bg-white/15 text-white hover:bg-white/25 focus:ring-white/70',
-      ].join(' ')}
+      className="inline-flex h-11 items-center justify-center gap-1.5 rounded-2xl text-sm font-bold transition focus:outline-none focus:ring-2 w-11 px-0 sm:w-auto sm:px-4 bg-white/15 text-white hover:bg-white/25 focus:ring-white/70"
       data-testid="public-schedule-login-button"
       onClick={handleLoginClick}
       type="button"
     >
-      تسجيل الدخول
+      <LogIn aria-hidden="true" className="h-5 w-5 shrink-0" />
+      <span className="hidden sm:inline">تسجيل الدخول</span>
     </button>
   )
 
@@ -236,12 +231,13 @@ export function PublicSchedulePage() {
   }
 
   const headerActions = (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 max-w-full items-center justify-end gap-1.5 sm:gap-2">
       {clubSlug && courtIdNumber ? (
         <ShareCourtScheduleButton
           clubSlug={clubSlug}
           courtId={courtIdNumber}
           courtName={availability?.court?.name}
+          mobileIconOnly
           variant="header"
         />
       ) : null}
@@ -260,11 +256,10 @@ export function PublicSchedulePage() {
         title={courtTitle}
       />
 
-      {showInfoNotice ? (
-        <PublicScheduleInfoNotice
-          onDismiss={() => setShowInfoNotice(false)}
-        />
-      ) : null}
+      <PublicScheduleVisitorPopup
+        isOpen={isVisitorPopupOpen}
+        onClose={() => setIsVisitorPopupOpen(false)}
+      />
 
       <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:px-6 sm:py-6">
         {/* Date Navigator bounded to 32 days */}
