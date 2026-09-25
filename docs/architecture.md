@@ -83,8 +83,8 @@ PWA infrastructure lives in [`src/pwa/`](../src/pwa/).
 - **Service Worker:** Managed via `vite-plugin-pwa` with Workbox runtime.
 - **Cache Policy:** Service Worker precaches compiled static assets (HTML, CSS, JS, approved icons, UI images) only.
 - **No Runtime API Caching:** The Service Worker **never** runtime-caches authenticated API responses or business data. Operational data caching is strictly owned by Dexie IndexedDB (`src/offline/`).
-- **Update Lifecycle:** Discovers new service worker versions and prompts users with explicit `تحديث الآن`. Updates never force an unprompted page reload.
-- **Install Prompts:** Handles Chromium `beforeinstallprompt` and provides iOS Add-to-Home-Screen instructions.
+- **Update Lifecycle:** Sloty frontend releases update automatically. Discovers deployed releases via [`src/core/release/releaseManager.ts`](../src/core/release/releaseManager.ts) by checking `/version.json` on startup and visibility resume. A mismatch triggers an automatic Service Worker update and single controlled reload without requiring user confirmation ("تحديث الآن" or "لاحقًا"). Reload loops are prevented via session guards.
+- **Install Prompts:** Handles Chromium `beforeinstallprompt` and provides iOS Add-to-Home-Screen instructions independently from application updates.
 
 ---
 

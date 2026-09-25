@@ -91,9 +91,9 @@ The script:
 5. Checks out the exact GitHub SHA
 6. Runs `npm ci` (devDependencies are required for `tsc` and Vite)
 7. Injects `VITE_APP_RELEASE` and `VITE_COMMIT_SHA` into `npm run build`
-8. Requires `dist/` and `dist/index.html` before touching the live site
-9. Publishes the complete `dist/` tree with `rsync -a --delete` (PWA/service-worker artifacts included)
-10. Verifies `https://sloty.baronlearning.com/` returns HTTP 200
+8. Requires `dist/`, `dist/index.html`, and generated production `dist/version.json` (reflecting exact `RELEASE_TAG` and `COMMIT_SHA`) before touching the live site
+9. Publishes the complete `dist/` tree with `rsync -a --delete` (PWA/service-worker artifacts and `version.json` included)
+10. Verifies `https://sloty.baronlearning.com/` returns HTTP 200, and verifies `version.json` serves the exact deployed `COMMIT_SHA` and `RELEASE_TAG`
 
 It must not change Nginx config, restart Nginx, restart Backend, run Django migrations, or modify other `/var/www` projects.
 
