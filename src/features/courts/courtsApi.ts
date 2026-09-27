@@ -3,7 +3,7 @@ import type { PaginatedResponse } from '../../shared/api/pagination.types'
 import { fetchAllPages } from '../../shared/api/pagination.helpers'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import { buildPathWithQuery } from '../../shared/utils/buildPathWithQuery'
-import type { Court, CourtPayload } from './courts.types'
+import type { Court, CourtMonthlyStatistics, CourtPayload } from './courts.types'
 
 export interface ListCourtsParams {
   search?: string
@@ -92,4 +92,27 @@ export function updateCourt(
       body: payload,
     },
   )
+}
+
+export interface GetCourtMonthlyStatisticsOptions {
+  signal?: AbortSignal
+}
+
+/**
+ * Fetches backend-authoritative monthly statistics for a court.
+ *
+ * GET /api/v1/clubs/{club_slug}/courts/{court_id}/monthly-statistics/?month=YYYY-MM
+ */
+export function getCourtMonthlyStatistics(
+  clubSlug: string,
+  courtId: number | string,
+  month: string,
+  options: GetCourtMonthlyStatisticsOptions = {},
+): Promise<CourtMonthlyStatistics> {
+  const basePath = apiEndpoints.clubs.courts.monthlyStatistics(clubSlug, courtId)
+  const path = buildPathWithQuery(basePath, { month })
+
+  return apiRequest<CourtMonthlyStatistics>(path, {
+    signal: options.signal,
+  })
 }

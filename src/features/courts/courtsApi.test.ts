@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../../core/api/apiClient'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
-import { createCourt, fetchAllCourts, getCourt, listCourts, updateCourt } from './courtsApi'
+import {
+  createCourt,
+  fetchAllCourts,
+  getCourt,
+  getCourtMonthlyStatistics,
+  listCourts,
+  updateCourt,
+} from './courtsApi'
 
 vi.mock('../../core/api/apiClient', () => ({
   apiRequest: vi.fn(),
@@ -154,5 +161,27 @@ describe('courtsApi', () => {
     expect(courts[0]).toEqual({ id: 1, name: 'Court 1' })
     expect(courts[49]).toEqual({ id: 50, name: 'Court 50' })
     expect(mockedApiRequest).toHaveBeenCalledTimes(3)
+  })
+
+  it('fetches court monthly statistics using the correct endpoint and query params', async () => {
+    const mockStats = {
+      month: '2026-09',
+      total_income: '5250.00',
+      total_bookings: 42,
+    }
+    mockedApiRequest.mockResolvedValueOnce(mockStats)
+
+    const abortController = new AbortController()
+    const stats = await getCourtMonthlyStatistics('nasr-club', 3, '2026-09', {
+      signal: abortController.signal,
+    })
+
+    expect(stats).toEqual(mockStats)
+    expect(mockedApiRequest).toHaveBeenCalledWith(
+      'clubs/nasr-club/courts/3/monthly-statistics/?month=2026-09',
+      {
+        signal: abortController.signal,
+      },
+    )
   })
 })

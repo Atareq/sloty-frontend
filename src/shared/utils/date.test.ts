@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   addDays,
   formatArabicConflictMoment,
+  formatArabicMonthYear,
   formatArabicPeriodBound,
   formatArabicPeriodRange,
   formatCairoLastUpdate,
   formatDateInputValue,
+  getCurrentMonthValue,
   getGlobalFreshnessLabel,
   getLastSevenDaysRange,
+  getNextMonthValue,
   getPreviousCalendarDate,
+  getPreviousMonthValue,
 } from './date'
 
 describe('date utils', () => {
@@ -140,6 +144,33 @@ describe('date utils', () => {
 
     it('handles non-leap year February boundary', () => {
       expect(getPreviousCalendarDate('2025-03-01')).toBe('2025-02-28')
+    })
+  })
+
+  describe('month helpers', () => {
+    it('getCurrentMonthValue returns YYYY-MM format', () => {
+      expect(getCurrentMonthValue(new Date(2026, 8, 27))).toBe('2026-09')
+      expect(getCurrentMonthValue(new Date(2026, 0, 5))).toBe('2026-01')
+    })
+
+    it('getPreviousMonthValue decrements month and rolls over year boundary', () => {
+      expect(getPreviousMonthValue('2026-09')).toBe('2026-08')
+      expect(getPreviousMonthValue('2026-01')).toBe('2025-12')
+      expect(getPreviousMonthValue('invalid')).toBe('invalid')
+    })
+
+    it('getNextMonthValue increments month and rolls over year boundary', () => {
+      expect(getNextMonthValue('2026-09')).toBe('2026-10')
+      expect(getNextMonthValue('2026-12')).toBe('2027-01')
+      expect(getNextMonthValue('invalid')).toBe('invalid')
+    })
+
+    it('formatArabicMonthYear formats month and year in Arabic with Latin numerals', () => {
+      expect(formatArabicMonthYear('2026-09')).toBe('سبتمبر 2026')
+      expect(formatArabicMonthYear('2026-08')).toBe('أغسطس 2026')
+      expect(formatArabicMonthYear('2026-10')).toBe('أكتوبر 2026')
+      expect(formatArabicMonthYear('2027-01')).toBe('يناير 2027')
+      expect(formatArabicMonthYear('invalid')).toBe('invalid')
     })
   })
 })

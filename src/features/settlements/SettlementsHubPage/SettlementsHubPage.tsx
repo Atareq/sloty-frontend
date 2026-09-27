@@ -29,11 +29,14 @@ import { getClubUserDisplayName } from '../../../shared/utils/displayNames'
 import { toQueryObject } from '../../../shared/utils/queryParams'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
 import type { ClubUser } from '../../clubUsers/clubUsers.types'
+import { listCourts } from '../../courts/courtsApi'
+import type { Court } from '../../courts/courts.types'
 import {
   getCurrentCustodySummary,
   getSettlementPreview,
   listSettlements,
 } from '../settlementsApi'
+import { MonthlyCourtStatistics } from '../components/MonthlyCourtStatistics/MonthlyCourtStatistics'
 import { subscribeCurrentFinancialStateChanged } from '../currentFinancialStateInvalidation'
 import { getSettlementCollectorName } from '../settlementDisplay.helpers'
 import {
@@ -163,7 +166,14 @@ function LinkedTransactions({
 export function SettlementsHubPage() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentProfileId, currentUser, role, selectedClubSlug } = useAuth()
+  const {
+    currentProfileId,
+    currentUser,
+    role,
+    selectedClubSlug,
+    selectedCourtId,
+    accessibleCourts,
+  } = useAuth()
   const canSettle = canManageSettlements(role)
   const canViewOwn = canViewOwnSettlements(role)
   const isOwnMode = canViewOwn && !canSettle
@@ -223,6 +233,40 @@ export function SettlementsHubPage() {
         formatArabicDateTime(currentSnapshotSyncedAt) ?? currentSnapshotSyncedAt
       }`
     : null
+
+  const [hubCourts, setHubCourts] = useState<Court[]>([])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadCourts(): Promise<void> {
+      if (!selectedClubSlug || (accessibleCourts && accessibleCourts.length > 0)) {
+        return
+      }
+
+      try {
+        const res = await listCourts(selectedClubSlug)
+        if (!isActive) return
+        const courtsList = Array.isArray(res) ? res : res.results
+        setHubCourts(courtsList)
+      } catch {
+        // court list fetch failed; keep empty
+      }
+    }
+
+    void loadCourts()
+
+    return () => {
+      isActive = false
+    }
+  }, [accessibleCourts, selectedClubSlug])
+
+  const effectiveCourtId =
+    selectedCourtId ??
+    accessibleCourts?.find((c) => c.id === selectedCourtId)?.id ??
+    accessibleCourts?.[0]?.id ??
+    hubCourts[0]?.id ??
+    null
 
   useEffect(() => {
     let isActive = true
@@ -798,6 +842,11 @@ export function SettlementsHubPage() {
           عرض {navigationCopy.transactionsStaff} ↗
         </Link>
       ) : null}
+
+      <MonthlyCourtStatistics
+        clubSlug={selectedClubSlug}
+        courtId={effectiveCourtId}
+      />
     </div>
   )
 }
