@@ -7,7 +7,7 @@ import { ApiClientError } from '../../../core/api/apiClient'
 import { useAuth } from '../../../core/auth/useAuth'
 import { offlineRepositories } from '../../../offline/repositories/offlineRepositories'
 import { listClubUsers } from '../../clubUsers/clubUsersApi'
-import { listCourts } from '../../courts/courtsApi'
+import { getCourtMonthlyStatistics, listCourts } from '../../courts/courtsApi'
 import {
   getCurrentCustodySummary,
   getSettlementPreview,
@@ -26,6 +26,7 @@ vi.mock('../../clubUsers/clubUsersApi', () => ({
 
 vi.mock('../../courts/courtsApi', () => ({
   listCourts: vi.fn(),
+  getCourtMonthlyStatistics: vi.fn(),
 }))
 
 vi.mock('../settlementsApi', () => ({
@@ -49,6 +50,7 @@ const mockedListSettlements = vi.mocked(listSettlements)
 const mockedListClubUsers = vi.mocked(listClubUsers)
 const mockedListCourts = vi.mocked(listCourts)
 const mockedGetCurrentCustodySummary = vi.mocked(getCurrentCustodySummary)
+const mockedGetCourtMonthlyStatistics = vi.mocked(getCourtMonthlyStatistics)
 const mockedOfflineRepositories = vi.mocked(offlineRepositories)
 
 const currentCustodySummary = {
@@ -74,7 +76,11 @@ const currentCustodySummary = {
   ],
 }
 
-function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF', canSettle = false) {
+function mockAuth(
+  role: 'OWNER' | 'MANAGER' | 'STAFF',
+  canSettle = false,
+  selectedCourtId: number | null = null,
+) {
   const effectiveRole: AuthRole = role === 'MANAGER' ? (canSettle ? 'OWNER' : 'STAFF') : role
   mockedUseAuth.mockReturnValue({
     accessToken: 'token',
@@ -91,7 +97,7 @@ function mockAuth(role: 'OWNER' | 'MANAGER' | 'STAFF', canSettle = false) {
       account_created_by: null,
     },
     selectedClubSlug: 'nasr-club',
-    selectedCourtId: null,
+    selectedCourtId,
     accessibleClubs: [],
     accessibleCourts: effectiveRole === 'STAFF' ? ([{ id: 7, name: 'ملعب 1' }] as never) : [],
     selectCourt: vi.fn(),
@@ -798,5 +804,35 @@ describe('SettlementsHubPage', () => {
       .toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'أحمد محمد' }))
       .toBeInTheDocument()
+  })
+
+  it('renders MonthlyCourtStatistics at the end of the page when selectedCourtId is present', async () => {
+    mockAuth('OWNER', true, 7)
+    mockedGetCurrentCustodySummary.mockResolvedValueOnce(currentCustodySummary)
+    mockedListClubUsers.mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    })
+    mockedGetCourtMonthlyStatistics.mockResolvedValueOnce({
+      month: '2026-09',
+      total_income: '5250.00',
+      total_bookings: 42,
+    })
+
+    renderHub()
+
+    expect(
+      await screen.findByRole('heading', { name: 'الإحصائيات الشهرية' }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('5,250 جنيه')).toBeInTheDocument()
+    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(mockedGetCourtMonthlyStatistics).toHaveBeenCalledWith(
+      'nasr-club',
+      7,
+      expect.stringMatching(/^\d{4}-\d{2}$/),
+      expect.any(Object),
+    )
   })
 })

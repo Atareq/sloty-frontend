@@ -340,8 +340,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else if (courts.length > 1) {
           setSelectedCourtIdState((prev) => {
             if (prev && courts.some((c) => c.id === prev)) {
+              saveSelectedCourtId(prev)
               return prev
             }
+            saveSelectedCourtId(courts[0].id)
             return courts[0].id
           })
         } else {

@@ -34,3 +34,14 @@ export interface CourtPayload {
 
 export type CourtCreateInput = CourtPayload
 export type CourtUpdateInput = Partial<CourtPayload>
+
+/**
+ * Backend-authoritative monthly statistics for a court.
+ *
+ * GET /api/v1/clubs/{club_slug}/courts/{court_id}/monthly-statistics/?month=YYYY-MM
+ */
+export interface CourtMonthlyStatistics {
+  month: string
+  total_income: string
+  total_bookings: number
+}

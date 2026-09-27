@@ -296,3 +296,70 @@ export function getGlobalFreshnessLabel({
 
   return isOfflineLike ? `بدون إنترنت · ${formatted}` : formatted
 }
+
+/**
+ * Returns the current calendar month formatted as YYYY-MM.
+ */
+export function getCurrentMonthValue(now = new Date()): string {
+  return [now.getFullYear(), padDatePart(now.getMonth() + 1)].join('-')
+}
+
+/**
+ * Returns the calendar month (YYYY-MM) immediately preceding the given month string.
+ */
+export function getPreviousMonthValue(monthValue: string): string {
+  const [yearStr, monthStr] = monthValue.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+
+  if (!year || !month || month < 1 || month > 12) {
+    return monthValue
+  }
+
+  if (month === 1) {
+    return `${year - 1}-12`
+  }
+
+  return `${year}-${padDatePart(month - 1)}`
+}
+
+/**
+ * Returns the calendar month (YYYY-MM) immediately following the given month string.
+ */
+export function getNextMonthValue(monthValue: string): string {
+  const [yearStr, monthStr] = monthValue.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+
+  if (!year || !month || month < 1 || month > 12) {
+    return monthValue
+  }
+
+  if (month === 12) {
+    return `${year + 1}-01`
+  }
+
+  return `${year}-${padDatePart(month + 1)}`
+}
+
+/**
+ * Formats a YYYY-MM month string into Arabic month and year with Western Arabic numerals.
+ *
+ * Example: `2026-09` → `سبتمبر 2026`
+ */
+export function formatArabicMonthYear(monthValue: string): string {
+  const [yearStr, monthStr] = monthValue.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+
+  if (!year || !month || month < 1 || month > 12) {
+    return monthValue
+  }
+
+  const date = new Date(year, month - 1, 1)
+
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+}

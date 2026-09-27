@@ -61,6 +61,8 @@ export const apiEndpoints = {
       list: (clubSlug: string) => `clubs/${clubSlug}/courts/`,
       detail: (clubSlug: string, id: ApiId) =>
         `clubs/${clubSlug}/courts/${id}/`,
+      monthlyStatistics: (clubSlug: string, courtId: ApiId) =>
+        `clubs/${clubSlug}/courts/${courtId}/monthly-statistics/`,
       workingHours: {
         detail: (clubSlug: string, courtId: ApiId) =>
           `clubs/${clubSlug}/courts/${courtId}/working-hours/`,

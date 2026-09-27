@@ -295,7 +295,14 @@ function createSlotSnapshotFromAlternative(
  * booking action/details surfaces when the backend includes booking details.
  */
 export function SchedulePage() {
-  const { currentUser, role, selectedClubSlug, accessibleCourts } = useAuth()
+  const {
+    currentUser,
+    role,
+    selectedClubSlug,
+    accessibleCourts,
+    selectedCourtId: authSelectedCourtId,
+    selectCourt,
+  } = useAuth()
   const {
     connectivity,
     freshness: operationalFreshness,
@@ -388,12 +395,22 @@ export function SchedulePage() {
   const daySectionRef = useRef<HTMLElement | null>(null)
   const pendingSlotsScrollDateRef = useRef<string | null>(null)
   const requestSyncRef = useRef(requestSync)
+  const authSelectedCourtIdRef = useRef(authSelectedCourtId)
+  const selectCourtRef = useRef(selectCourt)
   const lastRequestedWindowSyncKeyRef = useRef<string | null>(null)
   const activeScheduleRequestKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     requestSyncRef.current = requestSync
   }, [requestSync])
+
+  useEffect(() => {
+    authSelectedCourtIdRef.current = authSelectedCourtId
+  }, [authSelectedCourtId])
+
+  useEffect(() => {
+    selectCourtRef.current = selectCourt
+  }, [selectCourt])
 
   useEffect(() => {
     const navigationState = location.state as { beginAtDayChoice?: boolean } | null
@@ -851,7 +868,16 @@ export function SchedulePage() {
 
         if (isActive) {
           setCourts(activeCourts)
-          setSelectedCourtId(firstActiveCourt?.id ?? null)
+          const currentAuthCourtId = authSelectedCourtIdRef.current
+          const initialCourtId =
+            currentAuthCourtId &&
+            activeCourts.some((court) => court.id === currentAuthCourtId)
+              ? currentAuthCourtId
+              : firstActiveCourt?.id ?? null
+          setSelectedCourtId(initialCourtId)
+          if (initialCourtId) {
+            selectCourtRef.current(initialCourtId)
+          }
           const message = firstActiveCourt
             ? null
             : 'لا توجد ملاعب نشطة لعرض جدول الحجز'
@@ -2058,7 +2084,9 @@ export function SchedulePage() {
 
   function handleCourtChange(nextCourtId: string): void {
     activeScheduleRequestKeyRef.current = null
-    setSelectedCourtId(Number(nextCourtId))
+    const id = Number(nextCourtId)
+    setSelectedCourtId(id)
+    selectCourt(id)
     setSlots([])
     setBoardMessage(null)
     clearScheduleSelection()
