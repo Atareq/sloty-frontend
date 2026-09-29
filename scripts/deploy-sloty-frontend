@@ -32,6 +32,7 @@ configure_repo_paths() {
   SLOTY_FRONTEND_LOCKFILE="${SLOTY_FRONTEND_DIR}/package-lock.json"
   SLOTY_FRONTEND_DIST_DIR="${SLOTY_FRONTEND_DIR}/dist"
   SLOTY_FRONTEND_DIST_INDEX="${SLOTY_FRONTEND_DIST_DIR}/index.html"
+  SLOTY_FRONTEND_DIST_APP="${SLOTY_FRONTEND_DIST_DIR}/app.html"
   SLOTY_FRONTEND_NVMRC="${SLOTY_FRONTEND_DIR}/.nvmrc"
 }
 
@@ -221,6 +222,11 @@ deploy_validate_dist() {
   fi
   if [[ ! -f "$SLOTY_FRONTEND_DIST_INDEX" ]]; then
     echo "Build output missing: dist/index.html" >&2
+    echo "Published site was not changed." >&2
+    return 1
+  fi
+  if [[ ! -f "$SLOTY_FRONTEND_DIST_APP" ]]; then
+    echo "Build output missing: dist/app.html" >&2
     echo "Published site was not changed." >&2
     return 1
   fi

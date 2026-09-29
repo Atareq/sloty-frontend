@@ -36,11 +36,13 @@ Staff users are not locked to a single court if assigned to multiple courts.
 ## 2. Routing & Application Shell
 
 ### Application Composition
-Routes are configured in [`src/app/routes.tsx`](../src/app/routes.tsx) using React Router.
+Routes are configured in [`src/app/router.tsx`](../src/app/router.tsx) using React Router. Every route is a child of one root layout route, [`SeoRouteBoundary`](../src/core/seo/SeoRouteBoundary.tsx), which owns document SEO (see section 7).
 
 - **Guest Routes:** Public pages outside `AppShell`:
-  - `/login`: User authentication.
-  - `/public/:clubSlug/courts/:courtId/schedule`: Guest public availability schedule.
+  - `/`: [`HomeRoute`](../src/app/HomeRoute.tsx). Visitors without a session in a normal browser tab (including crawlers) see the public homepage; signed-in users, session loading/errors, and installed-PWA launches get the role-aware `AuthLandingRedirect`.
+  - `/assiut/`: Public Assiut landing page (indexable).
+  - `/login`: User authentication (`noindex`).
+  - `/public/:clubSlug/courts/:courtId/schedule`: Guest public availability schedule (`noindex` in Phase 1).
 - **Authenticated Shell (`AppShell`):** Mounts all authenticated application routes:
   - Header: Single top-level `PageHeader` from [`src/layout/AppShell/AppShell.tsx`](../src/layout/AppShell/AppShell.tsx).
   - Navigation: Mobile bottom drawer / desktop sidebar.
@@ -54,6 +56,7 @@ Routes are configured in [`src/app/routes.tsx`](../src/app/routes.tsx) using Rea
 - `ADMIN` → `/admin/clubs`
 - `OWNER` → `/schedule`
 - `STAFF` → `/schedule`
+- Signed out: browser tab at `/` → public homepage; installed PWA at `/` → `/login`; protected routes → `/login`.
 
 ---
 
@@ -85,6 +88,8 @@ PWA infrastructure lives in [`src/pwa/`](../src/pwa/).
 - **No Runtime API Caching:** The Service Worker **never** runtime-caches authenticated API responses or business data. Operational data caching is strictly owned by Dexie IndexedDB (`src/offline/`).
 - **Update Lifecycle:** Sloty frontend releases update automatically. Discovers deployed releases via [`src/core/release/releaseManager.ts`](../src/core/release/releaseManager.ts) by checking `/version.json` on startup and visibility resume. A mismatch triggers an automatic Service Worker update and single controlled reload without requiring user confirmation ("تحديث الآن" or "لاحقًا"). Reload loops are prevented via session guards.
 - **Install Prompts:** Handles Chromium `beforeinstallprompt` and provides iOS Add-to-Home-Screen instructions independently from application updates.
+- **Launch at `/`:** The manifest `start_url` stays `/`. `HomeRoute` detects standalone mode, so installed-app launches never show the public homepage.
+- **Prerendered HTML & Fallback Shell:** `index.html` and `assiut/index.html` contain build-time prerendered public markup with static SEO heads; `app.html` contains the clean SPA fallback shell (`noindex, nofollow`, empty `#root`). Workbox `navigateFallback` is `app.html`, so private deep links and standalone app launches never fallback to prerendered homepage content. An inline guard in `index.html` additionally protects standalone launches starting at `/` until React replaces it.
 
 ---
 
@@ -114,3 +119,19 @@ Build metadata is compiled in at build time (`VITE_APP_RELEASE`, `VITE_COMMIT_SH
 
 See [`docs/frontend-ci-cd.md`](frontend-ci-cd.md) for the release and publish contract.
 
+---
+
+## 7. SEO Layer
+
+One SEO system serves every route:
+
+```text
+route handle.seo (src/app/router.tsx) → SeoRouteBoundary → applyDocumentSeo() → title, robots, canonical, Open Graph, JSON-LD
+```
+
+- Public indexable pages (`/`, `/assiut/`) declare `handle: routeSeo(...)`. Routes without a declaration inherit `privateAppSeo` (`noindex, nofollow`).
+- Pages never write `document.title` or head tags.
+- The canonical origin comes only from `VITE_PUBLIC_SITE_URL` ([`src/core/seo/publicSiteOrigin.ts`](../src/core/seo/publicSiteOrigin.ts)), never from `window.location`.
+- `npm run build` prerenders the public pages and generates `robots.txt` and `sitemap.xml` through [`src/core/seo/seoBuildPlugin.ts`](../src/core/seo/seoBuildPlugin.ts).
+
+See [`docs/seo.md`](seo.md) for the full contract.

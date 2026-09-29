@@ -40,9 +40,20 @@ describe('Sloty PWA configuration', () => {
     expect(slotyPwaOptions.registerType).toBe('prompt')
     expect(slotyPwaOptions.injectRegister).toBe(false)
     expect(slotyPwaOptions.includeManifestIcons).toBe(false)
-    expect(slotyPwaOptions.workbox.navigateFallback).toBe('index.html')
+    expect(slotyPwaOptions.workbox.navigateFallback).toBe('app.html')
     expect(slotyPwaOptions.workbox.maximumFileSizeToCacheInBytes)
       .toBe(5 * 1024 * 1024)
     expect(slotyPwaOptions.workbox).not.toHaveProperty('runtimeCaching')
+  })
+
+  it('precaches prerendered SEO pages as HTML while keeping version.json network-only', () => {
+    const [pattern] = slotyPwaOptions.workbox.globPatterns
+
+    // `index.html`, `assiut/index.html`, and `app.html` come from the SEO prerender build step.
+    expect(pattern).toContain('html')
+    expect(pattern.startsWith('**/')).toBe(true)
+    expect(pattern).not.toContain('json')
+    expect(pattern).not.toContain('txt')
+    expect(pattern).not.toContain('xml')
   })
 })

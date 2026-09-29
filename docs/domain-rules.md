@@ -87,7 +87,8 @@ Supported methods:
 - **Read-Only Court Summaries:** `pricing_configured`, `minimum_slot_price`, and `maximum_slot_price` are legitimate read-only summaries exposed on Court responses for informational presentation only. The frontend renders them (single price, price range, or unconfigured state) but never uses them to calculate booking totals, slot prices, or financial values.
 - **No Legacy Pricing Fields:** The frontend strictly ignores `default_price`, and never serializes `opens_at`, `closes_at`, `is_closed`, or `default_price` in write payloads.
 - **Closed Day Representation:** `pricing_periods: []` represents a closed day.
-- **Contiguous Operating Hours:** Working hours must form contiguous, non-overlapping intervals aligned to `slot_duration_minutes`.
+- **Pricing Periods Are Opening Windows:** Pricing periods define independent open/priced half-open `[start, end)` intervals aligned to `slot_duration_minutes`. Gaps between periods are valid closed time: the backend generates no slots there and rejects bookings in them. Adjacent periods (`01:00–05:00` + `05:00–09:00`) are valid; overlapping or duplicate periods are invalid. The frontend never sends synthetic gap rows and never generates slots locally.
+- **Weekday Contract:** `weekday` uses the backend Saturday-first index: `0` = Saturday, `1` = Sunday, `2` = Monday, `3` = Tuesday, `4` = Wednesday, `5` = Thursday, `6` = Friday (`courtWorkingHours.helpers.ts`).
 - **Midnight Semantic:** End time `00:00` represents next-day midnight (`24:00`). Intervals ending at `00:00` belong to the operational start date. General overnight scheduling past midnight is disallowed.
 
 ---

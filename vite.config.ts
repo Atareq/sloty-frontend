@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { slotyPwaOptions } from './src/pwa/pwaConfig.js'
+import { slotySeoPrerenderPlugin } from './src/core/seo/seoBuildPlugin.js'
 
 // Workaround for Vite internal port checking bug on Linux:
 // Vite's internal isPortAvailable() opens and immediately closes dummy sockets on all wildcard hosts
@@ -30,7 +31,13 @@ net.createServer = function (...args: Parameters<typeof origNetCreateServer>) {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), VitePWA(slotyPwaOptions)],
+  plugins: [
+    react(),
+    tailwindcss(),
+    // Build-only: prerendered public pages, robots.txt, sitemap.xml (docs/seo.md).
+    slotySeoPrerenderPlugin(),
+    VitePWA(slotyPwaOptions),
+  ],
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setupTests.ts',

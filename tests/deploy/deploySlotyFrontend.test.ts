@@ -230,7 +230,7 @@ describe('deploy-sloty-frontend', () => {
     ])
   })
 
-  it('requires dist/index.html before publishing', () => {
+  it('requires dist/index.html and dist/app.html before publishing', () => {
     const repo = makeTempDir('sloty-fe-dist-missing-')
     const missingDir = sourceDeploy('deploy_validate_dist', {
       SLOTY_FRONTEND_DIR: repo,
@@ -242,6 +242,11 @@ describe('deploy-sloty-frontend', () => {
     })
 
     fs.writeFileSync(path.join(repo, 'dist/index.html'), '<html></html>\n', 'utf8')
+    const missingApp = sourceDeploy('deploy_validate_dist', {
+      SLOTY_FRONTEND_DIR: repo,
+    })
+
+    fs.writeFileSync(path.join(repo, 'dist/app.html'), '<html></html>\n', 'utf8')
     const ok = sourceDeploy('deploy_validate_dist', {
       SLOTY_FRONTEND_DIR: repo,
     })
@@ -250,6 +255,8 @@ describe('deploy-sloty-frontend', () => {
     expect(missingDir.stderr).toMatch(/dist/)
     expect(missingIndex.status).not.toBe(0)
     expect(missingIndex.stderr).toMatch(/index\.html/)
+    expect(missingApp.status).not.toBe(0)
+    expect(missingApp.stderr).toMatch(/app\.html/)
     expect(ok.status).toBe(0)
   })
 
@@ -405,6 +412,7 @@ describe('deploy-sloty-frontend', () => {
     expect(script).toContain('VITE_COMMIT_SHA')
     expect(script).toContain('npm run build')
     expect(script).toContain('dist/index.html')
+    expect(script).toContain('dist/app.html')
     expect(script).toContain('rsync -a --delete')
     expect(script).toContain('/var/www/sloty/frontend')
     expect(script).toContain('https://sloty.baronlearning.com/')

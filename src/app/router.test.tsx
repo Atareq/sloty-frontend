@@ -9,10 +9,21 @@ import { SettlementsHubPage } from '../features/settlements/SettlementsHubPage/S
 import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHubPage'
 import { SettingsUsersPage } from '../features/settings/SettingsUsersPage/SettingsUsersPage'
 import { PublicSchedulePage } from '../features/publicSchedule/PublicSchedulePage/PublicSchedulePage'
+import { publicScheduleSeo } from '../features/publicSchedule/publicSchedule.seo'
+import { AssiutPage } from '../features/publicSite/AssiutPage/AssiutPage'
+import {
+  assiutPageSeo,
+  homePageSeo,
+} from '../features/publicSite/publicSite.seo'
+import { SeoRouteBoundary } from '../core/seo/SeoRouteBoundary'
+import { HomeRoute } from './HomeRoute'
 import { router } from './router'
 
+/** All app routes live under the single root SEO boundary layout. */
+const rootRoutes = router.routes[0]?.children ?? []
+
 function getProtectedChildRoute(path: string) {
-  const appShellRoute = router.routes.find((route) => route.children)
+  const appShellRoute = rootRoutes.find((route) => route.children)
   const route = appShellRoute?.children?.find((childRoute) => childRoute.path === path)
 
   if (!route || !isValidElement(route.element)) {
@@ -97,7 +108,7 @@ describe('router platform admin users routes', () => {
 
 describe('router public schedule routes', () => {
   it('maps /public/:clubSlug/courts/:courtId/schedule to PublicSchedulePage directly without ProtectedRoute', () => {
-    const route = router.routes.find(
+    const route = rootRoutes.find(
       (r) => r.path === '/public/:clubSlug/courts/:courtId/schedule',
     )
 
@@ -105,11 +116,51 @@ describe('router public schedule routes', () => {
     expect(isValidElement(route?.element)).toBe(true)
     expect((route?.element as ReactElement).type).toBe(PublicSchedulePage)
   })
+
+  it('declares the public schedule as a noindex utility page', () => {
+    const route = rootRoutes.find(
+      (r) => r.path === '/public/:clubSlug/courts/:courtId/schedule',
+    )
+
+    expect(route?.handle).toEqual({ seo: publicScheduleSeo })
+    expect(publicScheduleSeo.robots).toBe('noindex')
+  })
+})
+
+describe('router SEO routes', () => {
+  it('mounts every route under the single SeoRouteBoundary layout', () => {
+    expect(router.routes).toHaveLength(1)
+    expect(router.routes[0].path).toBeUndefined()
+    expect((router.routes[0].element as ReactElement).type).toBe(SeoRouteBoundary)
+  })
+
+  it('maps / to HomeRoute with the homepage SEO', () => {
+    const route = rootRoutes.find((r) => r.path === '/')
+
+    expect((route?.element as ReactElement).type).toBe(HomeRoute)
+    expect(route?.handle).toEqual({ seo: homePageSeo })
+  })
+
+  it('maps /assiut to the public Assiut page without ProtectedRoute', () => {
+    const route = rootRoutes.find((r) => r.path === '/assiut')
+
+    expect((route?.element as ReactElement).type).toBe(AssiutPage)
+    expect(route?.handle).toEqual({ seo: assiutPageSeo })
+  })
+
+  it('keeps /login and protected routes on the private noindex default', () => {
+    const loginRoute = rootRoutes.find((r) => r.path === '/login')
+    const appShellRoute = rootRoutes.find((route) => route.children)
+
+    expect(loginRoute?.handle).toBeUndefined()
+    expect(appShellRoute?.handle).toBeUndefined()
+    expect(appShellRoute?.children?.every((child) => child.handle === undefined)).toBe(true)
+  })
 })
 
 describe('router no-operational-access route', () => {
   it('maps /no-operational-access to NoOperationalAccessPage with allowNonOperational', () => {
-    const route = router.routes.find((r) => r.path === '/no-operational-access')
+    const route = rootRoutes.find((r) => r.path === '/no-operational-access')
 
     expect(route).toBeDefined()
     expect(isValidElement(route?.element)).toBe(true)

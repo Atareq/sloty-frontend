@@ -24,252 +24,276 @@ import { SettlementPreviewPage } from '../features/settlements/SettlementPreview
 import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHubPage'
 import { SettingsUsersPage } from '../features/settings/SettingsUsersPage/SettingsUsersPage'
 import { TransactionsListPage } from '../features/transactions/TransactionsListPage/TransactionsListPage'
-import { AuthLandingRedirect } from '../core/auth/AuthLandingRedirect'
 import { ProtectedRoute } from '../core/auth/ProtectedRoute'
 import { RoleRoute } from '../core/auth/RoleRoute'
 import { AppShell } from '../layout/AppShell/AppShell'
 import { PublicSchedulePage } from '../features/publicSchedule/PublicSchedulePage/PublicSchedulePage'
+import { publicScheduleSeo } from '../features/publicSchedule/publicSchedule.seo'
+import { AssiutPage } from '../features/publicSite/AssiutPage/AssiutPage'
+import {
+  assiutPageSeo,
+  homePageSeo,
+} from '../features/publicSite/publicSite.seo'
+import { SeoRouteBoundary } from '../core/seo/SeoRouteBoundary'
+import { routeSeo } from '../core/seo/seoRoute'
+import { HomeRoute } from './HomeRoute'
 
 /**
  * Sloty application route map.
  *
  * These routes compose real authenticated screens. Backend permissions remain
  * authoritative; RoleRoute is frontend UX only.
+ *
+ * `SeoRouteBoundary` is the single root layout that owns document SEO. Only
+ * routes with `handle: routeSeo(...)` declare their own metadata; every other
+ * route inherits the private `noindex` default.
  */
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <AuthLandingRedirect />,
-  },
-  {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  {
-    path: '/public/:clubSlug/courts/:courtId/schedule',
-    element: <PublicSchedulePage />,
-  },
-  {
-    path: '/select-club',
-    element: (
-      <ProtectedRoute>
-        <ClubSelectionPage />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/no-club-access',
-    element: (
-      <ProtectedRoute>
-        <NoClubAccessPage />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: '/no-operational-access',
-    element: (
-      <ProtectedRoute allowNonOperational>
-        <NoOperationalAccessPage />
-      </ProtectedRoute>
-    ),
-  },
-  {
-    element: (
-      <ProtectedRoute enforceClubAccess>
-        <AppShell />
-      </ProtectedRoute>
-    ),
+    element: <SeoRouteBoundary />,
     children: [
       {
-        path: '/dashboard',
+        path: '/',
+        element: <HomeRoute />,
+        handle: routeSeo(homePageSeo),
+      },
+      {
+        path: '/assiut',
+        element: <AssiutPage />,
+        handle: routeSeo(assiutPageSeo),
+      },
+      {
+        path: '/login',
+        element: <LoginPage />,
+      },
+      {
+        path: '/public/:clubSlug/courts/:courtId/schedule',
+        element: <PublicSchedulePage />,
+        handle: routeSeo(publicScheduleSeo),
+      },
+      {
+        path: '/select-club',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
-            <DashboardPage />
-          </RoleRoute>
+          <ProtectedRoute>
+            <ClubSelectionPage />
+          </ProtectedRoute>
         ),
       },
       {
-        path: '/schedule',
+        path: '/no-club-access',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
-            <SchedulePage />
-          </RoleRoute>
+          <ProtectedRoute>
+            <NoClubAccessPage />
+          </ProtectedRoute>
         ),
       },
       {
-        path: '/bookings',
+        path: '/no-operational-access',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
-            <BookingsListPage />
-          </RoleRoute>
+          <ProtectedRoute allowNonOperational>
+            <NoOperationalAccessPage />
+          </ProtectedRoute>
         ),
       },
       {
-        path: '/transactions',
         element: (
-          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
-            <TransactionsListPage />
-          </RoleRoute>
+          <ProtectedRoute enforceClubAccess>
+            <AppShell />
+          </ProtectedRoute>
         ),
-      },
-      {
-        path: '/settlements',
-        element: (
-          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
-            <SettlementsHubPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/settlements/history',
-        element: (
-          <RoleRoute allowedRoles={['OWNER']}>
-            <SettlementHistoryPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/settlements/preview',
-        element: (
-          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
-            <SettlementPreviewPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/settlements/:settlementId',
-        element: (
-          <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
-            <SettlementDetailPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/audit-logs',
-        element: (
-          <RoleRoute allowedRoles={['OWNER']}>
-            <AuditLogsPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/settings/courts',
-        element: (
-          <RoleRoute allowedRoles={['OWNER']}>
-            <SettingsCourtsPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/settings/courts/:courtId',
-        element: (
-          <RoleRoute allowedRoles={['OWNER']}>
-            <SettingsCourtDetailsPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/settings',
-        element: (
-          <RoleRoute allowedRoles={['OWNER']}>
-            <SettingsHubPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/settings/users',
-        element: (
-          <RoleRoute allowedRoles={['OWNER']}>
-            <SettingsUsersPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/clubs',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <ClubsListPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/clubs/new',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <ClubFormPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/clubs/:clubId',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <ClubFormPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/clubs/:clubSlug/courts',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <CourtsListPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/clubs/:clubSlug/courts/new',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <CourtFormPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/clubs/:clubSlug/courts/:courtId',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <CourtFormPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/users',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <AdminUsersPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/users/new',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <AdminUserFormPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/users/:userId',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <AdminUserDetailsPage />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '/admin/settings',
-        element: (
-          <RoleRoute allowedRoles={['ADMIN']}>
-            <PlaceholderPage
-              description="مسار مؤقت لإعدادات منصة سلوتي."
-              title="إعدادات المنصة"
-            />
-          </RoleRoute>
-        ),
-      },
-      {
-        path: '*',
-        element: <Navigate to="/login" replace />,
+        children: [
+          {
+            path: '/dashboard',
+            element: (
+              <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
+                <DashboardPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/schedule',
+            element: (
+              <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
+                <SchedulePage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/bookings',
+            element: (
+              <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
+                <BookingsListPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/transactions',
+            element: (
+              <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
+                <TransactionsListPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settlements',
+            element: (
+              <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
+                <SettlementsHubPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settlements/history',
+            element: (
+              <RoleRoute allowedRoles={['OWNER']}>
+                <SettlementHistoryPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settlements/preview',
+            element: (
+              <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
+                <SettlementPreviewPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settlements/:settlementId',
+            element: (
+              <RoleRoute allowedRoles={['OWNER', 'STAFF']}>
+                <SettlementDetailPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/audit-logs',
+            element: (
+              <RoleRoute allowedRoles={['OWNER']}>
+                <AuditLogsPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settings/courts',
+            element: (
+              <RoleRoute allowedRoles={['OWNER']}>
+                <SettingsCourtsPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settings/courts/:courtId',
+            element: (
+              <RoleRoute allowedRoles={['OWNER']}>
+                <SettingsCourtDetailsPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settings',
+            element: (
+              <RoleRoute allowedRoles={['OWNER']}>
+                <SettingsHubPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/settings/users',
+            element: (
+              <RoleRoute allowedRoles={['OWNER']}>
+                <SettingsUsersPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/clubs',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <ClubsListPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/clubs/new',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <ClubFormPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/clubs/:clubId',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <ClubFormPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/clubs/:clubSlug/courts',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <CourtsListPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/clubs/:clubSlug/courts/new',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <CourtFormPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/clubs/:clubSlug/courts/:courtId',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <CourtFormPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/users',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <AdminUsersPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/users/new',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <AdminUserFormPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/users/:userId',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <AdminUserDetailsPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '/admin/settings',
+            element: (
+              <RoleRoute allowedRoles={['ADMIN']}>
+                <PlaceholderPage
+                  description="مسار مؤقت لإعدادات منصة سلوتي."
+                  title="إعدادات المنصة"
+                />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: '*',
+            element: <Navigate to="/login" replace />,
+          },
+        ],
       },
     ],
   },

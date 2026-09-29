@@ -79,3 +79,12 @@ GET /api/v1/public/clubs/{club_slug}/courts/{court_id}/availability/?date=YYYY-M
   المتابعة كزائر
   ```
 
+---
+
+## 5. Search Indexing
+
+- The public schedule is **public but `noindex, nofollow`** in Phase 1. The route declares `handle: routeSeo(publicScheduleSeo)` in `src/app/router.tsx`; the page itself never touches the document head.
+- Tab title: `جدول مواعيد الملعب | Sloty`. No canonical, Open Graph, or JSON-LD is emitted.
+- Rationale: link/QR-shared utility pages with date-dependent availability and numeric court IDs; indexable Club/Court entity pages are a separate future phase. See [`docs/seo.md`](../seo.md).
+- Raw HTML for this URL is the shared `index.html` (homepage metadata, hidden prerendered markup); the runtime SEO layer applies the `noindex` title and robots directive once the app starts.
+

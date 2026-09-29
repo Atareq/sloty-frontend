@@ -229,7 +229,7 @@ export function CourtWorkingHoursSection({
   const canLoadWorkingHours =
     Boolean(clubSlug && courtId) && Number.isFinite(numericCourtId)
   const dayEditorRef = useRef<HTMLDivElement>(null)
-  const [selectedWeekday, setSelectedWeekday] = useState<CourtWeekday>(5)
+  const [selectedWeekday, setSelectedWeekday] = useState<CourtWeekday>(0)
   const [drafts, setDrafts] =
     useState<Record<CourtWeekday, WorkingDayDraft>>(createInitialDrafts)
   const [isLoading, setIsLoading] = useState(canLoadWorkingHours && !isCreateMode)

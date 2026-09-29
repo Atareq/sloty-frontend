@@ -91,7 +91,7 @@ The script:
 5. Checks out the exact GitHub SHA
 6. Runs `npm ci` (devDependencies are required for `tsc` and Vite)
 7. Injects `VITE_APP_RELEASE` and `VITE_COMMIT_SHA` into `npm run build`
-8. Requires `dist/`, `dist/index.html`, and generated production `dist/version.json` (reflecting exact `RELEASE_TAG` and `COMMIT_SHA`) before touching the live site
+8. Requires `dist/`, `dist/index.html`, and `dist/app.html` before touching the live site
 9. Publishes the complete `dist/` tree with `rsync -a --delete` (PWA/service-worker artifacts and `version.json` included)
 10. Verifies `https://sloty.baronlearning.com/` returns HTTP 200, and verifies `version.json` serves the exact deployed `COMMIT_SHA` and `RELEASE_TAG`
 
@@ -103,6 +103,32 @@ Existing UI metadata is reused:
 - Backend: [`src/core/system/`](../src/core/system/) and [`src/shared/components/BuildInfo/`](../src/shared/components/BuildInfo/)
 
 Production API targeting stays in `.env.production` via [`src/shared/config/api.ts`](../src/shared/config/api.ts). Vite env values are client-visible; never put secrets in `VITE_*`.
+
+### SEO build outputs
+
+`npm run build` also runs the build-only SEO prerender ([`src/core/seo/seoBuildPlugin.ts`](../src/core/seo/seoBuildPlugin.ts), see [`docs/seo.md`](seo.md)):
+
+| Output | Content |
+| :--- | :--- |
+| `dist/index.html` | Dedicated homepage SEO head (incl. canonical, `robots: index, follow`, `og:url`, JSON-LD) + prerendered homepage markup |
+| `dist/assiut/index.html` | App shell + full Assiut SEO head (canonical, `og:url`, robots) + prerendered markup |
+| `dist/app.html` | Clean generic SPA fallback shell (`noindex, nofollow`, empty `#root`, zero homepage metadata) |
+| `dist/robots.txt` | Generated; references the absolute sitemap |
+| `dist/sitemap.xml` | Generated; only `/` and `/assiut/` |
+
+- The canonical host comes from `VITE_PUBLIC_SITE_URL` in `.env.production` (`https://sloty.baronlearning.com/`). The build **fails** if it is missing or invalid. `tests/deploy/seoPublicSiteUrl.test.ts` keeps it aligned with `SLOTY_PUBLIC_URL`.
+- The SEO step runs in `generateBundle`, before vite-plugin-pwa generates `sw.js`, so all HTML files are precached with correct revisions. It never touches `version.json` or `manifest.webmanifest`.
+- `rsync -a --delete` publishes the new files with the rest of `dist/`; the deploy script validates both `dist/index.html` and `dist/app.html`.
+- Nginx must serve `dist/app.html` for private SPA deep links and `dist/assiut/index.html` for `/assiut/` via `try_files $uri $uri/ /app.html;`. Spot-check after deploy:
+
+  ```bash
+  curl -s https://sloty.baronlearning.com/robots.txt
+  curl -s https://sloty.baronlearning.com/sitemap.xml
+  curl -s https://sloty.baronlearning.com/ | grep -o '<link rel="canonical"[^>]*>'
+  curl -s https://sloty.baronlearning.com/assiut/ | grep -o '<link rel="canonical"[^>]*>'
+  curl -s https://sloty.baronlearning.com/login | grep -o '<meta name="robots"[^>]*>'
+  curl -s https://sloty.baronlearning.com/schedule | grep -o '<meta name="robots"[^>]*>'
+  ```
 
 ---
 

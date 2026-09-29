@@ -43,13 +43,15 @@ describe('courtWorkingHours.helpers', () => {
       ])
     })
 
-    it('determines CourtWeekday from date value correctly', () => {
-      // 2026-07-25 is a Saturday (jsDay 6 -> CourtWeekday 5)
-      expect(getCourtWeekdayFromDate('2026-07-25')).toBe(5)
-      // 2026-07-26 is a Sunday (jsDay 0 -> CourtWeekday 6)
-      expect(getCourtWeekdayFromDate('2026-07-26')).toBe(6)
-      // 2026-07-27 is a Monday (jsDay 1 -> CourtWeekday 0)
-      expect(getCourtWeekdayFromDate('2026-07-27')).toBe(0)
+    it('determines the backend Saturday-first CourtWeekday from a date', () => {
+      // 2026-07-25 is a Saturday -> 0
+      expect(getCourtWeekdayFromDate('2026-07-25')).toBe(0)
+      // 2026-07-26 is a Sunday -> 1
+      expect(getCourtWeekdayFromDate('2026-07-26')).toBe(1)
+      // 2026-07-27 is a Monday -> 2
+      expect(getCourtWeekdayFromDate('2026-07-27')).toBe(2)
+      // 2026-07-31 is a Friday -> 6
+      expect(getCourtWeekdayFromDate('2026-07-31')).toBe(6)
     })
   })
 
