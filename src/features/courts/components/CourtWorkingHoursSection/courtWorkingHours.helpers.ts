@@ -3,26 +3,27 @@ import type {
   CourtWeekday,
 } from '../../courtWorkingHours.types'
 
-export const weekdays: CourtWeekday[] = [5, 6, 0, 1, 2, 3, 4]
+/** Backend canonical weekday order: 0 = Saturday … 6 = Friday. */
+export const weekdays: CourtWeekday[] = [0, 1, 2, 3, 4, 5, 6]
 
 const weekdayLabels: Record<CourtWeekday, string> = {
-  0: 'الاثنين',
-  1: 'الثلاثاء',
-  2: 'الأربعاء',
-  3: 'الخميس',
-  4: 'الجمعة',
-  5: 'السبت',
-  6: 'الأحد',
+  0: 'السبت',
+  1: 'الأحد',
+  2: 'الاثنين',
+  3: 'الثلاثاء',
+  4: 'الأربعاء',
+  5: 'الخميس',
+  6: 'الجمعة',
 }
 
 const shortWeekdayLabels: Record<CourtWeekday, string> = {
-  0: 'اثنين',
-  1: 'ثلاثاء',
-  2: 'أربعاء',
-  3: 'خميس',
-  4: 'جمعة',
-  5: 'سبت',
-  6: 'أحد',
+  0: 'سبت',
+  1: 'أحد',
+  2: 'اثنين',
+  3: 'ثلاثاء',
+  4: 'أربعاء',
+  5: 'خميس',
+  6: 'جمعة',
 }
 
 export type TimeBoundaryRole = 'start' | 'end'
@@ -42,14 +43,15 @@ export function getWeekdayShortLabel(weekday: CourtWeekday): string {
 
 export function getCourtWeekdayFromDate(dateValue: string): CourtWeekday {
   const jsDay = new Date(`${dateValue}T00:00:00`).getDay()
+  // JS getDay(): 0 = Sunday … 6 = Saturday.
   const weekdayByJsDay: Record<number, CourtWeekday> = {
-    0: 6,
-    1: 0,
-    2: 1,
-    3: 2,
-    4: 3,
-    5: 4,
-    6: 5,
+    0: 1,
+    1: 2,
+    2: 3,
+    3: 4,
+    4: 5,
+    5: 6,
+    6: 0,
   }
 
   return weekdayByJsDay[jsDay]

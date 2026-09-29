@@ -12,6 +12,22 @@ function entry(overrides: Partial<AuditLogEntry>): AuditLogEntry {
 }
 
 describe('getAuditEntryPresentation', () => {
+  it.each([
+    [0, 'السبت'],
+    [1, 'الأحد'],
+    [2, 'الاثنين'],
+    [3, 'الثلاثاء'],
+    [4, 'الأربعاء'],
+    [5, 'الخميس'],
+    [6, 'الجمعة'],
+  ])('renders backend weekday %s as %s', (weekday, label) => {
+    const presentation = getAuditEntryPresentation(
+      entry({ action: 'RECURRING_AGREEMENT_CREATED', metadata: { weekday } }),
+    )
+
+    expect(presentation.details).toContainEqual({ label: 'اليوم', value: label })
+  })
+
   it('uses rich booking metadata and before/after changes without raw JSON', () => {
     const presentation = getAuditEntryPresentation(
       entry({

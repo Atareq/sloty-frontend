@@ -3,7 +3,9 @@
 `src/features` owns domain product code: pages, feature components, API wrappers, types, and helpers.
 
 Current active features include auth, dashboard, schedule, bookings, transactions, settlements, clubs, courts, clubUsers, adminUsers, settings, reports, audit, locations, and the unfinished Platform Admin settings placeholder.
-Active features include auth, dashboard, schedule, publicSchedule, bookings, transactions, settlements, clubs, courts, clubUsers, adminUsers, settings, reports, and audit.
+Active features include auth, dashboard, schedule, publicSchedule, publicSite, bookings, transactions, settlements, clubs, courts, clubUsers, adminUsers, settings, reports, and audit.
+
+`publicSite` owns the public, indexable SEO pages (`/` homepage for signed-out visitors and `/assiut/`), their copy, and their route SEO definitions. It renders real content only: no invented clubs, courts, or availability. See `docs/seo.md`.
 
 Keep feature-specific state and mutations inside the relevant feature folder. Put reusable presentational primitives in `src/shared`.
 

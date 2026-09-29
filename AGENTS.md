@@ -115,6 +115,13 @@ When determining factual system behavior, what features exist, and how contracts
 - Operational mutations (booking creation, holds, payments, cancellations, completions, no-shows, reschedules, settlements) require active server connectivity and are blocked when offline.
 - Detailed in [`docs/offline.md`](docs/offline.md).
 
+### 7. One SEO System
+- Route SEO is declared on the route (`handle: routeSeo(...)` in `src/app/router.tsx`) and applied only by `SeoRouteBoundary` (`src/core/seo`). Never set `document.title` or head tags from pages or components.
+- Routes without `handle.seo` are `noindex, nofollow` by default. Only real public pages registered in `indexablePublicPages` are indexable and listed in the generated sitemap (currently `/` and `/assiut/`).
+- `/` is shared: signed-out visitors in a browser tab see the public homepage; signed-in users, session errors, and installed-PWA launches keep `AuthLandingRedirect`.
+- The canonical origin comes only from `VITE_PUBLIC_SITE_URL`, never from `window.location`. `robots.txt` and `sitemap.xml` are generated at build time; do not add them to `public/`.
+- No `<meta name="keywords">`, hidden text, fake city/Club/Court pages, or invented structured data (addresses, phones, ratings, prices, `LocalBusiness` for Sloty). Detailed in [`docs/seo.md`](docs/seo.md).
+
 ---
 
 ## 4. Codebase Structure & Responsibilities
@@ -129,6 +136,7 @@ src/
 ├── features/     # Domain product modules (pages, components, feature API wrappers)
 │   ├── schedule/       # Operational Schedule workspace (/schedule)
 │   ├── publicSchedule/ # Guest Public Schedule (/public/.../schedule)
+│   ├── publicSite/     # Public SEO pages (/ homepage for signed-out visitors, /assiut/)
 │   ├── bookings/       # Bookings list, BookingActionSheet, lifecycle dialogs
 │   ├── transactions/   # Transactions ledger, RecordPaymentSheet, cancel payment
 │   ├── settlements/    # Settlement review, confirmation, employee custody
@@ -162,6 +170,7 @@ tests/deploy/     # Workflow and deploy-script contract tests
 - **Booking player identity:** Player search results are suggestions in backend order. Suggestions are loaded only for the entered phone; typing a customer name does not run a global name search and does not reject an unknown name. A phone lookup must not overwrite entered `customer_name`. Booking create and booking edit send the final entered `customer_name` and `customer_phone`, without a frontend-selected `club_player_id` or `player_profile_id`. The backend owns identity matching and player/name history.
 - **Booking slot interaction:** Schedule slots returned by the backend remain rendered and interactive regardless of their calendar date. FREE slots use only the backend `is_available` field; backend booking statuses determine occupied-slot interaction. Do not add local date or `start_time > now` gates before opening a slot or sending a booking mutation.
 - **Booking date validity:** Do not block create, update, or reschedule because a date is past, today, future, or different from the browser clock. Send the selected `start_time` / `end_time` and show backend codes (`BOOKING_OUTSIDE_WORKING_HOURS`, `BOOKING_SLOT_UNAVAILABLE`, `VALIDATION_ERROR`). Slot board display still follows backend `is_available` for FREE slots.
+- **Weekday contract:** Court working-hours and audit weekday values are Saturday-first (`0` = Saturday through `6` = Friday); browser date conversion must explicitly convert JavaScript's Sunday-first index.
 Run targeted validation commands before reporting completion:
 - **TypeScript:** `npx tsc -b --noEmit`
 - **Linting:** `npm run lint`
@@ -206,6 +215,7 @@ Run targeted validation commands before reporting completion:
 | **Arabic Copy Standards** | — | [`docs/product-copy.md`](docs/product-copy.md) |
 | **UI Design System** | — | [`docs/ui-reference.md`](docs/ui-reference.md) |
 | **Production CI/CD** | — | [`docs/frontend-ci-cd.md`](docs/frontend-ci-cd.md) |
+| **SEO & Public Site** | — | [`docs/seo.md`](docs/seo.md) |
 
 ---
 

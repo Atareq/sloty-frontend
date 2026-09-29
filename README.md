@@ -95,6 +95,7 @@ src/
 ├── features/     # Product feature modules (pages, components, feature API wrappers)
 │   ├── schedule/       # Operational Schedule workspace (/schedule)
 │   ├── publicSchedule/ # Guest Public Schedule (/public/.../schedule)
+│   ├── publicSite/     # Public SEO pages (/ for signed-out visitors, /assiut/)
 │   ├── bookings/       # Bookings list, action sheets, details
 │   ├── transactions/   # Financial transactions ledger, payments
 │   ├── settlements/    # Employee custody & cash settlement hub
@@ -107,7 +108,9 @@ src/
 └── pwa/          # Service Worker registration, PWA update prompt
 ```
 
-Production builds generate an installable standalone PWA with a static app-shell Service Worker. The manifest launches at `/`, allowing the existing role-aware auth redirect to choose `/login`, `/schedule`, `/select-club`, `/no-club-access`, or Platform Admin routes safely.
+Production builds generate an installable standalone PWA with a static app-shell Service Worker. The manifest launches at `/`, allowing the existing role-aware auth redirect to choose `/login`, `/schedule`, `/select-club`, `/no-club-access`, or Platform Admin routes safely. In a normal browser tab, signed-out visitors at `/` see the public Sloty homepage instead (see [`docs/seo.md`](./docs/seo.md)).
+
+`npm run build` also prerenders the public pages (`dist/index.html`, `dist/assiut/index.html`) and generates `dist/robots.txt` and `dist/sitemap.xml`. It requires `VITE_PUBLIC_SITE_URL` (set in `.env.production`).
 ---
 
 The Service Worker precaches compiled JS/CSS/HTML, approved static UI images, and PWA icons. It intentionally defines no runtime cache for authenticated APIs or business responses.
@@ -164,3 +167,4 @@ The Current Custody adapter runs after the read-only operational datasets and pe
   - [`docs/features/schedule.md`](./docs/features/schedule.md) — Operational schedule architecture
   - [`docs/features/public-schedule.md`](./docs/features/public-schedule.md) — Public schedule architecture
   - [`docs/frontend-ci-cd.md`](./docs/frontend-ci-cd.md) — Production CI/CD and static publication
+  - [`docs/seo.md`](./docs/seo.md) — SEO identity, public indexable routes, prerender, robots/sitemap

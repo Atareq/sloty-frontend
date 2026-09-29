@@ -66,7 +66,7 @@ function setupWorkingHoursApi(): void {
     court_name: 'ملعب 1',
     working_hours: [
       {
-        weekday: 5,
+        weekday: 0,
         pricing_periods: [
           {
             id: 1,
@@ -224,7 +224,7 @@ describe('CourtWorkingHoursSection', () => {
     expect(savedPayload().working_hours).toEqual(
       expect.arrayContaining([
         {
-          weekday: 5,
+          weekday: 0,
           pricing_periods: [],
         },
       ]),
@@ -239,6 +239,47 @@ describe('CourtWorkingHoursSection', () => {
     expect(serializedPayload).not.toContain('blocks')
     expect(serializedPayload).not.toContain('localId')
     expect(serializedPayload).not.toContain('"id"')
+  })
+
+  it('serializes weekdays with the backend Saturday-first contract', async () => {
+    const user = userEvent.setup()
+
+    renderWorkingHoursSection()
+
+    await screen.findByLabelText('اليوم')
+    for (const dayLabel of ['الأحد', 'الجمعة']) {
+      await chooseAppSelectOption(user, screen.getByLabelText('اليوم'), dayLabel)
+      await user.click(screen.getByRole('button', { name: 'فتح اليوم' }))
+      fireEvent.change(screen.getByLabelText('فترة العمل 1 من'), {
+        target: { value: '08:00' },
+      })
+      fireEvent.change(screen.getByLabelText('فترة العمل 1 إلى'), {
+        target: { value: '09:00' },
+      })
+      fireEvent.change(screen.getByLabelText('فترة العمل 1 السعر'), {
+        target: { value: '150' },
+      })
+    }
+    await user.click(screen.getByRole('button', { name: 'حفظ' }))
+
+    await waitFor(() => {
+      expect(mockedSaveCourtWorkingHours).toHaveBeenCalled()
+    })
+
+    const days = savedPayload().working_hours
+    const sundayFridayPeriods = [
+      { starts_at: '08:00:00', ends_at: '09:00:00', price: '150' },
+    ]
+    expect(days.map((day) => day.weekday)).toEqual([0, 1, 2, 3, 4, 5, 6])
+    expect(days[0]).toEqual({
+      weekday: 0,
+      pricing_periods: [
+        { starts_at: '10:00:00', ends_at: '12:00:00', price: '250.00' },
+      ],
+    })
+    expect(days[1]).toEqual({ weekday: 1, pricing_periods: sundayFridayPeriods })
+    expect(days[6]).toEqual({ weekday: 6, pricing_periods: sundayFridayPeriods })
+    expect(days[5]).toEqual({ weekday: 5, pricing_periods: [] })
   })
 
   it('opens a closed day with one blank editable period', async () => {
@@ -286,7 +327,7 @@ describe('CourtWorkingHoursSection', () => {
     expect(savedPayload().working_hours).toEqual(
       expect.arrayContaining([
         {
-          weekday: 5,
+          weekday: 0,
           pricing_periods: [
             { starts_at: '10:00:00', ends_at: '12:00:00', price: '200' },
             { starts_at: '17:00:00', ends_at: '23:00:00', price: '350' },
@@ -446,7 +487,7 @@ describe('CourtWorkingHoursSection', () => {
     expect(savedPayload().working_hours).toEqual(
       expect.arrayContaining([
         {
-          weekday: 5,
+          weekday: 0,
           pricing_periods: [
             { starts_at: '18:00:00', ends_at: '00:00:00', price: '300' },
           ],

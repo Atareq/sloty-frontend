@@ -170,3 +170,27 @@ Phone validation copy is resolved from `src/shared/copy/phoneValidation.ts` usin
 - **Apply Day Helper:** `يحفظ التعديلات الحالية ويطبق نفس الفترات والأسعار على الأيام الأخرى`
 - **Save Validation Error:** `حصلت مشكلة في بعض البيانات. راجع الحقول المحددة.`
 
+---
+
+## 11. Public Site (SEO pages)
+
+Copy for `/` and `/assiut/` lives in `src/features/publicSite/publicSite.copy.ts`; the same strings feed visible headings, meta descriptions, and JSON-LD. See [`seo.md`](./seo.md).
+
+- **Audience & register:** Players, pitch owners, and staff arriving from search. Use clear, simple Modern Standard Arabic (فصحى مبسطة) so wording matches how people search. Operational screens keep the simple Egyptian tone above.
+- **Brand:** Always pair `Sloty` and `سلوتي` in identity text (`سلوتي (Sloty)`, `Sloty | سلوتي`). Treat سلوتي as feminine (`منصة`): `تساعد`، `تبدأ`.
+- **Location:** Visible copy uses `أسيوط` and `مصر`. Do not write misspellings (`اسيوط`, `Assuit`) in visible text.
+- **Truthfulness:** Players see available times and contact the court to confirm (`تواصل مع الملعب لتأكيد الحجز`). Do not promise player self-booking, prices, ratings, or listed venues.
+
+| Element | Copy |
+| :--- | :--- |
+| Identity statement | `سلوتي (Sloty) منصة مصرية لحجز وإدارة ملاعب كرة القدم والمرافق الرياضية، تبدأ من أسيوط، وتساعد اللاعبين على معرفة المواعيد المتاحة وأصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد والمدفوعات.` |
+| Homepage H1 | `إدارة وحجز الملاعب بسهولة مع Sloty` |
+| Homepage title | `Sloty \| سلوتي لحجز وإدارة ملاعب كرة القدم في أسيوط ومصر` |
+| Assiut H1 | `ملاعب كرة القدم والحجز في أسيوط` |
+| Assiut title | `حجز ملاعب كرة القدم في أسيوط \| Sloty` |
+| Assiut link text | `حجز ملاعب كرة القدم في أسيوط` |
+| Homepage link text (from Assiut) | `سلوتي لإدارة وحجز ملاعب كرة القدم` |
+| Header login | `تسجيل الدخول` |
+| Footer / CTA login | `تسجيل الدخول لفريق العمل` |
+| Public schedule tab title | `جدول مواعيد الملعب \| Sloty` |
+| Private app tab title | `Sloty \| سلوتي` |

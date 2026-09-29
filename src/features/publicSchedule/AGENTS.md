@@ -84,5 +84,13 @@ For the detailed architectural specification, consult [`docs/features/public-sch
        ```
      - Tapping `المتابعة كزائر` returns the guest to the public court schedule.
 
+---
+
+## 6. Search Indexing (SEO)
+
+- Public schedule pages are `noindex` in Phase 1 via `publicScheduleSeo` (`publicSchedule.seo.ts`), declared on the route in `src/app/router.tsx`.
+- Never set `document.title` or head tags from this feature; SEO is owned by `src/core/seo` (see [`docs/seo.md`](../../../docs/seo.md)).
+- Do not make these pages indexable or add them to the sitemap without the Club/Court SEO phase described in `docs/seo.md`.
+
 Detailed architectural specification: [`docs/public-schedule-architecture.md`](../../../docs/public-schedule-architecture.md).
 Detailed architectural specification: [`docs/features/public-schedule.md`](../../../docs/features/public-schedule.md).

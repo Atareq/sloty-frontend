@@ -50,13 +50,13 @@ const legacyDepositStatusLabels: Record<string, string> = {
 }
 
 const weekdayLabels: Record<number, string> = {
-  0: 'الاثنين',
-  1: 'الثلاثاء',
-  2: 'الأربعاء',
-  3: 'الخميس',
-  4: 'الجمعة',
-  5: 'السبت',
-  6: 'الأحد',
+  0: 'السبت',
+  1: 'الأحد',
+  2: 'الاثنين',
+  3: 'الثلاثاء',
+  4: 'الأربعاء',
+  5: 'الخميس',
+  6: 'الجمعة',
 }
 
 function getRecurringWeekdayLabel(weekday: number): string {
