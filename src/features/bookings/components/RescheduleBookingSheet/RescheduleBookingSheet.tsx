@@ -15,9 +15,9 @@ import { listCourts } from '../../../courts/courtsApi'
 import type { Court } from '../../../courts/courts.types'
 import type { ScheduleBooking } from '../../../schedule/schedule.types'
 import {
-  formatBookingDateTime,
   formatTime12Hour,
   getEgyptDateValueFromInstant,
+  getSlotBookingInterval,
   mapBookingSlotsResponseToScheduleBookings,
 } from '../../../schedule/scheduleBoard.helpers'
 import { listBookingSlots } from '../../../schedule/scheduleApi'
@@ -190,8 +190,7 @@ export function RescheduleBookingSheet({
     setValidationError(null)
     const payload: BookingReschedulePayload = {
       court: courtId,
-      start_time: formatBookingDateTime(selectedDate, selectedSlot.startTime),
-      end_time: formatBookingDateTime(selectedDate, selectedSlot.endTime),
+      ...getSlotBookingInterval(selectedSlot, selectedDate),
       ...(reason.trim() ? { reason: reason.trim() } : {}),
     }
 

@@ -247,8 +247,46 @@ function getTimeValue(value: string): string {
   return normalizeTimeString(timePart.slice(0, 5))
 }
 
-function getSlotBookingDateTime(dateValue: string, timeValue: string): string {
-  return timeValue.includes('T') ? timeValue : formatBookingDateTime(dateValue, timeValue)
+const ABSOLUTE_DATE_TIME_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i
+
+/** Returns the value only when it is a timezone-aware ISO-8601 datetime. */
+function getAbsoluteDateTime(value: string | null | undefined): string | undefined {
+  return value && ABSOLUTE_DATE_TIME_PATTERN.test(value) ? value : undefined
+}
+
+export interface SlotBookingInterval {
+  start_time: string
+  end_time: string
+}
+
+/**
+ * Resolves the booking `start_time` / `end_time` for a selected Schedule slot.
+ *
+ * Backend slots return timezone-aware bounds; when both are present they are
+ * sent as returned. That keeps the next-day end of an overnight slot
+ * (Oct 2 23:00 → Oct 3 00:00) and the real calendar day of a slot after
+ * midnight in an overnight working day.
+ *
+ * A slot with only wall-clock times falls back to `dateValue` + time for both
+ * bounds. That fallback never rolls the end forward locally; the backend stays
+ * the authority on whether the interval is valid.
+ */
+export function getSlotBookingInterval(
+  slot: Pick<ScheduleBooking, 'startTime' | 'endTime' | 'startDateTime' | 'endDateTime'>,
+  dateValue: string,
+): SlotBookingInterval {
+  const startDateTime = getAbsoluteDateTime(slot.startDateTime)
+  const endDateTime = getAbsoluteDateTime(slot.endDateTime)
+
+  if (startDateTime && endDateTime) {
+    return { start_time: startDateTime, end_time: endDateTime }
+  }
+
+  return {
+    start_time: formatBookingDateTime(dateValue, slot.startTime),
+    end_time: formatBookingDateTime(dateValue, slot.endTime),
+  }
 }
 
 export function mapBookingSlotToScheduleBooking(
@@ -257,15 +295,21 @@ export function mapBookingSlotToScheduleBooking(
 ): ScheduleBooking {
   const startTime = getTimeValue(slot.start_time)
   const endTime = getTimeValue(slot.end_time)
+  const startDateTime = getAbsoluteDateTime(slot.start_time)
+  const endDateTime = getAbsoluteDateTime(slot.end_time)
   const startMinutes = timeToMinutes(startTime) ?? 0
+  const interval = getSlotBookingInterval(
+    { startTime, endTime, startDateTime, endDateTime },
+    slot.date,
+  )
   const booking = slot.booking
     ? {
         id: slot.booking.id,
         court: courtId,
         customer_name: slot.booking.customer_name,
         customer_phone: slot.booking.customer_phone,
-        start_time: getSlotBookingDateTime(slot.date, startTime),
-        end_time: getSlotBookingDateTime(slot.date, endTime),
+        start_time: interval.start_time,
+        end_time: interval.end_time,
         status: slot.booking.status,
         total_price: slot.booking.total_booking_value,
         paid_amount: slot.booking.total_paid_amount,
@@ -297,6 +341,8 @@ export function mapBookingSlotToScheduleBooking(
     firstRecurringConflictStart: slot.first_recurring_conflict_start,
     startTime,
     endTime,
+    ...(startDateTime ? { startDateTime } : {}),
+    ...(endDateTime ? { endDateTime } : {}),
     period: getSlotPeriod(startMinutes),
     ...(booking ? { booking } : {}),
   }

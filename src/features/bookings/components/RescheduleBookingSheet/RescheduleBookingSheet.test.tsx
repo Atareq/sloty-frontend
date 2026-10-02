@@ -105,6 +105,62 @@ describe('RescheduleBookingSheet', () => {
     })
   })
 
+  it('posts the backend next-day end when rescheduling to an overnight slot', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    mockedListBookingSlots.mockResolvedValue({
+      court: 7,
+      court_name: 'ملعب 1',
+      date_from: '2026-10-02',
+      date_to: '2026-10-02',
+      slot_duration_minutes: 60,
+      message: null,
+      slots: [
+        {
+          date: '2026-10-02',
+          start_time: '2026-10-02T23:00:00+03:00',
+          end_time: '2026-10-03T00:00:00+03:00',
+          slot_status: 'FREE',
+          is_available: true,
+          slot_price: '250.00',
+          booking: null,
+          recurring_anchor_booking_id: null,
+          recurring_context: null,
+          can_start_recurring: true,
+          recurring_blocked_reason: null,
+          first_recurring_conflict_start: null,
+          label: 'متاح',
+        },
+      ],
+    })
+
+    render(
+      <RescheduleBookingSheet
+        assignedCourtId={null}
+        booking={{
+          ...booking,
+          start_time: '2026-10-02T20:00:00+03:00',
+          end_time: '2026-10-02T21:00:00+03:00',
+        }}
+        canChooseCourt
+        clubSlug="nasr-club"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '11:00 م' }))
+    await user.click(screen.getByRole('button', { name: 'تأكيد تغيير الموعد' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      court: 7,
+      start_time: '2026-10-02T23:00:00+03:00',
+      end_time: '2026-10-03T00:00:00+03:00',
+    })
+  })
+
   it('keeps the selected slot after a conflict and refreshes availability', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn().mockRejectedValue(new Error('slot taken'))

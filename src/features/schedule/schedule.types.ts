@@ -32,6 +32,13 @@ export interface ScheduleBooking {
   isAvailable?: boolean
   startTime: string
   endTime: string
+  /**
+   * Backend timezone-aware slot bounds, kept as returned. They carry the real
+   * calendar day of each bound, so an overnight slot (23:00 → 00:00) keeps its
+   * next-day end. Absent when the slot only has wall-clock times.
+   */
+  startDateTime?: string
+  endDateTime?: string
   slotPrice?: string | null
   canStartRecurring?: boolean | null
   recurringAnchorBookingId?: number | null
