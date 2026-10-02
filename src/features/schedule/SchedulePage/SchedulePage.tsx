@@ -61,11 +61,11 @@ import {
 } from '../../transactions/components/RecordPaymentSheet/RecordPaymentSheet'
 import {
   filterSlotsForDate,
-  formatBookingDateTime,
   formatTime12Hour,
   getBookingSummariesFromScheduleSlots,
   getEgyptDateValue,
   getScheduleClosingBookings,
+  getSlotBookingInterval,
   mapBookingSlotsResponseToScheduleBookings,
 } from '../scheduleBoard.helpers'
 import type { ScheduleBooking } from '../schedule.types'
@@ -1271,8 +1271,8 @@ export function SchedulePage() {
     setCreateFieldErrors(null)
 
     try {
-      const startTime = formatBookingDateTime(selectedDate, selectedSlot.startTime)
-      const endTime = formatBookingDateTime(selectedDate, selectedSlot.endTime)
+      const { start_time: startTime, end_time: endTime } =
+        getSlotBookingInterval(selectedSlot, selectedDate)
 
       if (isOfflineLike) {
         if (!offlineScope) {
@@ -1485,17 +1485,24 @@ export function SchedulePage() {
         ? 'RECURRING_UNAVAILABLE'
         : null
 
+    const alternativeInterval = getSlotBookingInterval(
+      {
+        startTime: alternative.startTime,
+        endTime: alternative.endTime,
+        startDateTime: latestSlot?.start_time,
+        endDateTime: latestSlot?.end_time,
+      },
+      alternative.date,
+    )
+
     await offlineRepositories.updateBookingIntent(offlineScope, intent.local_id, {
       court_id: alternative.courtId,
       client_request_id: createBookingRequestClientRequestId(),
       backend_attempt_id: null,
       last_attempt_at: null,
       requested_date: alternative.date,
-      requested_start: formatBookingDateTime(
-        alternative.date,
-        alternative.startTime,
-      ),
-      requested_end: formatBookingDateTime(alternative.date, alternative.endTime),
+      requested_start: alternativeInterval.start_time,
+      requested_end: alternativeInterval.end_time,
       original_slot_snapshot: latestSlot
         ? createSlotSnapshotFromAlternative(latestSlot)
         : intent.original_slot_snapshot,

@@ -4,6 +4,7 @@ import {
   formatBookingDateTime,
   formatTime12Hour,
   getEgyptDateValueFromInstant,
+  getSlotBookingInterval,
   getSlotDate,
   getScheduleClosingBookings,
   getSlotPeriod,
@@ -341,6 +342,164 @@ describe('scheduleBoard helpers', () => {
     expect(getSlotPeriod(12 * 60)).toBe('pm')
     expect(getSlotPeriod(18 * 60)).toBe('pm')
     expect(getSlotPeriod(23 * 60 + 59)).toBe('pm')
+  })
+
+  describe('slot booking interval', () => {
+    function makeFreeSlot(
+      overrides: Pick<BookingSlot, 'date' | 'start_time' | 'end_time'> &
+        Partial<BookingSlot>,
+    ): BookingSlot {
+      return {
+        slot_status: 'FREE',
+        is_available: true,
+        slot_price: '250.00',
+        booking: null,
+        recurring_anchor_booking_id: null,
+        recurring_context: null,
+        can_start_recurring: true,
+        recurring_blocked_reason: null,
+        first_recurring_conflict_start: null,
+        label: 'متاح',
+        ...overrides,
+      }
+    }
+
+    function getIntervalForBackendSlot(slot: BookingSlot) {
+      return getSlotBookingInterval(
+        mapBookingSlotToScheduleBooking(slot, 7),
+        slot.date,
+      )
+    }
+
+    it('keeps a same-day slot on the selected calendar date', () => {
+      expect(
+        getIntervalForBackendSlot(
+          makeFreeSlot({
+            date: '2026-10-02',
+            start_time: '2026-10-02T10:00:00+03:00',
+            end_time: '2026-10-02T11:00:00+03:00',
+          }),
+        ),
+      ).toEqual({
+        start_time: '2026-10-02T10:00:00+03:00',
+        end_time: '2026-10-02T11:00:00+03:00',
+      })
+    })
+
+    it('ends a slot that ends at midnight on the next calendar day', () => {
+      const slot = mapBookingSlotToScheduleBooking(
+        makeFreeSlot({
+          date: '2026-10-02',
+          start_time: '2026-10-02T23:00:00+03:00',
+          end_time: '2026-10-03T00:00:00+03:00',
+        }),
+        7,
+      )
+
+      expect(getSlotBookingInterval(slot, '2026-10-02')).toEqual({
+        start_time: '2026-10-02T23:00:00+03:00',
+        end_time: '2026-10-03T00:00:00+03:00',
+      })
+      // Board presentation keeps the wall-clock times.
+      expect(slot.startTime).toBe('23:00')
+      expect(slot.endTime).toBe('00:00')
+    })
+
+    it('ends a slot that runs past midnight on the next calendar day', () => {
+      expect(
+        getIntervalForBackendSlot(
+          makeFreeSlot({
+            date: '2026-10-02',
+            start_time: '2026-10-02T23:00:00+03:00',
+            end_time: '2026-10-03T01:00:00+03:00',
+          }),
+        ),
+      ).toEqual({
+        start_time: '2026-10-02T23:00:00+03:00',
+        end_time: '2026-10-03T01:00:00+03:00',
+      })
+    })
+
+    it('keeps a 00:00 start at the beginning of the selected day', () => {
+      expect(
+        getIntervalForBackendSlot(
+          makeFreeSlot({
+            date: '2026-10-02',
+            start_time: '2026-10-02T00:00:00+03:00',
+            end_time: '2026-10-02T01:00:00+03:00',
+          }),
+        ),
+      ).toEqual({
+        start_time: '2026-10-02T00:00:00+03:00',
+        end_time: '2026-10-02T01:00:00+03:00',
+      })
+      expect(
+        getSlotBookingInterval(
+          { startTime: '00:00', endTime: '01:00' },
+          '2026-10-02',
+        ),
+      ).toEqual({
+        start_time: '2026-10-02T00:00:00+03:00',
+        end_time: '2026-10-02T01:00:00+03:00',
+      })
+    })
+
+    it('keeps the backend calendar day of a slot after midnight in an overnight working day', () => {
+      expect(
+        getIntervalForBackendSlot(
+          makeFreeSlot({
+            date: '2026-10-02',
+            start_time: '2026-10-03T01:00:00+03:00',
+            end_time: '2026-10-03T02:00:00+03:00',
+          }),
+        ),
+      ).toEqual({
+        start_time: '2026-10-03T01:00:00+03:00',
+        end_time: '2026-10-03T02:00:00+03:00',
+      })
+    })
+
+    it('does not roll a wall-clock-only end forward locally', () => {
+      expect(
+        getSlotBookingInterval(
+          { startTime: '23:00', endTime: '00:00' },
+          '2026-10-02',
+        ),
+      ).toEqual({
+        start_time: '2026-10-02T23:00:00+03:00',
+        end_time: '2026-10-02T00:00:00+03:00',
+      })
+    })
+
+    it('maps an overnight booked slot summary with the backend instants', () => {
+      const result = mapBookingSlotToScheduleBooking(
+        makeFreeSlot({
+          date: '2026-10-02',
+          start_time: '2026-10-02T23:00:00+03:00',
+          end_time: '2026-10-03T00:00:00+03:00',
+          slot_status: 'CONFIRMED',
+          is_available: false,
+          booking: {
+            id: 44,
+            status: 'CONFIRMED',
+            status_label: 'مؤكد',
+            customer_name: 'أحمد علي',
+            customer_phone: '+201000000000',
+            total_booking_value: '250.00',
+            total_paid_amount: '250.00',
+            remaining_amount: '0.00',
+            is_recurring: true,
+            recurrence_status: 'ACTIVE',
+          },
+        }),
+        7,
+      )
+
+      expect(result.booking).toMatchObject({
+        start_time: '2026-10-02T23:00:00+03:00',
+        end_time: '2026-10-03T00:00:00+03:00',
+      })
+    })
   })
 
   describe('slot date filtering helpers', () => {

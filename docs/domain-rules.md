@@ -89,7 +89,8 @@ Supported methods:
 - **Closed Day Representation:** `pricing_periods: []` represents a closed day.
 - **Pricing Periods Are Opening Windows:** Pricing periods define independent open/priced half-open `[start, end)` intervals aligned to `slot_duration_minutes`. Gaps between periods are valid closed time: the backend generates no slots there and rejects bookings in them. Adjacent periods (`01:00–05:00` + `05:00–09:00`) are valid; overlapping or duplicate periods are invalid. The frontend never sends synthetic gap rows and never generates slots locally.
 - **Weekday Contract:** `weekday` uses the backend Saturday-first index: `0` = Saturday, `1` = Sunday, `2` = Monday, `3` = Tuesday, `4` = Wednesday, `5` = Thursday, `6` = Friday (`courtWorkingHours.helpers.ts`).
-- **Midnight Semantic:** End time `00:00` represents next-day midnight (`24:00`). Intervals ending at `00:00` belong to the operational start date. General overnight scheduling past midnight is disallowed.
+- **Midnight Semantic:** End time `00:00` represents next-day midnight (`24:00`). Intervals ending at `00:00` belong to the operational start date. Cross-midnight periods (for example `23:00–01:00`) are valid and are resolved by the backend as timezone-aware local datetimes on one operational timeline. A `00:00` start time is the beginning of its operational day; it is not moved to the next day.
+- **Slot Booking Instants:** Booking create, offline Booking Requests, and reschedule send the selected slot's backend `start_time` / `end_time` exactly as returned (`getSlotBookingInterval()` in `scheduleBoard.helpers.ts`). Slot `date` is the operational day, not the calendar day of each bound, so the frontend never rebuilds instants from `date` + wall-clock time when the backend has provided them, and never rolls a wall-clock-only end forward on its own.
 
 ---
 

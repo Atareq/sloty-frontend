@@ -2337,6 +2337,52 @@ describe('SchedulePage', () => {
     })
   })
 
+  it('sends the backend next-day end for an overnight recurring slot', async () => {
+    vi.setSystemTime(new Date('2026-10-02T09:00:00Z'))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockedListBookingSlots.mockResolvedValueOnce(makeSlotsResponse([
+      makeSlot({
+        start_time: '2026-10-02T23:00:00+03:00',
+        end_time: '2026-10-03T00:00:00+03:00',
+        can_start_recurring: true,
+      }),
+    ]))
+
+    render(
+      <MemoryRouter>
+        <SchedulePage />
+      </MemoryRouter>,
+    )
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: '11:00 م متاح متاح للتثبيت أسبوعيًا',
+      }),
+    )
+    await user.click(
+      screen.getByRole('checkbox', { name: /ثبّت نفس الموعد كل أسبوع/ }),
+    )
+    await user.type(
+      screen.getByRole('combobox', { name: 'اسم اللاعب' }),
+      'أحمد علي',
+    )
+    await user.type(screen.getByLabelText('رقم الموبايل'), '01000000000')
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحجز' }))
+
+    await waitFor(() => {
+      expect(mockedCreateBooking).toHaveBeenCalledWith(
+        'nasr-club',
+        expect.objectContaining({
+          court: 7,
+          start_time: '2026-10-02T23:00:00+03:00',
+          end_time: '2026-10-03T00:00:00+03:00',
+          is_recurring: true,
+          source: 'MANUAL',
+        }),
+      )
+    })
+  })
+
   it('shows a 5-second floating warning for online RECURRING_UNAVAILABLE without Needs Review', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     mockedListBookingSlots.mockResolvedValueOnce(makeSlotsResponse([
