@@ -67,6 +67,12 @@ export const apiEndpoints = {
         detail: (clubSlug: string, courtId: ApiId) =>
           `clubs/${clubSlug}/courts/${courtId}/working-hours/`,
       },
+      images: {
+        list: (clubSlug: string, courtId: ApiId) =>
+          `clubs/${clubSlug}/courts/${courtId}/images/`,
+        detail: (clubSlug: string, courtId: ApiId, courtImageId: ApiId) =>
+          `clubs/${clubSlug}/courts/${courtId}/images/${courtImageId}/`,
+      },
     },
     dashboard: {
       summary: (clubSlug: string) => `clubs/${clubSlug}/dashboard/summary/`,
@@ -116,5 +122,7 @@ export const apiEndpoints = {
   public: {
     courtAvailability: (clubSlug: string, courtId: ApiId) =>
       `public/clubs/${clubSlug}/courts/${courtId}/availability/`,
+    courts: 'public/courts/',
+    courtsSearch: 'public/courts/search/',
   },
 } as const

@@ -6,27 +6,21 @@ import {
 } from '../../core/seo/seoConfig'
 import type { IndexablePageSeo, JsonLdNode } from '../../core/seo/seo.types'
 import {
-  assiutPageCopy,
+  aboutPageCopy,
   homePageCopy,
   publicSiteIdentityCopy,
 } from './publicSite.copy'
 
-/** Canonical public paths. Links and canonicals always use these forms. */
+/**
+ * Canonical public paths. Links and canonicals always use these forms.
+ *
+ * `/` is the public player discovery page (the primary SEO surface); `/about/`
+ * is the brand and trust page.
+ */
 export const PUBLIC_HOME_PATH = '/'
-export const ASSIUT_PATH = '/assiut/'
+export const ABOUT_PATH = '/about/'
 
-export type IndexablePublicPath = typeof PUBLIC_HOME_PATH | typeof ASSIUT_PATH
-
-const assiutPlace: JsonLdNode = {
-  '@type': 'City',
-  name: 'أسيوط',
-  alternateName: ['Assiut', 'Asyut'],
-  containedInPlace: {
-    '@type': 'Country',
-    name: 'مصر',
-    alternateName: 'Egypt',
-  },
-}
+export type IndexablePublicPath = typeof PUBLIC_HOME_PATH | typeof ABOUT_PATH
 
 function organizationId(origin: string): string {
   return `${buildPublicSiteUrl(origin, PUBLIC_HOME_PATH)}#organization`
@@ -56,7 +50,6 @@ function buildHomeStructuredData(origin: string): JsonLdNode[] {
       url: homeUrl,
       logo: buildPublicSiteUrl(origin, SEO_SOCIAL_IMAGE_PATH),
       description: publicSiteIdentityCopy.statement,
-      areaServed: assiutPlace,
     },
     {
       '@type': 'WebSite',
@@ -93,27 +86,26 @@ function buildHomeStructuredData(origin: string): JsonLdNode[] {
   ]
 }
 
-/** Assiut JSON-LD: the landing WebPage about the city plus its breadcrumb. */
-function buildAssiutStructuredData(origin: string): JsonLdNode[] {
+/** About JSON-LD: the AboutPage for the Sloty Organization plus its breadcrumb. */
+function buildAboutStructuredData(origin: string): JsonLdNode[] {
   const homeUrl = buildPublicSiteUrl(origin, PUBLIC_HOME_PATH)
-  const assiutUrl = buildPublicSiteUrl(origin, ASSIUT_PATH)
+  const aboutUrl = buildPublicSiteUrl(origin, ABOUT_PATH)
 
   return [
     {
-      '@type': 'WebPage',
-      '@id': `${assiutUrl}#webpage`,
-      url: assiutUrl,
-      name: assiutPageCopy.metaTitle,
-      description: assiutPageCopy.metaDescription,
+      '@type': 'AboutPage',
+      '@id': `${aboutUrl}#webpage`,
+      url: aboutUrl,
+      name: aboutPageCopy.metaTitle,
+      description: aboutPageCopy.metaDescription,
       inLanguage: 'ar',
       isPartOf: { '@id': websiteId(origin) },
-      publisher: { '@id': organizationId(origin) },
-      about: assiutPlace,
-      breadcrumb: { '@id': `${assiutUrl}#breadcrumb` },
+      about: { '@id': organizationId(origin) },
+      breadcrumb: { '@id': `${aboutUrl}#breadcrumb` },
     },
     {
       '@type': 'BreadcrumbList',
-      '@id': `${assiutUrl}#breadcrumb`,
+      '@id': `${aboutUrl}#breadcrumb`,
       itemListElement: [
         {
           '@type': 'ListItem',
@@ -124,8 +116,8 @@ function buildAssiutStructuredData(origin: string): JsonLdNode[] {
         {
           '@type': 'ListItem',
           position: 2,
-          name: assiutPageCopy.breadcrumbCurrent,
-          item: assiutUrl,
+          name: aboutPageCopy.breadcrumbCurrent,
+          item: aboutUrl,
         },
       ],
     },
@@ -140,12 +132,12 @@ export const homePageSeo: IndexablePageSeo = {
   structuredData: buildHomeStructuredData,
 }
 
-export const assiutPageSeo: IndexablePageSeo = {
+export const aboutPageSeo: IndexablePageSeo = {
   robots: 'index',
-  title: assiutPageCopy.metaTitle,
-  description: assiutPageCopy.metaDescription,
-  canonicalPath: ASSIUT_PATH,
-  structuredData: buildAssiutStructuredData,
+  title: aboutPageCopy.metaTitle,
+  description: aboutPageCopy.metaDescription,
+  canonicalPath: ABOUT_PATH,
+  structuredData: buildAboutStructuredData,
 }
 
 export interface IndexablePublicPage {
@@ -158,8 +150,9 @@ export interface IndexablePublicPage {
  *
  * It drives `sitemap.xml` and the build-time prerender. Add a page here only
  * when it is a real public page backed by real content or Backend data.
+ * Individual Courts are reached through discovery and are not listed here.
  */
 export const indexablePublicPages: readonly IndexablePublicPage[] = [
   { path: PUBLIC_HOME_PATH, seo: homePageSeo },
-  { path: ASSIUT_PATH, seo: assiutPageSeo },
+  { path: ABOUT_PATH, seo: aboutPageSeo },
 ]

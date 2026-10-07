@@ -62,6 +62,7 @@ Sloty's canonical palette uses a distinct green brand identity:
 - Standard modal container for temporary workflows:
   - Mobile: Smooth slide-up bottom sheet with swipe-to-dismiss gesture.
   - Desktop: Centered modal dialog with backdrop blur.
+- Optional `footer` slot: header and footer stay fixed and only the content scrolls (used by the public discovery selectors' sticky `مسح الاختيار`). Without `footer`, the whole panel scrolls as before. Never build a separate sticky-footer sheet.
 - Used by: Add Booking, Booking Actions, Payment Recording, Filters, Reschedule, Details.
 
 ### AppButton (`src/shared/components/AppButton/AppButton.tsx`)

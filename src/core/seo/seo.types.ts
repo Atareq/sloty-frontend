@@ -35,7 +35,7 @@ export interface IndexablePageSeo {
   title: string
   /** Meta and Open Graph description. */
   description: string
-  /** Canonical path on the public site origin, e.g. `/` or `/assiut/`. */
+  /** Canonical path on the public site origin, e.g. `/` or `/about/`. */
   canonicalPath: `/${string}`
   structuredData?: StructuredDataBuilder
 }

@@ -7,10 +7,12 @@ import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { formatDateInputValue } from '../../../shared/utils/date'
 import { getApiErrorMessage } from '../../../core/api/apiError.helpers'
 import {
+  findMatchingPublicScheduleHandoffSlotId,
   getEgyptToday,
   getPublicScheduleDateWindow,
   isDateInsidePublicScheduleWindow,
   mapPublicAvailabilityToScheduleSlots,
+  parsePublicScheduleHandoffSearch,
 } from '../publicSchedule.helpers'
 import { getPublicCourtAvailability } from '../publicScheduleApi'
 import type { PublicCourtAvailabilityResponse } from '../publicSchedule.types'
@@ -59,6 +61,8 @@ const publicStatusLegend = [
  * GET /api/v1/public/clubs/{club_slug}/courts/{court_id}/availability/
  *
  * Enforces a strict 32-date window (yesterday to today + 30) and isolated guest privacy.
+ * Supports Phase 6 discovery handoff context (`?date=YYYY-MM-DD&time=HH:MM`) to
+ * initialize on the searched date and visually locate the requested time slot.
  */
 export function PublicSchedulePage() {
   const { clubSlug, courtId } = useParams<{
@@ -77,7 +81,19 @@ export function PublicSchedulePage() {
     () => formatDateInputValue(getEgyptToday()),
     [],
   )
-  const [selectedDate, setSelectedDate] = useState(todayDate)
+  const initialHandoff = useMemo(
+    () => parsePublicScheduleHandoffSearch(location.search),
+    [location.search],
+  )
+  const [selectedDate, setSelectedDate] = useState(
+    () => initialHandoff.date ?? todayDate,
+  )
+  const [activeHandoffDate, setActiveHandoffDate] = useState<string | null>(
+    () => initialHandoff.date,
+  )
+  const [activeHandoffTime, setActiveHandoffTime] = useState<string | null>(
+    () => initialHandoff.time,
+  )
   const [availability, setAvailability] =
     useState<PublicCourtAvailabilityResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -91,6 +107,8 @@ export function PublicSchedulePage() {
 
   const morningPeriodRef = useRef<HTMLDivElement>(null)
   const eveningPeriodRef = useRef<HTMLDivElement>(null)
+  const handoffSlotRef = useRef<HTMLButtonElement | null>(null)
+  const hasScrolledToHandoffRef = useRef(false)
 
   // Fetch sanitized public court availability
   useEffect(() => {
@@ -145,6 +163,49 @@ export function PublicSchedulePage() {
     return mapPublicAvailabilityToScheduleSlots(availability)
   }, [availability])
 
+  const activeHandoffSlotId = useMemo(() => {
+    if (
+      !activeHandoffDate ||
+      !activeHandoffTime ||
+      selectedDate !== activeHandoffDate
+    ) {
+      return null
+    }
+
+    return findMatchingPublicScheduleHandoffSlotId(
+      slots,
+      activeHandoffDate,
+      activeHandoffTime,
+      availability?.date ?? selectedDate,
+    )
+  }, [
+    activeHandoffDate,
+    activeHandoffTime,
+    availability?.date,
+    selectedDate,
+    slots,
+  ])
+
+  // Scroll the handed-off slot into view once after the schedule data renders
+  useEffect(() => {
+    if (
+      isLoading ||
+      !availability ||
+      !activeHandoffSlotId ||
+      hasScrolledToHandoffRef.current
+    ) {
+      return
+    }
+
+    if (handoffSlotRef.current) {
+      hasScrolledToHandoffRef.current = true
+      handoffSlotRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }
+  }, [activeHandoffSlotId, availability, isLoading])
+
   const amSlots = useMemo(
     () => slots.filter((slot) => slot.period === 'am'),
     [slots],
@@ -161,6 +222,10 @@ export function PublicSchedulePage() {
 
   function handleDateChange(nextDate: string): void {
     if (isDateInsidePublicScheduleWindow(nextDate)) {
+      if (nextDate !== selectedDate) {
+        setActiveHandoffDate(null)
+        setActiveHandoffTime(null)
+      }
       setSelectedDate(nextDate)
     }
   }
@@ -387,13 +452,20 @@ export function PublicSchedulePage() {
 
                   <div className="relative z-10 grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                     {amSlots.length > 0 ? (
-                      amSlots.map((slot) => (
-                        <PublicSlotCard
-                          key={slot.id}
-                          onSelect={handleSelectSlot}
-                          slot={slot}
-                        />
-                      ))
+                      amSlots.map((slot) => {
+                        const isHandoffTarget =
+                          slot.id === activeHandoffSlotId
+
+                        return (
+                          <PublicSlotCard
+                            isHandoffTarget={isHandoffTarget}
+                            key={slot.id}
+                            onSelect={handleSelectSlot}
+                            ref={isHandoffTarget ? handoffSlotRef : undefined}
+                            slot={slot}
+                          />
+                        )
+                      })
                     ) : (
                       <p className="col-span-full py-4 text-center text-xs font-bold text-amber-950/60">
                         لا توجد فترات صباحية
@@ -458,13 +530,20 @@ export function PublicSchedulePage() {
 
                   <div className="relative z-10 grid grid-cols-4 gap-1.5 sm:gap-2 md:grid-cols-3 lg:grid-cols-4">
                     {pmSlots.length > 0 ? (
-                      pmSlots.map((slot) => (
-                        <PublicSlotCard
-                          key={slot.id}
-                          onSelect={handleSelectSlot}
-                          slot={slot}
-                        />
-                      ))
+                      pmSlots.map((slot) => {
+                        const isHandoffTarget =
+                          slot.id === activeHandoffSlotId
+
+                        return (
+                          <PublicSlotCard
+                            isHandoffTarget={isHandoffTarget}
+                            key={slot.id}
+                            onSelect={handleSelectSlot}
+                            ref={isHandoffTarget ? handoffSlotRef : undefined}
+                            slot={slot}
+                          />
+                        )
+                      })
                     ) : (
                       <p className="col-span-full py-4 text-center text-xs font-bold text-slate-200/60">
                         لا توجد فترات مسائية

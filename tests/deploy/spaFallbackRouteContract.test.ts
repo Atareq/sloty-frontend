@@ -62,18 +62,18 @@ describe('SPA fallback route contract (Nginx & Crawler safety)', () => {
       homeDoc.querySelector('#root > [data-sloty-prerender="/"]'),
     ).not.toBeNull()
 
-    // 2. Assiut landing /assiut/
-    const assiut = resolveNginxRoute('/assiut/')
-    expect(assiut.fileName).toBe('assiut/index.html')
-    const assiutDoc = parseHtml(assiut.content)
+    // 2. About page /about/
+    const about = resolveNginxRoute('/about/')
+    expect(about.fileName).toBe('about/index.html')
+    const aboutDoc = parseHtml(about.content)
     expect(
-      assiutDoc.querySelector('meta[name="robots"]')?.getAttribute('content'),
+      aboutDoc.querySelector('meta[name="robots"]')?.getAttribute('content'),
     ).toBe('index, follow')
     expect(
-      assiutDoc.querySelector('link[rel="canonical"]')?.getAttribute('href'),
-    ).toBe('https://sloty.baronlearning.com/assiut/')
+      aboutDoc.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+    ).toBe('https://sloty.baronlearning.com/about/')
     expect(
-      assiutDoc.querySelector('#root > [data-sloty-prerender="/assiut/"]'),
+      aboutDoc.querySelector('#root > [data-sloty-prerender="/about/"]'),
     ).not.toBeNull()
   })
 

@@ -13,11 +13,15 @@ import {
   clearAuthTokens,
   getAccessToken,
   getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
 } from '../../../core/auth/authStorage'
+import { ProtectedRoute } from '../../../core/auth/ProtectedRoute'
 import { clearSelectedClubSlug } from '../../../core/auth/selectedClubStorage'
 import { clearSelectedCourtId } from '../../../core/auth/selectedCourtStorage'
 import { createDevAccessToken } from '../../../core/auth/devAuth'
 import type { CurrentUserProfile } from '../../../core/auth/auth.types'
+import { HomeRoute } from '../../../app/HomeRoute'
 import { getClub, listClubs } from '../../../features/clubs/clubsApi'
 import { listCourts } from '../../../features/courts/courtsApi'
 import { LoginPage } from './LoginPage'
@@ -26,6 +30,17 @@ vi.mock('../../../core/auth/authApi', () => ({
   fetchCurrentUserProfile: vi.fn(),
   loginWithPassword: vi.fn(),
 }))
+
+vi.mock('../../../core/auth/authStorage', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../core/auth/authStorage')>()
+
+  return {
+    ...actual,
+    setAccessToken: vi.fn(actual.setAccessToken),
+    setRefreshToken: vi.fn(actual.setRefreshToken),
+  }
+})
 
 vi.mock('../../../features/clubs/clubsApi', () => ({
   getClub: vi.fn(),
@@ -36,8 +51,18 @@ vi.mock('../../../features/courts/courtsApi', () => ({
   listCourts: vi.fn(),
 }))
 
+vi.mock('../../../features/publicDiscovery/publicDiscoveryApi', () => ({
+  listPublicCourts: vi.fn(async () => ({
+    courts: [],
+    totalCount: 0,
+    hasNextPage: false,
+  })),
+}))
+
 const mockedFetchCurrentUserProfile = vi.mocked(fetchCurrentUserProfile)
 const mockedLoginWithPassword = vi.mocked(loginWithPassword)
+const mockedSetAccessToken = vi.mocked(setAccessToken)
+const mockedSetRefreshToken = vi.mocked(setRefreshToken)
 const mockedGetClub = vi.mocked(getClub)
 const mockedListClubs = vi.mocked(listClubs)
 const mockedListCourts = vi.mocked(listCourts)
@@ -76,6 +101,71 @@ function renderLoginPageWithRoutes() {
       </MemoryRouter>
     </AuthProvider>,
   )
+}
+
+type LoginEntry = Parameters<typeof MemoryRouter>[0]['initialEntries']
+
+/**
+ * Renders Login next to the real `/` element (`HomeRoute` → `PublicHomePage`),
+ * a placeholder Public Schedule, and a protected workspace route.
+ */
+function renderLoginWithPublicHome(initialEntries: LoginEntry) {
+  render(
+    <AuthProvider>
+      <MemoryRouter initialEntries={initialEntries}>
+        <Routes>
+          <Route element={<HomeRoute />} path="/" />
+          <Route element={<LoginPage />} path="/login" />
+          <Route
+            element={<p>الجدول العام للملعب</p>}
+            path="/public/:clubSlug/courts/:courtId/schedule"
+          />
+          <Route
+            element={
+              <ProtectedRoute>
+                <p>لوحة التحكم</p>
+              </ProtectedRoute>
+            }
+            path="/schedule"
+          />
+        </Routes>
+      </MemoryRouter>
+    </AuthProvider>,
+  )
+}
+
+function expectGuestBlockVisible() {
+  expect(screen.getByText('مش من فريق العمل في الملعب؟')).toBeInTheDocument()
+  expect(
+    screen.getByText('تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.'),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'المتابعة كزائر' }),
+  ).toBeInTheDocument()
+}
+
+async function expectPublicCourtsHome() {
+  expect(
+    await screen.findByRole('heading', {
+      level: 1,
+      name: 'سلوتي لحجز ملاعب كرة القدم',
+    }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('heading', { level: 2, name: 'ملاعب كرة القدم' }),
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByRole('heading', { name: 'تسجيل الدخول' }),
+  ).not.toBeInTheDocument()
+}
+
+function expectNoAuthenticationCreated() {
+  expect(mockedLoginWithPassword).not.toHaveBeenCalled()
+  expect(mockedFetchCurrentUserProfile).not.toHaveBeenCalled()
+  expect(mockedSetAccessToken).not.toHaveBeenCalled()
+  expect(mockedSetRefreshToken).not.toHaveBeenCalled()
+  expect(getAccessToken()).toBeNull()
+  expect(getRefreshToken()).toBeNull()
 }
 
 describe('LoginPage', () => {
@@ -124,12 +214,26 @@ describe('LoginPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders the Sloty brand block and login fields', () => {
+  it('renders the Sloty brand block, login fields, primary login action, and the approved guest block on direct /login', () => {
     renderLoginPage()
 
     expect(screen.getByText('سلوتي')).toBeInTheDocument()
     expect(screen.getByLabelText('رقم الموبايل')).toBeInTheDocument()
     expect(screen.getByLabelText('كلمة المرور')).toBeInTheDocument()
+
+    const loginButton = screen.getByRole('button', { name: 'تسجيل الدخول' })
+
+    expect(loginButton).toBeInTheDocument()
+    expect(loginButton).toHaveAttribute('type', 'submit')
+
+    expectGuestBlockVisible()
+
+    const guestButton = screen.getByRole('button', { name: 'المتابعة كزائر' })
+    expect(guestButton).toHaveAttribute('type', 'button')
+    expect(guestButton).toHaveClass('min-h-11', 'w-full')
+    expect(
+      screen.queryByRole('button', { name: 'الدخول كضيف' }),
+    ).not.toBeInTheDocument()
   })
 
   // Test 1 — payload: sends phone_number and password, NO username or email
@@ -203,6 +307,8 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'تسجيل الدخول' }))
 
     expect(await screen.findByText('لوحة التحكم')).toBeInTheDocument()
+    expect(mockedSetAccessToken).toHaveBeenCalledWith(accessToken)
+    expect(mockedSetRefreshToken).toHaveBeenCalledWith('REFRESH_TOKEN')
     expect(getAccessToken()).toBe(accessToken)
     expect(getRefreshToken()).toBe('REFRESH_TOKEN')
   })
@@ -335,88 +441,73 @@ describe('LoginPage', () => {
     expect(getAccessToken()).toBeNull()
   })
 
-  it('hides the return as guest button on direct login without guestReturnTo', () => {
-    renderLoginPage()
-
-    expect(
-      screen.queryByRole('button', { name: 'المتابعة كزائر' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('hides the return as guest button when guestReturnTo is invalid or arbitrary', () => {
-    render(
-      <AuthProvider>
-        <MemoryRouter
-          initialEntries={[
-            {
-              pathname: '/login',
-              state: { guestReturnTo: '/schedule' },
-            },
-          ]}
-        >
-          <LoginPage />
-        </MemoryRouter>
-      </AuthProvider>,
-    )
-
-    expect(
-      screen.queryByRole('button', { name: 'المتابعة كزائر' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows return as guest button and navigates to the public court schedule on click', async () => {
+  it('opens the existing Public Courts Home (/) from direct /login when المتابعة كزائر is clicked, without creating authentication', async () => {
     const user = userEvent.setup()
-    const validPublicRoute = '/public/al-ahly/courts/5/schedule'
 
-    render(
-      <AuthProvider>
-        <MemoryRouter
-          initialEntries={[
-            {
-              pathname: '/login',
-              state: { guestReturnTo: validPublicRoute },
-            },
-          ]}
-        >
-          <Routes>
-            <Route element={<LoginPage />} path="/login" />
-            <Route
-              element={<p>الجدول العام للملعب</p>}
-              path="/public/:clubSlug/courts/:courtId/schedule"
-            />
-          </Routes>
-        </MemoryRouter>
-      </AuthProvider>,
-    )
+    renderLoginWithPublicHome(['/login'])
 
-    expect(screen.getByText('مش من فريق العمل في الملعب؟')).toBeInTheDocument()
+    expectGuestBlockVisible()
+    await user.click(screen.getByRole('button', { name: 'المتابعة كزائر' }))
+
+    await expectPublicCourtsHome()
+    expectNoAuthenticationCreated()
+  })
+
+  it('keeps the guest block when Login is opened from a Public Schedule and goes to Public Home, not back to the Schedule', async () => {
+    const user = userEvent.setup()
+
+    renderLoginWithPublicHome([
+      {
+        pathname: '/login',
+        state: { guestReturnTo: '/public/al-ahly/courts/5/schedule' },
+      },
+    ])
+
+    expectGuestBlockVisible()
+    await user.click(screen.getByRole('button', { name: 'المتابعة كزائر' }))
+
+    await expectPublicCourtsHome()
+    expect(screen.queryByText('الجدول العام للملعب')).not.toBeInTheDocument()
+    expectNoAuthenticationCreated()
+  })
+
+  it('keeps the guest block after a protected-route redirect and goes to Public Home', async () => {
+    const user = userEvent.setup()
+
+    renderLoginWithPublicHome(['/schedule'])
+
     expect(
-      screen.getByText('تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.'),
+      await screen.findByRole('heading', { name: 'تسجيل الدخول' }),
     ).toBeInTheDocument()
+    expectGuestBlockVisible()
+    await user.click(screen.getByRole('button', { name: 'المتابعة كزائر' }))
 
-    const returnButton = screen.getByRole('button', { name: 'المتابعة كزائر' })
-    expect(returnButton).toBeInTheDocument()
-
-    await user.click(returnButton)
-
-    expect(await screen.findByText('الجدول العام للملعب')).toBeInTheDocument()
+    await expectPublicCourtsHome()
+    expect(screen.queryByText('لوحة التحكم')).not.toBeInTheDocument()
+    expectNoAuthenticationCreated()
   })
 
-  it('does not render guest return copy on ordinary direct visits', () => {
-    renderLoginPage()
+  it.each([
+    ['an external URL', { guestReturnTo: 'https://evil.com' }],
+    ['a private route', { guestReturnTo: '/dashboard' }],
+    ['a non-string value', { guestReturnTo: 42 }],
+    ['an arbitrary previous location', { from: { pathname: '/settlements' } }],
+  ])(
+    'ignores %s in Login state and still goes to Public Home',
+    async (_label, state) => {
+      const user = userEvent.setup()
 
-    expect(
-      screen.queryByText('مش من فريق العمل في الملعب؟'),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByText('تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.'),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'المتابعة كزائر' }),
-    ).not.toBeInTheDocument()
-  })
+      renderLoginWithPublicHome([{ pathname: '/login', state }])
 
-  it('navigates to the default home route (/) on successful login even if guestReturnTo is present', async () => {
+      expectGuestBlockVisible()
+      await user.click(screen.getByRole('button', { name: 'المتابعة كزائر' }))
+
+      await expectPublicCourtsHome()
+      expectNoAuthenticationCreated()
+    },
+  )
+
+  it('navigates to the default authenticated home route (/) on successful login even if guestReturnTo is present', async () => {
     const user = userEvent.setup()
     const accessToken = createDevAccessToken('STAFF')
 

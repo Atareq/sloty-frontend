@@ -76,13 +76,8 @@ For the detailed architectural specification, consult [`docs/features/public-sch
    - **Slot Click Guidance:** Clicking an available slot on public schedule opens the `PublicScheduleVisitorPopup` (`AppSheet` modal/dialog) with exact Arabic guidance for players and staff. It does not open the booking flow, does not redirect, does not trigger login button highlights, and strictly preserves the user's scroll and schedule position. There is **zero booking flow** on guest public schedule.
    - **Isolation Boundary:** Authenticated schedule retains its standalone share button with full text and never adopts guest compact icon styling.
    - **Login Page Affordance (`/login`):**
-     - Matches the locked copy for unauthenticated visitors returning to public schedule:
-       ```text
-       مش من فريق العمل في الملعب؟
-       تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.
-       المتابعة كزائر
-       ```
-     - Tapping `المتابعة كزائر` returns the guest to the public court schedule.
+     - Every unauthenticated `/login` visit shows the primary `تسجيل الدخول` action and the approved guest block: `مش من فريق العمل في الملعب؟` · `تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.` · `المتابعة كزائر`. Visibility never depends on the entry route.
+     - Tapping `المتابعة كزائر` always navigates to the existing Public Courts Home (`/`), never back to the originating Public Schedule (`guestReturnTo` is ignored), and creates no authentication state.
 
 ---
 
@@ -90,7 +85,7 @@ For the detailed architectural specification, consult [`docs/features/public-sch
 
 - Public schedule pages are `noindex` in Phase 1 via `publicScheduleSeo` (`publicSchedule.seo.ts`), declared on the route in `src/app/router.tsx`.
 - Never set `document.title` or head tags from this feature; SEO is owned by `src/core/seo` (see [`docs/seo.md`](../../../docs/seo.md)).
-- Do not make these pages indexable or add them to the sitemap without the Club/Court SEO phase described in `docs/seo.md`.
+- Public discovery (`/`) links each real Court here via `buildPublicCourtSchedulePath(clubSlug, courtId, handoffContext?)` (supporting optional Phase 6 `?date=YYYY-MM-DD` and `&time=HH:MM` handoff context). Both plain and query-parameterized Public Schedule URLs remain `noindex, nofollow` and are never added to `sitemap.xml`.
 
 Detailed architectural specification: [`docs/public-schedule-architecture.md`](../../../docs/public-schedule-architecture.md).
 Detailed architectural specification: [`docs/features/public-schedule.md`](../../../docs/features/public-schedule.md).

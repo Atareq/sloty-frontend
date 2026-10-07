@@ -36,6 +36,32 @@ export type CourtCreateInput = CourtPayload
 export type CourtUpdateInput = Partial<CourtPayload>
 
 /**
+ * Server-processed image with Backend-derived public URLs.
+ *
+ * Backend owns storage: the frontend never builds image URLs or object keys.
+ * `thumbnail_url` (≤640px) suits previews; `display_url` (≤1920px) suits detail.
+ */
+export interface CourtImageAsset {
+  id: number
+  display_url: string
+  thumbnail_url: string
+  width: number
+  height: number
+}
+
+/**
+ * One image attached to a Court.
+ *
+ * GET /api/v1/clubs/{club_slug}/courts/{court_id}/images/ returns these in
+ * Backend `position` order; the first item is the Court's primary image.
+ */
+export interface CourtImage {
+  id: number
+  position: number
+  image: CourtImageAsset
+}
+
+/**
  * Backend-authoritative monthly statistics for a court.
  *
  * GET /api/v1/clubs/{club_slug}/courts/{court_id}/monthly-statistics/?month=YYYY-MM

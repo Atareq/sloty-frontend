@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthContextValue } from '../core/auth/auth.types'
+import { guestHomeEntryState } from '../core/auth/guestHomeEntry'
 import { useAuth } from '../core/auth/useAuth'
+import { LoginPage } from '../features/auth/LoginPage/LoginPage'
 import { isRunningStandalone } from '../pwa/pwaInstall'
 import { HomeRoute } from './HomeRoute'
 
@@ -12,6 +15,14 @@ vi.mock('../core/auth/useAuth', () => ({
 
 vi.mock('../pwa/pwaInstall', () => ({
   isRunningStandalone: vi.fn(() => false),
+}))
+
+vi.mock('../features/publicDiscovery/publicDiscoveryApi', () => ({
+  listPublicCourts: vi.fn(async () => ({
+    courts: [],
+    totalCount: 0,
+    hasNextPage: false,
+  })),
 }))
 
 const mockedUseAuth = vi.mocked(useAuth)
@@ -40,9 +51,11 @@ const signedOutAuth: AuthContextValue = {
   setTokens: vi.fn(),
 }
 
-function renderHome() {
+function renderHome(
+  initialEntries: Parameters<typeof MemoryRouter>[0]['initialEntries'] = ['/'],
+) {
   return render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={initialEntries}>
       <Routes>
         <Route element={<HomeRoute />} path="/" />
         <Route element={<p>صفحة تسجيل الدخول</p>} path="/login" />
@@ -63,7 +76,7 @@ describe('HomeRoute', () => {
     renderHome()
 
     expect(
-      screen.getByRole('heading', { level: 1, name: 'إدارة وحجز الملاعب بسهولة مع Sloty' }),
+      screen.getByRole('heading', { level: 1, name: 'سلوتي لحجز ملاعب كرة القدم' }),
     ).toBeInTheDocument()
   })
 
@@ -74,6 +87,57 @@ describe('HomeRoute', () => {
 
     expect(screen.getByText('صفحة تسجيل الدخول')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument()
+  })
+
+  it('shows the public homepage in the installed PWA after an explicit guest entry from Login', () => {
+    mockedIsRunningStandalone.mockReturnValue(true)
+
+    renderHome([{ pathname: '/', state: guestHomeEntryState }])
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'سلوتي لحجز ملاعب كرة القدم' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('صفحة تسجيل الدخول')).not.toBeInTheDocument()
+  })
+
+  it('does not treat unrelated navigation state as a guest entry in the installed PWA', () => {
+    mockedIsRunningStandalone.mockReturnValue(true)
+
+    renderHome([{ pathname: '/', state: { guestHomeEntry: 'true' } }])
+
+    expect(screen.getByText('صفحة تسجيل الدخول')).toBeInTheDocument()
+  })
+
+  it('takes a signed-out installed-PWA launch to Login, then المتابعة كزائر reaches the public homepage without looping or authenticating', async () => {
+    const user = userEvent.setup()
+    mockedIsRunningStandalone.mockReturnValue(true)
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<HomeRoute />} path="/" />
+          <Route element={<LoginPage />} path="/login" />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'تسجيل الدخول' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'المتابعة كزائر' }))
+
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'سلوتي لحجز ملاعب كرة القدم',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'تسجيل الدخول' }),
+    ).not.toBeInTheDocument()
+    expect(signedOutAuth.login).not.toHaveBeenCalled()
+    expect(signedOutAuth.setTokens).not.toHaveBeenCalled()
   })
 
   it('keeps the role-aware workspace redirect for signed-in users', () => {

@@ -45,8 +45,8 @@ describe('getPublicSiteOrigin', () => {
 
 describe('buildPublicSiteUrl', () => {
   it('joins the origin with a canonical path', () => {
-    expect(buildPublicSiteUrl('https://sloty.example', '/assiut/')).toBe(
-      'https://sloty.example/assiut/',
+    expect(buildPublicSiteUrl('https://sloty.example', '/about/')).toBe(
+      'https://sloty.example/about/',
     )
   })
 })

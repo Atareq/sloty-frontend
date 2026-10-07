@@ -79,7 +79,7 @@ All active documentation is organized into focused, single-responsibility guides
 | [`copy.md`](./copy.md) | Canonical Arabic terminology | Standardized Egyptian-Arabic labels, statuses, actions, financial vocabulary, error messages |
 | [`features/schedule.md`](./features/schedule.md) | Operational Schedule workspace (`/schedule`) | FE-038 dual-fetch lifecycle, date navigation, slot query filter, AM/PM split, operational closing |
 | [`features/public-schedule.md`](./features/public-schedule.md) | Guest Public Schedule (`/public/.../schedule`) | Anonymous API contract, sanitized availability (`متاح` / `غير متاح`), absolute customer privacy, 32-day window |
-| [`seo.md`](./seo.md) | SEO foundation & public site (`/`, `/assiut/`) | Sloty/سلوتي identity, indexable vs `noindex` routes, central SEO layer (`src/core/seo`), canonical origin, build-time prerender, JSON-LD, generated `robots.txt`/`sitemap.xml`, future Club/Court SEO |
+| [`seo.md`](./seo.md) | SEO & public player discovery (`/`, `/about/`) | Sloty/سلوتي identity, discovery hierarchy, public Court discovery API/UI, indexable vs `noindex` routes, central SEO layer (`src/core/seo`), canonical origin, build-time prerender, JSON-LD, generated `robots.txt`/`sitemap.xml`, discovery phases |
 
 ---
 
@@ -143,5 +143,5 @@ Use this guide to quickly locate the relevant documents for your current enginee
 | **Operational Schedule (`/schedule`)** | [`features/schedule.md`](./features/schedule.md) · [`ui-system.md`](./ui-system.md) |
 | **Guest Public Schedule (`/public/.../schedule`)** | [`features/public-schedule.md`](./features/public-schedule.md) |
 | **Production CI/CD, GitHub Releases, or VPS static publish** | [`frontend-ci-cd.md`](./frontend-ci-cd.md) · [`architecture.md`](./architecture.md) |
-| **Public homepage, `/assiut/`, page titles/meta, canonical URLs, structured data, robots.txt, or sitemap.xml** | [`seo.md`](./seo.md) · [`copy.md`](./copy.md) |
+| **Public discovery (`/`), Court list/cards, About page, page titles/meta, canonical URLs, structured data, robots.txt, or sitemap.xml** | [`seo.md`](./seo.md) · [`copy.md`](./copy.md) |
 | **Adding any new route (decide indexable vs `noindex`)** | [`seo.md`](./seo.md) · [`architecture.md`](./architecture.md) |

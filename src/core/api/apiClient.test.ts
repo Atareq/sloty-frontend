@@ -133,6 +133,59 @@ describe('apiRequest', () => {
     )
   })
 
+  it('passes FormData bodies through untouched without a manual Content-Type', async () => {
+    const token = createAccessToken(3600)
+    mockedGetAccessToken.mockReturnValue(token)
+    mockFetch(Response.json({ id: 1 }, { status: 201 }))
+    const formData = new FormData()
+    formData.append('image', new File(['court'], 'court.png', { type: 'image/png' }))
+
+    await apiRequest('/upload', { method: 'POST', body: formData })
+
+    const headers = getRequestHeaders()
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toBe(formData)
+    expect(headers.has('Content-Type')).toBe(false)
+    expect(headers.get('Authorization')).toBe(`Bearer ${token}`)
+    expect(headers.get('Accept-Language')).toBe('ar')
+  })
+
+  it('retries a FormData request with the same body after 401 SESSION_EXPIRED refresh', async () => {
+    const currentAccess = createAccessToken(3600, { jti: 'current' })
+    const nextAccess = createAccessToken(3600, { jti: 'next' })
+    mockedGetAccessToken.mockReturnValue(currentAccess)
+    mockedGetRefreshToken.mockReturnValue('refresh-token')
+    mockedSetAccessToken.mockImplementation((token: string) => {
+      mockedGetAccessToken.mockReturnValue(token)
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json(
+            { success: false, code: 'SESSION_EXPIRED', message: 'Token expired' },
+            { status: 401 },
+          ),
+        )
+        .mockResolvedValueOnce(Response.json({ access: nextAccess }))
+        .mockResolvedValueOnce(Response.json({ id: 1 }, { status: 201 })),
+    )
+    const formData = new FormData()
+    formData.append('image', new File(['court'], 'court.png', { type: 'image/png' }))
+
+    await expect(
+      apiRequest('/upload', { method: 'POST', body: formData }),
+    ).resolves.toEqual({ id: 1 })
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3)
+    expect(getRequestUrl(1)).toContain('auth/token/refresh/')
+    expect(vi.mocked(fetch).mock.calls[2]?.[1]?.body).toBe(formData)
+    expect(getRequestHeaders(2).has('Content-Type')).toBe(false)
+    expect(getRequestHeaders(2).get('Authorization')).toBe(`Bearer ${nextAccess}`)
+    expect(mockedMarkSessionExpiredNotice).not.toHaveBeenCalled()
+  })
+
   it('attaches the Bearer token when an access token is stored', async () => {
     const token = createAccessToken(3600)
     mockedGetAccessToken.mockReturnValue(token)

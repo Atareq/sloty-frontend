@@ -13,8 +13,8 @@ const indexableSeo: IndexablePageSeo = {
   robots: 'index',
   title: 'عنوان الصفحة | Sloty',
   description: 'وصف الصفحة',
-  canonicalPath: '/assiut/',
-  structuredData: (origin) => [{ '@type': 'WebPage', url: `${origin}/assiut/` }],
+  canonicalPath: '/about/',
+  structuredData: (origin) => [{ '@type': 'WebPage', url: `${origin}/about/` }],
 }
 
 const noindexSeo: NoindexPageSeo = { robots: 'noindex', title: 'Sloty | سلوتي' }
@@ -36,12 +36,12 @@ describe('buildSeoHeadTags', () => {
     expect(tags).toContainEqual({
       type: 'link',
       rel: 'canonical',
-      href: 'https://sloty.example/assiut/',
+      href: 'https://sloty.example/about/',
     })
     expect(metaContent(tags, 'og:title')).toBe('عنوان الصفحة | Sloty')
     expect(metaContent(tags, 'og:description')).toBe('وصف الصفحة')
     expect(metaContent(tags, 'og:type')).toBe('website')
-    expect(metaContent(tags, 'og:url')).toBe('https://sloty.example/assiut/')
+    expect(metaContent(tags, 'og:url')).toBe('https://sloty.example/about/')
     expect(metaContent(tags, 'og:image')).toBe(
       'https://sloty.example/icons/sloty-512x512.png',
     )

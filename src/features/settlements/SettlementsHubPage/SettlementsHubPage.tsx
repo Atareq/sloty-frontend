@@ -174,6 +174,8 @@ export function SettlementsHubPage() {
     selectedCourtId,
     accessibleCourts,
   } = useAuth()
+  const profileRole = currentUser?.profile_role
+  const isOwner = profileRole === 'OWNER'
   const canSettle = canManageSettlements(role)
   const canViewOwn = canViewOwnSettlements(role)
   const isOwnMode = canViewOwn && !canSettle
@@ -843,10 +845,12 @@ export function SettlementsHubPage() {
         </Link>
       ) : null}
 
-      <MonthlyCourtStatistics
-        clubSlug={selectedClubSlug}
-        courtId={effectiveCourtId}
-      />
+      {isOwner ? (
+        <MonthlyCourtStatistics
+          clubSlug={selectedClubSlug}
+          courtId={effectiveCourtId}
+        />
+      ) : null}
     </div>
   )
 }

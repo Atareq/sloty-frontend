@@ -480,6 +480,9 @@ export function resetSilentRefreshForTests(): void {
  *
  * Expired access tokens returning 401 SESSION_EXPIRED are silently refreshed once,
  * with concurrent expired requests sharing a single in-flight refresh request.
+ *
+ * Bodies are JSON-serialized with `Content-Type: application/json`, except
+ * `FormData`, which is passed through untouched for multipart uploads.
  */
 export async function apiRequest<TResponse>(
   path: string,
@@ -515,6 +518,12 @@ export async function apiRequest<TResponse>(
 
   const token = options.omitAuth ? null : getAccessToken()
   const headers = new Headers(options.headers)
+  // FormData is sent as-is so the browser writes the multipart boundary into
+  // its own Content-Type; every other body stays JSON.
+  const formDataBody =
+    typeof FormData !== 'undefined' && options.body instanceof FormData
+      ? options.body
+      : null
 
   if (!headers.has('Accept-Language')) {
     headers.set('Accept-Language', 'ar')
@@ -522,6 +531,7 @@ export async function apiRequest<TResponse>(
 
   if (
     options.body !== undefined &&
+    !formDataBody &&
     !headers.has('Content-Type')
   ) {
     headers.set('Content-Type', 'application/json')
@@ -539,9 +549,8 @@ export async function apiRequest<TResponse>(
       headers,
       signal: options.signal,
       body:
-        options.body === undefined
-          ? undefined
-          : JSON.stringify(options.body),
+        formDataBody ??
+        (options.body === undefined ? undefined : JSON.stringify(options.body)),
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {

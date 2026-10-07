@@ -3,7 +3,12 @@ import type { PaginatedResponse } from '../../shared/api/pagination.types'
 import { fetchAllPages } from '../../shared/api/pagination.helpers'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import { buildPathWithQuery } from '../../shared/utils/buildPathWithQuery'
-import type { Court, CourtMonthlyStatistics, CourtPayload } from './courts.types'
+import type {
+  Court,
+  CourtImage,
+  CourtMonthlyStatistics,
+  CourtPayload,
+} from './courts.types'
 
 export interface ListCourtsParams {
   search?: string
@@ -92,6 +97,83 @@ export function updateCourt(
       body: payload,
     },
   )
+}
+
+/**
+ * Lists a Court's images in Backend `position` order (unpaginated).
+ *
+ * GET /api/v1/clubs/{club_slug}/courts/{court_id}/images/
+ */
+export function listCourtImages(
+  clubSlug: string,
+  courtId: number | string,
+): Promise<CourtImage[]> {
+  return apiRequest<CourtImage[]>(
+    apiEndpoints.clubs.courts.images.list(clubSlug, courtId),
+  )
+}
+
+/**
+ * Uploads one image file for a Court as `multipart/form-data`.
+ *
+ * POST /api/v1/clubs/{club_slug}/courts/{court_id}/images/ with a single
+ * `image` field. Backend validates, processes, and stores the file, then
+ * returns the new relation with derived public URLs. Court create/update
+ * endpoints do not accept images.
+ */
+export function uploadCourtImage(
+  clubSlug: string,
+  courtId: number | string,
+  image: File,
+): Promise<CourtImage> {
+  const formData = new FormData()
+  formData.append('image', image)
+
+  return apiRequest<CourtImage>(
+    apiEndpoints.clubs.courts.images.list(clubSlug, courtId),
+    {
+      method: 'POST',
+      body: formData,
+    },
+  )
+}
+
+/**
+ * Detaches one image from a Court.
+ *
+ * DELETE /api/v1/clubs/{club_slug}/courts/{court_id}/images/{court_image_id}/
+ */
+export function deleteCourtImage(
+  clubSlug: string,
+  courtId: number | string,
+  courtImageId: number,
+): Promise<void> {
+  return apiRequest<void>(
+    apiEndpoints.clubs.courts.images.detail(clubSlug, courtId, courtImageId),
+    { method: 'DELETE' },
+  )
+}
+
+/**
+ * Makes `image` the Court's only image (one Court = one primary image).
+ *
+ * Reads the current images, uploads the new file, and only after a successful
+ * upload detaches the previous images. A failed upload therefore never removes
+ * the existing image.
+ */
+export async function replaceCourtPrimaryImage(
+  clubSlug: string,
+  courtId: number | string,
+  image: File,
+): Promise<CourtImage> {
+  const previousImages = await listCourtImages(clubSlug, courtId)
+  const uploadedImage = await uploadCourtImage(clubSlug, courtId, image)
+
+  for (const previousImage of previousImages) {
+    await deleteCourtImage(clubSlug, courtId, previousImage.id)
+  }
+
+  return uploadedImage
 }
 
 export interface GetCourtMonthlyStatisticsOptions {

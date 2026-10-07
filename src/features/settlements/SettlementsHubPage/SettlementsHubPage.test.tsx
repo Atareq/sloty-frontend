@@ -806,7 +806,7 @@ describe('SettlementsHubPage', () => {
       .toBeInTheDocument()
   })
 
-  it('renders MonthlyCourtStatistics at the end of the page when selectedCourtId is present', async () => {
+  it('renders MonthlyCourtStatistics at the end of the page for OWNER when selectedCourtId is present', async () => {
     mockAuth('OWNER', true, 7)
     mockedGetCurrentCustodySummary.mockResolvedValueOnce(currentCustodySummary)
     mockedListClubUsers.mockResolvedValueOnce({
@@ -834,5 +834,26 @@ describe('SettlementsHubPage', () => {
       expect.stringMatching(/^\d{4}-\d{2}$/),
       expect.any(Object),
     )
+  })
+
+  it('does not render MonthlyCourtStatistics or call statistics API for STAFF', async () => {
+    mockAuth('STAFF', false, 7)
+
+    renderHub()
+
+    // Staff money management content remains visible and unchanged
+    expect(await screen.findByText('العهدة الحالية')).toBeInTheDocument()
+    expect(await screen.findByText('أحمد علي')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /معاملاتي المالية/ }))
+      .toHaveAttribute('href', '/transactions')
+
+    // Monthly statistics section and controls must be completely absent
+    expect(
+      screen.queryByRole('heading', { name: 'الإحصائيات الشهرية' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('اختيار الشهر')).not.toBeInTheDocument()
+    expect(screen.queryByText('إجمالي الدخل')).not.toBeInTheDocument()
+    expect(screen.queryByText('إجمالي الحجوزات')).not.toBeInTheDocument()
+    expect(mockedGetCourtMonthlyStatistics).not.toHaveBeenCalled()
   })
 })

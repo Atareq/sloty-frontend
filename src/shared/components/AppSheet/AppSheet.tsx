@@ -17,6 +17,12 @@ export interface AppSheetProps {
   dismissOnBackdrop?: boolean
   dismissOnEscape?: boolean
   className?: string
+  /**
+   * Optional actions pinned below the content. When set, the header and
+   * footer stay fixed and only `children` scroll; without it the whole panel
+   * scrolls as before.
+   */
+  footer?: ReactNode
 }
 
 /**
@@ -31,6 +37,7 @@ export function AppSheet({
   className = 'md:max-w-md',
   dismissOnBackdrop = true,
   dismissOnEscape = true,
+  footer,
   isOpen = true,
   onRequestClose,
   title,
@@ -46,8 +53,10 @@ export function AppSheet({
 
   const sheetId = `app-sheet-${useId()}`
   const panelRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const requestClose = useAppOverlayRegistration(isOpen, onRequestClose)
+  const hasFooter = footer !== undefined && footer !== null
 
   useEffect(() => {
     if (!isOpen) {
@@ -56,8 +65,9 @@ export function AppSheet({
 
     openerRef.current = document.activeElement as HTMLElement | null
     const frameId = window.requestAnimationFrame(() => {
-      if (panelRef.current) {
-        panelRef.current.scrollTop = 0
+      const scrollContainer = bodyRef.current ?? panelRef.current
+      if (scrollContainer) {
+        scrollContainer.scrollTop = 0
       }
       panelRef.current
         ?.querySelector<HTMLElement>(
@@ -136,7 +146,10 @@ export function AppSheet({
         aria-labelledby={ariaLabel ? undefined : (title ? `${sheetId}-title` : undefined)}
         aria-modal="true"
         className={[
-          'relative max-h-[85dvh] w-full overflow-x-hidden overflow-y-auto rounded-t-3xl bg-[var(--sloty-surface)] pb-[calc(max(env(safe-area-inset-bottom,0px),1rem)+1.25rem)] shadow-2xl md:rounded-3xl md:pb-6',
+          'relative max-h-[85dvh] w-full rounded-t-3xl bg-[var(--sloty-surface)] shadow-2xl md:rounded-3xl',
+          hasFooter
+            ? 'flex flex-col overflow-hidden'
+            : 'overflow-x-hidden overflow-y-auto pb-[calc(max(env(safe-area-inset-bottom,0px),1rem)+1.25rem)] md:pb-6',
           className,
         ].join(' ')}
         onKeyDown={handleFocusTrap}
@@ -145,7 +158,7 @@ export function AppSheet({
         tabIndex={-1}
       >
         {title ? (
-          <div className="sloty-green-surface relative min-h-16 rounded-t-3xl px-5 py-4">
+          <div className="sloty-green-surface relative min-h-16 shrink-0 rounded-t-3xl px-5 py-4">
             <button
               aria-label="إغلاق"
               className="absolute left-2 top-2 z-20 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/80 bg-white text-[var(--sloty-text-muted)] shadow-md transition hover:bg-[var(--sloty-bg)] hover:text-[var(--sloty-text-primary)] focus:outline-none focus:ring-2 focus:ring-white/80"
@@ -171,7 +184,25 @@ export function AppSheet({
             <X aria-hidden="true" size={20} />
           </button>
         )}
-        {children}
+        {hasFooter ? (
+          <>
+            <div
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+              data-testid="app-sheet-body"
+              ref={bodyRef}
+            >
+              {children}
+            </div>
+            <div
+              className="shrink-0 border-t border-[var(--sloty-border)] bg-[var(--sloty-surface)] px-4 pt-3 pb-[max(env(safe-area-inset-bottom,0px),0.75rem)] sm:px-5 md:pb-4"
+              data-testid="app-sheet-footer"
+            >
+              {footer}
+            </div>
+          </>
+        ) : (
+          children
+        )}
       </div>
     </div>
   )

@@ -3,129 +3,89 @@
  *
  * Visible text and SEO metadata both read from here so headings, descriptions,
  * and structured data describe the same product. Claims must stay true to the
- * shipped product: players view public availability and contact the court;
- * they cannot self-book yet. See docs/seo.md and docs/copy.md.
+ * shipped product: players browse real Courts and view public availability,
+ * then contact the court; they cannot self-book yet. See docs/seo.md and
+ * docs/copy.md.
  */
 
 export const publicSiteIdentityCopy = {
-  /** Canonical Arabic identity statement. */
+  /** Canonical Arabic identity statement (About page and JSON-LD). */
   statement:
-    'سلوتي (Sloty) منصة مصرية لحجز وإدارة ملاعب كرة القدم والمرافق الرياضية، تبدأ من أسيوط، وتساعد اللاعبين على معرفة المواعيد المتاحة وأصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد والمدفوعات.',
+    'سلوتي (Sloty) منصة لحجز وإدارة ملاعب كرة القدم والمرافق الرياضية في مصر، تساعد اللاعبين على معرفة مواعيد الملاعب المتاحة، وتساعد أصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد والمدفوعات بسهولة.',
   /** English concept, rendered with `lang="en"`. */
   english:
-    'Sloty is an Egyptian platform for booking and managing football pitches and sports facilities, starting with Assiut.',
+    'Sloty is a platform for booking and managing football pitches and sports facilities in Egypt.',
   footerTagline: 'منصة مصرية لحجز وإدارة ملاعب كرة القدم والمرافق الرياضية.',
 } as const
 
 export const publicSiteNavCopy = {
   brand: 'Sloty | سلوتي',
   home: 'الرئيسية',
-  assiut: 'حجز ملاعب كرة القدم في أسيوط',
+  about: 'عن سلوتي',
   login: 'تسجيل الدخول',
   staffLogin: 'تسجيل الدخول لفريق العمل',
   footerNavLabel: 'روابط سلوتي',
   breadcrumbLabel: 'مسار الصفحة',
 } as const
 
+/** Public player discovery at `/`: the primary SEO and product surface. */
 export const homePageCopy = {
-  metaTitle: 'Sloty | سلوتي لحجز وإدارة ملاعب كرة القدم في أسيوط ومصر',
+  metaTitle: 'Sloty | سلوتي لحجز وإدارة ملاعب كرة القدم',
   metaDescription:
-    'سلوتي Sloty منصة لحجز وإدارة ملاعب كرة القدم والمرافق الرياضية في أسيوط ومصر، تساعد اللاعبين على معرفة المواعيد المتاحة وأصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد والمدفوعات بسهولة.',
-  heading: 'إدارة وحجز الملاعب بسهولة مع Sloty',
-  subtitle: 'منصة سلوتي لحجز وإدارة ملاعب كرة القدم في أسيوط ومصر',
-  introTitle: 'ما هو سلوتي؟',
-  audiencesTitle: 'سلوتي لكل من في الملعب',
-  audiences: [
-    {
-      key: 'players',
-      title: 'اللاعبون',
-      body: 'اعرف المواعيد المتاحة في الملعب من رابط جدول المواعيد الذي يشاركه الملعب، ثم تواصل مع الملعب لتأكيد الحجز.',
-    },
-    {
-      key: 'owners',
-      title: 'أصحاب الملاعب والأندية الرياضية',
-      body: 'برنامج لإدارة الملاعب يجمع الحجوزات ومواعيد العمل والأسعار والمدفوعات والمبالغ المحصلة مع الموظفين في مكان واحد.',
-    },
-    {
-      key: 'staff',
-      title: 'فريق العمل',
-      body: 'سجّل الحجز والعربون والتحصيل بسرعة من الموبايل، وراجع آخر جدول محفوظ حتى لو انقطع الإنترنت.',
-    },
-  ],
-  featuresTitle: 'نظام متكامل لحجز وإدارة الملاعب',
-  features: [
-    {
-      key: 'schedule',
-      title: 'جدول مواعيد يومي لكل ملعب',
-      body: 'المواعيد المتاحة والمحجوزة لكل يوم في شاشة واحدة، مقسمة إلى مواعيد الصباح والمساء.',
-    },
-    {
-      key: 'deposit',
-      title: 'حجز بالعربون',
-      body: 'ثبّت الموعد مؤقتًا لحين تسجيل العربون، ثم أكّد الحجز بعد تسجيله.',
-    },
-    {
-      key: 'recurring',
-      title: 'حجز أسبوعي ثابت',
-      body: 'ثبّت نفس الموعد كل أسبوع للفرق والعملاء الدائمين.',
-    },
-    {
-      key: 'payments',
-      title: 'تسجيل المدفوعات',
-      body: 'سجّل التحصيل نقدًا أو إلكترونيًا، واعرف المدفوع والمتبقي على كل حجز.',
-    },
-    {
-      key: 'workingHours',
-      title: 'مواعيد العمل والأسعار',
-      body: 'حدّد ساعات العمل وفترات الأسعار لكل يوم من أيام الأسبوع.',
-    },
-    {
-      key: 'publicSchedule',
-      title: 'رابط جدول للاعبين',
-      body: 'شارك رابطًا أو كود QR يعرض المواعيد المتاحة وغير المتاحة فقط، دون أي بيانات للعملاء.',
-    },
-  ],
-  assiutTitle: 'البداية من أسيوط',
-  assiutBody:
-    'بدأت سلوتي من أسيوط لخدمة ملاعب كرة القدم ولاعبيها، ولمساعدة أصحاب الملاعب في المحافظة على تنظيم الحجوزات والمواعيد.',
-  staffTitle: 'تعمل في ملعب يستخدم سلوتي؟',
-  staffBody: 'سجّل الدخول لمتابعة جدول الملعب وإدارة الحجوزات والمدفوعات.',
-} as const
-
-export const assiutPageCopy = {
-  metaTitle: 'حجز ملاعب كرة القدم في أسيوط | Sloty',
-  metaDescription:
-    'تعرّف على المواعيد المتاحة في ملاعب كرة القدم التي تستخدم سلوتي في أسيوط، وأدِر حجوزات ملعبك ومواعيده ومدفوعاته بسهولة مع Sloty، منصة مصرية لحجز وإدارة الملاعب.',
-  heading: 'ملاعب كرة القدم والحجز في أسيوط',
-  subtitle:
-    'سلوتي تساعد لاعبي أسيوط على معرفة المواعيد المتاحة، وأصحاب الملاعب على إدارة الحجوزات.',
-  breadcrumbCurrent: 'أسيوط',
+    'سلوتي (Sloty) منصة مصرية لحجز وإدارة ملاعب كرة القدم، تساعد اللاعبين على معرفة المواعيد المتاحة وأصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد بسهولة.',
+  heading: 'سلوتي لحجز ملاعب كرة القدم',
+  subtitle: 'اعرف مواعيد الملاعب المتاحة واختر ملعبك',
   intro:
-    'أسيوط هي نقطة البداية لسلوتي. نعمل على أن يصبح حجز ملاعب كرة القدم في المحافظة أسهل للاعبين، وأن تصبح إدارة الملعب أبسط لأصحابه وفريق العمل.',
-  playersTitle: 'للاعبين: اعرف المواعيد المتاحة',
-  playersSteps: [
-    'اطلب من الملعب رابط جدول المواعيد، أو امسح كود QR الخاص به.',
-    'اختر اليوم وشاهد المواعيد المتاحة وغير المتاحة.',
-    'تواصل مع الملعب لتأكيد الحجز في الموعد المناسب لك.',
-  ],
-  playersPrivacy:
-    'يعرض الجدول العام حالة الموعد فقط (متاح أو غير متاح)، دون أسماء العملاء أو أرقامهم.',
-  ownersTitle: 'لأصحاب الملاعب وفريق العمل',
-  ownersBody:
-    'سلوتي ليست صفحة حجز للاعبين فقط، بل نظام متكامل لإدارة الملعب يوميًا:',
-  ownersPoints: [
-    'جدول الحجوزات اليومي لكل ملعب',
-    'العربون والتحصيل والمتبقي على كل حجز',
-    'الحجز الأسبوعي الثابت للفرق الدائمة',
-    'مواعيد العمل وفترات الأسعار',
-    'المبالغ المحصلة مع كل موظف واستلامها',
-  ],
-  findCourtTitle: 'تلعب في ملعب يستخدم سلوتي؟',
-  findCourtBody:
-    'اطلب من إدارة الملعب رابط جدول المواعيد لتتابع المواعيد المتاحة قبل أن تتصل أو تذهب إلى الملعب.',
+    'سلوتي (Sloty) منصة مصرية لحجز وإدارة الملاعب والمرافق الرياضية، تساعدك على معرفة مواعيد الملاعب المتاحة بسهولة.',
+  courtsTitle: 'ملاعب كرة القدم',
+  courtsHint:
+    'اختر الملعب لتشاهد جدول مواعيده، ثم تواصل مع الملعب لتأكيد الحجز.',
   aboutTitle: 'تعرّف على سلوتي',
   aboutBody:
-    'اعرف كيف تساعد سلوتي اللاعبين وأصحاب الملاعب وفريق العمل في كل خطوة من الحجز حتى التحصيل.',
-  aboutLink: 'سلوتي لإدارة وحجز ملاعب كرة القدم',
-  englishSummary: 'Football pitch booking and management in Assiut, Egypt — Sloty.',
+    'من هي سلوتي، وكيف تساعد اللاعبين وأصحاب الملاعب وفريق العمل على تنظيم وحجز الملاعب بسهولة.',
+} as const
+
+/**
+ * Brand page at `/about/`: intentionally minimal, one message, one primary CTA.
+ *
+ * About is the only public page that tells the Assiut origin story; discovery
+ * at `/`, root metadata, and root JSON-LD stay geography-neutral. Emoji are
+ * kept separate so they render as decorative (`aria-hidden`) next to text.
+ * `free*` copy is product-confirmed (management is free, no subscription).
+ */
+export const aboutPageCopy = {
+  metaTitle: 'عن سلوتي | Sloty',
+  metaDescription:
+    'تعرّف على سلوتي (Sloty): منصة مصرية بدأت من أسيوط لتخلي إدارة ملاعب كرة القدم أبسط وأسهل لأصحاب الملاعب وفريق العمل.',
+  heading: 'عن سلوتي',
+  breadcrumbCurrent: 'عن سلوتي',
+  heroTitle: 'إحنا Sloty',
+  heroTitleEmoji: '⚽️',
+  heroLead: 'منصة مصرية بنخلي إدارة الملاعب أبسط وأسهل.',
+  heroOrigin: 'بدأنا من أسيوط، والهدف أكبر من أسيوط.',
+  heroOriginEmoji: '🇪🇬',
+  whoTitle: 'من نحن؟',
+  whoBody:
+    'Sloty منصة بدأت من أسيوط لمساعدة أصحاب الملاعب وفريق العمل على إدارة ملعبهم بسهولة.',
+  whyTitle: 'ليه Sloty؟',
+  whyBody:
+    'لأن إدارة الملعب فيها تفاصيل كتير كل يوم، وإحنا بنحاول نخلي التعامل معاها أبسط.',
+  audiencesTitle: 'مين Sloty ليه؟',
+  audiences: [
+    { key: 'owners', emoji: '🏟️', label: 'أصحاب الملاعب وفريق العمل' },
+    { key: 'players', emoji: '⚽️', label: 'اللاعبين' },
+  ],
+  goalTitle: 'هدفنا',
+  goalStatement: 'إن التكنولوجيا تكون متاحة لكل صاحب ملعب.',
+  freeTitle: 'مجاني 100%',
+  freeTitleEmoji: '🤍',
+  freeBody: 'إدارة ملعبك من غير اشتراك.',
+  ctaTitle: 'عايز تبدأ مع Sloty؟',
+  ctaAction: 'ابدأ مجانًا',
+  contactSheetTitle: 'ابدأ مع Sloty',
+  contactSheetBody: 'اختار الطريقة المناسبة ليك:',
+  callAction: 'اتصل بنا',
+  callActionEmoji: '📞',
+  emailAction: 'راسلنا',
+  emailActionEmoji: '✉️',
 } as const

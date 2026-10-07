@@ -61,9 +61,9 @@ describe('ScheduleQrShareCard', () => {
   it('handles various court names: Arabic, English, long, and mixed', () => {
     const testNames = [
       'ملعب النصر',
-      'ملعب الأبطال الدولي المعشب بأسيوط الجديدة',
+      'ملعب الأبطال الدولي المعشب بالعاصمة الإدارية',
       'Old Trafford Stadium',
-      'ملعب Real Madrid بأسيوط',
+      'ملعب Real Madrid بالقاهرة',
     ]
 
     for (const name of testNames) {
@@ -81,7 +81,7 @@ describe('ScheduleQrShareCard', () => {
 
   it('keeps long Arabic court names above the QR quiet zone', () => {
     const cardSvg = generateScheduleQrShareCardSvg({
-      courtName: 'ملعب الأبطال الدولي المعشب بأسيوط الجديدة',
+      courtName: 'ملعب الأبطال الدولي المعشب بالعاصمة الإدارية',
       qrSvg: sampleQrSvg,
     })
     const subtitleMatch = cardSvg.match(

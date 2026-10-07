@@ -182,5 +182,86 @@ describe('AppSheet', () => {
 
     consoleSpy.mockRestore()
   })
+
+  describe('footer slot', () => {
+    it('keeps the existing single scrolling panel when no footer is provided', () => {
+      render(
+        <AppSheet onRequestClose={vi.fn()} title="بدون تذييل">
+          <p>محتوى</p>
+        </AppSheet>,
+      )
+
+      const dialog = screen.getByRole('dialog', { name: 'بدون تذييل' })
+
+      expect(dialog).toHaveClass('overflow-y-auto')
+      expect(dialog).not.toHaveClass('flex', 'flex-col')
+      expect(screen.queryByTestId('app-sheet-body')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('app-sheet-footer')).not.toBeInTheDocument()
+    })
+
+    it('renders a fixed header, a scrollable body, and a footer outside the scroll area', () => {
+      render(
+        <AppSheet
+          footer={<button type="button">إجراء ثابت</button>}
+          onRequestClose={vi.fn()}
+          title="مع تذييل"
+        >
+          <ul>
+            {Array.from({ length: 30 }, (_, index) => (
+              <li key={index}>عنصر {index + 1}</li>
+            ))}
+          </ul>
+        </AppSheet>,
+      )
+
+      const dialog = screen.getByRole('dialog', { name: 'مع تذييل' })
+      const heading = screen.getByRole('heading', { name: 'مع تذييل' })
+      const body = screen.getByTestId('app-sheet-body')
+      const footer = screen.getByTestId('app-sheet-footer')
+      const footerAction = screen.getByRole('button', { name: 'إجراء ثابت' })
+
+      expect(dialog).toHaveClass('flex', 'flex-col', 'overflow-hidden')
+      expect(dialog).not.toHaveClass('overflow-y-auto')
+      expect(body).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
+      expect(footer).toHaveClass('shrink-0')
+      expect(body).toHaveTextContent('عنصر 30')
+      expect(body).not.toContainElement(heading)
+      expect(body).not.toContainElement(footerAction)
+      expect(footer).toContainElement(footerAction)
+      expect(body.compareDocumentPosition(footer)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      )
+    })
+
+    it('keeps enabled footer actions in the focus trap and skips disabled ones', () => {
+      render(
+        <AppSheet
+          footer={
+            <>
+              <button disabled type="button">
+                معطل
+              </button>
+              <button type="button">آخر إجراء</button>
+            </>
+          }
+          onRequestClose={vi.fn()}
+          title="تنقل لوحة المفاتيح"
+        >
+          <button type="button">أول عنصر</button>
+        </AppSheet>,
+      )
+
+      const closeButton = screen.getByRole('button', { name: 'إغلاق' })
+      const lastAction = screen.getByRole('button', { name: 'آخر إجراء' })
+
+      lastAction.focus()
+      fireEvent.keyDown(lastAction, { key: 'Tab' })
+      expect(closeButton).toHaveFocus()
+
+      closeButton.focus()
+      fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
+      expect(lastAction).toHaveFocus()
+    })
+  })
 })
 
