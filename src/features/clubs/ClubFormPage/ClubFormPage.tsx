@@ -219,11 +219,21 @@ export function ClubFormPage() {
   return (
     <div className="space-y-5">
       <PageActions>
-        <Link className="w-full sm:w-auto" to="/admin/clubs">
-          <AppButton fullWidth variant="secondary">
-            العودة للأندية
-          </AppButton>
-        </Link>
+        <div className="grid w-full max-w-sm grid-cols-2 gap-2 sm:flex sm:w-auto sm:max-w-none">
+          <Link className="min-w-0 sm:w-auto" to="/admin/clubs">
+            <AppButton fullWidth variant="secondary">
+              العودة للأندية
+            </AppButton>
+          </Link>
+          {!isCreateMode && formState.slug ? (
+            <Link
+              className="min-w-0 sm:w-auto"
+              to={`/admin/clubs/${formState.slug}/courts`}
+            >
+              <AppButton fullWidth>إدارة الملاعب</AppButton>
+            </Link>
+          ) : null}
+        </div>
       </PageActions>
       <AppCard>
         {isLoading || isLocationsLoading ? (

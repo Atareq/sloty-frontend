@@ -175,6 +175,15 @@ export const validationCopy = {
     `الدفعة الأولى لازم تكون على الأقل ${amountLabel}.`,
 } as const
 
+export const authCopy = {
+  loginHeading: 'تسجيل الدخول',
+  loginAction: 'تسجيل الدخول',
+  loginSubmitting: 'جاري تسجيل الدخول...',
+  guestPrompt: 'مش من فريق العمل في الملعب؟',
+  guestDescription: 'تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.',
+  continueAsGuest: 'المتابعة كزائر',
+} as const
+
 export const sessionCopy = {
   expired: 'انتهت الجلسة. سجّل دخولك تاني علشان تكمل.',
 } as const

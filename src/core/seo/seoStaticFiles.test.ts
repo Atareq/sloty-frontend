@@ -34,13 +34,13 @@ describe('buildRobotsTxt', () => {
 
 describe('buildSitemapXml', () => {
   it('lists only the given absolute URLs', () => {
-    const xml = buildSitemapXml(ORIGIN, ['/', '/assiut/'])
+    const xml = buildSitemapXml(ORIGIN, ['/', '/about/'])
 
     expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true)
     expect(xml).toContain('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"')
     expect(xml.match(/<loc>/g)).toHaveLength(2)
     expect(xml).toContain('<loc>https://sloty.example/</loc>')
-    expect(xml).toContain('<loc>https://sloty.example/assiut/</loc>')
+    expect(xml).toContain('<loc>https://sloty.example/about/</loc>')
     expect(xml).not.toContain('lastmod')
   })
 })
@@ -62,8 +62,8 @@ describe('buildPrerenderGuardHtml', () => {
 
   it('keeps prerendered markup visible on its own URL, with or without trailing slash', () => {
     expect(runGuard('/', '/')).toBe(false)
-    expect(runGuard('/assiut/', '/assiut/')).toBe(false)
-    expect(runGuard('/assiut/', '/assiut')).toBe(false)
+    expect(runGuard('/about/', '/about/')).toBe(false)
+    expect(runGuard('/about/', '/about')).toBe(false)
   })
 
   it('hides homepage markup on SPA deep links served from index.html', () => {
@@ -81,16 +81,16 @@ describe('injectPrerenderedPage', () => {
   it('replaces the title with the SEO head and fills #root', () => {
     const html = injectPrerenderedPage({
       template: TEMPLATE,
-      path: '/assiut/',
-      headHtml: '<title>Assiut</title>\n    <meta name="description" content="d" data-sloty-seo />',
-      bodyHtml: '<h1>Assiut</h1>',
+      path: '/about/',
+      headHtml: '<title>About</title>\n    <meta name="description" content="d" data-sloty-seo />',
+      bodyHtml: '<h1>About</h1>',
     })
 
     expect(html.match(/<title>/g)).toHaveLength(1)
-    expect(html).toContain('<title>Assiut</title>')
+    expect(html).toContain('<title>About</title>')
     expect(html).not.toContain('<title>Sloty | سلوتي</title>')
     expect(html).toContain(
-      '<div id="root"><div data-sloty-prerender="/assiut/"><h1>Assiut</h1></div></div>',
+      '<div id="root"><div data-sloty-prerender="/about/"><h1>About</h1></div></div>',
     )
     expect(html).toContain('<!-- the title element below is replaced -->')
     expect(html).toContain('<script type="module" src="/assets/index.js"></script>')

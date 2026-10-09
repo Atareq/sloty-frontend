@@ -3,7 +3,7 @@ import type { PaginatedResponse } from '../../shared/api/pagination.types'
 import { fetchAllPages } from '../../shared/api/pagination.helpers'
 import { apiEndpoints } from '../../shared/api/apiEndpoints'
 import { buildPathWithQuery } from '../../shared/utils/buildPathWithQuery'
-import type { Club, ClubPayload } from './clubs.types'
+import type { Club, ClubPayload, ClubUpdatePayload } from './clubs.types'
 
 export interface ListClubsParams {
   search?: string
@@ -80,7 +80,7 @@ export function getClub(clubId: number | string): Promise<Club> {
 
 export function updateClub(
   clubId: number | string,
-  payload: ClubPayload,
+  payload: ClubUpdatePayload,
 ): Promise<Club> {
   return apiRequest<Club>(apiEndpoints.clubs.detail(clubId), {
     method: 'PATCH',

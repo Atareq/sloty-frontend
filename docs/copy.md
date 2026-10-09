@@ -174,22 +174,36 @@ Phone validation copy is resolved from `src/shared/copy/phoneValidation.ts` usin
 
 ## 11. Public Site (SEO pages)
 
-Copy for `/` and `/assiut/` lives in `src/features/publicSite/publicSite.copy.ts`; the same strings feed visible headings, meta descriptions, and JSON-LD. See [`seo.md`](./seo.md).
+Copy for public discovery (`/`) and About (`/about/`) lives in `src/features/publicSite/publicSite.copy.ts`; the same strings feed visible headings, meta descriptions, and JSON-LD. Court list and Phase 2 filter copy lives in `src/features/publicDiscovery/publicDiscovery.copy.ts`. See [`seo.md`](./seo.md).
 
-- **Audience & register:** Players, pitch owners, and staff arriving from search. Use clear, simple Modern Standard Arabic (فصحى مبسطة) so wording matches how people search. Operational screens keep the simple Egyptian tone above.
-- **Brand:** Always pair `Sloty` and `سلوتي` in identity text (`سلوتي (Sloty)`, `Sloty | سلوتي`). Treat سلوتي as feminine (`منصة`): `تساعد`، `تبدأ`.
-- **Location:** Visible copy uses `أسيوط` and `مصر`. Do not write misspellings (`اسيوط`, `Assuit`) in visible text.
-- **Truthfulness:** Players see available times and contact the court to confirm (`تواصل مع الملعب لتأكيد الحجز`). Do not promise player self-booking, prices, ratings, or listed venues.
+- **Audience & register:** Players, pitch owners, and staff arriving from search. Use clear, simple Modern Standard Arabic (فصحى مبسطة) so wording matches how people search. Operational screens and player filter prompts keep the simple Egyptian tone above.
+- **Brand:** Always pair `Sloty` and `سلوتي` in identity text (`سلوتي (Sloty)`, `Sloty | سلوتي`). Treat سلوتي as feminine (`منصة`): `تساعد`، `بدأت`.
+- **Location:** Visible copy uses `مصر`. Do not write misspellings or repeat spelling variants for ranking.
+- **Discovery first:** On `/`, one short identity sentence comes before the Courts; brand and feature content belongs on `/about/`.
+- **Truthfulness:** Players browse real Courts, see available times, and contact the court to confirm (`تواصل مع الملعب لتأكيد الحجز`). Do not promise player self-booking, prices, ratings, or availability on Court cards.
 
 | Element | Copy |
 | :--- | :--- |
-| Identity statement | `سلوتي (Sloty) منصة مصرية لحجز وإدارة ملاعب كرة القدم والمرافق الرياضية، تبدأ من أسيوط، وتساعد اللاعبين على معرفة المواعيد المتاحة وأصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد والمدفوعات.` |
-| Homepage H1 | `إدارة وحجز الملاعب بسهولة مع Sloty` |
-| Homepage title | `Sloty \| سلوتي لحجز وإدارة ملاعب كرة القدم في أسيوط ومصر` |
-| Assiut H1 | `ملاعب كرة القدم والحجز في أسيوط` |
-| Assiut title | `حجز ملاعب كرة القدم في أسيوط \| Sloty` |
-| Assiut link text | `حجز ملاعب كرة القدم في أسيوط` |
-| Homepage link text (from Assiut) | `سلوتي لإدارة وحجز ملاعب كرة القدم` |
+| Identity statement | `سلوتي (Sloty) منصة لحجز وإدارة ملاعب كرة القدم والمرافق الرياضية في مصر، تساعد اللاعبين على معرفة مواعيد الملاعب المتاحة، وتساعد أصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد والمدفوعات بسهولة.` |
+| Discovery title | `Sloty \| سلوتي لحجز وإدارة ملاعب كرة القدم` |
+| Discovery description | `سلوتي (Sloty) منصة مصرية لحجز وإدارة ملاعب كرة القدم، تساعد اللاعبين على معرفة المواعيد المتاحة وأصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد بسهولة.` |
+| Discovery H1 | `سلوتي لحجز ملاعب كرة القدم` |
+| Discovery Courts heading | `ملاعب كرة القدم` |
+| Discovery Courts hint | `اختر الملعب لتشاهد جدول مواعيده، ثم تواصل مع الملعب لتأكيد الحجز.` |
+| Phase 2/4 filter triggers | `اختار ملعب معين` · `اختار اليوم` · `اختار المواعيد` (no `بحث` and no clear-all button; filters apply immediately) |
+| Selector sheet sticky footer (Court, day, times) | `مسح الاختيار` (clears only that selector; disabled when empty) |
+| Phase 2 time selection | `اختار اليوم الأول عشان نعرض مواعيده` · `اختار حتى 5 مواعيد` · `تم اختيار 5 مواعيد` · `تم` |
+| Phase 2/3/4 filtered headings & labels | `الملاعب المناسبة لمواعيدك` (day + times) · `الملاعب المتاحة في اليوم المختار` (day only) · `الملعب المختار` (Court only) · `المواعيد المتاحة` |
+| Court list loading | `جاري تحميل الملاعب...` |
+| Court list error / retry | `تعذر تحميل الملاعب الآن. حاول مرة أخرى.` · `إعادة المحاولة` |
+| Court list empty (default / day+times / day-only / Court+day+times / Court+day-only) | `مفيش ملاعب متاحة حاليًا.` · `مفيش ملاعب متاحة في المواعيد دي حاليًا.` · `مفيش ملاعب متاحة في اليوم ده حاليًا.` · `الملعب ده مش متاح في المواعيد دي حاليًا.` · `الملعب ده مش متاح في اليوم ده حاليًا.` |
+| Court list next page | `عرض ملاعب أكثر` · `جاري تحميل المزيد...` · `تعذر تحميل المزيد من الملاعب. حاول مرة أخرى.` |
+| About title / H1 | `عن سلوتي \| Sloty` · `عن سلوتي` |
+| About link text | `عن سلوتي` |
+| About content | Minimal and exact: hero `إحنا Sloty ⚽️`, `من نحن؟`, `ليه Sloty؟`, `مين Sloty ليه؟`, `هدفنا`, `مجاني 100% 🤍`, `عايز تبدأ مع Sloty؟` (source: `aboutPageCopy`). Do not add feature or audience descriptions. |
+| About CTA / contact sheet | `ابدأ مجانًا` (only primary CTA) · sheet `ابدأ مع Sloty` · `اختار الطريقة المناسبة ليك:` · `اتصل بنا` · `راسلنا` |
+| Login primary action | `تسجيل الدخول` |
+| Login guest block (always shown) | `مش من فريق العمل في الملعب؟` · `تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.` · `المتابعة كزائر` |
 | Header login | `تسجيل الدخول` |
 | Footer / CTA login | `تسجيل الدخول لفريق العمل` |
 | Public schedule tab title | `جدول مواعيد الملعب \| Sloty` |

@@ -110,22 +110,22 @@ Production API targeting stays in `.env.production` via [`src/shared/config/api.
 
 | Output | Content |
 | :--- | :--- |
-| `dist/index.html` | Dedicated homepage SEO head (incl. canonical, `robots: index, follow`, `og:url`, JSON-LD) + prerendered homepage markup |
-| `dist/assiut/index.html` | App shell + full Assiut SEO head (canonical, `og:url`, robots) + prerendered markup |
+| `dist/index.html` | Public discovery SEO head (incl. canonical, `robots: index, follow`, `og:url`, JSON-LD) + prerendered identity and Courts section (loading state; Courts load at runtime) |
+| `dist/about/index.html` | App shell + full About SEO head (canonical, `og:url`, robots, JSON-LD) + prerendered markup |
 | `dist/app.html` | Clean generic SPA fallback shell (`noindex, nofollow`, empty `#root`, zero homepage metadata) |
 | `dist/robots.txt` | Generated; references the absolute sitemap |
-| `dist/sitemap.xml` | Generated; only `/` and `/assiut/` |
+| `dist/sitemap.xml` | Generated; only `/` and `/about/` |
 
 - The canonical host comes from `VITE_PUBLIC_SITE_URL` in `.env.production` (`https://sloty.baronlearning.com/`). The build **fails** if it is missing or invalid. `tests/deploy/seoPublicSiteUrl.test.ts` keeps it aligned with `SLOTY_PUBLIC_URL`.
 - The SEO step runs in `generateBundle`, before vite-plugin-pwa generates `sw.js`, so all HTML files are precached with correct revisions. It never touches `version.json` or `manifest.webmanifest`.
-- `rsync -a --delete` publishes the new files with the rest of `dist/`; the deploy script validates both `dist/index.html` and `dist/app.html`.
-- Nginx must serve `dist/app.html` for private SPA deep links and `dist/assiut/index.html` for `/assiut/` via `try_files $uri $uri/ /app.html;`. Spot-check after deploy:
+- `rsync -a --delete` publishes the new files with the rest of `dist/` and removes obsolete files; the deploy script validates both `dist/index.html` and `dist/app.html`.
+- Nginx must serve `dist/about/index.html` for `/about/` and `dist/app.html` for private and dynamic deep links via `try_files $uri $uri/ /app.html;`. Spot-check after deploy:
 
   ```bash
   curl -s https://sloty.baronlearning.com/robots.txt
   curl -s https://sloty.baronlearning.com/sitemap.xml
   curl -s https://sloty.baronlearning.com/ | grep -o '<link rel="canonical"[^>]*>'
-  curl -s https://sloty.baronlearning.com/assiut/ | grep -o '<link rel="canonical"[^>]*>'
+  curl -s https://sloty.baronlearning.com/about/ | grep -o '<link rel="canonical"[^>]*>'
   curl -s https://sloty.baronlearning.com/login | grep -o '<meta name="robots"[^>]*>'
   curl -s https://sloty.baronlearning.com/schedule | grep -o '<meta name="robots"[^>]*>'
   ```

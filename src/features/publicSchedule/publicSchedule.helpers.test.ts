@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   buildCourtScheduleShareUrl,
   buildPublicCourtSchedulePath,
+  buildPublicCourtSchedulePathWithContext,
   buildPublicCourtScheduleUrl,
+  findMatchingPublicScheduleHandoffSlotId,
   getPublicScheduleDateWindow,
   isDateInsidePublicScheduleWindow,
   isValidGuestReturnRoute,
+  isValidPublicScheduleHandoffDate,
+  isValidPublicScheduleHandoffTime,
   mapPublicAvailabilityToScheduleSlots,
+  parsePublicScheduleHandoffSearch,
   PUBLIC_SCHEDULE_WINDOW_DAYS,
 } from './publicSchedule.helpers'
 import type { PublicCourtAvailabilityResponse } from './publicSchedule.types'
@@ -120,13 +125,37 @@ describe('publicSchedule.helpers', () => {
   })
 
   describe('buildPublicCourtSchedulePath, buildCourtScheduleShareUrl, and buildPublicCourtScheduleUrl', () => {
-    it('builds canonical relative path for a court schedule', () => {
+    it('builds canonical relative path for a court schedule without query when no handoff context is passed', () => {
       expect(buildPublicCourtSchedulePath('al-ahly', 5)).toBe(
         '/public/al-ahly/courts/5/schedule',
       )
       expect(buildPublicCourtSchedulePath('club-test', '12')).toBe(
         '/public/club-test/courts/12/schedule',
       )
+      expect(buildPublicCourtSchedulePath('al-ahly', 5, { date: null, time: '18:00' })).toBe(
+        '/public/al-ahly/courts/5/schedule',
+      )
+    })
+
+    it('builds contextual relative path with date only or date + time when valid handoff context is passed', () => {
+      expect(
+        buildPublicCourtSchedulePath('al-ahly', 5, { date: '2026-10-09' }),
+      ).toBe('/public/al-ahly/courts/5/schedule?date=2026-10-09')
+
+      expect(
+        buildPublicCourtSchedulePathWithContext('al-ahly', 5, {
+          date: '2026-10-09',
+          time: '18:00',
+        }),
+      ).toBe('/public/al-ahly/courts/5/schedule?date=2026-10-09&time=18%3A00')
+
+      // Invalid time is ignored while valid date is preserved
+      expect(
+        buildPublicCourtSchedulePath('al-ahly', 5, {
+          date: '2026-10-09',
+          time: '99:99',
+        }),
+      ).toBe('/public/al-ahly/courts/5/schedule?date=2026-10-09')
     })
 
     it('builds canonical share URL with provided origin', () => {
@@ -155,6 +184,154 @@ describe('publicSchedule.helpers', () => {
       expect(
         buildPublicCourtScheduleUrl('al-ahly', 5, 'https://sloty.app'),
       ).toBe('https://sloty.app/public/al-ahly/courts/5/schedule')
+    })
+  })
+
+  describe('Phase 6 — Public Schedule handoff validation and slot matching', () => {
+    const mockNow = new Date('2026-06-15T12:00:00Z') // window: 2026-06-14 .. 2026-07-15
+
+    it('validates concrete YYYY-MM-DD dates and rejects malformed or impossible calendar dates', () => {
+      expect(isValidPublicScheduleHandoffDate('2026-10-09')).toBe(true)
+      expect(isValidPublicScheduleHandoffDate('2028-02-29')).toBe(true)
+
+      expect(isValidPublicScheduleHandoffDate('2026-02-30')).toBe(false)
+      expect(isValidPublicScheduleHandoffDate('2026-13-01')).toBe(false)
+      expect(isValidPublicScheduleHandoffDate('not-a-date')).toBe(false)
+      expect(isValidPublicScheduleHandoffDate('')).toBe(false)
+      expect(isValidPublicScheduleHandoffDate(null)).toBe(false)
+    })
+
+    it('validates 24-hour HH:MM times and rejects invalid values', () => {
+      expect(isValidPublicScheduleHandoffTime('00:00')).toBe(true)
+      expect(isValidPublicScheduleHandoffTime('09:30')).toBe(true)
+      expect(isValidPublicScheduleHandoffTime('18:00')).toBe(true)
+      expect(isValidPublicScheduleHandoffTime('23:59')).toBe(true)
+
+      expect(isValidPublicScheduleHandoffTime('24:00')).toBe(false)
+      expect(isValidPublicScheduleHandoffTime('9:00')).toBe(false)
+      expect(isValidPublicScheduleHandoffTime('18:60')).toBe(false)
+      expect(isValidPublicScheduleHandoffTime('18:00:00')).toBe(false)
+      expect(isValidPublicScheduleHandoffTime(null)).toBe(false)
+    })
+
+    it('parses search params safely, requiring a valid concrete date inside getPublicScheduleDateWindow before accepting date or time', () => {
+      expect(parsePublicScheduleHandoffSearch('', mockNow)).toEqual({
+        date: null,
+        time: null,
+      })
+      // A: date == dateFrom (2026-06-14) -> accepted
+      expect(
+        parsePublicScheduleHandoffSearch('?date=2026-06-14', mockNow),
+      ).toEqual({
+        date: '2026-06-14',
+        time: null,
+      })
+      // B: date == dateTo (2026-07-15) -> accepted
+      expect(
+        parsePublicScheduleHandoffSearch('?date=2026-07-15&time=18:00', mockNow),
+      ).toEqual({
+        date: '2026-07-15',
+        time: '18:00',
+      })
+      // C & F: one day before dateFrom (2026-06-13) with valid time -> both ignored
+      expect(
+        parsePublicScheduleHandoffSearch('?date=2026-06-13&time=18:00', mockNow),
+      ).toEqual({
+        date: null,
+        time: null,
+      })
+      // D & F: one day after dateTo (2026-07-16) with valid time -> both ignored
+      expect(
+        parsePublicScheduleHandoffSearch('?date=2026-07-16&time=18:00', mockNow),
+      ).toEqual({
+        date: null,
+        time: null,
+      })
+      // Malformed / impossible date ignores both date and time
+      expect(
+        parsePublicScheduleHandoffSearch('?date=invalid&time=18:00', mockNow),
+      ).toEqual({
+        date: null,
+        time: null,
+      })
+      expect(
+        parsePublicScheduleHandoffSearch('?date=2026-06-31&time=18:00', mockNow),
+      ).toEqual({
+        date: null,
+        time: null,
+      })
+      // Valid in-window date + invalid time keeps valid date and ignores invalid time
+      expect(
+        parsePublicScheduleHandoffSearch('?date=2026-06-20&time=bad', mockNow),
+      ).toEqual({
+        date: '2026-06-20',
+        time: null,
+      })
+      // Valid time without date is ignored
+      expect(
+        parsePublicScheduleHandoffSearch('?time=18:00', mockNow),
+      ).toEqual({
+        date: null,
+        time: null,
+      })
+    })
+
+    it('matches standard and overnight full-datetime slots without midnight hacks', () => {
+      const overnightResponse: PublicCourtAvailabilityResponse = {
+        club: { id: 1, slug: 'al-ahly', name: 'Al Ahly' },
+        court: { id: 5, name: 'Court 1' },
+        date: '2026-10-09',
+        is_closed: false,
+        opens_at: '18:00',
+        closes_at: '02:00',
+        slot_duration_minutes: 60,
+        slots: [
+          {
+            start_time: '2026-10-09T18:00:00+02:00',
+            end_time: '2026-10-09T19:00:00+02:00',
+            availability: 'AVAILABLE',
+          },
+          {
+            start_time: '2026-10-09T23:00:00+02:00',
+            end_time: '2026-10-10T00:00:00+02:00',
+            availability: 'AVAILABLE',
+          },
+          {
+            start_time: '2026-10-10T00:00:00+02:00',
+            end_time: '2026-10-10T01:00:00+02:00',
+            availability: 'AVAILABLE',
+          },
+        ],
+      }
+
+      const mappedSlots = mapPublicAvailabilityToScheduleSlots(overnightResponse)
+
+      expect(
+        findMatchingPublicScheduleHandoffSlotId(
+          mappedSlots,
+          '2026-10-09',
+          '18:00',
+          overnightResponse.date,
+        ),
+      ).toBe(mappedSlots[0]?.id)
+
+      expect(
+        findMatchingPublicScheduleHandoffSlotId(
+          mappedSlots,
+          '2026-10-09',
+          '00:00',
+          overnightResponse.date,
+        ),
+      ).toBe(mappedSlots[2]?.id)
+
+      expect(
+        findMatchingPublicScheduleHandoffSlotId(
+          mappedSlots,
+          '2026-10-09',
+          '21:00',
+          overnightResponse.date,
+        ),
+      ).toBeNull()
     })
   })
 })

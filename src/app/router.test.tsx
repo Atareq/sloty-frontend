@@ -10,9 +10,9 @@ import { SettingsHubPage } from '../features/settings/SettingsHubPage/SettingsHu
 import { SettingsUsersPage } from '../features/settings/SettingsUsersPage/SettingsUsersPage'
 import { PublicSchedulePage } from '../features/publicSchedule/PublicSchedulePage/PublicSchedulePage'
 import { publicScheduleSeo } from '../features/publicSchedule/publicSchedule.seo'
-import { AssiutPage } from '../features/publicSite/AssiutPage/AssiutPage'
+import { AboutPage } from '../features/publicSite/AboutPage/AboutPage'
 import {
-  assiutPageSeo,
+  aboutPageSeo,
   homePageSeo,
 } from '../features/publicSite/publicSite.seo'
 import { SeoRouteBoundary } from '../core/seo/SeoRouteBoundary'
@@ -141,11 +141,28 @@ describe('router SEO routes', () => {
     expect(route?.handle).toEqual({ seo: homePageSeo })
   })
 
-  it('maps /assiut to the public Assiut page without ProtectedRoute', () => {
-    const route = rootRoutes.find((r) => r.path === '/assiut')
+  it('maps /about to the public About page without ProtectedRoute', () => {
+    const route = rootRoutes.find((r) => r.path === '/about')
 
-    expect((route?.element as ReactElement).type).toBe(AssiutPage)
-    expect(route?.handle).toEqual({ seo: assiutPageSeo })
+    expect((route?.element as ReactElement).type).toBe(AboutPage)
+    expect(route?.handle).toEqual({ seo: aboutPageSeo })
+  })
+
+  it('has no route registered for /assiut or /assiut/', () => {
+    expect(rootRoutes.find((r) => r.path === '/assiut')).toBeUndefined()
+    expect(rootRoutes.find((r) => r.path === '/assiut/')).toBeUndefined()
+  })
+
+  it('declares SEO only on the public discovery, About, and public schedule routes', () => {
+    const declared = rootRoutes
+      .filter((r) => r.handle !== undefined)
+      .map((r) => r.path)
+
+    expect(declared).toEqual([
+      '/',
+      '/about',
+      '/public/:clubSlug/courts/:courtId/schedule',
+    ])
   })
 
   it('keeps /login and protected routes on the private noindex default', () => {

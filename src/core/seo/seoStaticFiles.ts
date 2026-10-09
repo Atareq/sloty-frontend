@@ -79,7 +79,7 @@ export function buildSitemapXml(
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`
 }
 
-/** Normalizes a path for comparison: `/assiut/` and `/assiut` are equal. */
+/** Normalizes a path for comparison: `/about/` and `/about` are equal. */
 function normalizePrerenderPath(path: string): string {
   return path.replace(/\/+$/, '') || '/'
 }
@@ -105,7 +105,7 @@ export function buildPrerenderGuardHtml(path: `/${string}`): string {
 export interface InjectPrerenderedPageInput {
   /** Built `index.html` emitted by Vite (scripts, styles, manifest link). */
   template: string
-  /** Route path the markup was rendered for, e.g. `/` or `/assiut/`. */
+  /** Route path the markup was rendered for, e.g. `/` or `/about/`. */
   path: `/${string}`
   /** `<title>` plus SEO head tags from `renderSeoHeadHtml()`. */
   headHtml: string

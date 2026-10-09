@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import type { Country } from 'react-phone-number-input'
 import {
   getApiErrorMessage,
@@ -10,16 +10,17 @@ import {
 import type { ApiFieldError } from '../../../core/api/apiClient'
 import { loginWithPassword } from '../../../core/auth/authApi'
 import { consumeSessionExpiredNotice } from '../../../core/auth/authStorage'
+import { guestHomeEntryState } from '../../../core/auth/guestHomeEntry'
 import { useAuth } from '../../../core/auth/useAuth'
 import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
+import { authCopy } from '../../../shared/copy/appCopy'
 import {
   normalizeSlotyPhoneNumber,
   validatePhoneNumber,
 } from '../../../shared/validation/phone'
 import { getPhoneValidationMessage } from '../../../shared/copy/phoneValidation'
-import { isValidGuestReturnRoute } from '../../publicSchedule/publicSchedule.helpers'
 
 interface LoginFormState {
   phoneNumber: string
@@ -38,10 +39,14 @@ const initialFormState: LoginFormState = {
  *
  * The component owns form state and calls the small auth API wrapper. Token
  * storage and decoding stay inside the auth provider.
+ *
+ * Every unauthenticated visit shows the guest block («المتابعة كزائر»),
+ * whatever route led here. It always opens the public Courts home (`/`) with
+ * `guestHomeEntryState`, ignores any `guestReturnTo` state, and creates no
+ * authentication state.
  */
 export function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { isAuthenticated, isLoadingSession, login } = useAuth()
   const [formState, setFormState] = useState<LoginFormState>(initialFormState)
   const [country, setCountry] = useState<Country>('EG')
@@ -54,13 +59,6 @@ export function LoginPage() {
   > | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-
-  const guestReturnTo =
-    typeof (location.state as { guestReturnTo?: unknown } | null)
-      ?.guestReturnTo === 'string'
-      ? (location.state as { guestReturnTo: string }).guestReturnTo
-      : null
-  const canReturnAsGuest = isValidGuestReturnRoute(guestReturnTo)
 
   useEffect(() => {
     const notice = consumeSessionExpiredNotice()
@@ -177,7 +175,7 @@ export function LoginPage() {
         <AppCard className="p-6">
           <div className="mb-5 space-y-1">
             <h1 className="text-xl font-bold text-[var(--sloty-text-primary)]">
-              تسجيل الدخول
+              {authCopy.loginHeading}
             </h1>
             <p className="text-sm leading-6 text-[var(--sloty-text-muted)]">
               أدخل بيانات حسابك للمتابعة
@@ -256,28 +254,28 @@ export function LoginPage() {
             ) : null}
 
             <AppButton disabled={isSubmitting} fullWidth type="submit">
-              {isSubmitting ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+              {isSubmitting ? authCopy.loginSubmitting : authCopy.loginAction}
             </AppButton>
 
-            {canReturnAsGuest && guestReturnTo ? (
-              <div className="space-y-2.5 border-t border-[var(--sloty-border)] pt-2 text-center">
-                <div className="space-y-0.5 text-xs text-[var(--sloty-text-muted)]">
-                  <p className="font-semibold text-[var(--sloty-text-primary)]">
-                    مش من فريق العمل في الملعب؟
-                  </p>
-                  <p>تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.</p>
-                </div>
-                <AppButton
-                  className="!border-amber-200/80 !bg-[var(--sloty-hold-soft)] !text-amber-950 hover:!border-amber-300 hover:!bg-amber-100"
-                  fullWidth
-                  onClick={() => navigate(guestReturnTo)}
-                  type="button"
-                  variant="secondary"
-                >
-                  المتابعة كزائر
-                </AppButton>
+            <div className="space-y-2.5 border-t border-[var(--sloty-border)] pt-2 text-center">
+              <div className="space-y-0.5 text-xs text-[var(--sloty-text-muted)]">
+                <p className="font-semibold text-[var(--sloty-text-primary)]">
+                  {authCopy.guestPrompt}
+                </p>
+                <p>{authCopy.guestDescription}</p>
               </div>
-            ) : null}
+              <AppButton
+                className="!border-amber-200/80 !bg-[var(--sloty-hold-soft)] !text-amber-950 hover:!border-amber-300 hover:!bg-amber-100"
+                fullWidth
+                onClick={() =>
+                  navigate('/', { replace: true, state: guestHomeEntryState })
+                }
+                type="button"
+                variant="secondary"
+              >
+                {authCopy.continueAsGuest}
+              </AppButton>
+            </div>
           </form>
         </AppCard>
 

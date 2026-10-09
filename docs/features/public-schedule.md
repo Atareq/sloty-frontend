@@ -51,6 +51,15 @@ GET /api/v1/public/clubs/{club_slug}/courts/{court_id}/availability/?date=YYYY-M
 - Navigation is strictly restricted to a 32-day window.
 - Navigating to past dates or dates beyond the bounded range is blocked by the UI and route guards.
 
+### Phase 6 Contextual Discovery Handoff (`?date=` and `?time=`)
+- `buildPublicCourtSchedulePath(clubSlug, courtId, handoffContext?)` (aliased as `buildPublicCourtSchedulePathWithContext`) builds canonical or contextual links into `PublicSchedulePage`:
+  - Plain Court browse or Court-only search: `/public/:clubSlug/courts/:courtId/schedule`
+  - Date-filtered Court click: `/public/:clubSlug/courts/:courtId/schedule?date=YYYY-MM-DD`
+  - Specific matching-time chip click: `/public/:clubSlug/courts/:courtId/schedule?date=YYYY-MM-DD&time=HH:MM`
+- `PublicSchedulePage` validates `?date=` (`YYYY-MM-DD`) and `?time=` (`HH:MM`, accepted only when `date` is valid) via `parsePublicScheduleHandoffSearch` and initializes `selectedDate` directly on first render without fetching `today` first.
+- `getPublicCourtAvailability` remains the sole authority for slot availability. When a handed-off `time` matches a slot on the active `date` (`findMatchingPublicScheduleHandoffSlotId`, supporting both `HH:MM[:SS]` and full ISO datetimes including overnight slots), `PublicSlotCard` adds a secondary Sloty highlight ring (`data-handoff-target="true"`) and scrolls the slot into view once without auto-activating the slot or auto-opening `PublicScheduleVisitorPopup`.
+- Manually changing the date inside `AppDateNavigator` clears the initial handoff-time highlight.
+
 ### Share Experience
 - `PageHeaderAction` provides a `مشاركة الجدول` button.
 - `PageHeaderAction` provides a single `مشاركة الجدول` button.
@@ -72,12 +81,8 @@ GET /api/v1/public/clubs/{club_slug}/courts/{court_id}/availability/?date=YYYY-M
   ```
 
 ### Staff Login Affordance
-- Public schedule offers a clear bridge for staff members to access the operational schedule:
-  ```text
-  مش من فريق العمل في الملعب؟
-  تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.
-  المتابعة كزائر
-  ```
+- Public schedule offers a clear bridge (`تسجيل الدخول`) for staff members to access `/login`.
+- On `/login`, the visitor always sees the primary `تسجيل الدخول` action and the global guest block (`مش من فريق العمل في الملعب؟` · `تقدر تدخل كزائر وتشوف المواعيد المتاحة فقط.` · `المتابعة كزائر`). `المتابعة كزائر` navigates to the existing Public Courts Home (`/`), not back to the Public Schedule, without creating any authentication state or Backend identity.
 
 ---
 
@@ -85,6 +90,6 @@ GET /api/v1/public/clubs/{club_slug}/courts/{court_id}/availability/?date=YYYY-M
 
 - The public schedule is **public but `noindex, nofollow`** in Phase 1. The route declares `handle: routeSeo(publicScheduleSeo)` in `src/app/router.tsx`; the page itself never touches the document head.
 - Tab title: `جدول مواعيد الملعب | Sloty`. No canonical, Open Graph, or JSON-LD is emitted.
-- Rationale: link/QR-shared utility pages with date-dependent availability and numeric court IDs; indexable Club/Court entity pages are a separate future phase. See [`docs/seo.md`](../seo.md).
-- Raw HTML for this URL is the shared `index.html` (homepage metadata, hidden prerendered markup); the runtime SEO layer applies the `noindex` title and robots directive once the app starts.
+- Rationale: date-dependent utility pages reached from public discovery (`/`) or a shared link/QR. They are the Court destination, not search landing pages; Court pages are not the primary SEO strategy. See [`docs/seo.md`](../seo.md) section 11.
+- Raw HTML for this URL is the generic `app.html` fallback (`noindex, nofollow`, empty `#root`, no page metadata); the runtime SEO layer then applies the public schedule title.
 

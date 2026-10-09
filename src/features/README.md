@@ -5,7 +5,9 @@
 Current active features include auth, dashboard, schedule, bookings, transactions, settlements, clubs, courts, clubUsers, adminUsers, settings, reports, audit, locations, and the unfinished Platform Admin settings placeholder.
 Active features include auth, dashboard, schedule, publicSchedule, publicSite, bookings, transactions, settlements, clubs, courts, clubUsers, adminUsers, settings, reports, and audit.
 
-`publicSite` owns the public, indexable SEO pages (`/` homepage for signed-out visitors and `/assiut/`), their copy, and their route SEO definitions. It renders real content only: no invented clubs, courts, or availability. See `docs/seo.md`.
+`publicSite` owns the public, indexable SEO pages (`/` public discovery for signed-out visitors and `/about/`), their copy, and their route SEO definitions. It renders real content only: no invented clubs, courts, or availability. See `docs/seo.md`.
+
+`publicDiscovery` owns the anonymous public Court discovery contract (`GET public/courts/` and Phase 2/3/4/5 `GET public/courts/search/`): API, Backend-to-UI mapper, `usePublicCourtDiscovery` hook, `DiscoveryCourtFilterSheet` (Phase 4 single-Court selector), `DiscoveryFilterSheet` (Phase 2 day + up to 5 times), and the Court list/card UI (`DiscoveryCourtCard` and Phase 3 `DiscoveryMatchedCourtCard`) composed by the discovery page. Only its types and mapper read Backend field names. Cards and matching-time chips link to the existing Public Schedule via `buildPublicCourtSchedulePath` (including Phase 6 `?date=` and `&time=` handoff context).
 
 Keep feature-specific state and mutations inside the relevant feature folder. Put reusable presentational primitives in `src/shared`.
 

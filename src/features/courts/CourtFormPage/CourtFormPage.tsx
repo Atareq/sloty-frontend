@@ -1,5 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
   getApiErrorMessage,
   getApiFieldErrors,
@@ -10,10 +16,21 @@ import { AppButton } from '../../../shared/components/AppButton/AppButton'
 import { AppCard } from '../../../shared/components/AppCard/AppCard'
 import { AppSelect } from '../../../shared/components/AppSelect/AppSelect'
 import { PageActions } from '../../../shared/components/PageActions/PageActions'
+import { SlotyPhoneNumberInput } from '../../../shared/components/PhoneNumberInput/PhoneNumberInput'
 import { settingsCopy } from '../../../shared/copy/appCopy'
+import { getPhoneValidationMessage } from '../../../shared/copy/phoneValidation'
+import { validatePhoneNumber } from '../../../shared/validation/phone'
+import { getClub, updateClub } from '../../clubs/clubsApi'
+import type { Club } from '../../clubs/clubs.types'
 import { CourtWorkingHoursSection } from '../components/CourtWorkingHoursSection/CourtWorkingHoursSection'
-import { createCourt, getCourt, updateCourt } from '../courtsApi'
-import type { CourtPayload } from '../courts.types'
+import {
+  createCourt,
+  getCourt,
+  listCourtImages,
+  replaceCourtPrimaryImage,
+  updateCourt,
+} from '../courtsApi'
+import type { CourtImage, CourtPayload } from '../courts.types'
 
 type SportType =
   | 'FOOTBALL'
@@ -97,6 +114,38 @@ function toSportType(value: string): SportType {
     : 'FOOTBALL'
 }
 
+interface SelectedCourtImage {
+  file: File
+  /** Local `blob:` URL for the preview; revoked when replaced or unmounted. */
+  previewUrl: string
+}
+
+const courtImageSavedWithoutImageMessage =
+  'تم حفظ بيانات الملعب، لكن تعذر رفع الصورة.'
+
+/**
+ * Reads the image-upload failure carried from create mode to the new Court's
+ * edit page (the Court already exists, so retrying there cannot duplicate it).
+ */
+function readCarriedCourtImageError(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null) {
+    return null
+  }
+
+  const courtImageError = (state as { courtImageError?: unknown })
+    .courtImageError
+
+  return typeof courtImageError === 'string' ? courtImageError : null
+}
+
+function getCourtImageErrorMessage(error: unknown): string {
+  const reason =
+    getFirstFieldErrorMessage(getApiFieldErrors(error), 'image') ??
+    getApiErrorMessage(error, 'حاول مرة أخرى.')
+
+  return `${courtImageSavedWithoutImageMessage} ${reason}`
+}
+
 function buildPayload(formState: CourtFormState): CourtPayload {
   return {
     name: formState.name.trim(),
@@ -120,12 +169,28 @@ function buildPayload(formState: CourtFormState): CourtPayload {
  *
  * Working-hours setup is mounted below the court form, but booking-slot
  * generation still belongs to a later booking integration sprint.
+ *
+ * `صورة الملعب` keeps one primary image per Court. Court create/update stay
+ * JSON; a selected file is uploaded afterwards through the Court images
+ * endpoint (multipart), and only then are previous images detached. Without a
+ * new file, no image request is sent, so the existing image is untouched.
  */
 export function CourtFormPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { clubSlug, courtId } = useParams()
   const isCreateMode = !courtId
   const [formState, setFormState] = useState<CourtFormState>(initialFormState)
+  const [club, setClub] = useState<Club | null>(null)
+  const [clubPhoneNumber, setClubPhoneNumber] = useState<string | undefined>(
+    undefined,
+  )
+  const [currentImage, setCurrentImage] = useState<CourtImage | null>(null)
+  const [currentImageLoadFailed, setCurrentImageLoadFailed] = useState(false)
+  const [selectedImage, setSelectedImage] =
+    useState<SelectedCourtImage | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(clubSlug ? null : 'رابط النادي غير صحيح')
   const [fieldErrors, setFieldErrors] = useState<Record<
     string,
@@ -150,6 +215,59 @@ export function CourtFormPage() {
     fieldErrors,
     'internal_hold_expiry_hours',
   )
+  const clubPhoneFieldError = getFirstFieldErrorMessage(
+    fieldErrors,
+    'phone_number',
+  )
+  const carriedImageError = isCreateMode
+    ? null
+    : readCarriedCourtImageError(location.state)
+  const imageFieldError =
+    imageError ?? (selectedImage ? null : carriedImageError)
+  const currentImageUrl = currentImage?.image.thumbnail_url || null
+  const imagePreviewUrl = selectedImage?.previewUrl ?? currentImageUrl
+
+  useEffect(() => {
+    const previewUrl = selectedImage?.previewUrl
+
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [selectedImage])
+
+  useEffect(() => {
+    if (!clubSlug) {
+      return
+    }
+
+    let isActive = true
+    const currentClubSlug = clubSlug
+
+    async function loadClub(): Promise<void> {
+      try {
+        // The Club retrieve route accepts the slug used by the Court routes;
+        // phone_number remains owned exclusively by that parent Club.
+        const loadedClub = await getClub(currentClubSlug)
+
+        if (isActive) {
+          setClub(loadedClub)
+          setClubPhoneNumber(loadedClub.phone_number)
+        }
+      } catch (error) {
+        if (isActive) {
+          setError(getApiErrorMessage(error, 'تعذر تحميل بيانات النادي'))
+        }
+      }
+    }
+
+    void loadClub()
+
+    return () => {
+      isActive = false
+    }
+  }, [clubSlug])
 
   useEffect(() => {
     if (isCreateMode || !clubSlug || !courtId) {
@@ -166,9 +284,16 @@ export function CourtFormPage() {
       setFieldErrors(null)
 
       try {
-        const court = await getCourt(currentClubSlug, currentCourtId)
+        // The image preview is optional: an image-list failure must never
+        // block editing the Court itself.
+        const [court, courtImages] = await Promise.all([
+          getCourt(currentClubSlug, currentCourtId),
+          listCourtImages(currentClubSlug, currentCourtId).catch(() => null),
+        ])
 
         if (isActive) {
+          setCurrentImage(courtImages?.[0] ?? null)
+          setCurrentImageLoadFailed(courtImages === null)
           setFormState({
             name: court.name,
             sport_type: toSportType(court.sport_type),
@@ -211,6 +336,64 @@ export function CourtFormPage() {
     setFieldErrors(null)
   }
 
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>): void {
+    const file = event.target.files?.[0] ?? null
+
+    setSelectedImage(
+      file ? { file, previewUrl: URL.createObjectURL(file) } : null,
+    )
+    setImageError(null)
+  }
+
+  function clearSelectedImage(): void {
+    setSelectedImage(null)
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ''
+    }
+  }
+
+  /**
+   * Uploads the selected file after the Court itself was saved.
+   *
+   * Returns false when the upload failed. The Court is already saved then, so
+   * create mode continues on the new Court's edit page (a retry there cannot
+   * create a duplicate Court) and edit mode stays on the page with the error.
+   */
+  async function saveSelectedImage(
+    currentClubSlug: string,
+    savedCourtId: number,
+    file: File,
+  ): Promise<boolean> {
+    try {
+      const uploadedImage = await replaceCourtPrimaryImage(
+        currentClubSlug,
+        savedCourtId,
+        file,
+      )
+
+      setCurrentImage(uploadedImage)
+      setCurrentImageLoadFailed(false)
+      clearSelectedImage()
+      return true
+    } catch (error) {
+      const message = getCourtImageErrorMessage(error)
+
+      setImageError(message)
+
+      if (isCreateMode) {
+        // The router may remount the page on the edit route, so the message
+        // also travels in navigation state.
+        navigate(`/admin/clubs/${currentClubSlug}/courts/${savedCourtId}`, {
+          replace: true,
+          state: { courtImageError: message },
+        })
+      }
+
+      return false
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
 
@@ -222,6 +405,20 @@ export function CourtFormPage() {
 
     if (!formState.name.trim()) {
       setError('اسم الملعب مطلوب')
+      setFieldErrors(null)
+      return
+    }
+
+    if (!club) {
+      setError('تعذر تحميل بيانات النادي')
+      setFieldErrors(null)
+      return
+    }
+
+    const phoneValidation = validatePhoneNumber(clubPhoneNumber)
+
+    if (!phoneValidation.valid) {
+      setError(getPhoneValidationMessage(phoneValidation.error))
       setFieldErrors(null)
       return
     }
@@ -260,14 +457,35 @@ export function CourtFormPage() {
 
     setError(null)
     setFieldErrors(null)
+    setImageError(null)
     setIsSubmitting(true)
 
     try {
       const payload = buildPayload(formState)
+      const normalizedClubPhone = clubPhoneNumber?.trim() || undefined
+      const initialClubPhone = club.phone_number?.trim() || undefined
+
+      if (normalizedClubPhone !== initialClubPhone) {
+        try {
+          await updateClub(club.id, { phone_number: normalizedClubPhone })
+        } catch (error) {
+          setError(getApiErrorMessage(error, 'تعذر حفظ رقم هاتف النادي'))
+          setFieldErrors(getApiFieldErrors(error))
+          return
+        }
+      }
+
       const savedCourt =
         isCreateMode || !courtId
           ? await createCourt(clubSlug, payload)
           : await updateCourt(clubSlug, courtId, payload)
+
+      if (
+        selectedImage &&
+        !(await saveSelectedImage(clubSlug, savedCourt.id, selectedImage.file))
+      ) {
+        return
+      }
 
       navigate(
         isCreateMode
@@ -299,6 +517,29 @@ export function CourtFormPage() {
           </p>
         ) : (
           <form className="grid gap-4 lg:grid-cols-2" onSubmit={handleSubmit}>
+            {/* Club-owned contact phone; never included in CourtPayload. */}
+            <div className="space-y-2 text-sm font-semibold lg:col-span-2">
+              <span>رقم هاتف النادي</span>
+              <SlotyPhoneNumberInput
+                ariaLabel="رقم هاتف النادي"
+                disabled={isSubmitting}
+                error={
+                  error === getPhoneValidationMessage('INVALID_PHONE') ||
+                  Boolean(clubPhoneFieldError)
+                }
+                onChange={(value) => {
+                  setClubPhoneNumber(value)
+                  setFieldErrors(null)
+                }}
+                value={clubPhoneNumber}
+              />
+              {clubPhoneFieldError ? (
+                <p className="text-xs font-bold text-[var(--sloty-danger)]">
+                  {clubPhoneFieldError}
+                </p>
+              ) : null}
+            </div>
+
             {/* اسم الملعب */}
             <div>
               <label className="space-y-2 text-sm font-semibold">
@@ -503,6 +744,53 @@ export function CourtFormPage() {
                 value={formState.notes}
               />
             </label>
+
+            {/* صورة الملعب — one primary image; Backend owns processing and storage */}
+            <div className="space-y-2 lg:col-span-2">
+              <label
+                className="block text-sm font-semibold"
+                htmlFor="court-image"
+              >
+                صورة الملعب
+              </label>
+              {imagePreviewUrl ? (
+                <img
+                  alt={
+                    selectedImage
+                      ? 'الصورة الجديدة للملعب'
+                      : 'الصورة الحالية للملعب'
+                  }
+                  className="aspect-video w-full max-w-xs rounded-xl border border-[var(--sloty-border)] bg-[var(--sloty-bg)] object-cover"
+                  src={imagePreviewUrl}
+                />
+              ) : null}
+              {currentImageLoadFailed && !selectedImage ? (
+                <p className="text-xs text-[var(--sloty-text-muted)]">
+                  تعذر تحميل الصورة الحالية للملعب.
+                </p>
+              ) : null}
+              <input
+                accept="image/*"
+                aria-describedby="court-image-helper"
+                className="block w-full text-base text-[var(--sloty-text-muted)] file:me-3 file:rounded-lg file:border file:border-[var(--sloty-border)] file:bg-[var(--sloty-surface)] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[var(--sloty-text-primary)] disabled:opacity-60 sm:text-sm"
+                disabled={isSubmitting}
+                id="court-image"
+                onChange={handleImageChange}
+                ref={imageInputRef}
+                type="file"
+              />
+              <p
+                className="text-xs font-normal text-gray-500"
+                id="court-image-helper"
+              >
+                اختر صورة واضحة للملعب
+              </p>
+              {imageFieldError ? (
+                <p className="mt-1 text-xs font-bold text-[var(--sloty-danger)]">
+                  {imageFieldError}
+                </p>
+              ) : null}
+            </div>
 
             {error ? (
               <p className="rounded-xl bg-[var(--sloty-danger-soft)] px-3 py-2 text-sm font-semibold text-[var(--sloty-danger)] lg:col-span-2">

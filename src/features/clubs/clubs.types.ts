@@ -22,3 +22,9 @@ export interface ClubPayload {
   notes?: string
   is_active?: boolean
 }
+
+/**
+ * The Club detail endpoint supports PATCH, so callers that edit one
+ * Club-owned setting do not need to resend unrelated setup fields.
+ */
+export type ClubUpdatePayload = Partial<Omit<ClubPayload, 'slug'>>

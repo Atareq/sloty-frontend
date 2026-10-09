@@ -21,8 +21,8 @@ interface SeoPrerenderModule {
  * Build-only Vite plugin that emits Sloty's static SEO files.
  *
  * During `generateBundle` it renders the public pages with React on the
- * server, then rewrites `index.html` and emits `assiut/index.html`,
- * `robots.txt`, and `sitemap.xml`. Running before `closeBundle` matters:
+ * server, then rewrites `index.html` and emits `about/index.html`,
+ * `app.html`, `robots.txt`, and `sitemap.xml`. Running before `closeBundle` matters:
  * vite-plugin-pwa generates the service worker there, so the precache
  * manifest sees the final HTML revisions. `version.json` and the PWA
  * manifest are never touched.

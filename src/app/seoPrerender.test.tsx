@@ -26,28 +26,39 @@ function content(doc: Document, selector: string): string | null {
 describe('renderStaticSeoFiles', () => {
   it('emits only SEO files and never touches PWA or release artifacts', () => {
     expect([...renderFiles().keys()].sort()).toEqual([
+      'about/index.html',
       'app.html',
-      'assiut/index.html',
       'index.html',
       'robots.txt',
       'sitemap.xml',
     ])
   })
 
-  it('prerenders the homepage identity into index.html', () => {
+  it('prerenders the public discovery identity and Courts section into index.html', () => {
     const doc = parse(renderFiles().get('index.html') ?? '')
     const text = doc.body.textContent ?? ''
 
-    expect(doc.title).toBe('Sloty | سلوتي لحجز وإدارة ملاعب كرة القدم في أسيوط ومصر')
-    expect(content(doc, 'meta[name="description"]')).toContain('سلوتي Sloty منصة لحجز وإدارة ملاعب كرة القدم')
+    expect(doc.title).toBe('Sloty | سلوتي لحجز وإدارة ملاعب كرة القدم')
+    expect(content(doc, 'meta[name="description"]')).toBe(
+      'سلوتي (Sloty) منصة مصرية لحجز وإدارة ملاعب كرة القدم، تساعد اللاعبين على معرفة المواعيد المتاحة وأصحاب الملاعب وفريق العمل على إدارة الحجوزات والمواعيد بسهولة.',
+    )
     expect(content(doc, 'meta[property="og:title"]')).toBe(doc.title)
     expect(content(doc, 'meta[property="og:type"]')).toBe('website')
-    expect(doc.querySelector('h1')?.textContent).toBe('إدارة وحجز الملاعب بسهولة مع Sloty')
-    for (const term of ['Sloty', 'سلوتي', 'أسيوط', 'مصر', 'حجز وإدارة ملاعب كرة القدم', 'football pitches']) {
+    expect(doc.querySelector('h1')?.textContent).toBe('سلوتي لحجز ملاعب كرة القدم')
+    expect(doc.querySelector('h2')?.textContent).toBe('ملاعب كرة القدم')
+    for (const term of ['Sloty', 'سلوتي', 'ملاعب كرة القدم']) {
       expect(text).toContain(term)
     }
     expect(doc.querySelector('#root > [data-sloty-prerender="/"]')).not.toBeNull()
-    expect(doc.querySelector('a[href="/assiut/"]')).not.toBeNull()
+    expect(doc.querySelector('a[href="/about/"]')).not.toBeNull()
+  })
+
+  it('prerenders the Court list loading state, never build-time or invented Courts', () => {
+    const doc = parse(renderFiles().get('index.html') ?? '')
+
+    expect(doc.querySelector('[role="status"]')?.textContent).toBe('جاري تحميل الملاعب...')
+    expect(doc.querySelector('[data-testid="discovery-court-card"]')).toBeNull()
+    expect(doc.querySelector('a[href^="/public/"]')).toBeNull()
   })
 
   it('prerenders complete URL-identity tags into index.html as the dedicated homepage file', () => {
@@ -76,34 +87,36 @@ describe('renderStaticSeoFiles', () => {
     expect(doc.querySelector('script[type="module"][src="/src/main.tsx"]')).not.toBeNull()
   })
 
-  it('writes a complete, indexable head for the dedicated Assiut file', () => {
-    const doc = parse(renderFiles().get('assiut/index.html') ?? '')
+  it('writes a complete, indexable head for the dedicated About file', () => {
+    const doc = parse(renderFiles().get('about/index.html') ?? '')
 
-    expect(doc.title).toBe('حجز ملاعب كرة القدم في أسيوط | Sloty')
+    expect(doc.title).toBe('عن سلوتي | Sloty')
     expect(content(doc, 'meta[name="robots"]')).toBe('index, follow')
     expect(doc.querySelectorAll('link[rel="canonical"]')).toHaveLength(1)
     expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(
-      'https://sloty.baronlearning.com/assiut/',
+      'https://sloty.baronlearning.com/about/',
     )
-    expect(content(doc, 'meta[property="og:url"]')).toBe('https://sloty.baronlearning.com/assiut/')
-    expect(doc.querySelector('h1')?.textContent).toBe('ملاعب كرة القدم والحجز في أسيوط')
+    expect(content(doc, 'meta[property="og:url"]')).toBe('https://sloty.baronlearning.com/about/')
+    expect(doc.querySelector('h1')?.textContent).toBe('عن سلوتي')
+    expect(doc.querySelector('#root > [data-sloty-prerender="/about/"]')).not.toBeNull()
     expect(doc.querySelector('a[href="/"]')).not.toBeNull()
+    expect(doc.querySelector('[role="status"]')).toBeNull()
   })
 
   it('keeps unique titles and descriptions per public page', () => {
     const files = renderFiles()
     const home = parse(files.get('index.html') ?? '')
-    const assiut = parse(files.get('assiut/index.html') ?? '')
+    const about = parse(files.get('about/index.html') ?? '')
 
-    expect(home.title).not.toBe(assiut.title)
+    expect(home.title).not.toBe(about.title)
     expect(content(home, 'meta[name="description"]')).not.toBe(
-      content(assiut, 'meta[name="description"]'),
+      content(about, 'meta[name="description"]'),
     )
   })
 
   it('embeds valid JSON-LD with Sloty identity in each page', () => {
     const files = renderFiles()
-    for (const fileName of ['index.html', 'assiut/index.html']) {
+    for (const fileName of ['index.html', 'about/index.html']) {
       const scripts = parse(files.get(fileName) ?? '').querySelectorAll(
         'script[type="application/ld+json"]',
       )
@@ -111,6 +124,7 @@ describe('renderStaticSeoFiles', () => {
       const data = JSON.parse(scripts[0].textContent ?? '')
       expect(data['@context']).toBe('https://schema.org')
       expect(JSON.stringify(data)).toContain('https://sloty.baronlearning.com/#website')
+      expect(JSON.stringify(data)).not.toContain('LocalBusiness')
     }
   })
 
@@ -132,9 +146,9 @@ describe('renderStaticSeoFiles', () => {
     )
     expect(sitemap.match(/<loc>[^<]+<\/loc>/g)).toEqual([
       '<loc>https://sloty.baronlearning.com/</loc>',
-      '<loc>https://sloty.baronlearning.com/assiut/</loc>',
+      '<loc>https://sloty.baronlearning.com/about/</loc>',
     ])
-    for (const privatePath of ['/login', '/dashboard', '/admin', '/transactions', '/settlements', '/schedule', '/public/']) {
+    for (const privatePath of ['/login', '/dashboard', '/admin', '/transactions', '/settlements', '/schedule', '/public/', '/courts', '/clubs']) {
       expect(sitemap).not.toContain(`baronlearning.com${privatePath}`)
     }
   })

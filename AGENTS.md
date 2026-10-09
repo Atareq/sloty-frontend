@@ -117,8 +117,9 @@ When determining factual system behavior, what features exist, and how contracts
 
 ### 7. One SEO System
 - Route SEO is declared on the route (`handle: routeSeo(...)` in `src/app/router.tsx`) and applied only by `SeoRouteBoundary` (`src/core/seo`). Never set `document.title` or head tags from pages or components.
-- Routes without `handle.seo` are `noindex, nofollow` by default. Only real public pages registered in `indexablePublicPages` are indexable and listed in the generated sitemap (currently `/` and `/assiut/`).
-- `/` is shared: signed-out visitors in a browser tab see the public homepage; signed-in users, session errors, and installed-PWA launches keep `AuthLandingRedirect`.
+- Routes without `handle.seo` are `noindex, nofollow` by default. Only real public pages registered in `indexablePublicPages` are indexable and listed in the generated sitemap (currently `/` and `/about/`).
+- The primary SEO entity is Sloty / سلوتي and the primary SEO surface is public player discovery at `/`: identity, then `ملاعب كرة القدم`, then real Courts from `GET public/courts/` linking to the existing Public Schedule. Court pages are downstream destinations (noindex), never a programmatic SEO strategy. Never ship sample or fallback Courts; fixtures belong in tests only.
+- `/` is shared: signed-out visitors in a browser tab see public discovery; signed-in users, session errors, and installed-PWA launches keep `AuthLandingRedirect`.
 - The canonical origin comes only from `VITE_PUBLIC_SITE_URL`, never from `window.location`. `robots.txt` and `sitemap.xml` are generated at build time; do not add them to `public/`.
 - No `<meta name="keywords">`, hidden text, fake city/Club/Court pages, or invented structured data (addresses, phones, ratings, prices, `LocalBusiness` for Sloty). Detailed in [`docs/seo.md`](docs/seo.md).
 
@@ -136,7 +137,8 @@ src/
 ├── features/     # Domain product modules (pages, components, feature API wrappers)
 │   ├── schedule/       # Operational Schedule workspace (/schedule)
 │   ├── publicSchedule/ # Guest Public Schedule (/public/.../schedule)
-│   ├── publicSite/     # Public SEO pages (/ homepage for signed-out visitors, /assiut/)
+│   ├── publicSite/     # Public SEO pages (/ discovery for signed-out visitors, /about/)
+│   ├── publicDiscovery/ # Public Court discovery API, mapper, hook, Court cards
 │   ├── bookings/       # Bookings list, BookingActionSheet, lifecycle dialogs
 │   ├── transactions/   # Transactions ledger, RecordPaymentSheet, cancel payment
 │   ├── settlements/    # Settlement review, confirmation, employee custody
@@ -179,7 +181,7 @@ Run targeted validation commands before reporting completion:
 
 ### API Client (`src/core/api/apiClient.ts`)
 - All endpoints are centralized in `src/shared/api/apiEndpoints.ts`. Never hardcode API URL strings in feature code.
-- `apiRequest()` automatically sends `Accept-Language: ar` and attaches the Bearer token unless `omitAuth: true` is passed.
+- `apiRequest()` automatically sends `Accept-Language: ar` and attaches the Bearer token unless `omitAuth: true` is passed. JSON bodies get `Content-Type: application/json`; `FormData` bodies pass through untouched (never set a multipart `Content-Type` manually — the browser owns the boundary).
 - Token refresh runs once on 401s; concurrent requests share the in-flight refresh. Login and refresh paths never trigger refresh.
 - Admin shell diagnostics use `GET /api/system/version/` (`apiEndpoints.systemVersion`) once per session via `src/core/system/`. FE release/commit come only from `src/core/config/buildInfo.ts` (`VITE_APP_RELEASE`, `VITE_COMMIT_SHA`) — never hardcode production versions in UI. ADMIN burger and desktop sidebar reuse `AdminBuildInfoFooter` below logout.
 
@@ -198,6 +200,7 @@ Run targeted validation commands before reporting completion:
 - **Educational Comments & JSDoc:** Add clear JSDoc explanations to services, hooks, reusable components, and API modules. Avoid noisy comments that restate obvious syntax.
 - **Strict Typing:** Always define explicit interfaces and avoid `any`.
 - **Phone numbers:** All phone fields use `SlotyPhoneNumberInput` plus `validatePhoneNumber()` in `src/shared/validation/phone.ts`. Localized validation copy comes from `getPhoneValidationMessage()` / `phoneValidationCopy`. Do not add page-specific phone regexes or hardcoded Arabic/English phone errors. Backend field errors still flow through the existing API error helpers.
+- **Court-management Club phone:** The Admin Court form loads its parent through `getClub(clubSlug)`. `phone_number` is Club-owned: validate it locally and PATCH only the Club when it changed; never add it to `Court`, `CourtPayload`, or a Court save request.
 - **Settlements identity:** `unsettled-summary` rows use `user` / `user_name`. Preview and create keep Backend `collected_by` / `collected_by_name`. Collector UI copy is `المحصل`.
 
 ---

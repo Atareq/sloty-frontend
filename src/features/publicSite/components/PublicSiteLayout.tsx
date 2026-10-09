@@ -4,7 +4,7 @@ import { Link, NavLink, useLocation } from 'react-router'
 import { RouteScrollReset } from '../../../layout/RouteScrollReset'
 import { PageHeader } from '../../../shared/components/PageHeader/PageHeader'
 import { publicSiteIdentityCopy, publicSiteNavCopy } from '../publicSite.copy'
-import { ASSIUT_PATH, PUBLIC_HOME_PATH } from '../publicSite.seo'
+import { ABOUT_PATH, PUBLIC_HOME_PATH } from '../publicSite.seo'
 
 export interface PublicBreadcrumb {
   label: string
@@ -15,7 +15,8 @@ export interface PublicBreadcrumb {
 export interface PublicSiteLayoutProps {
   /** Page H1, rendered by the shared `PageHeader`. */
   title: string
-  subtitle: string
+  /** Optional; omit when the page content already states the message. */
+  subtitle?: string
   breadcrumbs?: readonly PublicBreadcrumb[]
   children: ReactNode
 }
@@ -90,8 +91,8 @@ function PublicSiteFooter() {
               </NavLink>
             </li>
             <li>
-              <NavLink className={footerLinkClassName} to={ASSIUT_PATH}>
-                {publicSiteNavCopy.assiut}
+              <NavLink className={footerLinkClassName} to={ABOUT_PATH}>
+                {publicSiteNavCopy.about}
               </NavLink>
             </li>
             <li>

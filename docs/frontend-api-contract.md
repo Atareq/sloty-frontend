@@ -34,12 +34,15 @@ Backend Responsibility:
 | **Locations** | `egypt-locations/` | `GET` | **YES** | None | `{ governorates: EgyptGovernorate[] }` | Object DTO |
 | **Clubs** | `clubs/` | `GET` | **YES** | Query: `search`, `page` | `Club` | `PaginatedResponse<Club>` |
 | **Clubs** | `clubs/` | `POST` | **YES** | `ClubPayload` | `Club` | Object DTO |
-| **Clubs** | `clubs/{id}/` | `GET` | **YES** | None | `Club` | Object DTO |
-| **Clubs** | `clubs/{id}/` | `PATCH` | **YES** | `Partial<ClubPayload>` | `Club` | Object DTO |
+| **Clubs** | `clubs/{id-or-slug}/` | `GET` | **YES** | None | `Club` | Object DTO |
+| **Clubs** | `clubs/{id-or-slug}/` | `PATCH` | **YES** | `Partial<ClubPayload>` | `Club` | Object DTO |
 | **Courts** | `clubs/{slug}/courts/` | `GET` | **YES** | Query: `search`, `is_active`, `page` | `Court` | `PaginatedResponse<Court>` |
 | **Courts** | `clubs/{slug}/courts/` | `POST` | **YES** | `CourtPayload` | `Court` | Object DTO |
 | **Courts** | `clubs/{slug}/courts/{id}/` | `GET` | **YES** | None | `Court` | Object DTO |
 | **Courts** | `clubs/{slug}/courts/{id}/` | `PATCH` | **YES** | `Partial<CourtPayload>` | `Court` | Object DTO |
+| **Court Images** | `clubs/{slug}/courts/{id}/images/` | `GET` | **APPROVED, PENDING DEPLOY** | None | `CourtImage` (`position` order; first = primary) | `CourtImage[]` (unpaginated) |
+| **Court Images** | `clubs/{slug}/courts/{id}/images/` | `POST` | **APPROVED, PENDING DEPLOY** | `multipart/form-data` with one `image: File` field | `CourtImage` | Object DTO (201) |
+| **Court Images** | `clubs/{slug}/courts/{id}/images/{courtImageId}/` | `DELETE` | **APPROVED, PENDING DEPLOY** | None | None (204) | `void` |
 | **Working Hours** | `clubs/{slug}/courts/{id}/working-hours/` | `GET` | **YES** | None | `CourtWorkingHoursApiResponse` | Object DTO |
 | **Working Hours** | `clubs/{slug}/courts/{id}/working-hours/` | `PUT` | **YES** | `UpdateCourtWorkingHoursPayload` | `CourtWorkingHoursApiResponse` | Object DTO |
 | **Club Staff** | `clubs/{slug}/staff/` | `GET` | **YES** | Query: `search`, `is_active`, `page` | `ClubStaff` / `StaffDetail` | `PaginatedResponse<ClubUser>` |
@@ -78,8 +81,23 @@ Backend Responsibility:
 | **Audit Logs** | `clubs/{slug}/audit-logs/{id}/` | `GET` | **YES** | None | `AuditLogDetail` | Object DTO |
 | **Reports** | `clubs/{slug}/reports/court-usage/` | `GET` | **YES** | Query: date range, court, period, staff | `CourtUsageReport` | Object DTO |
 | **Public Availability** | `public/clubs/{slug}/courts/{id}/availability/` | `GET` | **YES** | Anonymous (`omitAuth`) | `PublicCourtAvailabilityResponse` | Object DTO |
+| **Public Court Discovery** | `public/courts/` | `GET` | **APPROVED, PENDING DEPLOY** | Anonymous (`omitAuth`); Query: `page` | `PublicCourtDiscoveryItemResponse` → mapped to `DiscoveryCourt` | `PaginatedResponse<PublicCourtDiscoveryItemResponse>` |
+| **Public Court Search (Phase 2/3/4/5)** | `public/courts/search/` | `GET` | **APPROVED, PENDING DEPLOY** | Anonymous (`omitAuth`); Query: optional `court_id` (Phase 4), optional `date` (`YYYY-MM-DD`), optional `times` (`HH:MM,...`, up to 5), `page` | `PublicCourtDiscoveryItemResponse` (incl. `matching_times`) → mapped to `DiscoveryCourt` | `PaginatedResponse<PublicCourtDiscoveryItemResponse>` |
 | **Platform Users** | `users/` | `GET` | **YES** | Admin/Owner scope | `PlatformUser` | `PaginatedResponse<PlatformUser>` |
 | **Platform Users** | `users/{id}/` | `GET`, `PATCH` | **YES** | `{ is_active?, email?, first_name?, last_name?, phone_number? }` | `PlatformUser` | Object DTO |
+
+### Court images (`صورة الملعب`)
+
+- **Court create/update do not accept images.** `CourtCreateSerializer` / `CourtUpdateSerializer` have no `image` field (an extra multipart `image` would be silently dropped), and `Court` responses carry no image URL. Court `POST` / `PATCH` therefore stay JSON with `CourtPayload`.
+- **Upload:** after the Court is saved, the Admin Court form (`CourtFormPage`) uploads a selected file with `POST clubs/{slug}/courts/{id}/images/` as `multipart/form-data` (`image` field only). `apiRequest()` passes `FormData` through without a manual `Content-Type`, so the browser writes the multipart boundary; JSON bodies are unchanged.
+- **One primary image:** `replaceCourtPrimaryImage()` lists current images, uploads the new file, and only after a successful upload `DELETE`s the previous relations. A failed upload never removes the existing image. Without a new file, no image request is sent.
+- **Preview:** edit mode shows the first image's Backend `thumbnail_url`. `CourtImage.image` exposes `display_url`, `thumbnail_url`, `width`, `height`. Backend owns processing (JPEG/PNG/WebP → WebP variants), storage, and public URLs; the frontend never builds storage URLs, keys, or bucket names.
+- **Errors:** image validation and storage failures are top-level Backend codes (`IMAGE_UPLOAD_TOO_LARGE`, `IMAGE_DIMENSIONS_TOO_LARGE`, `IMAGE_STORAGE_UNAVAILABLE`, …) or an `image` field error; both are shown under `صورة الملعب`. If the Court saved but the image did not, create mode continues on the new Court's edit page so a retry cannot duplicate the Court.
+- **Permissions:** Backend allows `ADMIN` / `OWNER` to upload and delete; `STAFF` may only read.
+
+### Club phone in Admin Court management
+
+- `phone_number` belongs to `Club`, never `Court`. The Admin Court create/edit form retrieves its parent with `GET clubs/{slug}/`, displays `رقم هاتف النادي`, and sends a changed value only through `PATCH clubs/{id}/` before the existing Court save. `CourtPayload` remains phone-free.
 
 ---
 

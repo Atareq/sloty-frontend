@@ -29,9 +29,9 @@ import { RoleRoute } from '../core/auth/RoleRoute'
 import { AppShell } from '../layout/AppShell/AppShell'
 import { PublicSchedulePage } from '../features/publicSchedule/PublicSchedulePage/PublicSchedulePage'
 import { publicScheduleSeo } from '../features/publicSchedule/publicSchedule.seo'
-import { AssiutPage } from '../features/publicSite/AssiutPage/AssiutPage'
+import { AboutPage } from '../features/publicSite/AboutPage/AboutPage'
 import {
-  assiutPageSeo,
+  aboutPageSeo,
   homePageSeo,
 } from '../features/publicSite/publicSite.seo'
 import { SeoRouteBoundary } from '../core/seo/SeoRouteBoundary'
@@ -58,9 +58,9 @@ export const router = createBrowserRouter([
         handle: routeSeo(homePageSeo),
       },
       {
-        path: '/assiut',
-        element: <AssiutPage />,
-        handle: routeSeo(assiutPageSeo),
+        path: '/about',
+        element: <AboutPage />,
+        handle: routeSeo(aboutPageSeo),
       },
       {
         path: '/login',

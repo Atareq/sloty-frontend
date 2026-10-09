@@ -9,7 +9,7 @@ import {
   buildSitemapXml,
   injectPrerenderedPage,
 } from '../core/seo/seoStaticFiles'
-import { AssiutPage } from '../features/publicSite/AssiutPage/AssiutPage'
+import { AboutPage } from '../features/publicSite/AboutPage/AboutPage'
 import { PublicHomePage } from '../features/publicSite/PublicHomePage/PublicHomePage'
 import {
   indexablePublicPages,
@@ -31,7 +31,7 @@ export interface RenderStaticSeoFilesInput {
 /** Page component rendered for every indexable public path. */
 const prerenderPages: Record<IndexablePublicPath, ComponentType> = {
   '/': PublicHomePage,
-  '/assiut/': AssiutPage,
+  '/about/': AboutPage,
 }
 
 function getOutputFileName(path: IndexablePublicPath): string {
@@ -43,9 +43,11 @@ function getOutputFileName(path: IndexablePublicPath): string {
  *
  * Renders each indexable public page with the same React components the
  * client uses, and returns:
- * - `index.html`: dedicated homepage head + markup with full static canonical,
- *   robots (index, follow), Open Graph, JSON-LD, and prerendered HTML for `/`.
- * - `assiut/index.html`: dedicated Assiut page with complete static SEO head.
+ * - `index.html`: dedicated public discovery head + markup with full static
+ *   canonical, robots (index, follow), Open Graph, JSON-LD, and prerendered
+ *   HTML for `/`. The Court list renders its loading state here; real Courts
+ *   load from the public discovery API in the browser.
+ * - `about/index.html`: dedicated About page with complete static SEO head.
  * - `app.html`: clean generic SPA fallback for Nginx / Workbox deep links with
  *   `noindex, nofollow`, empty `#root`, and zero homepage-specific metadata.
  * - `robots.txt` and `sitemap.xml` for the configured public origin.

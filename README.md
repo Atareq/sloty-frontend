@@ -95,7 +95,8 @@ src/
 ├── features/     # Product feature modules (pages, components, feature API wrappers)
 │   ├── schedule/       # Operational Schedule workspace (/schedule)
 │   ├── publicSchedule/ # Guest Public Schedule (/public/.../schedule)
-│   ├── publicSite/     # Public SEO pages (/ for signed-out visitors, /assiut/)
+│   ├── publicSite/     # Public SEO pages (/ discovery for signed-out visitors, /about/)
+│   ├── publicDiscovery/ # Public Court discovery API, mapper, hook, Court cards
 │   ├── bookings/       # Bookings list, action sheets, details
 │   ├── transactions/   # Financial transactions ledger, payments
 │   ├── settlements/    # Employee custody & cash settlement hub
@@ -108,9 +109,9 @@ src/
 └── pwa/          # Service Worker registration, PWA update prompt
 ```
 
-Production builds generate an installable standalone PWA with a static app-shell Service Worker. The manifest launches at `/`, allowing the existing role-aware auth redirect to choose `/login`, `/schedule`, `/select-club`, `/no-club-access`, or Platform Admin routes safely. In a normal browser tab, signed-out visitors at `/` see the public Sloty homepage instead (see [`docs/seo.md`](./docs/seo.md)).
+Production builds generate an installable standalone PWA with a static app-shell Service Worker. The manifest launches at `/`, allowing the existing role-aware auth redirect to choose `/login`, `/schedule`, `/select-club`, `/no-club-access`, or Platform Admin routes safely. In a normal browser tab, signed-out visitors at `/` see public player discovery (Sloty identity and real Courts) instead (see [`docs/seo.md`](./docs/seo.md)).
 
-`npm run build` also prerenders the public pages (`dist/index.html`, `dist/assiut/index.html`) and generates `dist/robots.txt` and `dist/sitemap.xml`. It requires `VITE_PUBLIC_SITE_URL` (set in `.env.production`).
+`npm run build` also prerenders the public pages (`dist/index.html`, `dist/about/index.html`) and generates `dist/robots.txt` and `dist/sitemap.xml`. It requires `VITE_PUBLIC_SITE_URL` (set in `.env.production`).
 ---
 
 The Service Worker precaches compiled JS/CSS/HTML, approved static UI images, and PWA icons. It intentionally defines no runtime cache for authenticated APIs or business responses.

@@ -81,6 +81,7 @@ Supported methods:
 - `slot_duration_minutes`: Slot grid duration interval (typically 60 minutes).
 - `minimum_deposit`: Minimum first payment required to confirm a booking or retained on late cancellation.
 - `requires_digital_payment_reference`: Policy flag enforcing references for InstaPay and E-wallet payments.
+- `صورة الملعب`: One primary Court image, uploaded separately through `clubs/{slug}/courts/{id}/images/` (multipart) after the Court saves; replacing uploads first, then detaches the old image. Backend owns storage and returns public URLs (see `frontend-api-contract.md`).
 
 ### Pricing Rules
 - **Pricing Authority:** The Backend is the sole financial authority for booking totals, slot prices, deposits, and remaining balances. Working Hours pricing periods (`pricing_periods`) are the configuration source edited by operators.
