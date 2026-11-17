@@ -31,3 +31,7 @@ references/*.zip
 
 # Scoped agent documentation
 !src/**/AGENTS.md
+
+# Playwright output
+test-results/
+playwright-report/
