@@ -1,40 +1,33 @@
 # Sloty Frontend
 
-Sloty is a React frontend for an Arabic-first, RTL-first, mobile-first sports court management product.
-Sloty is a React-based frontend for a sports court management system, starting with football courts in Egypt. It is built as an **Arabic-first, RTL-first, mobile-first** Progressive Web Application (PWA).
+Sloty is the web app for a sports court management system, starting with
+football courts in Egypt. It is an **Arabic-first, RTL-first, mobile-first**
+Progressive Web Application for club owners and desk staff, with public court
+discovery for players. It is backed by the
+[Sloty API](https://github.com/Atareq/sloty-backend).
 
-This repository is frontend-only. Do not add backend, Django, database, serializer, model, migration, or API implementation changes here.
-This repository contains frontend code only. Zero backend or Django code lives here.
+This repository contains frontend code only. Backend, database and API
+implementation changes belong in the backend repository.
 
 ## Source of truth
----
 
 1. Current approved local implementation
 2. [`AGENTS.md`](./AGENTS.md) engineering guardrails
 3. Durable product docs under [`docs/`](./docs/): `product-ux-pattern.md`, `product-copy.md`, `interaction-patterns.md`, `ui-reference.md`, `frontend-current-state.md`, `ux-known-gaps.md`
 4. Frontend API wrappers and types under `src/`
-## Tech Stack
 
 `docs/business-analysis.txt`, `docs/documentation.txt`, and `docs/sprints.txt` are historical planning documents. Do not treat them as current frontend architecture.
+
+## Tech Stack
+
 - **Framework:** React 19 + TypeScript (strict mode)
 - **Bundler & Build Tool:** Vite
 - **Styling:** Tailwind CSS (Arabic/RTL-first)
 - **Routing:** React Router 8
 - **State & Storage:** Dexie (IndexedDB `sloty_local_db` version 3) + `vite-plugin-pwa`
-- **Testing:** Vitest + Testing Library
-- **Linting & Formatting:** ESLint + Prettier
+- **Testing:** Vitest + Testing Library; Playwright end-to-end specs in `e2e/` (`npx playwright test`)
+- **Linting:** ESLint
 
-## Stack
----
-
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- React Router
-- ESLint
-- Vitest
-- Testing Library
 ## Getting Started
 
 ### Prerequisites
